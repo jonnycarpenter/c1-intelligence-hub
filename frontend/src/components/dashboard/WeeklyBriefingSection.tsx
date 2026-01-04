@@ -191,6 +191,11 @@ interface SectionCardProps {
 function SectionCard({ section, isFirst = false }: SectionCardProps) {
   const [isExpanded, setIsExpanded] = useState(isFirst) // Auto-expand first section
 
+  // Safe accessors
+  const companies = section.companies_with_logos || []
+  const insights = section.insights || []
+  const articles = section.source_articles || []
+
   return (
     <div className={cn(
       "bg-white border rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-200",
@@ -204,14 +209,14 @@ function SectionCard({ section, isFirst = false }: SectionCardProps) {
           </h3>
 
           {/* Company Logos */}
-          {section.companies_with_logos.length > 0 && (
+          {companies.length > 0 && (
             <div className="flex items-center gap-1">
-              {section.companies_with_logos.slice(0, 5).map((company, idx) => (
+              {companies.slice(0, 5).map((company, idx) => (
                 <CompanyLogo key={idx} company={company} size="sm" />
               ))}
-              {section.companies_with_logos.length > 5 && (
+              {companies.length > 5 && (
                 <span className="text-[10px] text-slate-400 ml-1">
-                  +{section.companies_with_logos.length - 5}
+                  +{companies.length - 5}
                 </span>
               )}
             </div>
@@ -219,18 +224,20 @@ function SectionCard({ section, isFirst = false }: SectionCardProps) {
         </div>
 
         {/* Headline (always visible) */}
-        <InsightItem
-          insight={section.headline}
-          companiesWithLogos={section.companies_with_logos}
-          isHeadline={true}
-        />
+        {section.headline && (
+          <InsightItem
+            insight={section.headline}
+            companiesWithLogos={companies}
+            isHeadline={true}
+          />
+        )}
 
         {/* Sneak Peak (visible when collapsed) */}
-        {!isExpanded && section.insights.length > 0 && (
+        {!isExpanded && insights.length > 0 && (
           <div className="mt-2 relative">
             <InsightItem
-              insight={section.insights[0]}
-              companiesWithLogos={section.companies_with_logos}
+              insight={insights[0]}
+              companiesWithLogos={companies}
               isSneakPeak={true}
             />
             <div className="absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-white to-transparent pointer-events-none" />
@@ -238,7 +245,7 @@ function SectionCard({ section, isFirst = false }: SectionCardProps) {
         )}
 
         {/* Expand/Collapse Button */}
-        {section.insights.length > 0 && (
+        {insights.length > 0 && (
           <button
             onClick={() => setIsExpanded(!isExpanded)}
             className="flex items-center gap-1 text-xs text-amber-600 font-medium hover:text-amber-700 transition-colors mt-1 relative z-10"
@@ -251,7 +258,7 @@ function SectionCard({ section, isFirst = false }: SectionCardProps) {
             ) : (
               <>
                 <ChevronDown size={14} />
-                Show {section.insights.length} more insight{section.insights.length > 1 ? 's' : ''}
+                Show {insights.length} more insight{insights.length > 1 ? 's' : ''}
               </>
             )}
           </button>
@@ -259,27 +266,27 @@ function SectionCard({ section, isFirst = false }: SectionCardProps) {
       </div>
 
       {/* Expandable Insights Tray */}
-      {isExpanded && section.insights.length > 0 && (
+      {isExpanded && insights.length > 0 && (
         <div className="border-t border-slate-100 bg-slate-50/50 p-5 space-y-3">
-          {section.insights.map((insight, idx) => (
+          {insights.map((insight, idx) => (
             <InsightItem
               key={idx}
               insight={insight}
-              companiesWithLogos={section.companies_with_logos}
+              companiesWithLogos={companies}
             />
           ))}
         </div>
       )}
 
       {/* Sources Footer */}
-      {section.source_articles.length > 0 && (
+      {articles.length > 0 && (
         <div className="border-t border-slate-100 px-5 py-3 bg-slate-50">
           <div className="flex items-center gap-2 text-[10px] text-slate-400 uppercase tracking-wider mb-2">
             <span className="font-semibold">Sources</span>
-            <span>({section.source_articles.length})</span>
+            <span>({articles.length})</span>
           </div>
           <div className="flex flex-wrap gap-2">
-            {section.source_articles.slice(0, 5).map((article, idx) => (
+            {articles.slice(0, 5).map((article, idx) => (
               <a
                 key={idx}
                 href={article.url}
@@ -293,9 +300,9 @@ function SectionCard({ section, isFirst = false }: SectionCardProps) {
                 <ExternalLink size={10} className="shrink-0" />
               </a>
             ))}
-            {section.source_articles.length > 5 && (
+            {articles.length > 5 && (
               <span className="text-xs text-slate-400">
-                +{section.source_articles.length - 5} more
+                +{articles.length - 5} more
               </span>
             )}
           </div>
@@ -395,7 +402,7 @@ export default function WeeklyBriefingSection({
 
       {/* Sections */}
       <div className="space-y-4">
-        {briefing.sections.map((section, idx) => (
+        {(briefing.sections || []).map((section, idx) => (
           <SectionCard key={idx} section={section} isFirst={idx === 0} />
         ))}
       </div>

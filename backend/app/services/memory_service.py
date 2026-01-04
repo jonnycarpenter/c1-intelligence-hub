@@ -119,7 +119,7 @@ async def get_org_preferences(user_team: Optional[str] = None) -> Dict[str, List
     try:
         query = f"""
             SELECT preference_id, preference_type, target, description, team
-            FROM `{settings.gcp_project_id}.c1_hub.org_preferences`
+            FROM `{settings.gcp_project_id}.{settings.gcp_dataset_id}.org_preferences`
             WHERE active = TRUE
               AND (team IS NULL OR team = @userTeam)
             ORDER BY 
@@ -170,7 +170,7 @@ async def add_preference(
         
         pref_id = str(uuid.uuid4())
         query = f"""
-            INSERT INTO `{settings.gcp_project_id}.c1_hub.org_preferences`
+            INSERT INTO `{settings.gcp_project_id}.{settings.gcp_dataset_id}.org_preferences`
             (preference_id, preference_type, target, description, team, active, created_by, created_at)
             VALUES (@prefId, @prefType, @target, @description, @team, TRUE, @createdBy, CURRENT_TIMESTAMP())
         """
@@ -205,7 +205,7 @@ async def remove_preference(preference_id: str) -> Dict[str, Any]:
         from google.cloud import bigquery
         
         query = f"""
-            UPDATE `{settings.gcp_project_id}.c1_hub.org_preferences`
+            UPDATE `{settings.gcp_project_id}.{settings.gcp_dataset_id}.org_preferences`
             SET active = FALSE
             WHERE preference_id = @prefId
         """
@@ -261,7 +261,7 @@ async def save_to_memory(
         title = question[:100] if len(question) > 100 else question
         
         query = f"""
-            INSERT INTO `{settings.gcp_project_id}.c1_hub.memory_log`
+            INSERT INTO `{settings.gcp_project_id}.{settings.gcp_dataset_id}.memory_log`
             (memory_id, source, title, content, query, entities, embedding, team, pinned, expires_at, created_by, created_at)
             VALUES (@memoryId, @source, @title, @content, @query, @entities, @embedding, @team, FALSE, @expiresAt, @createdBy, CURRENT_TIMESTAMP())
         """
@@ -345,7 +345,7 @@ async def get_relevant_memories(
                 GREATEST(0.3, 1.0 - (0.7 * TIMESTAMP_DIFF(CURRENT_TIMESTAMP(), created_at, DAY) / 60.0)) AS time_decay,
                 -- Team boost: 1.2x for same team
                 CASE WHEN team = @userTeam THEN 1.2 ELSE 1.0 END AS team_boost
-              FROM `{settings.gcp_project_id}.c1_hub.memory_log`
+              FROM `{settings.gcp_project_id}.{settings.gcp_dataset_id}.memory_log`
               WHERE (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP())
                 AND (pinned = TRUE OR expires_at > CURRENT_TIMESTAMP())
             )
@@ -418,7 +418,7 @@ async def pin_memory(memory_id: str, user_team: str) -> Dict[str, Any]:
         # Check current pin count for team
         count_query = f"""
             SELECT COUNT(*) as pin_count 
-            FROM `{settings.gcp_project_id}.c1_hub.memory_log`
+            FROM `{settings.gcp_project_id}.{settings.gcp_dataset_id}.memory_log`
             WHERE team = @team AND pinned = TRUE
         """
         
@@ -439,7 +439,7 @@ async def pin_memory(memory_id: str, user_team: str) -> Dict[str, Any]:
         
         # Pin the memory (remove expiration)
         pin_query = f"""
-            UPDATE `{settings.gcp_project_id}.c1_hub.memory_log`
+            UPDATE `{settings.gcp_project_id}.{settings.gcp_dataset_id}.memory_log`
             SET pinned = TRUE, expires_at = NULL
             WHERE memory_id = @memoryId
         """
@@ -471,7 +471,7 @@ async def unpin_memory(memory_id: str) -> Dict[str, Any]:
         expires_at = datetime.utcnow() + timedelta(days=MEMORY_EXPIRY_DAYS)
         
         query = f"""
-            UPDATE `{settings.gcp_project_id}.c1_hub.memory_log`
+            UPDATE `{settings.gcp_project_id}.{settings.gcp_dataset_id}.memory_log`
             SET pinned = FALSE, expires_at = @expiresAt
             WHERE memory_id = @memoryId
         """
@@ -538,7 +538,7 @@ async def list_memory_log(
         # Get total count
         count_query = f"""
             SELECT COUNT(*) as total
-            FROM `{settings.gcp_project_id}.c1_hub.memory_log`
+            FROM `{settings.gcp_project_id}.{settings.gcp_dataset_id}.memory_log`
             WHERE (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP() OR pinned = TRUE)
             {team_filter}
             {pinned_filter}
@@ -558,7 +558,7 @@ async def list_memory_log(
                 expires_at,
                 created_by as user_name,
                 created_at
-            FROM `{settings.gcp_project_id}.c1_hub.memory_log`
+            FROM `{settings.gcp_project_id}.{settings.gcp_dataset_id}.memory_log`
             WHERE (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP() OR pinned = TRUE)
             {team_filter}
             {pinned_filter}
@@ -618,7 +618,7 @@ async def delete_memory(memory_id: str) -> Dict[str, Any]:
         from google.cloud import bigquery
         
         query = f"""
-            DELETE FROM `{settings.gcp_project_id}.c1_hub.memory_log`
+            DELETE FROM `{settings.gcp_project_id}.{settings.gcp_dataset_id}.memory_log`
             WHERE memory_id = @memoryId
         """
         
@@ -653,7 +653,7 @@ async def cleanup_expired_memories() -> Dict[str, Any]:
     
     try:
         query = f"""
-            DELETE FROM `{settings.gcp_project_id}.c1_hub.memory_log`
+            DELETE FROM `{settings.gcp_project_id}.{settings.gcp_dataset_id}.memory_log`
             WHERE expires_at IS NOT NULL 
               AND expires_at < CURRENT_TIMESTAMP()
               AND pinned = FALSE

@@ -1,0 +1,66 @@
+# CodeRabbit Configuration
+# https://docs.coderabbit.ai/guides/configure-coderabbit
+
+language: en-US
+
+# Review settings
+reviews:
+  # Enable automatic reviews on PRs
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - master
+      - main
+
+  # Review profile - concise keeps feedback focused
+  profile: chill
+  
+  # Request changes vs comments
+  request_changes_workflow: false
+  
+  # High-level summary at top of review
+  high_level_summary: true
+  
+  # Add poem at end (fun but optional)
+  poem: false
+  
+  # Review scope
+  path_filters:
+    # Include these paths
+    - "backend/**"
+    - "frontend/**"
+    - "deploy/**"
+    
+    # Exclude these paths
+    - "!**/*.lock"
+    - "!**/package-lock.json"
+    - "!**/*.min.js"
+    - "!**/*.min.css"
+    - "!**/node_modules/**"
+    - "!**/__pycache__/**"
+    - "!**/dist/**"
+    - "!**/build/**"
+    - "!**/.next/**"
+    - "!**/chroma_db/**"
+    - "!**/*.sqlite3"
+    - "!**/*.db"
+
+  # Collapse large hunks
+  collapse_walkthrough: true
+
+# Chat settings for @coderabbitai mentions
+chat:
+  auto_reply: true
+
+# Early access features
+early_access: false
+
+# Knowledge base for project context
+knowledge_base:
+  learnings:
+    scope: auto
+  issues:
+    scope: auto
+  pull_requests:
+    scope: auto

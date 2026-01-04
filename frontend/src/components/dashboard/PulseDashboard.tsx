@@ -85,7 +85,7 @@ export default function PulseDashboard({
 
     // Add weekly briefing headlines if available
     if (weeklyBriefing) {
-      context.current_brief_headlines = weeklyBriefing.sections.map(s => s.headline.text)
+      context.current_brief_headlines = (weeklyBriefing.sections || []).map(s => s.headline?.text || '')
       context.current_brief_date = new Date(weeklyBriefing.generated_at).toLocaleDateString('en-US', {
         month: 'short', day: 'numeric', year: 'numeric'
       })
