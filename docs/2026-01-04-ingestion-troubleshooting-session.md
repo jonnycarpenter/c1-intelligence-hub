@@ -268,6 +268,12 @@ Invoke-RestMethod -Uri "https://c1-hub-4iz75bvpyq-uc.a.run.app/api/v1/scheduler/
 bq query --nouse_legacy_sql "SELECT COUNT(*) FROM gen-lang-client-0436975498.c1_intelligence.articles"
 ```
 
+### Check Cloud Build Status
+```powershell
+# Cloud Build runs in us-central1 region (not global)
+gcloud builds list --region=us-central1 --limit=5 --format="table(id,status,createTime,duration)"
+```
+
 ---
 
 ## 8. CLOUD BUILD TRIGGER

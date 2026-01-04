@@ -75,8 +75,9 @@ echo -n "your-fmp-key" | gcloud secrets versions add fmp-api-key --data-file=-
 echo -n "your-api-ninja-key" | gcloud secrets versions add api-ninja-key --data-file=-
 echo -n "your-tavily-key" | gcloud secrets versions add tavily-api-key --data-file=-
 
-# 3. Deploy to Cloud Run
+# 3. Deploy to Cloud Run (builds run in us-central1)
 gcloud builds submit --config=deploy/cloudbuild.yaml \
+  --region=us-central1 \
   --substitutions=_DATA_BUCKET=YOUR_PROJECT_ID-c1-hub-data
 
 # 4. Deploy scheduler jobs (after Cloud Run is up)
@@ -97,8 +98,9 @@ terraform apply -var="project_id=YOUR_PROJECT_ID"
 
 # 3. Add API keys (see output from terraform apply)
 
-# 4. Deploy to Cloud Run
+# 4. Deploy to Cloud Run (builds run in us-central1)
 gcloud builds submit --config=../cloudbuild.yaml \
+  --region=us-central1 \
   --substitutions=_DATA_BUCKET=$(terraform output -raw data_bucket_name)
 
 # 5. Enable scheduler jobs
@@ -214,6 +216,16 @@ LIMIT 50;
 ```
 
 ## Monitoring
+
+### Check Cloud Build Status
+
+```bash
+# List recent builds (note: builds are in us-central1 region)
+gcloud builds list --region=us-central1 --limit=5
+
+# Check a specific build
+gcloud builds describe BUILD_ID --region=us-central1
+```
 
 ### Cloud Run Metrics
 - **Request latency**: Should be < 2s for API calls, < 30s for collection jobs
