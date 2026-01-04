@@ -57,7 +57,16 @@ def run_gcloud_logs(filter_query: str, limit: int = 200) -> List[str]:
     cmd = f'"{GCLOUD_PATH}" logging read "{full_filter_escaped}" --project={PROJECT_ID} --limit={limit} --format=json'
     
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, shell=True)
+        # TIMEOUT ENFORCED: 45 seconds
+        # stdin=DEVNULL prevents gcloud from waiting for user input
+        result = subprocess.run(
+            cmd, 
+            capture_output=True, 
+            text=True, 
+            timeout=45, 
+            shell=True,
+            stdin=subprocess.DEVNULL
+        )
         if result.returncode != 0:
             print(f"Warning: gcloud command failed: {result.stderr[:200]}")
             return []
@@ -68,7 +77,7 @@ def run_gcloud_logs(filter_query: str, limit: int = 200) -> List[str]:
         logs = json.loads(result.stdout)
         return logs
     except subprocess.TimeoutExpired:
-        print("Warning: gcloud command timed out")
+        print("Warning: gcloud command timed out after 45s")
         return []
     except json.JSONDecodeError:
         print("Warning: Could not parse gcloud output")
@@ -85,7 +94,15 @@ def run_bq_query(query: str) -> List[Dict]:
     cmd = f'"{BQ_PATH}" query --use_legacy_sql=false --project_id={PROJECT_ID} --format=json "{escaped_query}"'
     
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, shell=True)
+        # TIMEOUT ENFORCED: 45 seconds
+        result = subprocess.run(
+            cmd, 
+            capture_output=True, 
+            text=True, 
+            timeout=45, 
+            shell=True,
+            stdin=subprocess.DEVNULL
+        )
         if result.returncode != 0:
             return []
         

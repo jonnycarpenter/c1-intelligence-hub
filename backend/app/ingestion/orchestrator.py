@@ -138,10 +138,23 @@ class IngestionOrchestrator:
         self._initialized = True
         logger.info("Ingestion orchestrator initialized")
     
-    async def run_full_ingestion(self, backfill_days: int = None) -> IngestionStats:
-        """Run the complete ingestion pipeline"""
+    async def run_full_ingestion(self, backfill_days: int = None, sources: List[str] = None) -> IngestionStats:
+        """
+        Run the ingestion pipeline with selective source filtering.
+        
+        Args:
+            backfill_days: Number of days to backfill (optional)
+            sources: List of sources to run. If None, runs ALL sources.
+                     Options: "rss", "tavily", "sec", "earnings", "stocknews", "freight", "press_releases"
+        """
         if not self._initialized:
             await self.initialize()
+        
+        # Default to ALL sources if none provided
+        if not sources:
+            sources = ["rss", "tavily", "sec", "earnings", "stocknews", "freight", "press_releases"]
+            
+        logger.info(f"Starting ingestion run with sources: {sources}")
         
         # Logging Setup
         run_id = str(uuid.uuid4())
@@ -153,7 +166,7 @@ class IngestionOrchestrator:
                 event_type="STARTED",
                 job_type=job_type,
                 status="started",
-                metadata={"backfill_days": backfill_days}
+                metadata={"backfill_days": backfill_days, "sources": sources}
             )
         except Exception as e:
             logger.warning(f"Failed to log ingestion start: {e}")
@@ -162,46 +175,50 @@ class IngestionOrchestrator:
         
         try:
             # Step 1: Fetch RSS
-            logger.info("Step 1: Fetching RSS feeds...")
-            # For RSS, simple backfill usually doesn't work deep, but we pass parameter anyway
-            rss_articles = await self.rss_fetcher.fetch_all_feeds(days_back=backfill_days)
-            stats.rss_articles_fetched = len(rss_articles)
+            if "rss" in sources:
+                logger.info("Step 1: Fetching RSS feeds...")
+                # For RSS, simple backfill usually doesn't work deep, but we pass parameter anyway
+                rss_articles = await self.rss_fetcher.fetch_all_feeds(days_back=backfill_days)
+                stats.rss_articles_fetched = len(rss_articles)
+            else:
+                rss_articles = []
+                logger.info("Skipping RSS (not in sources)")
             
             # Step 1b: Fetch Freight Rates (Drewry WCI)
-            logger.info("Step 1b: Fetching Drewry Freight Rates...")
-            try:
-                freight_rates = await self.drewry_scraper.fetch_latest_rates()
-                if freight_rates:
-                    from app.db.gcp_storage import FreightRateRecord
-                    records = [
-                        FreightRateRecord(
-                            date=r.as_of.strftime("%Y-%m-%d"),
-                            source="drewry_wci",
-                            lane_code=r.lane.replace(" - ", "_").upper(),
-                            lane_display=r.lane,
-                            rate_usd=r.rate,
-                            change_wow_pct=r.change_pct,
-                            change_direction="up" if (r.change_pct or 0) > 0 else "down" if (r.change_pct or 0) < 0 else "flat",
-                            narrative=f"Spot rates for {r.lane} at ${r.rate:,.0f}"
-                        )
-                        for r in freight_rates
-                    ]
-                    # Update stats if we add a field, for now just log
-                    stored_rates = await self.gcp_storage.store_freight_rates(records)
-                    logger.info(f"Stored {stored_rates} freight rates in BigQuery")
-            except Exception as e:
-                logger.error(f"Error in freight rate ingestion: {e}")
-                stats.errors.append(f"Freight rates error: {str(e)[:100]}")
+            if "freight" in sources:
+                logger.info("Step 1b: Fetching Drewry Freight Rates...")
+                try:
+                    freight_rates = await self.drewry_scraper.fetch_latest_rates()
+                    if freight_rates:
+                        from app.db.gcp_storage import FreightRateRecord
+                        records = [
+                            FreightRateRecord(
+                                date=r.as_of.strftime("%Y-%m-%d"),
+                                source="drewry_wci",
+                                lane_code=r.lane.replace(" - ", "_").upper(),
+                                lane_display=r.lane,
+                                rate_usd=r.rate,
+                                change_wow_pct=r.change_pct,
+                                change_direction="up" if (r.change_pct or 0) > 0 else "down" if (r.change_pct or 0) < 0 else "flat",
+                                narrative=f"Spot rates for {r.lane} at ${r.rate:,.0f}"
+                            )
+                            for r in freight_rates
+                        ]
+                        # Update stats if we add a field, for now just log
+                        stored_rates = await self.gcp_storage.store_freight_rates(records)
+                        logger.info(f"Stored {stored_rates} freight rates in BigQuery")
+                except Exception as e:
+                    logger.error(f"Error in freight rate ingestion: {e}")
+                    stats.errors.append(f"Freight rates error: {str(e)[:100]}")
+            else:
+                logger.info("Skipping Freight Rates (not in sources)")
             
             # Step 2: Fetch Financial Data (PRs + SEC + Earnings) and Web Search
-            logger.info("Step 2: Fetching Tiered Data (PR, SEC, Earnings, Web)...")
+            logger.info("Step 2: Fetching Tiered Data...")
             
             companies = await self._get_tracked_companies()
             
             # Date Logic
-            # Default: 3-day lookback for normal scheduled runs
-            # backfill_days: Use the specified number of days for lookback
-            
             if backfill_days:
                 # Backfill mode: use the specified days for both tiers
                 tier1_since = datetime.utcnow() - timedelta(days=backfill_days)
@@ -215,17 +232,19 @@ class IngestionOrchestrator:
                 search_num_days = 3  # Default 3-day search window
 
             # 2a. Press Releases (Tavily) - Tier 2
-            logger.info(f"Fetching PRs (Since {tier2_since.date()})...")
-            # Increase limit if backfilling
-            pr_limit = 20 if backfill_days else None
-            pr_items = self.pr_collector.collect_batch(companies, limit=pr_limit, num_days=backfill_days) 
-            # Filter by date (normalize to naive UTC for comparison)
-            pr_items = [pr for pr in pr_items if not pr.published_date or _make_naive_utc(pr.published_date) >= tier2_since]
-            stats.pr_articles_fetched = len(pr_items)
+            pr_items = []
+            if "press_releases" in sources:
+                logger.info(f"Fetching PRs (Since {tier2_since.date()})...")
+                # Increase limit if backfilling
+                pr_limit = 20 if backfill_days else None
+                pr_items = self.pr_collector.collect_batch(companies, limit=pr_limit, num_days=backfill_days) 
+                # Filter by date (normalize to naive UTC for comparison)
+                pr_items = [pr for pr in pr_items if not pr.published_date or _make_naive_utc(pr.published_date) >= tier2_since]
+                stats.pr_articles_fetched = len(pr_items)
             
             # 2b. SEC Filings - Tier 1
             sec_items = []
-            if self.config.sec_api_key or os.getenv("SEC_IO_KEY"):
+            if "sec" in sources and (self.config.sec_api_key or os.getenv("SEC_IO_KEY")):
                 logger.info(f"Fetching SEC filings (Since {tier1_since.date()})...")
                 for comp in companies:
                     if not comp.get("ticker"): continue
@@ -242,7 +261,7 @@ class IngestionOrchestrator:
             
             # 2c. Earnings Transcripts - Tier 1
             earnings_items = []
-            if os.getenv("API_NINJA_KEY") or getattr(self.config, 'api_ninja_key', None): # Check config if added
+            if "earnings" in sources and (os.getenv("API_NINJA_KEY") or getattr(self.config, 'api_ninja_key', None)):
                  logger.info(f"Fetching Earnings Transcripts (Since {tier1_since.date()})...")
                  for comp in companies:
                     if not comp.get("ticker"): continue
@@ -259,7 +278,7 @@ class IngestionOrchestrator:
             
             # 2e. StockNewsAPI Premium Financial News - Tier 2
             stocknews_items = []
-            if self.config.stocknews_api_key or os.getenv("STOCKNEWS_API_KEY"):
+            if "stocknews" in sources and (self.config.stocknews_api_key or os.getenv("STOCKNEWS_API_KEY")):
                 logger.info(f"Fetching StockNewsAPI articles (Since {tier2_since.date()})...")
                 try:
                     # Collect both ticker-based and keyword news
@@ -276,96 +295,89 @@ class IngestionOrchestrator:
                     stats.errors.append(f"StockNewsAPI error: {str(e)[:100]}")
             
             # 2f. General Web Search (Exa) - Tier 2
-            # Two-pronged approach:
-            #   1. Industry-wide queries (supply chain, M&A, emerging apps, etc.)
-            #   2. Per-company specific news searches
             web_items = []
-            logger.info(f"Fetching General Web News (Since {tier2_since.date()})...")
-            
-            # --- PART 1: Industry-Wide Queries (Split: Exa + Tavily) ---
-            # Loop 1: Exa Critical Queries (High Quality)
-            exa_queries = get_all_exa_queries_v2()
-            logger.info(f"Running {len(exa_queries)} Exa critical queries...")
-            
-            for iq in exa_queries:
-                try:
-                    # Use Exa (via pr_collector.client)
-                    results = self.pr_collector.client.search(
-                        query=iq.query,
-                        max_results=iq.max_results,
-                        search_depth=iq.search_depth,
-                        include_domains=None,
-                        num_days=search_num_days,
-                        category=iq.exa_category or "news"
-                    )
-                    logger.info(f"Exa Query [{iq.category}]: '{iq.query[:40]}...' -> {len(results)} results")
-                    for res in results:
-                        industry_company = {
-                            "id": None,
-                            "name": f"Industry:{iq.category}",
-                            "stock_ticker": None
-                        }
-                        article = self._convert_search_result_to_article(res, industry_company, search_engine="exa")
-                        article.raw_data["industry_query"] = iq.query
-                        article.raw_data["industry_category"] = iq.category
-                        web_items.append(article)
-                except Exception as e:
-                    logger.error(f"Exa query failed '{iq.query[:30]}...': {e}")
+            if "tavily" in sources:  # We use 'tavily' as the generic key for 'web search'
+                logger.info(f"Fetching General Web News (Since {tier2_since.date()})...")
+                
+                # --- PART 1: Industry-Wide Queries (Split: Exa + Tavily) ---
+                # Loop 1: Exa Critical Queries (High Quality)
+                exa_queries = get_all_exa_queries_v2()
+                logger.info(f"Running {len(exa_queries)} Exa critical queries...")
+                
+                for iq in exa_queries:
+                    try:
+                        # Use Exa (via pr_collector.client)
+                        results = self.pr_collector.client.search(
+                            query=iq.query,
+                            max_results=iq.max_results,
+                            search_depth=iq.search_depth,
+                            include_domains=None,
+                            num_days=search_num_days,
+                            category=iq.exa_category or "news"
+                        )
+                        logger.info(f"Exa Query [{iq.category}]: '{iq.query[:40]}...' -> {len(results)} results")
+                        for res in results:
+                            industry_company = {
+                                "id": None,
+                                "name": f"Industry:{iq.category}",
+                                "stock_ticker": None
+                            }
+                            article = self._convert_search_result_to_article(res, industry_company, search_engine="exa")
+                            article.raw_data["industry_query"] = iq.query
+                            article.raw_data["industry_category"] = iq.category
+                            web_items.append(article)
+                    except Exception as e:
+                        logger.error(f"Exa query failed '{iq.query[:30]}...': {e}")
 
-            # Loop 2: Tavily Broadening Queries (Monitoring)
-            tavily_queries = get_all_tavily_queries_v2()
-            logger.info(f"Running {len(tavily_queries)} Tavily monitoring queries...")
-            
-            for iq in tavily_queries:
-                try:
-                    # Use Tavily Client
-                    # Note: Tavily search doesn't support 'category' or 'num_days' directly in the same way
-                    results = self.tavily_client.search(
-                        query=iq.query,
-                        max_results=iq.max_results,
-                        search_depth=iq.search_depth,
-                        include_domains=None
-                    )
-                    logger.info(f"Tavily Query [{iq.category}]: '{iq.query[:40]}...' -> {len(results)} results")
-                    for res in results:
-                        industry_company = {
-                            "id": None,
-                            "name": f"Industry:{iq.category}",
-                            "stock_ticker": None
-                        }
-                        article = self._convert_search_result_to_article(res, industry_company, search_engine="tavily")
-                        article.raw_data["industry_query"] = iq.query
-                        article.raw_data["industry_category"] = iq.category
-                        web_items.append(article)
-                except Exception as e:
-                    logger.error(f"Tavily query failed '{iq.query[:30]}...': {e}")
-            
-            logger.info(f"Total industry queries returned {len(web_items)} articles")
-            
-            # --- PART 2: Per-Company Specific News ---
-            # These find news mentioning tracked companies by name
-            company_web_count = 0
-            for comp in companies:
-                query = f"{comp['name']} news"
-                try:
-                    results = self.pr_collector.client.search(
-                        query=query, 
-                        max_results=3,  # Reduced since we have industry queries now
-                        search_depth="basic", 
-                        include_domains=None,
-                        num_days=search_num_days,  # Filter by date at API level
-                        category="news"  # Exa news category for better relevance
-                    )
-                    logger.info(f"Company Query: '{comp['name']}' -> {len(results)} results")
-                    for res in results:
-                        web_items.append(self._convert_search_result_to_article(res, comp, search_engine="exa"))
-                        company_web_count += 1
-                except Exception as e:
-                    logger.error(f"Web search failed for {comp['name']}: {e}")
-            
-            logger.info(f"Per-company queries returned {company_web_count} articles")
-            logger.info(f"Total web news articles: {len(web_items)}")
-            stats.web_articles_fetched = len(web_items)
+                # Loop 2: Tavily Broadening Queries (Monitoring)
+                tavily_queries = get_all_tavily_queries_v2()
+                logger.info(f"Running {len(tavily_queries)} Tavily monitoring queries...")
+                
+                for iq in tavily_queries:
+                    try:
+                        # Use Tavily Client
+                        results = self.tavily_client.search(
+                            query=iq.query,
+                            max_results=iq.max_results,
+                            search_depth=iq.search_depth,
+                            include_domains=None
+                        )
+                        logger.info(f"Tavily Query [{iq.category}]: '{iq.query[:40]}...' -> {len(results)} results")
+                        for res in results:
+                            industry_company = {
+                                "id": None,
+                                "name": f"Industry:{iq.category}",
+                                "stock_ticker": None
+                            }
+                            article = self._convert_search_result_to_article(res, industry_company, search_engine="tavily")
+                            article.raw_data["industry_query"] = iq.query
+                            article.raw_data["industry_category"] = iq.category
+                            web_items.append(article)
+                    except Exception as e:
+                        logger.error(f"Tavily query failed '{iq.query[:30]}...': {e}")
+                
+                # --- PART 2: Per-Company Specific News ---
+                company_web_count = 0
+                for comp in companies:
+                    query = f"{comp['name']} news"
+                    try:
+                        results = self.pr_collector.client.search(
+                            query=query, 
+                            max_results=3,  # Reduced since we have industry queries now
+                            search_depth="basic", 
+                            include_domains=None,
+                            num_days=search_num_days,  # Filter by date at API level
+                            category="news"  # Exa news category for better relevance
+                        )
+                        for res in results:
+                            web_items.append(self._convert_search_result_to_article(res, comp, search_engine="exa"))
+                            company_web_count += 1
+                    except Exception as e:
+                        logger.error(f"Web search failed for {comp['name']}: {e}")
+                
+                logger.info(f"Per-company queries returned {company_web_count} articles")
+                logger.info(f"Total web news articles: {len(web_items)}")
+                stats.web_articles_fetched = len(web_items)
             
             
             # Convert to RawArticle (StockNewsAPI items already converted above)
@@ -375,11 +387,7 @@ class IngestionOrchestrator:
             web_items_all_count = len(web_items)
             stocknews_items_all_count = len(stocknews_items)
             
-            # Filter Tier 2 by date (since search/PR might return older items)
-            # IMPORTANT: Only include items WITH a valid published_at that falls within the window
-            # Items without a reliable published_at should be excluded to avoid old articles appearing new
-            # Also reject future dates (often from market reports with projection years like "2033")
-            # Normalize to naive UTC for safe comparison
+            # Filter Tier 2 by date logic (same as before)
             now_utc = datetime.utcnow()
             
             def is_valid_date(article) -> bool:
@@ -399,19 +407,14 @@ class IngestionOrchestrator:
             web_items = [a for a in web_items if is_valid_date(a)]
             stocknews_filtered = [a for a in stocknews_items if is_valid_date(a)]
             
-            # Log how many were filtered out due to missing/old/future dates
-            pr_filtered = len(converted_prs_all) - len(converted_prs)
-            web_filtered = web_items_all_count - len(web_items)
-            stocknews_date_filtered = stocknews_items_all_count - len(stocknews_filtered)
-            if pr_filtered > 0:
-                logger.info(f"Filtered out {pr_filtered} PRs with missing, old, or future publication dates")
-            if web_filtered > 0:
-                logger.info(f"Filtered out {web_filtered} web articles with missing, old, or future publication dates")
-            if stocknews_date_filtered > 0:
-                logger.info(f"Filtered out {stocknews_date_filtered} StockNewsAPI articles with missing, old, or future dates")
-            
             all_articles = rss_articles + converted_prs + converted_sec + converted_earnings + web_items + stocknews_filtered
             logger.info(f"Total articles to process: {len(all_articles)}")
+            
+            if not all_articles:
+                logger.info("No articles found in this run. Skipping processing.")
+                stats.completed_at = datetime.utcnow()
+                stats.status = "completed"
+                return stats
             
             # Step 3: Deduplicate
             logger.info("Step 3: Deduplicating...")
@@ -427,16 +430,12 @@ class IngestionOrchestrator:
             
             # Step 4: Enrich
             logger.info("Step 4: Enriching articles...")
-            # If backfilling, we might skip enrichment to save time/cost, or enrich all.
-            # Let's enrich a reasonable batch.
             limit = 200 if backfill_days else 50
-            articles_to_enrich = unique_articles[:limit]  # Enrichment target
+            articles_to_enrich = unique_articles[:limit]
             enriched_articles = await self.scraper.enrich_articles(articles_to_enrich)
             stats.articles_enriched = len([a for a in enriched_articles if a.full_text])
-            logger.info(f"Step 4: Enrichment complete - {stats.articles_enriched}/{len(articles_to_enrich)} articles successfully enriched")
             
-            # Combine enriched articles with the rest (unenriched)
-            # The first 'limit' articles are now in 'enriched_articles'
+            # Combine
             final_articles = enriched_articles + unique_articles[limit:]
             
             # Step 5: Classify
@@ -444,17 +443,14 @@ class IngestionOrchestrator:
             classified = await self.classifier.classify_batch(final_articles)
             stats.articles_classified = len(classified)
             
-            # Step 5b: Image Enrichment (extract charts/graphs for high-priority articles)
+            # Step 5b: Image Enrichment
             all_extracted_images = []
             if self.image_enricher and self.config.enable_image_enrichment:
                 logger.info("Step 5b: Extracting images from high-priority articles...")
-                
-                # Select articles for image enrichment (high relevance or high priority)
-                # Limit to avoid excessive API calls
                 image_enrichment_limit = 20 if not backfill_days else 10
                 articles_for_images = [
                     {
-                        "id": str(uuid.uuid4()),  # Generate ID for image linking
+                        "id": str(uuid.uuid4()),
                         "title": article.title,
                         "url": article.url,
                         "summary": article.summary or "",
@@ -471,23 +467,19 @@ class IngestionOrchestrator:
                             articles_for_images,
                             max_concurrent=3,
                         )
-                        
-                        # Flatten all images for storage
                         for article_id, images in image_results.items():
                             for img in images:
                                 all_extracted_images.append(img.to_dict())
-                        
                         stats.images_extracted = len(all_extracted_images)
-                        logger.info(f"Extracted {len(all_extracted_images)} images from {len(image_results)} articles")
                     except Exception as e:
                         logger.error(f"Image enrichment error: {e}")
-                        stats.errors.append(f"Image enrichment error: {str(e)[:100]}")
             
-            # Step 6: Link & Store (BigQuery only)
-            logger.info("Step 6: Linking entities and storing...")
+            # Step 6: Link & Store
+            logger.info("Step 6: Linking and storing...")
             stored_count = 0
             vector_docs = []
-            article_records = []  # For BigQuery articles table
+            article_records = []
+            digest_items_for_ui = [] # For Digest Feed (Drumbeat)
             
             for article, classification in classified:
                 mentions = self.entity_linker.link_article(article)
@@ -496,90 +488,74 @@ class IngestionOrchestrator:
                 try:
                     stored_count += 1
                     vector_docs.append(corpus_item)
-                    
-                    # Build ArticleRecord for BigQuery articles table
                     article_records.append(self._create_article_record(article, classification))
+                    
+                    # Prepare Digest Item
+                    article_id = str(uuid.uuid4())
+                    digest_item = {
+                        "article_id": article_id,
+                        "title": article.title,
+                        "url": article.url,
+                        "published_at": article.published_at.isoformat() if article.published_at else None,
+                        "source_name": article.source_name,
+                        "source_type": article.source_type,
+                        "category": classification.primary_category.value if classification.primary_category else "market",
+                        "priority": classification.priority.value if classification.priority else "medium",
+                        "digest_summary": classification.summary,
+                        "original_summary": article.summary,
+                        "companies": classification.companies or classification.key_entities,
+                        "materials": classification.materials or [],
+                        "topics": [c.value for c in classification.categories] if classification.categories else [],
+                        "industries": [i.value for i in classification.industries] if classification.industries else [],
+                        "relevance_score": classification.relevance_score,
+                        "confidence": classification.confidence,
+                        "classifier_model": self.config.classifier_model,
+                        "classified_at": datetime.utcnow().isoformat(),
+                    }
+                    digest_items_for_ui.append(digest_item)
+                    
                 except Exception as e:
-                    stats.errors.append(f"Storage error: {str(e)[:100]}")
+                    stats.errors.append(f"Storage prep error: {str(e)[:100]}")
             
             stats.articles_stored = stored_count
             
-            # Step 6a: Store articles in BigQuery articles table
-            logger.info("Step 6a: Storing articles in BigQuery...")
+            # Step 6a: Store articles in BigQuery
             if article_records:
                 try:
-                    bq_articles_stored = await self.gcp_storage.store_articles(article_records)
-                    logger.info(f"Stored {bq_articles_stored} articles in BigQuery articles table")
+                    await self.gcp_storage.store_articles(article_records)
                 except Exception as e:
-                    logger.error(f"BigQuery articles storage error: {e}")
-                    stats.errors.append(f"BQ articles error: {str(e)[:100]}")
+                    logger.error(f"BQ articles storage error: {e}")
             
-            # Step 6b: Store extracted images in BigQuery article_images table
+            # Step 6b: Store images
             if all_extracted_images:
-                logger.info(f"Step 6b: Storing {len(all_extracted_images)} extracted images in BigQuery...")
                 try:
-                    images_stored = await self.gcp_storage.store_article_images(all_extracted_images)
-                    logger.info(f"Stored {images_stored} images in BigQuery article_images table")
+                    await self.gcp_storage.store_article_images(all_extracted_images)
                 except Exception as e:
-                    logger.error(f"BigQuery images storage error: {e}")
-                    stats.errors.append(f"BQ images error: {str(e)[:100]}")
+                    logger.error(f"BQ images storage error: {e}")
             
-            # Step 6c: Store digest items for UI digest cards (BigQuery digest_items table)
-            logger.info("Step 6c: Storing digest items in BigQuery...")
-            digest_items_for_ui = []
-            for article, classification in classified:
-                article_id = str(uuid.uuid4())
-                digest_item = {
-                    "article_id": article_id,
-                    "title": article.title,
-                    "url": article.url,
-                    "published_at": article.published_at.isoformat() if article.published_at else None,
-                    "source_name": article.source_name,
-                    "source_type": article.source_type,
-                    "category": classification.primary_category.value if classification.primary_category else "market",
-                    "priority": classification.priority.value if classification.priority else "medium",
-                    "digest_summary": classification.summary,
-                    "original_summary": article.summary,
-                    "companies": classification.companies or classification.key_entities,
-                    "materials": classification.materials or [],
-                    "topics": [c.value for c in classification.categories] if classification.categories else [],
-                    "industries": [i.value for i in classification.industries] if classification.industries else [],
-                    "relevance_score": classification.relevance_score,
-                    "confidence": classification.confidence,
-                    "classifier_model": self.config.classifier_model,
-                    "classified_at": datetime.utcnow().isoformat(),
-                }
-                digest_items_for_ui.append(digest_item)
-            
+            # Step 6c: Store digest items (Drumbeat Feed)
             if digest_items_for_ui:
                 try:
-                    stored_digest_items = await self.gcp_storage.store_digest_items(digest_items_for_ui)
-                    logger.info(f"Stored {stored_digest_items} digest items in BigQuery digest_items table")
+                    await self.gcp_storage.store_digest_items(digest_items_for_ui)
                 except Exception as e:
-                    logger.error(f"BigQuery digest_items storage error: {e}")
-                    stats.errors.append(f"BQ digest_items error: {str(e)[:100]}")
-            
-            # Step 7: Update vector stores (ChromaDB + BigQuery article_embeddings)
-            logger.info("Step 7: Updating vector stores...")
-            
-            # Step 7: Update vector stores (Environment-aware)
-            logger.info("Step 7: Updating vector stores...")
-            
+                    logger.error(f"BQ digest items storage error: {e}")
+
+            # Step 7: Update vector stores
             try:
-                # Add to vector store (BigQuery in prod, Chroma in dev)
                 count = await self.vector_store.add_items(vector_docs)
                 logger.info(f"Added {count} items to vector store")
             except Exception as e:
                 logger.error(f"Vector store error: {e}")
-                stats.errors.append(f"Vector store error: {str(e)[:100]}")
             
-            # Step 8: Generate digest and briefings (only if not backfilling wide range)
+            # Step 8: Generate Digest (Drumbeat)
+            # This generates the "feed cards" for the UI. We KEEP this as it's data-dependent.
+            # We REMOVE the "Pulse Briefing" generation (Agent 1 & 2) as that is now a separate job.
             if not backfill_days or backfill_days <= 3:
-                logger.info("Step 8: Generating digest...")
+                logger.info("Step 8: Generating digest feed (Drumbeat)...")
                 await self.digest_generator.generate(hours=self.config.digest_hours)
                 
-                logger.info("Step 9: Generating Pulse briefings...")
-                await self.briefing_generator.generate_all_categories(days=30)
+                # NOTE: Briefing generation (Pulse - Need to Know) is now handled 
+                # by a separate scheduled job calling /api/v1/scheduler/briefing
             
             stats.completed_at = datetime.utcnow()
             stats.status = "completed"
@@ -592,7 +568,7 @@ class IngestionOrchestrator:
                     job_type=job_type,
                     status="success",
                     metrics={
-                        "fetched": stats.total_articles_fetched if hasattr(stats, 'total_articles_fetched') else 0,
+                        "fetched": len(all_articles),
                         "stored": stats.articles_stored,
                         "errors": len(stats.errors)
                     }
@@ -608,7 +584,6 @@ class IngestionOrchestrator:
             stats.status = "failed"
             stats.completed_at = datetime.utcnow()
             
-            # Log failure
             try:
                 await self.gcp_storage.log_ingestion_event(
                     run_id=run_id,

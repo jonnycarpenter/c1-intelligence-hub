@@ -31,7 +31,7 @@ def print_banner(text: str, char: str = "="):
     print(char * 80)
     print()
 
-def run_script(script_name: str, args: list = None) -> bool:
+def run_script(script_name: str, args: list = None, timeout: int = 300) -> bool:
     """Run a Python script and return success status."""
     script_dir = os.path.dirname(os.path.abspath(__file__))
     script_path = os.path.join(script_dir, script_name)
@@ -45,8 +45,12 @@ def run_script(script_name: str, args: list = None) -> bool:
         cmd.extend(args)
     
     try:
-        result = subprocess.run(cmd, cwd=script_dir)
+        # Run with timeout (default 5 minutes)
+        result = subprocess.run(cmd, cwd=script_dir, timeout=timeout)
         return result.returncode == 0
+    except subprocess.TimeoutExpired:
+        print(f"❌ Error: {script_name} timed out after {timeout} seconds")
+        return False
     except Exception as e:
         print(f"❌ Error running {script_name}: {e}")
         return False

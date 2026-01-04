@@ -1,5 +1,22 @@
 # Production Deployment Checklist
 
+> **Last Updated:** January 4, 2026
+
+## New Features (Jan 2026)
+
+### Login Gate ✅
+- Password: `partnership2026` (set via `cloudbuild.yaml`)
+- Team selection: Sales East, Sales West, Marketing, Product/Supplier, All Others
+- User badge shows in header
+
+### Long-Term Memory 🟡 (Partial)
+- BigQuery tables created: `c1_intelligence.org_preferences`, `c1_intelligence.memory_log`
+- Save to Memory button in Quick Brief (needs testing)
+- Memory tab displays saved items
+- **Not yet integrated:** Agent doesn't use memory context yet
+
+---
+
 ## Pre-Deployment Verification
 
 ### ✅ Backfill Status
@@ -92,6 +109,17 @@ gcloud logging read "resource.type=cloud_run_revision AND resource.labels.servic
 - [ ] Verify digest cards visible with backfilled data
 - [ ] Check "Need to Know" briefing (may be empty until next weekly generation)
 - [ ] Test ad-hoc briefing ("Ask me anything")
+
+**D. Login Gate**
+- [ ] Verify password gate appears on first visit
+- [ ] Test with password: `partnership2026`
+- [ ] Verify team selection works
+- [ ] Check user badge appears in header after login
+
+**E. Memory Tab**
+- [ ] Test saving a briefing to memory (bookmark icon)
+- [ ] Verify Memory tab shows saved items
+- [ ] Test pin/unpin functionality
 
 **D. Data Integrity**
 - [ ] Run `python scripts/production_dashboard.py --days 7`

@@ -1,5 +1,10 @@
 # C1 Intelligence Hub: MVP Long Term Memory
 
+> **Implementation Status: 🟡 Partial - On Hold**
+> 
+> Core backend complete, frontend integration in progress. Paused for higher-priority work.
+> See [Implementation Status](#implementation-status) section for details.
+
 ## Overview
 
 A minimal memory system for the C1 Intelligence Hub that enables:
@@ -53,12 +58,15 @@ The memory system should create moments where the AI demonstrates it's been payi
 
 ## Database Schema
 
+> **Note:** Tables created in `c1_intelligence` dataset (not `c1_hub` as shown below).
+> Actual dataset is controlled by `GCP_DATASET_ID` env var.
+
 ### Table 1: org_preferences
 
 Stores manual user preferences. Small, always loaded into agent context.
 
 ```sql
-CREATE TABLE `c1_hub.org_preferences` (
+CREATE TABLE `c1_intelligence.org_preferences` (
   preference_id STRING NOT NULL,
   preference_type STRING NOT NULL,      -- 'prioritize' or 'block'
   target STRING NOT NULL,               -- entity/topic (e.g., "resin pricing", "AOC")
@@ -84,7 +92,7 @@ CREATE TABLE `c1_hub.org_preferences` (
 Stores saved briefings and exported research. Uses Vertex AI embeddings for retrieval.
 
 ```sql
-CREATE TABLE `c1_hub.memory_log` (
+CREATE TABLE `c1_intelligence.memory_log` (
   memory_id STRING NOT NULL,
   source STRING NOT NULL,               -- 'pulse_briefing' or 'research_export'
   title STRING,                         -- brief label for UI display
@@ -1220,17 +1228,17 @@ The frontend calls these endpoints (need backend implementation):
 - [x] POST `/api/memory/cleanup` - Cleanup job with job key auth (memory.py router)
 
 ### Frontend - Login
-- [ ] Add team dropdown to PasswordGate (c1-simple-login.md)
-- [ ] Store team in sessionStorage
+- [x] Add team dropdown to PasswordGate ✅ (Jan 4, 2026)
+- [x] Store team in sessionStorage ✅ (Jan 4, 2026)
 - [x] Pass `X-User-Team` header in API calls (implemented in api.ts)
 
 ### Frontend - Memory UI
-- [x] Add SaveToMemoryButton to Pulse briefings (AdHocBriefing.tsx)
-- [x] Wire research export to auto-save to memory (page.tsx)
+- [x] Add SaveToMemoryButton to Pulse briefings (AdHocBriefing.tsx) ✅
+- [x] Wire research export to auto-save to memory (page.tsx) ✅
 - [ ] Add PreferencesPanel to Data & Preferences tab
-- [ ] Add MemoryLog component to display saved items
-- [ ] Add pin/unpin buttons in MemoryLog
-- [ ] Show "expires in X days" for unpinned memories
+- [x] Add MemoryLog component to display saved items ✅ (Jan 4, 2026)
+- [x] Add pin/unpin buttons in MemoryLog ✅
+- [x] Show "expires in X days" for unpinned memories ✅
 
 ### Integration
 - [x] Build context helper for agent prompts (memory_service.py - build_agent_context())
@@ -1247,3 +1255,44 @@ The frontend calls these endpoints (need backend implementation):
 - [ ] Analytics: track which memories get retrieved most
 - [ ] Memory "merge" feature for similar items
 - [ ] Team memory sharing across teams
+
+---
+
+## Implementation Status
+
+> **Last Updated:** January 4, 2026
+> **Status:** 🟡 Partial - On Hold (higher priority work)
+
+### What's Done ✅
+
+| Component | File(s) | Status |
+|-----------|---------|--------|
+| BigQuery Tables | `c1_intelligence.org_preferences`, `c1_intelligence.memory_log` | ✅ Created |
+| Memory Service | `backend/app/services/memory_service.py` | ✅ Complete |
+| Memory API Routes | `backend/app/api/routes/memory.py` | ✅ Complete |
+| Frontend Memory Tab | `frontend/src/components/memory/MemoryLog.tsx` | ✅ Complete |
+| Save to Memory Button | `frontend/src/components/dashboard/AdHocBriefing.tsx` | ✅ Complete |
+| Login Gate | `frontend/src/components/auth/PasswordGate.tsx` | ✅ Complete |
+| Team Selection | Part of PasswordGate | ✅ Complete |
+| User Header Display | `frontend/src/components/layout/AppHeader.tsx` | ✅ Complete |
+
+### What's Remaining 🔲
+
+| Component | Priority | Notes |
+|-----------|----------|-------|
+| Memory context in LangGraph | Medium | Agent doesn't use memory yet |
+| Preferences Panel UI | Low | Manual priority/block management |
+| Cleanup Scheduler Job | Low | Auto-expire old memories |
+| Vector search tuning | Low | Need more data to test |
+
+### Known Issues 🐛
+
+1. **Save to Memory API** - Currently has issues saving (BigQuery dataset mismatch fixed Jan 4)
+2. **No team picker on save** - Uses logged-in team automatically (by design)
+
+### Files Changed (Jan 4, 2026)
+
+- `backend/app/services/memory_service.py` - Fixed dataset reference (`c1_hub` → `settings.gcp_dataset_id`)
+- `frontend/src/components/dashboard/PulseDashboard.tsx` - Defensive null checks
+- `frontend/src/components/dashboard/AdHocBriefing.tsx` - Defensive null checks
+- `deploy/cloudbuild.yaml` - Added `SITE_ACCESS_PASSWORD` env var

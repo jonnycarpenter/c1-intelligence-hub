@@ -1,3 +1,4 @@
+```
 # =============================================================================
 # Cloud Scheduler Jobs Configuration
 # =============================================================================
@@ -12,26 +13,6 @@
 # =============================================================================
 
 jobs:
-  # ---------------------------------------------------------------------------
-  # MAIN INGESTION JOB - Twice Daily
-  # ---------------------------------------------------------------------------
-  # Runs the full orchestrator pipeline:
-  # - RSS feeds (industry publications)
-  # - Tavily web search (news)
-  # - Tavily press releases
-  # - SEC.io filings
-  #
-  # Articles are classified and stored as embeddings for agent queries.
-  # ---------------------------------------------------------------------------
-  
-  - name: orchestrator-ingestion-morning
-    description: Morning ingestion run - RSS, Tavily, SEC (8 AM Central)
-    schedule: "0 14 * * *"  # 2 PM UTC = 8 AM Central
-    timezone: UTC
-    endpoint: /api/v1/scheduler/ingest
-    timeout: 3600s  # 60 minute timeout
-    body:
-      sources:
         - tavily
         - rss
         - sec

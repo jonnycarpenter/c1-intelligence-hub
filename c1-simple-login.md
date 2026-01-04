@@ -1,5 +1,9 @@
 # C1 Intelligence Hub: Simple Access Gate
 
+> **Implementation Status: ✅ Complete**
+> 
+> Deployed to production January 4, 2026. See [Implementation Status](#implementation-status) for details.
+
 ## Overview
 
 A lightweight password gate for the pilot phase. This is not real authentication - it's a door to keep out casual visitors while Dave's team evaluates the product.
@@ -49,8 +53,10 @@ A lightweight password gate for the pilot phase. This is not real authentication
 Add to your Cloud Run environment (or `.env` for local):
 
 ```bash
-SITE_ACCESS_PASSWORD=partnership2025
+SITE_ACCESS_PASSWORD=partnership2026
 ```
+
+> **Note:** Password updated to `partnership2026` for 2026. Set via `cloudbuild.yaml` substitutions.
 
 ### Verification Endpoint
 
@@ -617,16 +623,66 @@ curl -X POST https://your-cloud-run-url/api/verify-access \
 
 ## Checklist
 
-- [ ] Add `SITE_ACCESS_PASSWORD` to Cloud Run environment
-- [ ] Create `/api/verify-access` endpoint
-- [ ] Create `PasswordGate` component
-- [ ] Wrap app root with `PasswordGate`
-- [ ] Create `getCurrentUserName()` utility
-- [ ] Create `apiCall()` wrapper that adds `X-User-Name` header
-- [ ] Add `extractUserName` middleware to backend
-- [ ] (Optional) Create `activity_log` table
-- [ ] (Optional) Add activity logging to key actions
-- [ ] (Optional) Add `UserBadge` component to header
-- [ ] (Optional) Add logout/switch user functionality
-- [ ] Test locally with different names
-- [ ] Deploy and verify password gate works on Cloud Run
+- [x] Add `SITE_ACCESS_PASSWORD` to Cloud Run environment ✅
+- [x] Create `/api/verify-access` endpoint ✅ (FastAPI, not Express)
+- [x] Create `PasswordGate` component ✅
+- [x] Wrap app root with `PasswordGate` ✅
+- [x] Create `getCurrentUserName()` utility ✅ (via localStorage)
+- [x] Create `apiCall()` wrapper that adds `X-User-Name` header ✅
+- [x] Add `extractUserName` middleware to backend ✅
+- [ ] (Optional) Create `activity_log` table - Not implemented
+- [ ] (Optional) Add activity logging to key actions - Not implemented
+- [x] (Optional) Add `UserBadge` component to header ✅ (in AppHeader.tsx)
+- [ ] (Optional) Add logout/switch user functionality - Not implemented
+- [x] Test locally with different names ✅
+- [x] Deploy and verify password gate works on Cloud Run ✅
+
+---
+
+## Implementation Status
+
+> **Last Updated:** January 4, 2026
+> **Status:** ✅ Complete
+
+### What's Done ✅
+
+| Component | File(s) | Status |
+|-----------|---------|--------|
+| Password verification API | `backend/app/api/routes/auth.py` | ✅ FastAPI endpoint |
+| PasswordGate component | `frontend/src/components/auth/PasswordGate.tsx` | ✅ Complete |
+| Team selection dropdown | Part of PasswordGate | ✅ 5 teams |
+| User badge in header | `frontend/src/components/layout/AppHeader.tsx` | ✅ Shows initials + team |
+| API headers | `frontend/src/lib/api.ts` | ✅ X-User-Name, X-User-Team |
+| Cloud Run env var | `deploy/cloudbuild.yaml` | ✅ SITE_ACCESS_PASSWORD |
+
+### Configuration
+
+| Setting | Value | Location |
+|---------|-------|----------|
+| Password | `partnership2026` | `deploy/cloudbuild.yaml` → `_SITE_PASSWORD` |
+| Teams | Sales East, Sales West, Marketing, Product/Supplier, All Others | Hardcoded in PasswordGate |
+| Storage | `sessionStorage` | Persists until browser closes |
+
+### Actual Implementation Notes
+
+**Backend (Python/FastAPI, not JavaScript):**
+```python
+# backend/app/api/routes/auth.py
+@router.post("/verify-access")
+async def verify_access(request: VerifyAccessRequest):
+    valid_password = settings.site_access_password
+    if request.password == valid_password:
+        return {"success": True}
+    raise HTTPException(status_code=401, detail="Incorrect password")
+```
+
+**Frontend stores in localStorage (not sessionStorage as spec'd):**
+- `userName` - User's entered name
+- `userTeam` - Selected team
+- `siteAuth` - Authentication flag
+
+### Not Implemented (Low Priority)
+
+- Activity logging table
+- Logout/switch user
+- Rate limiting

@@ -31,7 +31,7 @@ def run_bq_query(query: str) -> List[Dict]:
     cmd = f'"{BQ_PATH}" query --use_legacy_sql=false --project_id={PROJECT_ID} --format=json "{escaped_query}"'
     
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, shell=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, shell=True, stdin=subprocess.DEVNULL)
         if result.returncode != 0:
             return []
         if not result.stdout.strip() or result.stdout.strip() == "[]":
@@ -40,6 +40,9 @@ def run_bq_query(query: str) -> List[Dict]:
     except Exception as e:
         print(f"❌ BigQuery query failed: {e}")
         return []
+
+# ... (This logic handles multiple occurrences if configured, but here we target specific blocks)
+
 
 
 def check_scheduler_status() -> Dict:
@@ -51,7 +54,7 @@ def check_scheduler_status() -> Dict:
     cmd = f'"{gcloud_path}" scheduler jobs list --project={PROJECT_ID} --location=us-central1 --filter="name:daily" --format=json'
     
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=15, shell=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=15, shell=True, stdin=subprocess.DEVNULL)
         if result.returncode != 0:
             return {"error": "Could not fetch scheduler status"}
         jobs = json.loads(result.stdout)
