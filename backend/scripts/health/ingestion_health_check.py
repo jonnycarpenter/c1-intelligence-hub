@@ -263,7 +263,7 @@ def print_report(days_back: int):
             earn = int(row.get("earnings", 0))
             news = int(row.get("stocknews", 0))
             exa = int(row.get("exa", 0))
-            tavily = int(row.get("tavily", 0))
+            industry_queries = int(row.get("industry_queries", 0)) or int(row.get("tavily", 0))  # Support old 'tavily' name
             
             # Combine legacy web results into Exa or display separately? 
             # For now, let's assume legacy 'web_news' maps to Exa or just ignore if 0
@@ -275,7 +275,7 @@ def print_report(days_back: int):
             
             # Flag low days
             flag = "⚠️ " if total < 30 else "   "
-            print(f"   {flag}{date:<12} {total:<8} {rss:<6} {pr:<6} {sec:<6} {earn:<6} {news:<6} {exa:<6} {tavily:<6} {sources}/8")
+            print(f"   {flag}{date:<12} {total:<8} {rss:<6} {pr:<6} {sec:<6} {earn:<6} {news:<6} {exa:<6} {industry_queries:<6} {sources}/8")
     
     # 4. Date Filter Analysis (NEW)
     print()

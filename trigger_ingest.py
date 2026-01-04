@@ -24,7 +24,7 @@ headers = {
 }
 
 data = {
-    "sources": ["tavily", "rss", "sec"],
+    "sources": ["industry_queries", "rss", "sec"],
     "max_articles": 200
 }
 

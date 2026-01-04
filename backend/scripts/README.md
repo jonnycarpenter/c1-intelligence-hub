@@ -41,10 +41,25 @@ Operational scripts organized by purpose. **Use this index to find the right scr
 **Location**: `operations/`
 
 ### Backfill (`operations/backfill/`)
+- `backfill_industry_queries.py` - **Backfill industry queries** (91 Exa + 145 Tavily)
+- `backfill_sec_filings.py` - **Backfill SEC filings** (10-K, 10-Q, 8-K)
+- `backfill_press_releases.py` - **Backfill press releases** via Exa.ai
 - `backfill_bq_dates.py` - Backfill missing dates in BigQuery
 - `backfill_bq_embeddings.py` - Regenerate embeddings
 - `backfill_dates.py` - Backfill article dates
 - `backfill_tags.py` - Backfill entity tags
+
+**Source-specific backfills** (use after outages or API issues):
+```bash
+# Industry queries (236 queries: 91 Exa + 145 Tavily)
+python scripts/operations/backfill/backfill_industry_queries.py --days 7
+
+# SEC filings (rate-limited, ~1 req/sec)
+python scripts/operations/backfill/backfill_sec_filings.py --days 7
+
+# Press releases via Exa.ai (company-specific searches)
+python scripts/operations/backfill/backfill_press_releases.py --days 7
+```
 
 ### Maintenance (`operations/maintenance/`)
 - `fix_bad_timestamps.py` - Fix malformed timestamps

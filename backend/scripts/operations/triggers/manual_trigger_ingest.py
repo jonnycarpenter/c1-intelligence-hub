@@ -12,7 +12,7 @@ ENDPOINT = f"{SERVICE_URL}/api/v1/scheduler/ingest"
 
 # Request body matching scheduler config
 payload = {
-    "sources": ["tavily", "rss", "sec"],
+    "sources": ["industry_queries", "rss", "sec"],
     "max_articles": 150
 }
 

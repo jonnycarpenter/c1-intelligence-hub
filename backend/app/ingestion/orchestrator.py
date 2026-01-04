@@ -145,14 +145,14 @@ class IngestionOrchestrator:
         Args:
             backfill_days: Number of days to backfill (optional)
             sources: List of sources to run. If None, runs ALL sources.
-                     Options: "rss", "tavily", "sec", "earnings", "stocknews", "freight", "press_releases"
+                     Options: "rss", "industry_queries", "sec", "earnings", "stocknews", "freight", "press_releases"
         """
         if not self._initialized:
             await self.initialize()
         
         # Default to ALL sources if none provided
         if not sources:
-            sources = ["rss", "tavily", "sec", "earnings", "stocknews", "freight", "press_releases"]
+            sources = ["rss", "industry_queries", "sec", "earnings", "stocknews", "freight", "press_releases"]
             
         logger.info(f"Starting ingestion run with sources: {sources}")
         
@@ -304,7 +304,7 @@ class IngestionOrchestrator:
             
             # 2f. General Web Search (Exa) - Tier 2
             web_items = []
-            if "tavily" in sources:  # We use 'tavily' as the generic key for 'web search'
+            if "industry_queries" in sources:  # Runs 236 industry queries via Exa (91) + Tavily (145)
                 logger.info(f"Fetching General Web News (Since {tier2_since.date()})...")
                 
                 # --- PART 1: Industry-Wide Queries (Split: Exa + Tavily) ---

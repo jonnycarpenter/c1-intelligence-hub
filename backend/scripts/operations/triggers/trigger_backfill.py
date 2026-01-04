@@ -12,7 +12,7 @@ ENDPOINT = f"{SERVICE_URL}/api/v1/scheduler/ingest"
 BACKFILL_DAYS = 5  # Recover the last 5 days since 12/29
 
 payload = {
-    "sources": ["tavily", "rss", "sec"],
+    "sources": ["industry_queries", "rss", "sec"],
     "backfill_days": BACKFILL_DAYS
 }
 
