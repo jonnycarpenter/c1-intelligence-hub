@@ -4,6 +4,17 @@
 
 import { API_BASE } from './config'
 
+// Timeout configuration
+const AD_HOC_BRIEFING_TIMEOUT_MS = 60000 // 60 seconds
+
+// Custom error for timeout handling
+export class TimeoutError extends Error {
+  constructor(message: string = 'Request timed out') {
+    super(message)
+    this.name = 'TimeoutError'
+  }
+}
+
 export interface ApiDigestItem {
   id: string
   title: string
@@ -314,15 +325,33 @@ class ApiClient {
     }
     is_follow_up?: boolean
   }): Promise<any> {
-    const response = await fetch(`${this.baseUrl}/api/pulse/adhoc`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(request),
-    })
-    if (!response.ok) {
-      throw new Error(`Failed to create ad hoc briefing: ${response.statusText}`)
+    // Create AbortController for timeout
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), AD_HOC_BRIEFING_TIMEOUT_MS)
+
+    try {
+      const response = await fetch(`${this.baseUrl}/api/pulse/adhoc`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(request),
+        signal: controller.signal,
+      })
+
+      clearTimeout(timeoutId)
+
+      if (!response.ok) {
+        throw new Error(`Failed to create ad hoc briefing: ${response.statusText}`)
+      }
+      return response.json()
+    } catch (error) {
+      clearTimeout(timeoutId)
+
+      // Check if error is due to abort (timeout)
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new TimeoutError('Request timed out after 60 seconds. Try simplifying your question or ask again.')
+      }
+      throw error
     }
-    return response.json()
   }
 
   /**
@@ -338,15 +367,33 @@ class ApiClient {
     }
     is_follow_up?: boolean
   }): Promise<ReadableStream<Uint8Array> | null> {
-    const response = await fetch(`${this.baseUrl}/api/pulse/adhoc/stream`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(request),
-    })
-    if (!response.ok) {
-      throw new Error(`Failed to stream ad hoc briefing: ${response.statusText}`)
+    // Create AbortController for timeout
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), AD_HOC_BRIEFING_TIMEOUT_MS)
+
+    try {
+      const response = await fetch(`${this.baseUrl}/api/pulse/adhoc/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(request),
+        signal: controller.signal,
+      })
+
+      clearTimeout(timeoutId)
+
+      if (!response.ok) {
+        throw new Error(`Failed to stream ad hoc briefing: ${response.statusText}`)
+      }
+      return response.body
+    } catch (error) {
+      clearTimeout(timeoutId)
+
+      // Check if error is due to abort (timeout)
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new TimeoutError('Request timed out after 60 seconds. Try simplifying your question or ask again.')
+      }
+      throw error
     }
-    return response.body
   }
 
   /**
@@ -549,7 +596,7 @@ class ApiClient {
     if (options?.limit) params.set('limit', options.limit.toString())
     if (options?.offset) params.set('offset', options.offset.toString())
     if (options?.pinnedOnly) params.set('pinned_only', 'true')
-    
+
     const response = await fetch(`${this.baseUrl}/api/memory/log?${params}`, {
       headers: {
         'X-User-Team': localStorage.getItem('userTeam') || 'All Others',

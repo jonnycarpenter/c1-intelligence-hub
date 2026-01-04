@@ -1,10 +1,10 @@
 'use client'
 
 import React, { useState, useRef, useEffect } from 'react'
-import { 
-  Send, 
-  Loader2, 
-  AlertCircle, 
+import {
+  Send,
+  Loader2,
+  AlertCircle,
   ExternalLink,
   MessageSquare,
   ArrowRight,
@@ -35,7 +35,7 @@ function ConfidenceBadge({ confidence }: ConfidenceBadgeProps) {
     low: { bg: 'bg-rose-100', text: 'text-rose-700', label: 'Limited Data' },
   }
   const config = configs[confidence]
-  
+
   return (
     <Badge className={cn(config.bg, config.text, "text-[10px] font-medium")}>
       {config.label}
@@ -81,13 +81,13 @@ function ResponseCard({ response, onDeepResearch, onClose, onSaveToMemory }: Res
         </div>
         <div className="flex items-center gap-1">
           {onSaveToMemory && (
-            <button 
+            <button
               onClick={handleSave}
               disabled={isSaving || isSaved}
               className={cn(
                 "p-1.5 rounded-lg transition-all duration-200",
-                isSaved 
-                  ? "text-emerald-600 bg-emerald-50" 
+                isSaved
+                  ? "text-emerald-600 bg-emerald-50"
                   : "text-slate-400 hover:text-amber-600 hover:bg-amber-50"
               )}
               title={isSaved ? "Saved to memory" : "Save to memory"}
@@ -102,7 +102,7 @@ function ResponseCard({ response, onDeepResearch, onClose, onSaveToMemory }: Res
             </button>
           )}
           {onClose && (
-            <button 
+            <button
               onClick={onClose}
               className="text-slate-400 hover:text-slate-600 transition-colors p-1.5"
             >
@@ -156,7 +156,7 @@ function ResponseCard({ response, onDeepResearch, onClose, onSaveToMemory }: Res
             <AlertCircle size={18} className="text-amber-600 shrink-0 mt-0.5" />
             <div className="flex-1">
               <p className="text-sm text-amber-900">
-                {response.redirect_to_deep_research 
+                {response.redirect_to_deep_research
                   ? "You've asked several follow-up questions. For comprehensive analysis, try Deep Research."
                   : "This topic may benefit from deeper analysis with additional sources."
                 }
@@ -184,7 +184,7 @@ function ResponseCard({ response, onDeepResearch, onClose, onSaveToMemory }: Res
               Related:
             </span>
             {response.related_topics.map((topic, idx) => (
-              <Badge 
+              <Badge
                 key={idx}
                 className="text-xs text-slate-600 bg-white border-slate-200 cursor-pointer hover:bg-slate-100"
               >
@@ -211,21 +211,22 @@ interface AdHocBriefingProps {
   compact?: boolean
 }
 
-export default function AdHocBriefing({ 
-  context, 
+export default function AdHocBriefing({
+  context,
   onDeepResearch,
-  compact = false 
+  compact = false
 }: AdHocBriefingProps) {
   const [question, setQuestion] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
-  
-  const { 
-    response, 
-    isLoading, 
-    error, 
+
+  const {
+    response,
+    isLoading,
+    error,
+    isTimeout,
     followUpCount,
-    askQuestion, 
-    reset 
+    askQuestion,
+    reset
   } = useAdHocBriefing()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -280,12 +281,12 @@ export default function AdHocBriefing({
             )}
           </button>
         </form>
-        
+
         {/* Follow-up indicator */}
         {followUpCount > 0 && followUpCount < 2 && (
           <div className="px-3 pb-2 flex items-center gap-2 text-xs text-slate-400">
             <span>Follow-up {followUpCount}/2</span>
-            <button 
+            <button
               onClick={handleNewQuestion}
               className="text-amber-600 hover:text-amber-700 font-medium"
             >
@@ -305,14 +306,38 @@ export default function AdHocBriefing({
 
       {/* Error State */}
       {error && !isLoading && (
-        <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 flex items-start gap-3">
-          <AlertCircle size={18} className="text-rose-500 shrink-0 mt-0.5" />
+        <div className={cn(
+          "border rounded-xl p-4 flex items-start gap-3",
+          isTimeout ? "bg-amber-50 border-amber-200" : "bg-rose-50 border-rose-200"
+        )}>
+          <AlertCircle size={18} className={cn(
+            "shrink-0 mt-0.5",
+            isTimeout ? "text-amber-500" : "text-rose-500"
+          )} />
           <div>
-            <p className="text-sm text-rose-800 font-medium">Failed to generate briefing</p>
-            <p className="text-xs text-rose-600 mt-1">{error.message}</p>
+            <p className={cn(
+              "text-sm font-medium",
+              isTimeout ? "text-amber-800" : "text-rose-800"
+            )}>
+              {isTimeout ? 'Request timed out' : 'Failed to generate briefing'}
+            </p>
+            <p className={cn(
+              "text-xs mt-1",
+              isTimeout ? "text-amber-600" : "text-rose-600"
+            )}>
+              {isTimeout
+                ? 'The request took longer than 60 seconds. Try simplifying your question or ask again.'
+                : error.message
+              }
+            </p>
             <button
               onClick={() => inputRef.current?.focus()}
-              className="mt-2 text-xs text-rose-700 font-medium hover:text-rose-800"
+              className={cn(
+                "mt-2 text-xs font-medium",
+                isTimeout
+                  ? "text-amber-700 hover:text-amber-800"
+                  : "text-rose-700 hover:text-rose-800"
+              )}
             >
               Try again
             </button>
@@ -322,8 +347,8 @@ export default function AdHocBriefing({
 
       {/* Response */}
       {response && !isLoading && (
-        <ResponseCard 
-          response={response} 
+        <ResponseCard
+          response={response}
           onDeepResearch={onDeepResearch}
           onClose={handleNewQuestion}
           onSaveToMemory={async () => {

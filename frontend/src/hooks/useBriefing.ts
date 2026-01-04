@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
-import { api } from '@/lib/api'
+import { api, TimeoutError } from '@/lib/api'
 import type { BriefingData } from '@/components/dashboard/BriefingSection'
-import type { 
-    WeeklyBriefing, 
-    AdHocBriefing, 
+import type {
+    WeeklyBriefing,
+    AdHocBriefing,
     AdHocBriefingContext,
-    AllBriefingHistory 
+    AllBriefingHistory
 } from '@/types/briefing'
 
 /**
@@ -102,15 +102,17 @@ export function useAdHocBriefing() {
     const [isStreaming, setIsStreaming] = useState(false)
     const [streamedText, setStreamedText] = useState('')
     const [error, setError] = useState<Error | null>(null)
+    const [isTimeout, setIsTimeout] = useState(false)
     const [followUpCount, setFollowUpCount] = useState(0)
 
     const askQuestion = useCallback(async (
-        question: string, 
+        question: string,
         context?: AdHocBriefingContext,
         isFollowUp: boolean = false
     ) => {
         setIsLoading(true)
         setError(null)
+        setIsTimeout(false)
         try {
             const data = await api.createAdHocBriefing({
                 question,
@@ -125,6 +127,7 @@ export function useAdHocBriefing() {
         } catch (err) {
             const error = err instanceof Error ? err : new Error('Failed to create briefing')
             setError(error)
+            setIsTimeout(err instanceof TimeoutError)
             console.error('Error creating ad hoc briefing:', err)
             throw error
         } finally {
@@ -140,14 +143,15 @@ export function useAdHocBriefing() {
         setIsStreaming(true)
         setStreamedText('')
         setError(null)
-        
+        setIsTimeout(false)
+
         try {
             const stream = await api.streamAdHocBriefing({
                 question,
                 context,
                 is_follow_up: isFollowUp,
             })
-            
+
             if (!stream) {
                 throw new Error('No stream returned')
             }
@@ -203,6 +207,7 @@ export function useAdHocBriefing() {
         } catch (err) {
             const error = err instanceof Error ? err : new Error('Failed to stream briefing')
             setError(error)
+            setIsTimeout(err instanceof TimeoutError)
             console.error('Error streaming ad hoc briefing:', err)
             throw error
         } finally {
@@ -215,6 +220,7 @@ export function useAdHocBriefing() {
         setStreamedText('')
         setFollowUpCount(0)
         setError(null)
+        setIsTimeout(false)
     }, [])
 
     return {
@@ -223,6 +229,7 @@ export function useAdHocBriefing() {
         isLoading,
         isStreaming,
         error,
+        isTimeout,
         followUpCount,
         askQuestion,
         streamQuestion,
