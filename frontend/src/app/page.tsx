@@ -83,10 +83,10 @@ export default function Home() {
 
   // Stats for dashboard - computed from API data
   const stats = useMemo(() => ({
-    criticalAlerts: digestItems.filter(d => d.priority === 'critical').length,
+    criticalAlerts: (digestItems || []).filter(d => d.priority === 'critical').length,
     priceMovements: digestStats?.byCategory?.['pricing'] || 0,
     companiesMonitored: 70, // This would come from a different API
-    newsItems: digestItems.length,
+    newsItems: (digestItems || []).length,
   }), [digestItems, digestStats])
 
   // Handle sending a message with streaming

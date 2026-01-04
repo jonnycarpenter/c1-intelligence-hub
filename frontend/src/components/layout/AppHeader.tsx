@@ -109,12 +109,15 @@ export default function AppHeader({ activeMode, onRefresh, isRefreshing = false 
   
   // Get initials from name
   const getInitials = (name: string) => {
+    if (!name || !name.trim()) return '??'
     return name
+      .trim()
       .split(' ')
+      .filter(n => n.length > 0)
       .map(n => n[0])
       .join('')
       .toUpperCase()
-      .slice(0, 2)
+      .slice(0, 2) || '??'
   }
 
   return (
