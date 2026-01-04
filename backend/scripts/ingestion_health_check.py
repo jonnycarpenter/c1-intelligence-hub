@@ -118,6 +118,29 @@ def get_daily_article_counts(days_back: int = 7) -> List[Dict]:
     return run_bq_query(query)
 
 
+def get_date_filter_stats(days_back: int = 7) -> Dict:
+    """Get date filtering statistics from digest_items table.
+    
+    This shows how many articles are feed_eligible vs filtered out.
+    Filtered articles are still stored, just not shown in Drumbeat feed.
+    """
+    query = f"""
+    SELECT 
+        COUNTIF(feed_eligible = TRUE) as feed_eligible,
+        COUNTIF(feed_eligible = FALSE) as filtered_out,
+        COUNTIF(feed_eligible IS NULL) as null_status,
+        COUNTIF(published_at IS NULL) as no_date,
+        COUNTIF(published_at > CURRENT_TIMESTAMP()) as future_date,
+        COUNT(*) as total
+    FROM `{PROJECT_ID}.{DATASET}.digest_items`
+    WHERE ingested_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {days_back} DAY)
+    """
+    result = run_bq_query(query)
+    if result:
+        return result[0]
+    return {"feed_eligible": 0, "filtered_out": 0, "null_status": 0, "no_date": 0, "future_date": 0, "total": 0}
+
+
 def get_pipeline_completeness(days_back: int = 7) -> List[Dict]:
     """Check if articles -> digest_items -> embeddings pipeline is complete."""
     query = f"""
@@ -254,7 +277,32 @@ def print_report(days_back: int):
             flag = "⚠️ " if total < 30 else "   "
             print(f"   {flag}{date:<12} {total:<8} {rss:<6} {pr:<6} {sec:<6} {earn:<6} {news:<6} {exa:<6} {tavily:<6} {sources}/8")
     
-    # 4. Pipeline Completeness
+    # 4. Date Filter Analysis (NEW)
+    print()
+    print("📅 DATE FILTER ANALYSIS (Drumbeat Feed Eligibility)")
+    print("-" * 80)
+    date_stats = get_date_filter_stats(days_back)
+    
+    total = int(date_stats.get("total", 0) or 0)
+    feed_eligible = int(date_stats.get("feed_eligible", 0) or 0)
+    filtered_out = int(date_stats.get("filtered_out", 0) or 0)
+    null_status = int(date_stats.get("null_status", 0) or 0)
+    no_date = int(date_stats.get("no_date", 0) or 0)
+    future_date = int(date_stats.get("future_date", 0) or 0)
+    
+    print(f"   Total digest items (last {days_back} days): {total:,}")
+    print(f"   ├─ Feed eligible (shown in Drumbeat):  {feed_eligible:,}")
+    print(f"   ├─ Filtered out (stored but hidden):   {filtered_out:,}")
+    print(f"   ├─ Null feed_eligible status:          {null_status:,}")
+    print(f"   └─ Date issues:")
+    print(f"      ├─ No published_at date:  {no_date:,}")
+    print(f"      └─ Future date (bad parse): {future_date:,}")
+    
+    if future_date > 0:
+        pct = (future_date / total * 100) if total > 0 else 0
+        print(f"   ⚠️  {pct:.1f}% of articles have future dates - date extraction bugs!")
+    
+    # 5. Pipeline Completeness
     print()
     print("🔗 PIPELINE COMPLETENESS CHECK")
     print("-" * 80)
@@ -281,7 +329,7 @@ def print_report(days_back: int):
             
             print(f"   {str(date):<12} {articles:<10} {digests:<10} {embeddings:<12} {status}")
     
-    # 5. Health Summary
+    # 6. Health Summary
     print()
     print("🎯 HEALTH SUMMARY")
     print("-" * 80)
@@ -300,6 +348,16 @@ def print_report(days_back: int):
         print(f"   ⚠️  WARNING: Ingestion below expected levels")
     else:
         print(f"   ✅ Ingestion performing within normal range")
+    
+    # Date filtering health
+    if future_date > 10:
+        print(f"   ⚠️  WARNING: {future_date} articles with future dates - review date extraction")
+    
+    print()
+    print("📌 KEY CHANGES (Jan 2026):")
+    print("   • ALL articles are now stored regardless of date")
+    print("   • feed_eligible flag controls Drumbeat feed visibility")
+    print("   • Articles without valid dates are stored but hidden from feed")
     
     print()
     print("=" * 80)

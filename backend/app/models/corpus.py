@@ -212,6 +212,12 @@ class IngestionStats(BaseModel):
     articles_stored: int = 0
     images_extracted: int = 0  # Charts/graphs extracted from articles
     
+    # Date filtering stats (visibility into what's excluded from feed)
+    articles_no_date: int = 0        # No published_at date extracted
+    articles_future_date: int = 0    # Date in the future (bad parsing)
+    articles_old_date: int = 0       # Date older than lookback window
+    articles_feed_eligible: int = 0  # Articles that will appear in Drumbeat feed
+    
     # Status
     status: str = "running"  # running, completed, failed
     errors: List[str] = Field(default_factory=list)

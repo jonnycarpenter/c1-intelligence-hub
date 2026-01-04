@@ -385,33 +385,72 @@ class IngestionOrchestrator:
             
             
             # Convert to RawArticle (StockNewsAPI items already converted above)
-            converted_prs_all = [self._convert_pr_to_article(item) for item in pr_items]
+            converted_prs = [self._convert_pr_to_article(item) for item in pr_items]
             converted_sec = [self._convert_sec_to_article(item) for item in sec_items]
             converted_earnings = [self._convert_earnings_to_article(item) for item in earnings_items]
-            web_items_all_count = len(web_items)
-            stocknews_items_all_count = len(stocknews_items)
             
-            # Filter Tier 2 by date logic (same as before)
+            # =================================================================
+            # DATE FILTERING ANALYSIS (for visibility - we keep ALL articles)
+            # The filter only affects what appears in Drumbeat feed, NOT storage
+            # =================================================================
             now_utc = datetime.utcnow()
             
-            def is_valid_date(article) -> bool:
-                """Check if article has a valid publication date within acceptable window."""
+            def is_feed_eligible(article) -> bool:
+                """Check if article should appear in Drumbeat feed.
+                
+                Returns True if:
+                - Has a valid published_at date
+                - Date is not in the future (bad parsing)
+                - Date is within the lookback window
+                
+                All articles are still STORED regardless of this flag.
+                This only controls visibility in the Drumbeat/Pulse feed.
+                """
                 if not article.published_at:
                     return False
                 pub_date = _make_naive_utc(article.published_at)
-                # Reject future dates (likely parsing errors or market projection reports)
                 if pub_date > now_utc:
-                    return False
-                # Reject dates older than the lookback window
+                    return False  # Future date = bad parsing
                 if pub_date < tier2_since:
-                    return False
+                    return False  # Outside lookback window
                 return True
             
-            converted_prs = [a for a in converted_prs_all if is_valid_date(a)]
-            web_items = [a for a in web_items if is_valid_date(a)]
-            stocknews_filtered = [a for a in stocknews_items if is_valid_date(a)]
+            def classify_date_status(article) -> str:
+                """Classify article date status for logging/visibility."""
+                if not article.published_at:
+                    return "no_date"
+                pub_date = _make_naive_utc(article.published_at)
+                if pub_date > now_utc:
+                    return "future_date"  # Bad parsing
+                if pub_date < tier2_since:
+                    return "old_date"     # Outside lookback window
+                return "feed_eligible"    # Will appear in Drumbeat feed
             
-            all_articles = rss_articles + converted_prs + converted_sec + converted_earnings + web_items + stocknews_filtered
+            # Combine ALL articles (no filtering for storage)
+            all_articles = (rss_articles + converted_prs + converted_sec + 
+                           converted_earnings + web_items + stocknews_items)
+            
+            # Build a map of article -> feed_eligible status for later use
+            article_feed_status = {id(a): is_feed_eligible(a) for a in all_articles}
+            
+            # Log date filtering stats for visibility
+            date_stats = {"no_date": 0, "future_date": 0, "old_date": 0, "feed_eligible": 0}
+            for article in all_articles:
+                status = classify_date_status(article)
+                date_stats[status] += 1
+            
+            stats.articles_no_date = date_stats["no_date"]
+            stats.articles_future_date = date_stats["future_date"]
+            stats.articles_old_date = date_stats["old_date"]
+            stats.articles_feed_eligible = date_stats["feed_eligible"]
+            
+            logger.info(f"📊 DATE FILTER ANALYSIS (lookback={search_num_days} days):")
+            logger.info(f"   Total articles collected: {len(all_articles)}")
+            logger.info(f"   ├─ Feed eligible:  {date_stats['feed_eligible']} (will appear in Drumbeat)")
+            logger.info(f"   ├─ No date:        {date_stats['no_date']} (stored, hidden from feed)")
+            logger.info(f"   ├─ Future date:    {date_stats['future_date']} (stored, bad date parsing)")
+            logger.info(f"   └─ Old date:       {date_stats['old_date']} (stored, outside window)")
+            
             logger.info(f"Total articles to process: {len(all_articles)}")
             
             if not all_articles:
@@ -494,7 +533,9 @@ class IngestionOrchestrator:
                     vector_docs.append(corpus_item)
                     article_records.append(self._create_article_record(article, classification))
                     
-                    # Prepare Digest Item
+                    # Prepare Digest Item with feed_eligible flag
+                    # feed_eligible determines if this shows in the Drumbeat feed
+                    # ALL articles are stored regardless, but only feed_eligible ones display
                     article_id = str(uuid.uuid4())
                     digest_item = {
                         "article_id": article_id,
@@ -515,6 +556,8 @@ class IngestionOrchestrator:
                         "confidence": classification.confidence,
                         "classifier_model": self.config.classifier_model,
                         "classified_at": datetime.utcnow().isoformat(),
+                        # Feed eligibility: True if article has valid date within lookback window
+                        "feed_eligible": article_feed_status.get(id(article), False),
                     }
                     digest_items_for_ui.append(digest_item)
                     
@@ -742,7 +785,17 @@ class IngestionOrchestrator:
             # Store digest items for UI digest cards (BigQuery digest_items table)
             logger.info("Storing digest items in BigQuery...")
             digest_items_for_ui = []
+            now_utc = datetime.utcnow()
             for article, classification in classified:
+                # Determine feed eligibility based on date
+                feed_eligible = True
+                if article.published_at:
+                    pub_date = _make_naive_utc(article.published_at)
+                    if pub_date > now_utc:  # Future date = bad parsing
+                        feed_eligible = False
+                else:
+                    feed_eligible = False  # No date = not feed eligible
+                
                 article_id = str(uuid.uuid4())
                 digest_item = {
                     "article_id": article_id,
@@ -763,6 +816,7 @@ class IngestionOrchestrator:
                     "confidence": classification.confidence,
                     "classifier_model": self.config.classifier_model,
                     "classified_at": datetime.utcnow().isoformat(),
+                    "feed_eligible": feed_eligible,
                 }
                 digest_items_for_ui.append(digest_item)
             
@@ -910,7 +964,17 @@ class IngestionOrchestrator:
             # Store digest items for UI digest cards (BigQuery digest_items table)
             logger.info("Storing digest items in BigQuery...")
             digest_items_for_ui = []
+            now_utc = datetime.utcnow()
             for article, classification in classified:
+                # Determine feed eligibility based on date
+                feed_eligible = True
+                if article.published_at:
+                    pub_date = _make_naive_utc(article.published_at)
+                    if pub_date > now_utc:  # Future date = bad parsing
+                        feed_eligible = False
+                else:
+                    feed_eligible = False  # No date = not feed eligible
+                
                 article_id = str(uuid.uuid4())
                 digest_item = {
                     "article_id": article_id,
@@ -931,6 +995,7 @@ class IngestionOrchestrator:
                     "confidence": classification.confidence,
                     "classifier_model": self.config.classifier_model,
                     "classified_at": datetime.utcnow().isoformat(),
+                    "feed_eligible": feed_eligible,
                 }
                 digest_items_for_ui.append(digest_item)
             
@@ -1070,7 +1135,17 @@ class IngestionOrchestrator:
             # Store digest items for UI digest cards (BigQuery digest_items table)
             logger.info("Storing digest items in BigQuery...")
             digest_items_for_ui = []
+            now_utc = datetime.utcnow()
             for article, classification in classified:
+                # Determine feed eligibility based on date
+                feed_eligible = True
+                if article.published_at:
+                    pub_date = _make_naive_utc(article.published_at)
+                    if pub_date > now_utc:  # Future date = bad parsing
+                        feed_eligible = False
+                else:
+                    feed_eligible = False  # No date = not feed eligible
+                
                 article_id = str(uuid.uuid4())
                 digest_item = {
                     "article_id": article_id,
@@ -1091,6 +1166,7 @@ class IngestionOrchestrator:
                     "confidence": classification.confidence,
                     "classifier_model": self.config.classifier_model,
                     "classified_at": datetime.utcnow().isoformat(),
+                    "feed_eligible": feed_eligible,
                 }
                 digest_items_for_ui.append(digest_item)
             

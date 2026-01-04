@@ -455,6 +455,10 @@ class LocalDataStorage(DataStorageInterface):
                 await db.execute("ALTER TABLE digest_items ADD COLUMN industries TEXT")
             except Exception:
                 pass
+            try:
+                await db.execute("ALTER TABLE digest_items ADD COLUMN feed_eligible INTEGER DEFAULT 1")
+            except Exception:
+                pass
             
             now = datetime.utcnow().isoformat()
             stored = 0
@@ -466,8 +470,8 @@ class LocalDataStorage(DataStorageInterface):
                         (id, article_id, title, headline, url, published_at, source_name, source_type,
                          category, priority, digest_summary, original_summary, companies,
                          materials, topics, industries, relevance_score, confidence, coverage_count,
-                         duplicate_sources, all_urls, classifier_model, classified_at, ingested_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                         duplicate_sources, all_urls, classifier_model, classified_at, ingested_at, feed_eligible)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, (
                         str(uuid.uuid4()),
                         item.get("article_id", ""),
@@ -493,6 +497,7 @@ class LocalDataStorage(DataStorageInterface):
                         item.get("classifier_model", ""),
                         item.get("classified_at", now),
                         now,
+                        1 if item.get("feed_eligible", True) else 0,
                     ))
                     stored += 1
                 except Exception as e:
@@ -2510,6 +2515,9 @@ class BigQueryDataStorage(DataStorageInterface):
                 "classifier_model": item.get("classifier_model", ""),
                 "classified_at": item.get("classified_at", now),
                 "ingested_at": now,
+                # Feed eligibility: True if article has valid date within lookback window
+                # Used by frontend to filter what shows in Drumbeat feed
+                "feed_eligible": item.get("feed_eligible", True),
             })
         
         errors = self.client.insert_rows_json(table_id, rows)
