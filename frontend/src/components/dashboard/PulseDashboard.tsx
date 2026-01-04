@@ -61,9 +61,10 @@ export default function PulseDashboard({
 
   // Filter digest items based on selected entities
   const filteredItems = useMemo(() => {
-    if (selectedEntities.size === 0) return digestItems
+    const items = digestItems || []
+    if (selectedEntities.size === 0) return items
 
-    return digestItems.filter(item => {
+    return items.filter(item => {
       if (!item.entities) return false
 
       // Check if item contains ANY of the selected entities
@@ -97,7 +98,7 @@ export default function PulseDashboard({
     }
 
     // Add recent digest topics
-    if (digestItems.length > 0) {
+    if (digestItems && digestItems.length > 0) {
       const topics = new Set<string>()
       digestItems.slice(0, 20).forEach(item => {
         item.entities?.topics?.forEach(t => topics.add(t))
@@ -118,13 +119,13 @@ export default function PulseDashboard({
             <h2 className="text-sm font-bold text-slate-500 uppercase tracking-widest">Drumbeat Feed</h2>
             {selectedEntities.size > 0 && (
               <span className="text-xs text-slate-400">
-                {filteredItems.length} of {digestItems.length}
+                {(filteredItems || []).length} of {(digestItems || []).length}
               </span>
             )}
           </div>
 
           {/* Entity Aggregator / Filter - shows all 4 entity types */}
-          {!digestLoading && digestItems.length > 0 && (
+          {!digestLoading && digestItems && digestItems.length > 0 && (
             <EntityAggregator
               items={digestItems}
               selectedEntities={selectedEntities}

@@ -57,12 +57,13 @@ steps:
       - '--set-secrets'
       - 'ANTHROPIC_API_KEY=anthropic-api-key:latest,API_NINJA_KEY=api-ninja-key:latest,TAVILY_API_KEY=tavily-api-key:latest,FMP_API_KEY=fmp-api-key:latest,SEC_IO_KEY=SEC_IO_KEY:latest,IMPORTYETI_API_KEY=importyeti-api-key:latest,APOLLO_API_KEY=apollo-api-key:latest'
       - '--set-env-vars'
-      - 'ENVIRONMENT=production,GCP_PROJECT_ID=${PROJECT_ID},GCP_DATASET_ID=c1_intelligence,GCS_BUCKET_NAME=${_DATA_BUCKET},KNOWLEDGE_PERSIST_DIR=/app/data/knowledge_db'
+      - 'ENVIRONMENT=production,GCP_PROJECT_ID=${PROJECT_ID},GCP_DATASET_ID=c1_intelligence,GCS_BUCKET_NAME=${_DATA_BUCKET},KNOWLEDGE_PERSIST_DIR=/app/data/knowledge_db,SITE_ACCESS_PASSWORD=${_SITE_PASSWORD}'
 
 # Substitution variables (can be overridden via --substitutions flag)
 substitutions:
   _REGION: 'us-central1'
   _REPOSITORY: 'c1-intelligence-hub'
+  _SITE_PASSWORD: 'partnership2026'
   _SERVICE_NAME: 'c1-hub'
   _DATA_BUCKET: 'gen-lang-client-0436975498-c1-hub-data'
   _TAG: 'latest'

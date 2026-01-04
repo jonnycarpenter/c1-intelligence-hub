@@ -127,7 +127,7 @@ function ResponseCard({ response, onDeepResearch, onClose, onSaveToMemory }: Res
       </div>
 
       {/* Sources */}
-      {response.sources_used.length > 0 && (
+      {response.sources_used && response.sources_used.length > 0 && (
         <div className="border-t border-slate-100 px-4 py-3 bg-slate-50">
           <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold mb-2">
             Sources
@@ -177,7 +177,7 @@ function ResponseCard({ response, onDeepResearch, onClose, onSaveToMemory }: Res
       )}
 
       {/* Related Topics */}
-      {response.related_topics.length > 0 && (
+      {response.related_topics && response.related_topics.length > 0 && (
         <div className="border-t border-slate-100 px-4 py-3">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">
