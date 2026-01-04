@@ -15,13 +15,6 @@ from pathlib import Path
 class SeederConfig:
     """Configuration for the knowledge base seeder."""
     
-    # ChromaDB settings
-    chroma_persist_dir: str = field(default_factory=lambda: os.getenv(
-        "KNOWLEDGE_CHROMA_DIR",
-        str(Path(__file__).parent.parent.parent.parent / "data" / "knowledge_base")
-    ))
-    collection_name: str = "c1_knowledge_base"
-    
     # Wikipedia API settings
     wiki_api_url: str = "https://en.wikipedia.org/api/rest_v1"
     wiki_mediawiki_url: str = "https://en.wikipedia.org/w/api.php"

@@ -3,10 +3,11 @@ Document Chunking Utilities
 ===========================
 
 Smart chunking strategies for different document types to optimize
-semantic search with ChromaDB's embedding model (all-MiniLM-L6-v2).
+semantic search. Production uses Vertex AI text-embedding-004 (768 dims),
+local development falls back to all-MiniLM-L6-v2 (384 dims).
 
-The default embedding model has ~256 token context, so we need to
-chunk long documents (like earnings transcripts) intelligently.
+Chunks long documents (like earnings transcripts) intelligently to
+stay within embedding model context limits.
 """
 
 import re

@@ -22,7 +22,7 @@ class BriefingGenerator:
     - 30-day rolling window briefings
     - Full source citation tracking for transparency
     - Entity extraction for quarterly trending analysis
-    - Dual storage: SQLite (local) + BigQuery (production)
+    - BigQuery storage (production)
     - Scheduler metadata for 8 AM / 8 PM refresh tracking
     """
     

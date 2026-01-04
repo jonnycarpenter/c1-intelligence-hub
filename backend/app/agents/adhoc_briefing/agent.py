@@ -24,7 +24,6 @@ from typing import List, Dict, Any, Optional, AsyncIterator
 from anthropic import AsyncAnthropic
 
 from app.db.database import get_db
-from app.db.vector_store import VectorStore
 from app.config.settings import settings
 from app.utils.logger import get_logger
 

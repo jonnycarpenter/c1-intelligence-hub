@@ -3,8 +3,8 @@
 These tools query cached/indexed intelligence content for faster retrieval
 without making external API calls. Available to ALL agents.
 
-Uses SQLite database for structured queries and BigQuery Vector Search 
-(in production) or ChromaDB (locally) for semantic search.
+Uses BigQuery as the primary data store with vector search capabilities.
+ChromaDB available as local development fallback.
 """
 
 import asyncio
@@ -14,7 +14,7 @@ from typing import Optional
 from langchain_core.tools import tool
 
 from app.db.database import get_db
-from app.db.vector_store import get_vector_store, get_production_vector_store
+from app.db.vector_store import get_production_vector_store
 from app.models.corpus import ContentCategory, Priority
 from app.utils.grounding import load_companies, load_preferences
 from app.utils.logger import get_logger

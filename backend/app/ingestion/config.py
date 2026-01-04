@@ -18,12 +18,6 @@ class IngestionConfig:
     # API Keys (from environment)
     anthropic_api_key: str = field(default_factory=lambda: os.getenv("ANTHROPIC_API_KEY", ""))
     
-    # Database
-    db_type: str = "sqlite"
-    
-    # Vector Store
-    chroma_persist_dir: str = field(default_factory=lambda: os.getenv("CHROMA_PERSIST_DIR", "./data/chroma_db"))
-    
     # Ingestion Settings
     rss_poll_interval_hours: int = 2
     max_articles_per_feed: int = 20
