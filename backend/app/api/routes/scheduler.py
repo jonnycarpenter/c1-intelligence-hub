@@ -156,7 +156,7 @@ async def trigger_ingestion(
     if not verify_scheduler_auth(authorization):
         raise HTTPException(status_code=401, detail="Unauthorized")
     
-    logger.info(f"Ingestion triggered: Triggering ALL sources (backfill_days={request.backfill_days})")
+    logger.info(f"Ingestion triggered: sources={request.sources}, backfill_days={request.backfill_days}")
     
     try:
         from app.ingestion.orchestrator import get_orchestrator
@@ -164,7 +164,10 @@ async def trigger_ingestion(
         orchestrator = get_orchestrator()
         await orchestrator.initialize()
         
-        stats = await orchestrator.run_full_ingestion(backfill_days=request.backfill_days)
+        stats = await orchestrator.run_full_ingestion(
+            backfill_days=request.backfill_days,
+            sources=request.sources
+        )
         
         execution_time = time.time() - start_time
         total_collected = stats.total_articles_fetched if hasattr(stats, 'total_articles_fetched') else 0

@@ -25,18 +25,39 @@ if not os.path.exists(BQ_PATH):
     BQ_PATH = "bq"
 
 
-def run_bq_query(query: str) -> List[Dict]:
+def run_bq_query(query: str, debug: bool = False) -> List[Dict]:
     """Run BigQuery query and return results."""
-    escaped_query = query.replace('"', '\\"')
-    cmd = f'"{BQ_PATH}" query --use_legacy_sql=false --project_id={PROJECT_ID} --format=json "{escaped_query}"'
+    # Clean up query - remove extra whitespace and make it single line
+    clean_query = ' '.join(query.split())
+    
+    # Use a different approach - write query to temp argument
+    cmd = [
+        BQ_PATH, 
+        "query", 
+        "--use_legacy_sql=false", 
+        f"--project_id={PROJECT_ID}", 
+        "--format=json",
+        clean_query
+    ]
     
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, shell=True, stdin=subprocess.DEVNULL)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60, stdin=subprocess.DEVNULL)
+        if debug:
+            print(f"   [DEBUG] Return code: {result.returncode}")
+            if result.stderr:
+                print(f"   [DEBUG] Stderr: {result.stderr[:200]}")
         if result.returncode != 0:
+            if debug:
+                print(f"   [DEBUG] BQ command failed: {result.stderr[:200] if result.stderr else 'No stderr'}")
             return []
         if not result.stdout.strip() or result.stdout.strip() == "[]":
             return []
         return json.loads(result.stdout)
+    except json.JSONDecodeError as e:
+        if debug:
+            print(f"   [DEBUG] JSON parse error: {e}")
+            print(f"   [DEBUG] Raw output: {result.stdout[:200] if result.stdout else 'None'}")
+        return []
     except Exception as e:
         print(f"❌ BigQuery query failed: {e}")
         return []
@@ -51,7 +72,8 @@ def check_scheduler_status() -> Dict:
     if not os.path.exists(gcloud_path):
         gcloud_path = "gcloud"
     
-    cmd = f'"{gcloud_path}" scheduler jobs list --project={PROJECT_ID} --location=us-central1 --filter="name:daily" --format=json'
+    # Filter for ingestion-related jobs (daily legacy + new ingest/briefing jobs)
+    cmd = f'"{gcloud_path}" scheduler jobs list --project={PROJECT_ID} --location=us-central1 --filter="name:(daily OR ingest OR briefing)" --format=json'
     
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=15, shell=True, stdin=subprocess.DEVNULL)
@@ -74,7 +96,7 @@ def check_scheduler_status() -> Dict:
 
 
 def get_daily_article_counts(days_back: int = 7) -> List[Dict]:
-    """Get daily article counts from BigQuery."""
+    """Get daily article counts from BigQuery articles table."""
     query = f"""
     SELECT 
         DATE(fetched_at) as date,
@@ -88,7 +110,7 @@ def get_daily_article_counts(days_back: int = 7) -> List[Dict]:
         COUNTIF(source_type = 'web_search' OR source_type = 'web_news') as web_legacy,
         COUNTIF(source_type = 'web_news_exa') as exa,
         COUNTIF(source_type = 'web_news_tavily') as tavily
-    FROM `{PROJECT_ID}.{DATASET}.corpus_items`
+    FROM `{PROJECT_ID}.{DATASET}.articles`
     WHERE fetched_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {days_back} DAY)
     GROUP BY date
     ORDER BY date DESC
@@ -101,7 +123,7 @@ def get_pipeline_completeness(days_back: int = 7) -> List[Dict]:
     query = f"""
     WITH article_counts AS (
         SELECT DATE(fetched_at) as date, COUNT(*) as articles
-        FROM `{PROJECT_ID}.{DATASET}.corpus_items`
+        FROM `{PROJECT_ID}.{DATASET}.articles`
         WHERE fetched_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {days_back} DAY)
         GROUP BY date
     ),
@@ -133,7 +155,7 @@ def get_pipeline_completeness(days_back: int = 7) -> List[Dict]:
 def get_table_stats() -> Dict:
     """Get current table record counts."""
     tables = {
-        "corpus_items": "fetched_at",
+        "articles": "fetched_at",
         "digest_items": "ingested_at",
         "article_chunk_embeddings": "created_at",
         "article_images": "extracted_at",
@@ -190,9 +212,12 @@ def print_report(days_back: int):
     table_stats = get_table_stats()
     for table, counts in table_stats.items():
         print(f"   {table}:")
-        print(f"      Total: {counts.get('total', 0):,}")
-        print(f"      Last 24h: {counts.get('last_24h', 0):,}")
-        print(f"      Last 7d: {counts.get('last_7d', 0):,}")
+        total = int(counts.get('total', 0) or 0)
+        last_24h = int(counts.get('last_24h', 0) or 0)
+        last_7d = int(counts.get('last_7d', 0) or 0)
+        print(f"      Total: {total:,}")
+        print(f"      Last 24h: {last_24h:,}")
+        print(f"      Last 7d: {last_7d:,}")
         print()
     
     # 3. Daily Article Breakdown
@@ -241,10 +266,10 @@ def print_report(days_back: int):
         print(f"   {'Date':<12} {'Articles':<10} {'Digests':<10} {'Embeddings':<12} {'Status':<15}")
         print("   " + "-" * 70)
         for row in pipeline:
-            date = row.get("date", "")
-            articles = int(row.get("articles", 0))
-            digests = int(row.get("digests", 0))
-            embeddings = int(row.get("embeddings", 0))
+            date = row.get("date") or "Unknown"
+            articles = int(row.get("articles") or 0)
+            digests = int(row.get("digests") or 0)
+            embeddings = int(row.get("embeddings") or 0)
             
             # Check completeness
             if articles == digests == embeddings and articles > 0:
@@ -254,7 +279,7 @@ def print_report(days_back: int):
             else:
                 status = "❌ No Data"
             
-            print(f"   {date:<12} {articles:<10} {digests:<10} {embeddings:<12} {status}")
+            print(f"   {str(date):<12} {articles:<10} {digests:<10} {embeddings:<12} {status}")
     
     # 5. Health Summary
     print()

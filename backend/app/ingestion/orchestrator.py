@@ -184,6 +184,23 @@ class IngestionOrchestrator:
                 rss_articles = []
                 logger.info("Skipping RSS (not in sources)")
             
+            # =====================================================================
+            # GLOBAL DATE SETUP - Must happen BEFORE any source fetching
+            # These variables are used by is_valid_date() filter for all sources
+            # =====================================================================
+            if backfill_days:
+                # Backfill mode: use the specified days for both tiers
+                tier1_since = datetime.utcnow() - timedelta(days=backfill_days)
+                tier2_since = datetime.utcnow() - timedelta(days=backfill_days)
+                search_num_days = backfill_days
+                logger.info(f"Date filter: Backfill mode with {backfill_days} days lookback")
+            else:
+                # Normal run: fetch recent (3 days for faster processing)
+                tier1_since = datetime.utcnow() - timedelta(days=3)
+                tier2_since = datetime.utcnow() - timedelta(days=3)
+                search_num_days = 3
+                logger.info(f"Date filter: Standard 3-day lookback")
+            
             # Step 1b: Fetch Freight Rates (Drewry WCI)
             if "freight" in sources:
                 logger.info("Step 1b: Fetching Drewry Freight Rates...")
@@ -217,19 +234,6 @@ class IngestionOrchestrator:
             logger.info("Step 2: Fetching Tiered Data...")
             
             companies = await self._get_tracked_companies()
-            
-            # Date Logic
-            if backfill_days:
-                # Backfill mode: use the specified days for both tiers
-                tier1_since = datetime.utcnow() - timedelta(days=backfill_days)
-                tier2_since = datetime.utcnow() - timedelta(days=backfill_days)
-                search_num_days = backfill_days  # Pass to Exa for date-filtered search
-                logger.info(f"Backfill mode: {backfill_days} days lookback")
-            else:
-                # Normal run: fetch recent (3 days for faster processing)
-                tier1_since = datetime.utcnow() - timedelta(days=3)
-                tier2_since = datetime.utcnow() - timedelta(days=3)
-                search_num_days = 3  # Default 3-day search window
 
             # 2a. Press Releases (Tavily) - Tier 2
             pr_items = []
