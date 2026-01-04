@@ -249,9 +249,10 @@ class IngestionOrchestrator:
             # 2b. SEC Filings - Tier 1
             sec_items = []
             if "sec" in sources and (self.config.sec_api_key or os.getenv("SEC_IO_KEY")):
-                logger.info(f"Fetching SEC filings (Since {tier1_since.date()})...")
-                for comp in companies:
-                    if not comp.get("ticker"): continue
+                # Filter to companies with tickers for SEC queries
+                sec_companies = [c for c in companies if c.get("ticker")]
+                logger.info(f"Fetching SEC filings (Since {tier1_since.date()}) for {len(sec_companies)} companies...")
+                for i, comp in enumerate(sec_companies):
                     try:
                         filings = self.sec_collector.collect_for_company(
                             company_id=comp["id"],
@@ -259,8 +260,11 @@ class IngestionOrchestrator:
                             since=tier1_since
                         )
                         sec_items.extend(filings)
+                        if (i + 1) % 10 == 0:
+                            logger.info(f"SEC progress: {i + 1}/{len(sec_companies)} companies processed")
                     except Exception as e:
                         logger.error(f"SEC fetch failed for {comp['ticker']}: {e}")
+                logger.info(f"SEC: Completed all companies, {len(sec_items)} total filings found")
                 stats.sec_filings_fetched = len(sec_items)
             
             # 2c. Earnings Transcripts - Tier 1

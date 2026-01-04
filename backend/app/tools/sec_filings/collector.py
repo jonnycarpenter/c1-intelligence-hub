@@ -18,6 +18,8 @@ class SECFilingCollector:
     def collect_for_company(self, company_id: str, ticker: str, since: datetime = None) -> List[SECFiling]:
         if not ticker:
             return []
+        
+        logger.info(f"SEC: Querying filings for {ticker}...")
             
         # Default to standard forms if not configured
         form_types = getattr(settings, 'sec_filing_types', None) or ["10-K", "10-Q", "8-K"]
@@ -29,6 +31,7 @@ class SECFilingCollector:
                 filed_after=since,
                 size=5
             )
+            logger.info(f"SEC: Found {len(metadatas)} filings for {ticker}")
         except Exception as e:
             logger.error(f"SEC Query failed for {ticker}: {e}")
             return []

@@ -1,20 +1,36 @@
 
 import httpx
+import time
+import logging
 from typing import List, Optional
 from datetime import datetime
 from app.config.settings import settings
 from .models import FilingMetadata
+
+logger = logging.getLogger(__name__)
 
 class SECClient:
     QUERY_URL = "https://api.sec-api.io"
     EXTRACTOR_URL = "https://api.sec-api.io/extractor"
     RENDER_URL = "https://archive.sec-api.io"
     
+    # Rate limiting: SEC API has limits per minute
+    MIN_REQUEST_INTERVAL = 0.5  # 500ms between requests to avoid rate limits
+    
     def __init__(self, api_key: str = None):
         self.api_key = (api_key or settings.sec_api_key or "").strip()
         if self.api_key == "PLACEHOLDER":
              self.api_key = "" # Treat as missing
         self.client = httpx.Client(timeout=60.0)
+        self._last_request_time = 0
+        logger.info(f"SEC Client initialized, API key present: {bool(self.api_key)}")
+    
+    def _rate_limit(self):
+        """Enforce minimum interval between API requests"""
+        elapsed = time.time() - self._last_request_time
+        if elapsed < self.MIN_REQUEST_INTERVAL:
+            time.sleep(self.MIN_REQUEST_INTERVAL - elapsed)
+        self._last_request_time = time.time()
     
     def query_filings(
         self,
@@ -47,12 +63,33 @@ class SECClient:
             "sort": [{"filedAt": {"order": "desc"}}]
         }
         
-        response = self.client.post(
-            self.QUERY_URL,
-            json=payload,
-            headers={"Authorization": self.api_key}
-        )
-        response.raise_for_status()
+        # Retry with exponential backoff for rate limits
+        max_retries = 3
+        for attempt in range(max_retries):
+            self._rate_limit()
+            try:
+                response = self.client.post(
+                    self.QUERY_URL,
+                    json=payload,
+                    headers={"Authorization": self.api_key}
+                )
+                if response.status_code == 429:
+                    wait_time = (2 ** attempt) * 2  # 2, 4, 8 seconds
+                    logger.warning(f"SEC API rate limit hit, waiting {wait_time}s before retry {attempt + 1}/{max_retries}")
+                    time.sleep(wait_time)
+                    continue
+                response.raise_for_status()
+                break
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 429 and attempt < max_retries - 1:
+                    wait_time = (2 ** attempt) * 2
+                    logger.warning(f"SEC API rate limit hit, waiting {wait_time}s before retry {attempt + 1}/{max_retries}")
+                    time.sleep(wait_time)
+                    continue
+                raise
+        else:
+            logger.error(f"SEC API rate limit exceeded after {max_retries} retries")
+            return []
         
         data = response.json()
         filings = []
@@ -81,10 +118,15 @@ class SECClient:
             "token": self.api_key
         }
         try:
+            self._rate_limit()
             response = self.client.get(self.EXTRACTOR_URL, params=params)
             if response.status_code == 200:
                 return response.text
-        except Exception:
+            elif response.status_code == 429:
+                logger.warning(f"SEC Extractor API rate limit hit for {section}")
+                time.sleep(2)  # Brief wait, then return None
+        except Exception as e:
+            logger.debug(f"SEC extract_section failed: {e}")
             return None
         return None
 
