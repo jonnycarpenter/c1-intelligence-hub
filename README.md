@@ -1,17 +1,28 @@
-# C1 Intelligence Hub v2
+# C1 Intelligence Hub
 
-A production-grade intelligence platform for the composites industry, built with Next.js and FastAPI.
+An AI-powered intelligence platform for the composites industry, built with Next.js and FastAPI, deployed on Google Cloud Run.
 
 ## Overview
 
-C1 Intelligence Hub helps composites industry professionals stay informed with AI-powered analysis across four key areas:
+C1 Intelligence Hub helps composites industry professionals stay informed with AI-powered briefings, deep research, and organizational memory.
 
-| Tab | Agent | Description |
-|-----|-------|-------------|
-| **Market Intelligence** | Industry Watcher | News, press releases, and market trends |
-| **Financial Intelligence** | Market Scout | Earnings analysis, financial data, commodities |
-| **Product Intelligence** | Product Maven | Spec sheets, datasheets, competitor analysis |
-| **Hub Inputs** | Data Steward | Manage tracked companies, materials, preferences |
+### Core Features
+
+| Feature | Description |
+|---------|-------------|
+| **Ad-Hoc Briefings** | On-demand AI briefings on any topic with real-time web search |
+| **Deep Research** | Multi-step research workflows with source grounding |
+| **Pipeline Dashboard** | Track news from 50+ industry sources via Exa/Tavily |
+| **Long-Term Memory** | Save insights to BigQuery with team-based retrieval |
+| **Login Gate** | Team-based access (Sales East/West, Marketing, Product/Supplier) |
+
+### Data Sources
+
+- **Exa AI** - Semantic web search for industry news
+- **Tavily** - Real-time web search with date filtering  
+- **BigQuery** - Article corpus with 768-dim embeddings
+- **SEC EDGAR** - Company filings and press releases
+- **Financial APIs** - FMP, API Ninja for earnings data
 
 ## Architecture
 
@@ -125,14 +136,15 @@ c1-intelligence-hub_v2/
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/chat` | POST | Stream chat responses (SSE) |
-| `/api/reports` | GET | List generated reports |
-| `/api/reports/{id}` | GET | Get report content |
-| `/api/reports/{id}/download` | GET | Download as markdown |
-| `/api/data/companies` | GET | List tracked companies |
-| `/api/data/materials` | GET | List materials |
-| `/api/data/industries` | GET | List industries |
-| `/api/data/preferences` | GET/PUT | User preferences |
+| `/api/briefing/adhoc` | POST | Stream ad-hoc briefing (SSE) |
+| `/api/research/start` | POST | Start deep research workflow |
+| `/api/research/stream/{id}` | GET | Stream research progress |
+| `/api/memory/log` | GET/POST | Long-term memory CRUD |
+| `/api/memory/relevant` | GET | Retrieve relevant memories |
+| `/api/memory/{id}/pin` | PATCH | Pin/unpin memory |
+| `/api/verify-access` | POST | Login verification |
+| `/api/data/preferences` | GET/PUT | User/org preferences |
+| `/api/pipeline/articles` | GET | Pipeline article search |
 | `/health` | GET | Health check |
 
 ## Configuration
@@ -142,19 +154,23 @@ c1-intelligence-hub_v2/
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `ANTHROPIC_API_KEY` | Yes | Claude API key |
-| `FMP_API_KEY` | Yes | Financial Modeling Prep API key |
 | `TAVILY_API_KEY` | Yes | Tavily web search API key |
+| `EXA_API_KEY` | Yes | Exa semantic search API key |
+| `GCP_PROJECT_ID` | Yes | Google Cloud project ID |
+| `GCP_DATASET_ID` | Yes | BigQuery dataset (e.g., `c1_intelligence`) |
+| `SITE_ACCESS_PASSWORD` | Yes | Shared password for login gate |
+| `FMP_API_KEY` | No | Financial Modeling Prep API key |
 | `ENVIRONMENT` | No | `development` or `production` |
-| `LOG_LEVEL` | No | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
-| `CORS_ORIGINS` | No | Comma-separated allowed origins |
 
-### Supply Chain Context
+### Teams
 
-Use the supply chain selector to switch between different business contexts:
+The app supports team-based memory and preferences:
 
-- **C1** - Composites One (default)
-- **F1** - Fiberglass One
-- **E1** - Electronics One
+- **Sales East** - Eastern region sales team
+- **Sales West** - Western region sales team  
+- **Marketing** - Marketing team
+- **Product/Supplier** - Product and supplier intelligence
+- **All Others** - Default team
 
 ## Development
 
