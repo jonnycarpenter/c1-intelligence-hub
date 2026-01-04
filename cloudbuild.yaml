@@ -1,0 +1,82 @@
+# Cloud Build configuration for C1 Intelligence Hub
+# Triggers on push to main branch
+
+steps:
+  # Build the container image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE_NAME}:${_TAG}'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE_NAME}:latest'
+      - '-f'
+      - 'Dockerfile.prod'
+      - '.'
+    dir: '.'
+
+  # Push to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE_NAME}'
+
+  # Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - '${_SERVICE_NAME}'
+      - '--image'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE_NAME}:${_TAG}'
+      - '--region'
+      - '${_REGION}'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--memory'
+      - '2Gi'
+      - '--cpu'
+      - '2'
+      - '--min-instances'
+      - '0'
+      - '--max-instances'
+      - '10'
+      - '--timeout'
+      - '3600'
+      - '--concurrency'
+      - '80'
+      - '--execution-environment'
+      - 'gen2'
+      - '--add-volume'
+      - 'name=data-volume,type=cloud-storage,bucket=${_DATA_BUCKET}'
+      - '--add-volume-mount'
+      - 'volume=data-volume,mount-path=/app/data'
+      - '--set-secrets'
+      - 'ANTHROPIC_API_KEY=anthropic-api-key:latest,API_NINJA_KEY=api-ninja-key:latest,TAVILY_API_KEY=tavily-api-key:latest,FMP_API_KEY=fmp-api-key:latest,SEC_IO_KEY=SEC_IO_KEY:latest,IMPORTYETI_API_KEY=importyeti-api-key:latest,APOLLO_API_KEY=apollo-api-key:latest'
+      - '--set-env-vars'
+      - 'ENVIRONMENT=production,GCP_PROJECT_ID=${PROJECT_ID},GCP_DATASET_ID=c1_intelligence,GCS_BUCKET_NAME=${_DATA_BUCKET},KNOWLEDGE_PERSIST_DIR=/app/data/knowledge_db,SITE_ACCESS_PASSWORD=${_SITE_PASSWORD}'
+
+# Substitution variables (can be overridden via --substitutions flag)
+substitutions:
+  _REGION: 'us-central1'
+  _REPOSITORY: 'c1-intelligence-hub'
+  _SITE_PASSWORD: 'partnership2026'
+  _SERVICE_NAME: 'c1-hub'
+  _DATA_BUCKET: 'gen-lang-client-0436975498-c1-hub-data'
+  _TAG: 'latest'
+
+# Build options
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_HIGHCPU_8'
+
+# Store images in Artifact Registry
+images:
+  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE_NAME}:${_TAG}'
+  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE_NAME}:latest'
+
+# Timeout for entire build
+timeout: '1800s'
