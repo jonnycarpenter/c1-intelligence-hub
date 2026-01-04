@@ -1,0 +1,83 @@
+# FastAPI and web
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+python-multipart==0.0.17
+sse-starlette==2.1.3
+
+# LangChain and agents (versions must be compatible)
+langchain>=0.3.10
+langchain-anthropic>=0.3.0
+langchain-core>=0.3.36
+langgraph>=0.2.56
+
+# MCP integration
+# MCP integration
+
+
+# HTTP and APIs
+httpx==0.28.1
+aiohttp==3.11.10
+requests==2.32.3
+
+# Exa.ai for semantic search and prospect discovery
+# Exa.ai for semantic search and prospect discovery
+exa_py>=2.0.0
+pytrends>=4.9.0
+
+
+# RSS and web scraping
+feedparser>=6.0.10
+beautifulsoup4>=4.12.0
+lxml>=5.0.0
+
+# DuckDuckGo search (reliable date-filtered news)
+duckduckgo-search>=8.0.0
+
+# Database
+aiosqlite>=0.20.0
+
+# Vector store
+chromadb>=0.5.0
+
+# Embeddings (Vertex AI for production, sentence-transformers for local)
+google-cloud-aiplatform>=1.38.0
+sentence-transformers>=2.2.0
+
+# Groq (for X/Twitter analysis - fast inference)
+groq>=0.11.0
+
+# Data processing
+pandas==2.2.3
+numpy==2.2.0
+
+# PDF and document processing
+pypdf==5.1.0
+python-pptx==1.0.2
+pdfplumber==0.11.4
+reportlab>=4.0.0
+python-docx>=1.1.0
+
+# Environment and config
+python-dotenv==1.0.1
+pydantic==2.10.3
+pydantic-settings==2.6.1
+
+# Logging
+structlog==24.4.0
+
+# Google Cloud (for production deployment)
+# These are optional in development, required in production
+google-cloud-storage>=2.14.0
+google-cloud-bigquery>=3.17.0
+db-dtypes>=1.2.0
+pyarrow>=14.0.0
+
+# File handling
+aiofiles==24.1.0
+
+# Testing
+pytest==8.3.4
+pytest-asyncio==0.24.0
+
+# Type checking
+mypy==1.13.0

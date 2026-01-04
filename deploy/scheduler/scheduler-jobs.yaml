@@ -1,0 +1,103 @@
+# =============================================================================
+# Cloud Scheduler Jobs Configuration
+# =============================================================================
+# Orchestrator ingestion runs twice daily to collect and embed articles.
+#
+# Schedule: 8 AM and 8 PM Central Time (2 PM and 2 AM UTC)
+#
+# Deployment:
+#   ./deploy-scheduler.sh <PROJECT_ID> <SERVICE_URL>
+#
+# Jobs hit Cloud Run endpoints with OIDC auth.
+# =============================================================================
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # MAIN INGESTION JOB - Twice Daily
+  # ---------------------------------------------------------------------------
+  # Runs the full orchestrator pipeline:
+  # - RSS feeds (industry publications)
+  # - Tavily web search (news)
+  # - Tavily press releases
+  # - SEC.io filings
+  #
+  # Articles are classified and stored as embeddings for agent queries.
+  # ---------------------------------------------------------------------------
+  
+  - name: orchestrator-ingestion-morning
+    description: Morning ingestion run - RSS, Tavily, SEC (8 AM Central)
+    schedule: "0 14 * * *"  # 2 PM UTC = 8 AM Central
+    timezone: UTC
+    endpoint: /api/v1/scheduler/ingest
+    timeout: 3600s  # 60 minute timeout
+    body:
+      sources:
+        - tavily
+        - rss
+        - sec
+      max_articles: 150
+    retry_config:
+      retry_count: 2
+      min_backoff: 60s
+      max_backoff: 600s
+    
+  - name: orchestrator-ingestion-evening
+    description: Evening ingestion run - RSS, Tavily, SEC (8 PM Central)
+    schedule: "0 2 * * *"  # 2 AM UTC = 8 PM Central
+    timezone: UTC
+    endpoint: /api/v1/scheduler/ingest
+    timeout: 3600s  # 60 minute timeout
+    body:
+      sources:
+        - tavily
+        - rss
+        - sec
+      max_articles: 150
+    retry_config:
+      retry_count: 2
+      min_backoff: 60s
+      max_backoff: 600s
+
+  # ---------------------------------------------------------------------------
+  # WEEKLY EXECUTIVE BRIEFING - Mondays after morning ingestion
+  # ---------------------------------------------------------------------------
+  # Generates the "Need to Know" executive briefing for the Pulse page.
+  # Runs 30 mins after morning ingestion to ensure freshest data.
+  # 
+  # Features:
+  # - Max 3 dynamic sections (agent-chosen groupings)
+  # - Logo.dev integration for company mentions
+  # - Net New vs Continuing to Track badges
+  # - Inline citations with sources
+  # ---------------------------------------------------------------------------
+  
+  - name: weekly-executive-briefing
+    description: Weekly Need to Know briefing generation (Monday 8:30 AM Central)
+    schedule: "30 14 * * 1"  # 2:30 PM UTC = 8:30 AM Central, Mondays only
+    timezone: UTC
+    endpoint: /api/v1/scheduler/briefing
+    timeout: 600s  # 10 minute timeout
+    body:
+      briefing_type: weekly_executive
+      lookback_days: 7
+    retry_config:
+      retry_count: 2
+      min_backoff: 60s
+      max_backoff: 300s
+
+  # ---------------------------------------------------------------------------
+  # WEEKLY MAINTENANCE
+  # ---------------------------------------------------------------------------
+  
+  - name: weekly-cleanup
+    description: Clean up old data beyond retention period
+    schedule: "0 6 * * 0"  # Sundays at 6 AM UTC (12 AM Central)
+    timezone: UTC
+    endpoint: /api/v1/scheduler/maintenance
+    body:
+      task: cleanup
+      retention_days: 90
+    retry_config:
+      retry_count: 1
+      min_backoff: 60s
+      max_backoff: 300s

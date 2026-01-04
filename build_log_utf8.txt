@@ -1,0 +1,117 @@
+﻿-------------- REMOTE BUILD OUTPUT ---------------
+starting build "d872e871-15d3-4292-8d8c-01d03ab26ff7"
+FETCHSOURCE
+Fetching storage object: gs://gen-lang-client-0436975498_cloudbuild/source/1767507763.43917-3051a67920714a0ba6bbe1bbe89d987c.tgz#1767507782564430
+Copying gs://gen-lang-client-0436975498_cloudbuild/source/1767507763.43917-3051a67920714a0ba6bbe1bbe89d987c.tgz#1767507782564430...
+/ [0 files][    0.0 B/ 96.8 MiB]                                                
+/ [1 files][ 96.8 MiB/ 96.8 MiB]                                                
+-
+Operation completed over 1 objects/96.8 MiB.
+BUILD
+Starting Step #0
+Step #0: Already have image (with digest): gcr.io/cloud-builders/docker
+Step #0: Sending build context to Docker daemon    202MB
+Step #0: Step 1/29 : FROM node:20-alpine AS frontend-builder
+Step #0: 20-alpine: Pulling from library/node
+Step #0: 1074353eec0d: Pulling fs layer
+Step #0: 8d06ba6946d1: Pulling fs layer
+Step #0: cb3325e64457: Pulling fs layer
+Step #0: fd1849a5c548: Pulling fs layer
+Step #0: cb3325e64457: Verifying Checksum
+Step #0: cb3325e64457: Download complete
+Step #0: fd1849a5c548: Verifying Checksum
+Step #0: fd1849a5c548: Download complete
+Step #0: 1074353eec0d: Download complete
+Step #0: 1074353eec0d: Pull complete
+Step #0: 8d06ba6946d1: Verifying Checksum
+Step #0: 8d06ba6946d1: Download complete
+Step #0: 8d06ba6946d1: Pull complete
+Step #0: cb3325e64457: Pull complete
+Step #0: fd1849a5c548: Pull complete
+Step #0: Digest: sha256:658d0f63e501824d6c23e06d4bb95c71e7d704537c9d9272f488ac03a370d448
+Step #0: Status: Downloaded newer image for node:20-alpine
+Step #0:  ---> e80b0510ba94
+Step #0: Step 2/29 : WORKDIR /app/frontend
+Step #0:  ---> Running in 9eb88d3e3315
+Step #0: Removing intermediate container 9eb88d3e3315
+Step #0:  ---> ab6a0824f4b6
+Step #0: Step 3/29 : COPY frontend/package*.json ./
+Step #0:  ---> 9ff7fb1dd29d
+Step #0: Step 4/29 : RUN npm ci
+Step #0:  ---> Running in 56e2a3bebf55
+Step #0: [91mnpm warn deprecated rimraf@3.0.2: Rimraf versions prior to v4 are no longer supported
+Step #0: [0m[91mnpm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
+Step #0: [0m[91mnpm warn deprecated @humanwhocodes/object-schema@2.0.3: Use @eslint/object-schema instead
+Step #0: [0m[91mnpm warn deprecated @humanwhocodes/config-array@0.13.0: Use @eslint/config-array instead
+Step #0: [0m[91mnpm warn deprecated glob@7.2.3: Glob versions prior to v9 are no longer supported
+Step #0: [0m[91mnpm warn deprecated eslint@8.57.1: This version is no longer supported. Please see https://eslint.org/version-support for other options.
+Step #0: [0m
+Step #0: added 535 packages, and audited 536 packages in 19s
+Step #0:
+Step #0: 228 packages are looking for funding
+Step #0:   run `npm fund` for details
+Step #0:
+Step #0: 3 high severity vulnerabilities
+Step #0:
+Step #0: To address all issues (including breaking changes), run:
+Step #0:   npm audit fix --force
+Step #0:
+Step #0: Run `npm audit` for details.
+Step #0: [91mnpm notice
+Step #0: npm notice New major version of npm available! 10.8.2 -> 11.7.0
+Step #0: npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.7.0
+Step #0: npm notice To update run: npm install -g npm@11.7.0
+Step #0: npm notice
+Step #0: [0mRemoving intermediate container 56e2a3bebf55
+Step #0:  ---> ad47546234aa
+Step #0: Step 5/29 : COPY frontend/ ./
+Step #0:  ---> 5cbf7afbd2af
+Step #0: Step 6/29 : ENV NEXT_TELEMETRY_DISABLED=1
+Step #0:  ---> Running in 445c5a1ca1b6
+Step #0: Removing intermediate container 445c5a1ca1b6
+Step #0:  ---> e304f1b16a01
+Step #0: Step 7/29 : ENV NODE_ENV=production
+Step #0:  ---> Running in f88930f0de0c
+Step #0: Removing intermediate container f88930f0de0c
+Step #0:  ---> 8f39af61878d
+Step #0: Step 8/29 : RUN printf '%s\n'     '/** @type {import("next").NextConfig} */'     'const nextConfig = {'     '  output: "export",'     '  trailingSlash: true,'     '  images: { unoptimized: true },'     '}'     'module.exports = nextConfig'     > next.config.js && cat next.config.js
+Step #0:  ---> Running in 725c8b52b598
+Step #0: /** @type {import("next").NextConfig} */
+Step #0: const nextConfig = {
+Step #0:   output: "export",
+Step #0:   trailingSlash: true,
+Step #0:   images: { unoptimized: true },
+Step #0: }
+Step #0: module.exports = nextConfig
+Step #0: Removing intermediate container 725c8b52b598
+Step #0:  ---> fe649b08f921
+Step #0: Step 9/29 : RUN npm run build
+Step #0:  ---> Running in 40b166c949cc
+Step #0:
+Step #0: > c1-intelligence-hub-v2-frontend@0.1.0 build
+Step #0: > next build
+Step #0:
+Step #0:    ? Next.js 16.0.10 (Turbopack)
+Step #0:
+Step #0:    Creating an optimized production build ...
+Step #0:  ? Compiled successfully in 16.8s
+Step #0:    Running TypeScript ...
+Step #0: [91mFailed to compile.
+Step #0:
+Step #0: [0m[91m./src/components/chat/ChatInterface.tsx:53:3
+Step #0: Type error: Object literal may only specify known properties, and 'importyeti' does not exist in type 'Record<Mode, string[]>'.
+Step #0:
+Step #0: [0m [90m 51 |[39m     [32m"Update my notification preferences"[39m[33m,[39m
+Step #0:  [90m 52 |[39m   ][33m,[39m
+Step #0: [31m[1m>[22m[39m[90m 53 |[39m   importyeti[33m:[39m [
+Step #0:  [90m    |[39m   [31m[1m^[22m[39m
+Step #0:  [90m 54 |[39m     [32m"Show top suppliers"[39m[33m,[39m
+Step #0:  [90m 55 |[39m     [32m"Analyze Jushi Group shipments"[39m[33m,[39m
+Step #0:  [90m 56 |[39m     [32m"Find suppliers for fiberglass"[39m[33m,[39m[0m
+Step #0: [0m[91mNext.js build worker exited with code: 1 and signal: null
+Step #0: The command '/bin/sh -c npm run build' returned a non-zero code: 1
+Finished Step #0
+ERROR
+ERROR: build step 0 "gcr.io/cloud-builders/docker" failed: step exited with non-zero status: 1
+Step #0: [0m
+--------------------------------------------------

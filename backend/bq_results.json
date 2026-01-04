@@ -1,0 +1,371 @@
+{
+  "schema": [
+    {
+      "name": "id",
+      "type": "STRING",
+      "mode": "REQUIRED"
+    },
+    {
+      "name": "article_id",
+      "type": "STRING",
+      "mode": "REQUIRED"
+    },
+    {
+      "name": "title",
+      "type": "STRING",
+      "mode": "REQUIRED"
+    },
+    {
+      "name": "url",
+      "type": "STRING",
+      "mode": "NULLABLE"
+    },
+    {
+      "name": "published_at",
+      "type": "TIMESTAMP",
+      "mode": "NULLABLE"
+    },
+    {
+      "name": "source_name",
+      "type": "STRING",
+      "mode": "NULLABLE"
+    },
+    {
+      "name": "source_type",
+      "type": "STRING",
+      "mode": "NULLABLE"
+    },
+    {
+      "name": "category",
+      "type": "STRING",
+      "mode": "REQUIRED"
+    },
+    {
+      "name": "priority",
+      "type": "STRING",
+      "mode": "REQUIRED"
+    },
+    {
+      "name": "digest_summary",
+      "type": "STRING",
+      "mode": "NULLABLE"
+    },
+    {
+      "name": "original_summary",
+      "type": "STRING",
+      "mode": "NULLABLE"
+    },
+    {
+      "name": "companies",
+      "type": "STRING",
+      "mode": "NULLABLE"
+    },
+    {
+      "name": "materials",
+      "type": "STRING",
+      "mode": "NULLABLE"
+    },
+    {
+      "name": "topics",
+      "type": "STRING",
+      "mode": "NULLABLE"
+    },
+    {
+      "name": "relevance_score",
+      "type": "FLOAT",
+      "mode": "NULLABLE"
+    },
+    {
+      "name": "confidence",
+      "type": "FLOAT",
+      "mode": "NULLABLE"
+    },
+    {
+      "name": "classifier_model",
+      "type": "STRING",
+      "mode": "NULLABLE"
+    },
+    {
+      "name": "classified_at",
+      "type": "TIMESTAMP",
+      "mode": "REQUIRED"
+    },
+    {
+      "name": "ingested_at",
+      "type": "TIMESTAMP",
+      "mode": "REQUIRED"
+    },
+    {
+      "name": "coverage_count",
+      "type": "INTEGER",
+      "mode": "NULLABLE"
+    },
+    {
+      "name": "duplicate_sources",
+      "type": "STRING",
+      "mode": "NULLABLE"
+    },
+    {
+      "name": "all_urls",
+      "type": "STRING",
+      "mode": "NULLABLE"
+    },
+    {
+      "name": "industries",
+      "type": "STRING",
+      "mode": "NULLABLE"
+    }
+  ],
+  "sample_rows": [
+    {
+      "id": "20afbceb-38e5-4bb5-9efc-1fae20a00637",
+      "title": "Fuel from H2: Ineratec Opens Europe's Largest e-Fuels Plant in Frankfurt",
+      "industries": "[\"aerospace\"]"
+    },
+    {
+      "id": "754ff38e-1fec-429f-9b82-22c304a5d7a6",
+      "title": "NASA Artemis II | Send Your Name to Space",
+      "industries": "[\"aerospace\"]"
+    },
+    {
+      "id": "a521f798-0428-4b08-be27-89623d2bb3e2",
+      "title": "Elon Musk claims Tesla Model Y is best-selling car in the world, but there are serious doubts",
+      "industries": "[\"automotive\"]"
+    },
+    {
+      "id": "b7f14661-6555-45c1-bff4-022fa79c19b6",
+      "title": "Spiritus Launches A Pilot DAC Plant In New Mexico With Support From Namb\u00e9 Pueblo",
+      "industries": "[\"industrial\"]"
+    },
+    {
+      "id": "c9395cf0-1f0e-4ec5-8dc2-284fd458a1e2",
+      "title": "The Power Bill, the AI Dip, and the Date That Could Flip 2026 Stocks",
+      "industries": "[]"
+    },
+    {
+      "id": "5e761b86-071a-44b6-8147-5409d9496b6e",
+      "title": "Ringing in 2026: Last-minute yacht additions to the St Barths scene for New Year\u2019s Eve",
+      "industries": "[\"marine\"]"
+    },
+    {
+      "id": "481a8a70-fd19-4f78-af6a-4a3e8b8ec913",
+      "title": "Elon Musk gave nearly $100 million worth of Tesla shares to charity for 'tax planning'",
+      "industries": "[\"automotive\"]"
+    },
+    {
+      "id": "fd74f1b8-269e-447b-8045-aa1fc2202299",
+      "title": "Tesla (NASDAQ: TSLA) Stock Price Prediction and Forecast 2026-2030 (Jan 1)",
+      "industries": "[\"automotive\"]"
+    },
+    {
+      "id": "befbed2b-611a-480f-a464-db00bd4c3b60",
+      "title": "Here's Why Tesla Will Win the EV Market",
+      "industries": "[\"automotive\"]"
+    },
+    {
+      "id": "add93ec8-175c-4fd1-a388-ba7a922bcb47",
+      "title": "BAE SYSTEMS PLC",
+      "industries": "[\"aerospace\", \"defense\", \"marine\"]"
+    },
+    {
+      "id": "e7f35d68-8161-48ee-80e0-9195d5a8a8b5",
+      "title": "Lockheed Martin Makes First International SEWIP Sale to Japan",
+      "industries": "[\"defense\"]"
+    },
+    {
+      "id": "c2967f49-8ee5-414d-bbfa-10efbf66fdb8",
+      "title": "'Pitched downward on its own\u2019: Nightmare Airbus A320 scenario that unfolded in JetBlue flight before getting grounded",
+      "industries": "[\"aerospace\"]"
+    },
+    {
+      "id": "25473fac-d747-458f-9113-4f51cb9f9fea",
+      "title": "B\u00fcfa Composite Systems presents new resin component for emission-free working",
+      "industries": "[\"industrial\"]"
+    },
+    {
+      "id": "ba130ef2-7594-4b01-bc4e-f57f65aa8732",
+      "title": "My Most Important Dividend Growth Picks For The Market's Next Phase",
+      "industries": "[]"
+    },
+    {
+      "id": "30b07738-4291-4a71-8e7d-74d66dab3c75",
+      "title": "German-Spanish Joint Venture Presents New Electrolyzer",
+      "industries": "[\"wind_energy\"]"
+    },
+    {
+      "id": "d463673e-6f3c-40d9-9733-e48efda05d5d",
+      "title": "Experimental and analytical study on heat transfer characteristics of fireproof panels with air layer and Low-E film protecting FRP strengthening",
+      "industries": "[\"infrastructure\"]"
+    },
+    {
+      "id": "8cefe7cf-973a-4407-917d-5f89095d9496",
+      "title": "X7 Print Head",
+      "industries": "[\"industrial\"]"
+    },
+    {
+      "id": "618c7e6f-39d4-4d2e-a1a2-93ef01728e67",
+      "title": "Ludwigshafen: BASF receives funding approval for large-scale electrolyzer",
+      "industries": "[\"industrial\"]"
+    },
+    {
+      "id": "4fc1e1fb-5058-4b98-ba16-be83c39c5843",
+      "title": "Michael Burry Is Not Short Tesla Stock \u2014 Despite 'Ridiculous' Valuation",
+      "industries": "[\"automotive\"]"
+    },
+    {
+      "id": "b39a3afa-70cd-4974-a39f-4a9cd7360943",
+      "title": "Is Tesla really the leader in autonomous driving?",
+      "industries": "[\"automotive\"]"
+    },
+    {
+      "id": "55fc3465-589e-4a88-b753-68a18b74046c",
+      "title": "Lockheed still paid $1.7 billion despite poor readiness rate of F-35s",
+      "industries": "[\"aerospace\", \"defense\"]"
+    },
+    {
+      "id": "36b6eb8d-deb5-40dc-8554-10dabf5ca2f8",
+      "title": "Forget Archer Aviation: This Explosive Space Stock Is a Smarter Shot at Life-Changing Gains",
+      "industries": "[\"aerospace\"]"
+    },
+    {
+      "id": "b885e575-0aa3-4b19-a605-2e51f539fb09",
+      "title": "Pentagon says Lockheed Martin gets $328.5 million Taiwan military sale contract",
+      "industries": "[\"defense\", \"aerospace\"]"
+    },
+    {
+      "id": "e4f3f019-d4ab-422b-a786-0d102e82c713",
+      "title": "Login \u2022 Instagram",
+      "industries": "[\"automotive\"]"
+    },
+    {
+      "id": "cc2944ca-7691-4c42-a36e-8cae20bfbe95",
+      "title": "A superyacht isn\u2019t enough of a flex for billionaires on St. Barts \u2014 as rich and famous take to starry island for New Year\u2019s",
+      "industries": "[\"marine\"]"
+    },
+    {
+      "id": "51ba446b-bce5-45d4-bbbe-9d53cb407e25",
+      "title": "54 Megawatts: Germany's largest PEM electrolyzer goes into operation",
+      "industries": "[\"industrial\"]"
+    },
+    {
+      "id": "ef44faf5-815d-48c6-8ab5-4f820a20bbbe",
+      "title": "Airbus Secures $500 Million Contract to Upgrade French Navy Communications | Products",
+      "industries": "[\"defense\", \"aerospace\"]"
+    },
+    {
+      "id": "15dd9321-7a93-49b9-895b-07de85ae79d9",
+      "title": "Sikas New Monotop System Raises Standards In Sustainable, Long-Term Concrete Repair",
+      "industries": "[\"infrastructure\"]"
+    },
+    {
+      "id": "a2979582-e644-4e90-bdd0-0a000ea4ef08",
+      "title": "Capital Efficiency Initiative 2027",
+      "industries": "[]"
+    },
+    {
+      "id": "73205a30-59d0-4a2b-9c20-e8ae082e4ce3",
+      "title": "DLR and Rolls-Royce test engine with 100 % hydrogen",
+      "industries": "[\"aerospace\"]"
+    },
+    {
+      "id": "7d88086d-d526-48e3-bf85-3282d36953c0",
+      "title": "SMC BMC Maximum design flexibility",
+      "industries": "[\"automotive\", \"industrial\"]"
+    },
+    {
+      "id": "699551c3-9496-41c9-a4d5-3f1e7821ec5a",
+      "title": "Global Epoxy Resin Market Size was USD 7.10 Billion in 2024, this report covers Market growth, trend, opportunity and forecast from 2025-2031",
+      "industries": "[\"industrial\", \"infrastructure\", \"automotive\"]"
+    },
+    {
+      "id": "a1985aad-1220-4dc7-a884-046f674c69ff",
+      "title": "Polestar announces collaboration initiative with global suppliers to speed up development of climate-neutral car; calls for research",
+      "industries": "[\"automotive\"]"
+    },
+    {
+      "id": "e83f5968-2e4e-4931-bdae-1344bf7d07fa",
+      "title": "All seven wind turbines installed at Energia Group\u2019s Crossmore Wind Farm",
+      "industries": "[\"wind_energy\"]"
+    },
+    {
+      "id": "f5ebe5cd-92a2-405b-b13a-403c8d26ce76",
+      "title": "Long-term Management Vision | Toyo Engineering Corporation",
+      "industries": "[\"industrial\"]"
+    },
+    {
+      "id": "b7914beb-c34d-43f1-a7bd-f1f305ad1a0a",
+      "title": "Salzgitter Flachstahl selects Energiron DR technology",
+      "industries": "[\"industrial\"]"
+    },
+    {
+      "id": "0ceb4661-5e1e-4d35-bf48-9e09d165fd7d",
+      "title": "Polymer Matrix Composites Market Size & Forecast to 2030",
+      "industries": "[\"aerospace\", \"automotive\", \"marine\", \"wind_energy\", \"infrastructure\", \"sporting_goods\", \"defense\"]"
+    },
+    {
+      "id": "5d908f27-dcff-4122-b1f7-b11764f57ff3",
+      "title": "GFRP Reinforcement Rebar HARDplus\u00ae",
+      "industries": "[\"infrastructure\"]"
+    },
+    {
+      "id": "af9444a7-e786-4e6c-9301-e1ff60e657eb",
+      "title": "Large Tow Carbon Fiber Market Size, Competitors & Forecast",
+      "industries": "[\"wind_energy\", \"industrial\"]"
+    },
+    {
+      "id": "1bc34217-07e7-437f-ad7e-2e682ecc9496",
+      "title": "Fiberglass Fabric Market by Product (Non-Woven, Woven), Fiber Type (E-Glass, S-Glass), End-User, Distribution Channel - Global Forecast 2025-2030",
+      "industries": "[\"aerospace\", \"automotive\", \"marine\", \"wind_energy\", \"infrastructure\", \"industrial\"]"
+    },
+    {
+      "id": "e2f7d852-33e6-40f9-9799-3215f493b4e7",
+      "title": "Automotive Composites Market by Fiber Type, Resin Type, Application, Vehicle Type - Global Forecast 2025-2030",
+      "industries": "[\"automotive\"]"
+    },
+    {
+      "id": "adcf7447-1f3e-48b6-aef3-e2787d92fec1",
+      "title": "Carbon Fiber: Material of the Future",
+      "industries": "[\"aerospace\", \"automotive\", \"wind_energy\", \"sporting_goods\"]"
+    },
+    {
+      "id": "b1468934-0f3d-4fde-b30b-812b404626c5",
+      "title": "Owens Corning (OC) Falls More Steeply Than Broader Market: What Investors Need to Know",
+      "industries": "[]"
+    },
+    {
+      "id": "83b1d1bb-578a-4ca3-8701-4eaaab8e676e",
+      "title": "Power Derivatives - Euronext Nord Pool Power Futures",
+      "industries": "[]"
+    },
+    {
+      "id": "e4341cdd-8eeb-4b10-b3da-134a6ec88c89",
+      "title": "Best Dividend Aristocrats For January 2026",
+      "industries": "[]"
+    },
+    {
+      "id": "0fb0758e-64f6-46bb-bf75-6760e950f21b",
+      "title": "Boeing awarded $2.7 billion contract for Apache helicopter support, Pentagon says",
+      "industries": "[\"defense\", \"aerospace\"]"
+    },
+    {
+      "id": "54e27b42-c98e-49f8-ad9a-bfd9255c7b24",
+      "title": "Welcome to MOSAIC",
+      "industries": "[\"aerospace\", \"defense\"]"
+    },
+    {
+      "id": "4f3a5a32-e9a5-4926-bf1c-b6ec8d42e1a1",
+      "title": "Carbon-Carbon Composites Market by Type, Application - Global Forecast 2025-2030",
+      "industries": "[\"aerospace\", \"defense\", \"automotive\"]"
+    },
+    {
+      "id": "75e56823-8b07-46c4-b0da-964b56da2002",
+      "title": "Wind Power Equipment Market Size, Share & Forecast to 2030",
+      "industries": "[\"wind_energy\"]"
+    },
+    {
+      "id": "c460c235-57f6-421c-bf23-2a1b7b40f28d",
+      "title": "Tesla Is About to Report Fourth-Quarter Deliveries. The Number May Be Weak -- And Investors May Not Care",
+      "industries": "[\"automotive\"]"
+    }
+  ]
+}

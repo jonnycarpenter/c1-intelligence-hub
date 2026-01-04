@@ -1,0 +1,133 @@
+# Cloud Run Service Configuration
+# Use with: gcloud run services replace deploy/service.yaml
+#
+# Before deploying, update:
+#   - PROJECT_ID placeholder
+#   - Bucket name if different
+#   - Region if needed
+
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: c1-hub
+  labels:
+    cloud.googleapis.com/location: us-central1
+  annotations:
+    run.googleapis.com/description: "C1 Intelligence Hub - Composites Industry Intelligence Platform"
+    run.googleapis.com/ingress: all
+    run.googleapis.com/launch-stage: GA
+spec:
+  template:
+    metadata:
+      annotations:
+        # Scaling configuration
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "10"
+        
+        # CPU allocation (keep CPU always allocated for better cold starts)
+        run.googleapis.com/cpu-throttling: "false"
+        
+        # Startup CPU boost for faster cold starts
+        run.googleapis.com/startup-cpu-boost: "true"
+        
+        # Use 2nd gen execution environment (required for GCS volume mount)
+        run.googleapis.com/execution-environment: gen2
+        
+    spec:
+      containerConcurrency: 80
+      timeoutSeconds: 3600
+      serviceAccountName: # Will use default compute service account
+      
+      containers:
+        - name: c1-hub
+          image: us-central1-docker.pkg.dev/gen-lang-client-0436975498/c1-intelligence-hub/c1-hub:latest
+          
+          ports:
+            - containerPort: 8080
+              name: http1
+          
+          resources:
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          
+          env:
+            # Application configuration
+            - name: ENVIRONMENT
+              value: "production"
+            
+            # GCP Configuration (REQUIRED for BigQuery storage)
+            - name: GCP_PROJECT_ID
+              value: "gen-lang-client-0436975498"
+            - name: GCP_DATASET_ID
+              value: "c1_intelligence"
+            - name: GCS_BUCKET_NAME
+              value: "gen-lang-client-0436975498-c1-hub-data"
+            
+            # Data paths (GCS mounted)
+            - name: DATA_DIR
+              value: "/app/data"
+            - name: KNOWLEDGE_PERSIST_DIR
+              value: "/app/data/knowledge_db"
+            - name: DOWNLOADS_DIR
+              value: "/app/data/downloads"
+            
+            # API Keys from Secret Manager
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: anthropic-api-key
+                  key: latest
+            - name: FMP_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: fmp-api-key
+                  key: latest
+            - name: API_NINJA_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: api-ninja-key
+                  key: latest
+            - name: SEC_IO_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: sec-io-key
+                  key: latest
+            - name: TAVILY_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: tavily-api-key
+                  key: latest
+          
+          # Health checks
+          startupProbe:
+            httpGet:
+              path: /api/health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 12
+          
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 8080
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          
+          # GCS Volume Mount
+          volumeMounts:
+            - name: data-volume
+              mountPath: /app/data
+      
+      volumes:
+        - name: data-volume
+          csi:
+            driver: gcsfuse.run.googleapis.com
+            readOnly: false
+            volumeAttributes:
+              bucketName: gen-lang-client-0436975498-c1-hub-data
+              # GCS FUSE mount options
+              mountOptions: "implicit-dirs"

@@ -1,0 +1,111 @@
+
+import httpx
+from typing import List, Optional
+from datetime import datetime
+from app.config.settings import settings
+from .models import FilingMetadata
+
+class SECClient:
+    QUERY_URL = "https://api.sec-api.io"
+    EXTRACTOR_URL = "https://api.sec-api.io/extractor"
+    RENDER_URL = "https://archive.sec-api.io"
+    
+    def __init__(self, api_key: str = None):
+        self.api_key = (api_key or settings.sec_api_key or "").strip()
+        if self.api_key == "PLACEHOLDER":
+             self.api_key = "" # Treat as missing
+        self.client = httpx.Client(timeout=60.0)
+    
+    def query_filings(
+        self,
+        ticker: str = None,
+        cik: str = None,
+        form_types: List[str] = None,
+        filed_after: datetime = None,
+        filed_before: datetime = None,
+        size: int = 50
+    ) -> List[FilingMetadata]:
+        if not self.api_key:
+            return []
+        
+        query_parts = []
+        if ticker: query_parts.append(f'ticker:{ticker}')
+        if cik: query_parts.append(f'cik:{cik}')
+        if form_types:
+            types_str = " OR ".join([f'"{t}"' for t in form_types])
+            query_parts.append(f'formType:({types_str})')
+        if filed_after:
+            after_str = filed_after.strftime("%Y-%m-%d")
+            query_parts.append(f'filedAt:[{after_str} TO *]')
+        
+        query = " AND ".join(query_parts) if query_parts else "formType:\"10-K\""
+        
+        payload = {
+            "query": query,
+            "from": "0",
+            "size": str(size),
+            "sort": [{"filedAt": {"order": "desc"}}]
+        }
+        
+        response = self.client.post(
+            self.QUERY_URL,
+            json=payload,
+            headers={"Authorization": self.api_key}
+        )
+        response.raise_for_status()
+        
+        data = response.json()
+        filings = []
+        for item in data.get("filings", []):
+            try:
+                filed_at = datetime.fromisoformat(item.get("filedAt", "").replace("Z", "+00:00"))
+            except:
+                filed_at = datetime.utcnow()
+                
+            filings.append(FilingMetadata(
+                accession_no=item.get("accessionNo", ""),
+                cik=item.get("cik", ""),
+                ticker=item.get("ticker", ""),
+                company_name=item.get("companyName", ""),
+                form_type=item.get("formType", ""),
+                filed_at=filed_at,
+                filing_url=item.get("linkToFilingDetails", "")
+            ))
+        return filings
+
+    def extract_section(self, filing_url: str, section: str) -> Optional[str]:
+        params = {
+            "url": filing_url,
+            "item": section,
+            "type": "text",
+            "token": self.api_key
+        }
+        try:
+            response = self.client.get(self.EXTRACTOR_URL, params=params)
+            if response.status_code == 200:
+                return response.text
+        except Exception:
+            return None
+        return None
+
+    def download_filing(self, filing_url: str) -> Optional[str]:
+        # Convert to archive URL using the format required by sec-api.io
+        # Remove "ix?doc=/" and the standard SEC archives path prefix
+        import re
+        filename = re.sub(r"ix\?doc=/", "", filing_url)
+        filename = re.sub(r"https://www.sec.gov/Archives/edgar/data", "", filename)
+        
+        # Construct URL with token as query parameter
+        archive_url = f"{self.RENDER_URL}{filename}?token={self.api_key}"
+        
+        try:
+            # Note: Authorization header is not used for this endpoint, token is in URL
+            response = self.client.get(archive_url)
+            if response.status_code == 200:
+                return response.text
+        except Exception:
+            return None
+        return None
+
+    def close(self):
+        self.client.close()

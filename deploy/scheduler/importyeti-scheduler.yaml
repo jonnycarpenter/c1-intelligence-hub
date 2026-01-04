@@ -1,0 +1,76 @@
+# ImportYeti Data Collection Scheduler Configuration
+# ===================================================
+# 
+# This Cloud Scheduler job triggers the ImportYeti trade data collection
+# pipeline on a bi-weekly basis (1st and 15th of each month).
+#
+# The ImportYeti database is updated approximately every two weeks (1st and 15th),
+# so we schedule collection to run shortly after these updates.
+#
+# Deploy with:
+#   gcloud scheduler jobs create http importyeti-collection \
+#     --location=us-central1 \
+#     --schedule="0 6 1,15 * *" \
+#     --uri="https://c1-hub-service-<hash>-uc.a.run.app/api/importyeti/trigger" \
+#     --http-method=POST \
+#     --headers="Content-Type=application/json" \
+#     --message-body='{"mode":"full"}' \
+#     --oidc-service-account-email=<service-account>@<project>.iam.gserviceaccount.com \
+#     --description="Bi-weekly ImportYeti trade data collection"
+
+apiVersion: cloud.google.com/v1
+kind: CloudSchedulerJob
+metadata:
+  name: importyeti-collection
+  namespace: enterprise-agent-builds
+spec:
+  schedule: "0 6 1,15 * *"  # 6 AM UTC on 1st and 15th of each month
+  timeZone: "America/Chicago"  # CST (adjust as needed)
+  description: "Bi-weekly ImportYeti trade data collection for C1 Intelligence Hub"
+  
+  httpTarget:
+    uri: "${CLOUD_RUN_URL}/api/importyeti/trigger"
+    httpMethod: POST
+    headers:
+      Content-Type: "application/json"
+    body: |
+      {
+        "mode": "full",
+        "max_credits": 100
+      }
+    oidcToken:
+      serviceAccountEmail: "${SERVICE_ACCOUNT_EMAIL}"
+      audience: "${CLOUD_RUN_URL}"
+  
+  retryConfig:
+    retryCount: 3
+    minBackoffDuration: "30s"
+    maxBackoffDuration: "600s"
+    maxDoublings: 3
+  
+  attemptDeadline: "900s"  # 15 minutes max
+
+---
+# Alternative: Test job that runs weekly for monitoring
+apiVersion: cloud.google.com/v1
+kind: CloudSchedulerJob
+metadata:
+  name: importyeti-test
+  namespace: enterprise-agent-builds
+spec:
+  schedule: "0 8 * * 1"  # Every Monday at 8 AM
+  timeZone: "America/Chicago"
+  description: "Weekly ImportYeti API health check"
+  
+  httpTarget:
+    uri: "${CLOUD_RUN_URL}/api/importyeti/status"
+    httpMethod: GET
+    oidcToken:
+      serviceAccountEmail: "${SERVICE_ACCOUNT_EMAIL}"
+      audience: "${CLOUD_RUN_URL}"
+  
+  retryConfig:
+    retryCount: 1
+    minBackoffDuration: "10s"
+  
+  attemptDeadline: "60s"

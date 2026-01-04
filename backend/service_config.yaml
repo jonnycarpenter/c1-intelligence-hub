@@ -1,0 +1,152 @@
+﻿apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  annotations:
+    run.googleapis.com/build-enable-automatic-updates: 'false'
+    run.googleapis.com/build-id: 543d4357-0393-4711-a425-610c5eb48ebf
+    run.googleapis.com/build-image-uri: us-central1-docker.pkg.dev/gen-lang-client-0436975498/cloud-run-source-deploy/c1-hub
+    run.googleapis.com/build-name: projects/476410387076/locations/us-central1/builds/543d4357-0393-4711-a425-610c5eb48ebf
+    run.googleapis.com/build-source-location: gs://run-sources-gen-lang-client-0436975498-us-central1/services/c1-hub/1766396456.325693-e029d2af71a3432da477d470ad6a33ae.zip#1766396578193608
+    run.googleapis.com/client-name: gcloud
+    run.googleapis.com/client-version: 548.0.0
+    run.googleapis.com/description: C1 Intelligence Hub - Composites Industry Intelligence
+      Platform
+    run.googleapis.com/ingress: all
+    run.googleapis.com/ingress-status: all
+    run.googleapis.com/invoker-iam-disabled: 'true'
+    run.googleapis.com/operation-id: 00c317e1-563d-4ca5-a395-6f8e9881784f
+    run.googleapis.com/urls: '["https://c1-hub-476410387076.us-central1.run.app","https://c1-hub-4iz75bvpyq-uc.a.run.app"]'
+    serving.knative.dev/creator: jonny@ketzeroconsulting.ai
+    serving.knative.dev/lastModifier: jonny@ketzeroconsulting.ai
+  creationTimestamp: '2025-12-16T15:55:52.168384Z'
+  generation: 85
+  labels:
+    cloud.googleapis.com/location: us-central1
+  name: c1-hub
+  namespace: '476410387076'
+  resourceVersion: AAZHYItVHh8
+  selfLink: /apis/serving.knative.dev/v1/namespaces/476410387076/services/c1-hub
+  uid: 9d492e90-77c6-485f-9095-95db3b592eda
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/maxScale: '10'
+        run.googleapis.com/client-name: gcloud
+        run.googleapis.com/client-version: 548.0.0
+        run.googleapis.com/cpu-throttling: 'false'
+        run.googleapis.com/execution-environment: gen2
+        run.googleapis.com/startup-cpu-boost: 'true'
+      labels:
+        client.knative.dev/nonce: mrocwxiewg
+        run.googleapis.com/startupProbeType: Custom
+    spec:
+      containerConcurrency: 80
+      containers:
+      - env:
+        - name: ENVIRONMENT
+          value: production
+        - name: DATA_DIR
+          value: /app/data
+        - name: SQLITE_DB_PATH
+          value: /app/data/c1_corpus.db
+        - name: CHROMA_PERSIST_DIR
+          value: /app/data/chroma
+        - name: KNOWLEDGE_PERSIST_DIR
+          value: /app/data/knowledge_db
+        - name: GCP_PROJECT_ID
+          value: gen-lang-client-0436975498
+        - name: ANTHROPIC_API_KEY
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: anthropic-api-key
+        - name: FMP_API_KEY
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: fmp-api-key
+        - name: API_NINJA_KEY
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: api-ninja-key
+        - name: SEC_IO_KEY
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: sec-io-key
+        - name: TAVILY_API_KEY
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: tavily-api-key
+        - name: IMPORTYETI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: importyeti-api-key
+        - name: APOLLO_API_KEY
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: apollo-api-key
+        image: us-central1-docker.pkg.dev/gen-lang-client-0436975498/c1-intelligence-hub/c1-hub:latest
+        livenessProbe:
+          failureThreshold: 10
+          httpGet:
+            path: /health
+            port: 8080
+          periodSeconds: 120
+          timeoutSeconds: 30
+        name: c1-hub
+        ports:
+        - containerPort: 8080
+          name: http1
+        resources:
+          limits:
+            cpu: '2'
+            memory: 2Gi
+        startupProbe:
+          failureThreshold: 12
+          httpGet:
+            path: /api/health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 5
+        volumeMounts:
+        - mountPath: /app/data
+          name: data-volume
+      serviceAccountName: 476410387076-compute@developer.gserviceaccount.com
+      timeoutSeconds: 300
+      volumes:
+      - csi:
+          driver: gcsfuse.run.googleapis.com
+          volumeAttributes:
+            bucketName: gen-lang-client-0436975498-c1-hub-data
+        name: data-volume
+  traffic:
+  - latestRevision: true
+    percent: 100
+status:
+  address:
+    url: https://c1-hub-4iz75bvpyq-uc.a.run.app
+  conditions:
+  - lastTransitionTime: '2026-01-02T04:57:20.307743Z'
+    status: 'True'
+    type: Ready
+  - lastTransitionTime: '2026-01-02T04:57:15.926239Z'
+    status: 'True'
+    type: ConfigurationsReady
+  - lastTransitionTime: '2026-01-02T04:57:19.560241Z'
+    status: 'True'
+    type: RoutesReady
+  latestCreatedRevisionName: c1-hub-00077-trk
+  latestReadyRevisionName: c1-hub-00077-trk
+  observedGeneration: 85
+  traffic:
+  - latestRevision: true
+    percent: 100
+    revisionName: c1-hub-00077-trk
+  url: https://c1-hub-4iz75bvpyq-uc.a.run.app

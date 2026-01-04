@@ -1,0 +1,50 @@
+material_proc_id,material_process_name,type,est_manufacturer_margin_tier,industries_served,examples
+mat_polyester_001,Polyester Resin,Raw Material,LOW,Marine|Construction|Transportation|Industrial,Orthophthalic polyester|Isophthalic polyester|DCPD polyester
+mat_vinylester_001,Vinyl Ester Resin,Raw Material,MEDIUM,Marine|Chemical Processing|Infrastructure,Bisphenol-A vinyl ester|Novolac vinyl ester
+mat_epoxy_001,Epoxy Resin,Raw Material,HIGH,Aerospace|Automotive|Wind Energy|Marine,Bisphenol-A epoxy|Novolac epoxy|Cycloaliphatic epoxy
+mat_polyurethane_001,Polyurethane Resin,Raw Material,MEDIUM,Automotive|Construction|Footwear,Flexible PU|Rigid PU|Thermoplastic PU
+mat_phenolic_001,Phenolic Resin,Raw Material,MEDIUM,Aerospace|Defense|Construction,Resole phenolics|Novolac phenolics
+mat_glass_001,Glass Fiber,Raw Material,LOW,Marine|Construction|Transportation|Wind Energy,E-glass|S-glass|ECR-glass|C-glass
+mat_eglass_001,E-Glass,Raw Material,LOW,Marine|Construction|Industrial|Wind Energy,Standard E-glass roving|E-glass fabrics|E-glass mats
+mat_sglass_001,S-Glass,Raw Material,MEDIUM,Aerospace|Defense|Ballistics,S-2 glass|High-strength applications
+mat_carbon_001,Carbon Fiber,Raw Material,HIGH,Aerospace|Automotive|Sports|Wind Energy,PAN-based standard modulus|PAN-based intermediate modulus|PAN-based high modulus|Pitch-based
+mat_aramid_001,Aramid Fiber,Raw Material,HIGH,Defense|Aerospace|Marine,Kevlar|Twaron|Technora
+mat_kevlar_001,Kevlar,Raw Material,HIGH,Defense|Aerospace|Marine|Automotive,Kevlar 29|Kevlar 49|Kevlar 149
+mat_basalt_001,Basalt Fiber,Raw Material,MEDIUM,Infrastructure|Construction|Automotive,Continuous basalt fiber|Chopped basalt fiber
+mat_naturalfiber_001,Natural Fibers,Raw Material,LOW,Automotive|Consumer|Construction,Flax|Hemp|Jute|Kenaf
+mat_woven_001,Woven Fabrics,Intermediate,MEDIUM,Aerospace|Marine|Automotive|Industrial,Plain weave|Twill weave|Satin weave|Hybrid fabrics
+mat_multiaxial_001,Multiaxial Fabrics,Intermediate,MEDIUM,Marine|Wind Energy|Automotive|Infrastructure,Biaxial (+/-45)|Triaxial|Quadraxial
+mat_ud_001,Unidirectional Tape,Intermediate,HIGH,Aerospace|Automotive|Wind Energy,Carbon UD tape|Glass UD tape|Aramid UD tape
+mat_csm_001,Chopped Strand Mat,Intermediate,LOW,Marine|Construction|Transportation,Powder-bound CSM|Emulsion-bound CSM
+mat_prepreg_001,Prepreg,Intermediate,HIGH,Aerospace|Defense|Automotive|Sports,Carbon/epoxy prepreg|Glass/epoxy prepreg|Aramid/epoxy prepreg|Thermoplastic prepreg
+mat_roving_001,Tow/Roving,Intermediate,LOW,Pultrusion|Filament Winding|Weaving,Direct roving|Assembled roving|Chopped roving
+mat_core_001,Core Materials,Intermediate,MEDIUM,Marine|Wind Energy|Aerospace|Transportation,Balsa wood|PVC foam|PET foam|Honeycomb|SAN foam
+mat_honeycomb_001,Honeycomb Core,Intermediate,MEDIUM,Aerospace|Marine|Transportation,Aluminum honeycomb|Nomex honeycomb|Thermoplastic honeycomb|Paper honeycomb
+mat_pvcfoam_001,PVC Foam Core,Intermediate,MEDIUM,Marine|Wind Energy|Transportation,Divinycell|Airex|Cross-linked PVC
+mat_petfoam_001,PET Foam Core,Intermediate,MEDIUM,Wind Energy|Marine|Transportation,Recyclable PET foam|Armacell PET
+mat_balsa_001,Balsa Wood Core,Intermediate,MEDIUM,Marine|Wind Energy|Transportation,End-grain balsa|Contoured balsa
+mat_cfrp_001,Carbon Fiber Reinforced Polymer,Composite,HIGH,Aerospace|Automotive|Sports,CFRP laminates|CFRP structures|Woven CFRP
+mat_gfrp_001,Glass Fiber Reinforced Polymer,Composite,LOW,Marine|Construction|Transportation,GFRP laminates|GFRP structures|FRP
+mat_peek_001,PEEK (Polyether Ether Ketone),Thermoplastic,HIGH,Aerospace|Medical|Oil & Gas,Victrex PEEK|Solvay KetaSpire|Carbon/PEEK
+mat_pekk_001,PEKK (Polyetherketoneketone),Thermoplastic,HIGH,Aerospace|Defense,Arkema Kepstan|Carbon/PEKK
+mat_pps_001,PPS (Polyphenylene Sulfide),Thermoplastic,MEDIUM,Automotive|Electronics|Aerospace,Ryton|Fortron|Carbon/PPS
+mat_pa_001,Polyamide (Nylon),Thermoplastic,LOW,Automotive|Consumer|Industrial,PA6|PA66|PA12|Glass-filled nylon
+mat_pp_001,Polypropylene,Thermoplastic,LOW,Automotive|Consumer|Packaging,Glass-filled PP|Long fiber PP|Natural fiber PP
+mat_pc_001,Polycarbonate,Thermoplastic,MEDIUM,Automotive|Electronics|Medical,Glass-filled PC|PC/ABS blends
+proc_smc_001,Sheet Molding Compound (SMC),Process,MEDIUM,Automotive|Electrical|Construction,Class A SMC|Structural SMC|Low-density SMC|Carbon SMC
+proc_bmc_001,Bulk Molding Compound (BMC),Process,MEDIUM,Electrical|Automotive|Appliances,Electrical BMC|Automotive BMC
+proc_rtm_001,Resin Transfer Molding (RTM),Process,HIGH,Aerospace|Automotive|Wind Energy,Light RTM|High-pressure RTM|HP-RTM|VARTM
+proc_infusion_001,Vacuum Infusion,Process,MEDIUM,Marine|Wind Energy|Infrastructure,VARTM|SCRIMP|VAP|Light RTM
+proc_handlayup_001,Open Molding/Hand Layup,Process,LOW,Marine|Construction|Custom Fabrication,Wet layup|Contact molding
+proc_sprayup_001,Spray-Up,Process,LOW,Marine|Construction|Transportation,Chopper gun spray-up|Continuous spray
+proc_filament_001,Filament Winding,Process,MEDIUM,Pressure Vessels|Aerospace|Infrastructure,Wet winding|Towpreg winding|Dry winding
+proc_pultrusion_001,Pultrusion,Process,MEDIUM,Infrastructure|Construction|Industrial,Standard pultrusion|Pull-winding|Thermoplastic pultrusion
+proc_autoclave_001,Autoclave Curing,Process,HIGH,Aerospace|Defense|Space,Standard autoclave cure|Out-of-autoclave (OOA)
+proc_compression_001,Compression Molding,Process,MEDIUM,Automotive|Electrical|Consumer,Hot compression|Cold compression|Thermoforming
+proc_cnc_001,CNC Machining,Process,MEDIUM,Aerospace|Automotive|Industrial,5-axis CNC|Waterjet cutting|Router trimming
+proc_trimming_001,Trimming and Drilling,Process,LOW,All Industries,Manual trimming|Automated drilling|Ultrasonic cutting
+proc_gelcoat_001,Gelcoat Finishing,Process,LOW,Marine|Construction|Transportation,Polyester gelcoat|Vinyl ester gelcoat|Urethane gelcoat|NPG gelcoat
+proc_assembly_001,Assembly and Integration,Process,MEDIUM,Aerospace|Automotive|Marine,Bonding|Fastening|Integration|Co-bonding
+proc_afp_001,Automated Fiber Placement (AFP),Process,HIGH,Aerospace|Defense|Space,AFP heads|Automated tape laying (ATL)|Robotic layup
+proc_3dprint_001,Composite 3D Printing,Process,HIGH,Aerospace|Automotive|Industrial,Continuous fiber printing|Chopped fiber printing|FDM composites
+proc_overmold_001,Overmolding,Process,MEDIUM,Automotive|Consumer|Industrial,Insert molding|Two-shot molding|Hybrid structures

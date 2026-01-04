@@ -1,0 +1,56 @@
+# Ignore node_modules
+node_modules/
+frontend/node_modules/
+new_architecture_frontend/node_modules/
+
+# Ignore Python virtual environments
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Ignore local data that shouldn't be deployed
+chroma_db/
+backend/data/chroma/
+*.sqlite3
+
+# Ignore git
+.git/
+.gitignore
+
+# Ignore IDE files
+.vscode/
+.idea/
+
+# Ignore CSV data files (large)
+*.csv
+
+# Ignore backup files
+*.bak
+
+# Ignore frontend build artifacts (will be rebuilt)
+frontend/.next/
+frontend/out/
+
+# Ignore sec-api-python-master (not needed for deployment)
+sec-api-python-master/
+
+# Ignore terraform state
+deploy/terraform/.terraform/
+*.tfstate
+*.tfstate.backup
+
+# Ignore logs
+*.log
+
+# Ignore local test files
+test_*.py
+eval_notebook.ipynb
+
+# Ignore documentation files not needed at runtime
+*.md
+*.txt
+!requirements.txt
+!backend/requirements.txt

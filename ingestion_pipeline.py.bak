@@ -1,0 +1,1906 @@
+"""
+C1 Intelligence Hub - Complete Data Ingestion Pipeline
+=======================================================
+
+This file contains all components for ingesting, classifying, and processing
+intelligence data for the C1 Hub:
+
+SECTION 1: Configuration & Constants
+SECTION 2: RSS Feed Fetcher
+SECTION 3: FMP News/Press Release Fetcher  
+SECTION 4: Web Scraper (full article extraction)
+SECTION 5: Content Classifier (Claude-based)
+SECTION 6: Entity Linker (match to tracked entities)
+SECTION 7: Deduplication Service
+SECTION 8: Vector Store (ChromaDB integration)
+SECTION 9: Digest Generator
+SECTION 10: Background Job Orchestrator
+SECTION 11: Cloud Scheduler Setup (GCP)
+
+Usage:
+    # Run full ingestion job
+    python ingestion_pipeline.py --full
+    
+    # Run RSS only
+    python ingestion_pipeline.py --rss
+    
+    # Generate digest only
+    python ingestion_pipeline.py --digest
+"""
+
+import os
+import sys
+# Add backend to path so we can import from app
+sys.path.append(os.path.join(os.path.dirname(__file__), 'backend'))
+
+import re
+import json
+import asyncio
+import hashlib
+import logging
+from datetime import datetime, timedelta
+from typing import Optional, List, Dict, Any, Tuple
+from dataclasses import dataclass, field
+from enum import Enum
+from abc import ABC, abstractmethod
+import uuid
+
+# Third-party imports (install via requirements.txt)
+import httpx
+import feedparser
+from bs4 import BeautifulSoup
+from anthropic import AsyncAnthropic
+
+# Optional: Vector store
+try:
+    import chromadb
+    from chromadb.config import Settings
+    CHROMADB_AVAILABLE = True
+except ImportError:
+    CHROMADB_AVAILABLE = False
+    
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+# ============================================================================
+# SECTION 1: CONFIGURATION & CONSTANTS
+# ============================================================================
+
+@dataclass
+class IngestionConfig:
+    """Configuration for the ingestion pipeline"""
+    
+    # API Keys (from environment)
+    anthropic_api_key: str = field(default_factory=lambda: os.getenv("ANTHROPIC_API_KEY", ""))
+    fmp_api_key: str = field(default_factory=lambda: os.getenv("FMP_API_KEY", ""))
+    tavily_api_key: str = field(default_factory=lambda: os.getenv("TAVILY_API_KEY", ""))
+    
+    # Database
+    db_type: str = field(default_factory=lambda: os.getenv("DB_TYPE", "sqlite"))
+    sqlite_path: str = field(default_factory=lambda: os.getenv("SQLITE_PATH", "c1_hub.db"))
+    
+    # Vector Store
+    chroma_persist_dir: str = field(default_factory=lambda: os.getenv("CHROMA_PERSIST_DIR", "./chroma_db"))
+    embedding_model: str = "text-embedding-3-small"  # OpenAI or use Claude
+    
+    # Ingestion Settings
+    rss_poll_interval_hours: int = 2
+    fmp_poll_interval_hours: int = 4
+    max_articles_per_feed: int = 20
+    max_article_age_days: int = 7
+    
+    # Classification
+    classifier_model: str = "claude-sonnet-4-20250514"
+    classifier_temperature: float = 0.1
+    
+    # Digest
+    digest_hours: int = 72
+    digest_max_items: int = 50
+    digest_model: str = "claude-sonnet-4-20250514"
+
+
+# RSS Feed Sources - Composites Industry Trade Publications
+RSS_FEEDS = [
+    {
+        "name": "CompositesWorld",
+        "url": "https://www.compositesworld.com/rss/all",
+        "category": "trade_publication",
+        "priority_boost": 0.1,  # Boost relevance score
+    },
+    {
+        "name": "JEC Composites",
+        "url": "https://www.jeccomposites.com/feed/",
+        "category": "trade_publication",
+        "priority_boost": 0.1,
+    },
+    {
+        "name": "Composites Manufacturing",
+        "url": "https://compositesmanufacturingmagazine.com/feed/",
+        "category": "trade_publication",
+        "priority_boost": 0.05,
+    },
+    {
+        "name": "Reinforced Plastics",
+        "url": "https://www.reinforcedplastics.com/rss/recent",
+        "category": "trade_publication",
+        "priority_boost": 0.05,
+    },
+    # Add more industry-specific feeds
+    {
+        "name": "Aviation Week",
+        "url": "https://aviationweek.com/rss.xml",
+        "category": "aerospace",
+        "priority_boost": 0.0,
+        "filter_keywords": ["composite", "carbon fiber", "lightweight", "materials"],
+    },
+    {
+        "name": "Automotive News",
+        "url": "https://www.autonews.com/rss.xml", 
+        "category": "automotive",
+        "priority_boost": 0.0,
+        "filter_keywords": ["composite", "carbon fiber", "lightweight", "EV", "battery"],
+    },
+]
+
+# Content Categories (must match models/entities.py)
+class ContentCategory(str, Enum):
+    COMPETITOR_NEWS = "competitor"
+    MARKET_TREND = "market"
+    REGULATORY = "regulatory"
+    PRODUCT_LAUNCH = "product"
+    EARNINGS = "earnings"
+    PARTNERSHIP = "partnership"
+    EXPANSION = "expansion"
+    SUPPLY_CHAIN = "supply_chain"
+    C1_MENTION = "c1_mention"
+    GENERAL = "general"
+
+
+class Priority(str, Enum):
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+
+
+class Industry(str, Enum):
+    AEROSPACE = "aerospace"
+    AUTOMOTIVE = "automotive"
+    MARINE = "marine"
+    WIND_ENERGY = "wind_energy"
+    INFRASTRUCTURE = "infrastructure"
+    SPORTING_GOODS = "sporting_goods"
+    DEFENSE = "defense"
+    INDUSTRIAL = "industrial"
+    CONSTRUCTION = "construction"
+
+
+# Keywords for classification assistance
+CATEGORY_KEYWORDS = {
+    ContentCategory.COMPETITOR_NEWS: [
+        "hexcel", "toray", "solvay", "owens corning", "huntsman", "gurit", 
+        "teijin", "mitsubishi chemical", "sgf", "acquired", "acquisition",
+        "market share", "competitive", "rival"
+    ],
+    ContentCategory.MARKET_TREND: [
+        "demand", "growth", "forecast", "trend", "outlook", "market size",
+        "CAGR", "billion", "million", "increase", "decrease", "surge"
+    ],
+    ContentCategory.REGULATORY: [
+        "regulation", "EPA", "FAA", "compliance", "standard", "certification",
+        "REACH", "RoHS", "environmental", "emission", "sustainability", "ban"
+    ],
+    ContentCategory.PRODUCT_LAUNCH: [
+        "launch", "introduce", "new product", "unveil", "debut", "release",
+        "next-generation", "innovative", "breakthrough"
+    ],
+    ContentCategory.EARNINGS: [
+        "earnings", "revenue", "profit", "quarterly", "fiscal", "guidance",
+        "EPS", "margin", "financial results", "outlook"
+    ],
+    ContentCategory.PARTNERSHIP: [
+        "partnership", "collaboration", "joint venture", "agreement", "deal",
+        "alliance", "MOU", "contract", "supply agreement"
+    ],
+    ContentCategory.EXPANSION: [
+        "expansion", "facility", "plant", "investment", "capacity", "production",
+        "manufacturing", "new site", "construction", "million investment"
+    ],
+    ContentCategory.SUPPLY_CHAIN: [
+        "supply chain", "shortage", "logistics", "raw material", "supplier",
+        "inventory", "lead time", "disruption", "sourcing"
+    ],
+}
+
+INDUSTRY_KEYWORDS = {
+    Industry.AEROSPACE: ["aerospace", "aircraft", "aviation", "boeing", "airbus", "jet", "fuselage", "wing"],
+    Industry.AUTOMOTIVE: ["automotive", "vehicle", "car", "EV", "electric vehicle", "OEM", "tier 1"],
+    Industry.MARINE: ["marine", "boat", "yacht", "ship", "naval", "offshore"],
+    Industry.WIND_ENERGY: ["wind", "turbine", "blade", "renewable", "offshore wind", "vestas", "siemens gamesa"],
+    Industry.INFRASTRUCTURE: ["infrastructure", "bridge", "construction", "civil", "rebar"],
+    Industry.SPORTING_GOODS: ["sporting", "golf", "bicycle", "ski", "tennis", "recreation"],
+    Industry.DEFENSE: ["defense", "military", "army", "navy", "air force", "DoD"],
+}
+
+
+# ============================================================================
+# SECTION 2: RSS FEED FETCHER
+# ============================================================================
+
+@dataclass
+class RawArticle:
+    """Raw article data from any source"""
+    title: str
+    url: str
+    summary: str
+    full_text: Optional[str] = None
+    published_at: Optional[datetime] = None
+    source_name: str = ""
+    source_type: str = "rss"  # rss, fmp_news, fmp_press, tavily
+    raw_data: Dict[str, Any] = field(default_factory=dict)
+
+
+class RSSFetcher:
+    """
+    Fetches articles from RSS feeds.
+    
+    Usage:
+        fetcher = RSSFetcher(config)
+        articles = await fetcher.fetch_all_feeds()
+    """
+    
+    def __init__(self, config: IngestionConfig):
+        self.config = config
+        self.feeds = RSS_FEEDS
+    
+    async def fetch_feed(self, feed_config: Dict[str, Any]) -> List[RawArticle]:
+        """Fetch articles from a single RSS feed"""
+        articles = []
+        
+        try:
+            logger.info(f"Fetching RSS feed: {feed_config['name']}")
+            
+            # feedparser is synchronous, run in executor
+            loop = asyncio.get_event_loop()
+            parsed = await loop.run_in_executor(
+                None, 
+                feedparser.parse, 
+                feed_config["url"]
+            )
+            
+            if parsed.bozo:
+                logger.warning(f"Feed parse warning for {feed_config['name']}: {parsed.bozo_exception}")
+            
+            cutoff_date = datetime.utcnow() - timedelta(days=self.config.max_article_age_days)
+            filter_keywords = feed_config.get("filter_keywords", [])
+            
+            for entry in parsed.entries[:self.config.max_articles_per_feed]:
+                # Parse published date
+                published = None
+                if hasattr(entry, 'published_parsed') and entry.published_parsed:
+                    published = datetime(*entry.published_parsed[:6])
+                elif hasattr(entry, 'updated_parsed') and entry.updated_parsed:
+                    published = datetime(*entry.updated_parsed[:6])
+                else:
+                    published = datetime.utcnow()
+                
+                # Skip old articles
+                if published < cutoff_date:
+                    continue
+                
+                # Get summary
+                summary = ""
+                if hasattr(entry, 'summary'):
+                    summary = self._clean_html(entry.summary)
+                elif hasattr(entry, 'description'):
+                    summary = self._clean_html(entry.description)
+                
+                # Apply keyword filter for non-composites feeds
+                if filter_keywords:
+                    text_to_check = f"{entry.title} {summary}".lower()
+                    if not any(kw.lower() in text_to_check for kw in filter_keywords):
+                        continue
+                
+                article = RawArticle(
+                    title=entry.title,
+                    url=entry.link,
+                    summary=summary[:1000],  # Limit summary length
+                    published_at=published,
+                    source_name=feed_config["name"],
+                    source_type="rss",
+                    raw_data={
+                        "feed_category": feed_config.get("category"),
+                        "priority_boost": feed_config.get("priority_boost", 0),
+                    }
+                )
+                articles.append(article)
+            
+            logger.info(f"Fetched {len(articles)} articles from {feed_config['name']}")
+            
+        except Exception as e:
+            logger.error(f"Error fetching feed {feed_config['name']}: {e}")
+        
+        return articles
+    
+    async def fetch_all_feeds(self) -> List[RawArticle]:
+        """Fetch articles from all configured RSS feeds"""
+        all_articles = []
+        
+        # Fetch feeds concurrently
+        tasks = [self.fetch_feed(feed) for feed in self.feeds]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        for result in results:
+            if isinstance(result, Exception):
+                logger.error(f"Feed fetch error: {result}")
+            else:
+                all_articles.extend(result)
+        
+        logger.info(f"Total RSS articles fetched: {len(all_articles)}")
+        return all_articles
+    
+    def _clean_html(self, html_text: str) -> str:
+        """Remove HTML tags and clean text"""
+        if not html_text:
+            return ""
+        soup = BeautifulSoup(html_text, 'html.parser')
+        text = soup.get_text(separator=' ')
+        # Clean up whitespace
+        text = re.sub(r'\s+', ' ', text).strip()
+        return text
+
+
+# ============================================================================
+# SECTION 3: FMP NEWS/PRESS RELEASE FETCHER
+# ============================================================================
+
+class FMPFetcher:
+    """
+    Fetches news and press releases from Financial Modeling Prep API.
+    
+    Targets tracked companies (competitors, OEMs, suppliers with tickers).
+    
+    Usage:
+        fetcher = FMPFetcher(config)
+        articles = await fetcher.fetch_for_tickers(["HXL", "TRYIY", "OC"])
+    """
+    
+    FMP_BASE_URL = "https://financialmodelingprep.com/api/v3"
+    
+    def __init__(self, config: IngestionConfig):
+        self.config = config
+        self.api_key = config.fmp_api_key
+    
+    async def _request(self, endpoint: str, params: Dict = None) -> Any:
+        """Make request to FMP API"""
+        if not self.api_key:
+            logger.warning("FMP API key not configured")
+            return None
+        
+        params = params or {}
+        params["apikey"] = self.api_key
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{self.FMP_BASE_URL}/{endpoint}",
+                params=params,
+                timeout=30.0
+            )
+            response.raise_for_status()
+            return response.json()
+    
+    async def fetch_stock_news(self, ticker: str, limit: int = 20) -> List[RawArticle]:
+        """Fetch news articles for a specific stock ticker"""
+        articles = []
+        
+        try:
+            data = await self._request(f"stock_news", {"tickers": ticker, "limit": limit})
+            
+            if not data:
+                return articles
+            
+            for item in data:
+                published = None
+                if item.get("publishedDate"):
+                    try:
+                        published = datetime.fromisoformat(item["publishedDate"].replace("Z", "+00:00"))
+                    except:
+                        published = datetime.utcnow()
+                
+                article = RawArticle(
+                    title=item.get("title", ""),
+                    url=item.get("url", ""),
+                    summary=item.get("text", "")[:1000],
+                    published_at=published,
+                    source_name=item.get("site", "FMP News"),
+                    source_type="fmp_news",
+                    raw_data={
+                        "ticker": ticker,
+                        "symbol": item.get("symbol"),
+                    }
+                )
+                articles.append(article)
+            
+            logger.info(f"Fetched {len(articles)} news articles for {ticker}")
+            
+        except Exception as e:
+            logger.error(f"Error fetching FMP news for {ticker}: {e}")
+        
+        return articles
+    
+    async def fetch_press_releases(self, ticker: str, limit: int = 10) -> List[RawArticle]:
+        """Fetch press releases for a specific stock ticker"""
+        articles = []
+        
+        try:
+            data = await self._request(f"press-releases/{ticker}", {"limit": limit})
+            
+            if not data:
+                return articles
+            
+            for item in data:
+                published = None
+                if item.get("date"):
+                    try:
+                        published = datetime.fromisoformat(item["date"])
+                    except:
+                        published = datetime.utcnow()
+                
+                article = RawArticle(
+                    title=item.get("title", ""),
+                    url=item.get("url", f"https://financialmodelingprep.com/press-releases/{ticker}"),
+                    summary=item.get("text", "")[:1000],
+                    published_at=published,
+                    source_name="Press Release",
+                    source_type="fmp_press",
+                    raw_data={
+                        "ticker": ticker,
+                        "symbol": item.get("symbol"),
+                    }
+                )
+                articles.append(article)
+            
+            logger.info(f"Fetched {len(articles)} press releases for {ticker}")
+            
+        except Exception as e:
+            logger.error(f"Error fetching FMP press releases for {ticker}: {e}")
+        
+        return articles
+    
+    async def fetch_general_news(self, limit: int = 50) -> List[RawArticle]:
+        """Fetch general market news (not ticker-specific)"""
+        articles = []
+        
+        try:
+            data = await self._request("fmp/articles", {"page": 0, "size": limit})
+            
+            if not data or "content" not in data:
+                return articles
+            
+            for item in data["content"]:
+                published = None
+                if item.get("publishedDate"):
+                    try:
+                        published = datetime.fromisoformat(item["publishedDate"].replace("Z", "+00:00"))
+                    except:
+                        published = datetime.utcnow()
+                
+                article = RawArticle(
+                    title=item.get("title", ""),
+                    url=item.get("link", ""),
+                    summary=item.get("content", "")[:1000],
+                    published_at=published,
+                    source_name="FMP Market News",
+                    source_type="fmp_news",
+                    raw_data={}
+                )
+                articles.append(article)
+            
+            logger.info(f"Fetched {len(articles)} general market news articles")
+            
+        except Exception as e:
+            logger.error(f"Error fetching FMP general news: {e}")
+        
+        return articles
+    
+    async def fetch_for_tickers(self, tickers: List[str]) -> List[RawArticle]:
+        """Fetch news and press releases for multiple tickers"""
+        all_articles = []
+        
+        for ticker in tickers:
+            news = await self.fetch_stock_news(ticker)
+            press = await self.fetch_press_releases(ticker)
+            all_articles.extend(news)
+            all_articles.extend(press)
+            
+            # Rate limiting - FMP has limits
+            await asyncio.sleep(0.5)
+        
+        return all_articles
+
+
+# ============================================================================
+# SECTION 4: WEB SCRAPER (Full Article Extraction)
+# ============================================================================
+
+class WebScraper:
+    """
+    Extracts full article text from URLs.
+    
+    Used to enrich RSS summaries with full content for better classification.
+    
+    Usage:
+        scraper = WebScraper()
+        full_text = await scraper.extract_article(url)
+    """
+    
+    # User agent to avoid blocks
+    HEADERS = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+    }
+    
+    # Selectors for article content (order matters - try first match)
+    CONTENT_SELECTORS = [
+        "article",
+        '[class*="article-body"]',
+        '[class*="article-content"]',
+        '[class*="post-content"]',
+        '[class*="entry-content"]',
+        '[class*="story-body"]',
+        "main",
+        '[role="main"]',
+    ]
+    
+    # Elements to remove
+    REMOVE_SELECTORS = [
+        "nav", "header", "footer", "aside",
+        '[class*="sidebar"]',
+        '[class*="advertisement"]',
+        '[class*="related"]',
+        '[class*="comment"]',
+        '[class*="share"]',
+        '[class*="social"]',
+        "script", "style", "noscript",
+    ]
+    
+    def __init__(self, timeout: float = 15.0):
+        self.timeout = timeout
+    
+    async def extract_article(self, url: str) -> Optional[str]:
+        """Extract full article text from a URL"""
+        try:
+            async with httpx.AsyncClient(follow_redirects=True) as client:
+                response = await client.get(
+                    url,
+                    headers=self.HEADERS,
+                    timeout=self.timeout
+                )
+                response.raise_for_status()
+                
+                html = response.text
+                return self._parse_article(html)
+        
+        except Exception as e:
+            logger.warning(f"Failed to extract article from {url}: {e}")
+            return None
+    
+    def _parse_article(self, html: str) -> str:
+        """Parse article content from HTML"""
+        soup = BeautifulSoup(html, 'html.parser')
+        
+        # Remove unwanted elements
+        for selector in self.REMOVE_SELECTORS:
+            for element in soup.select(selector):
+                element.decompose()
+        
+        # Try to find article content
+        content = None
+        for selector in self.CONTENT_SELECTORS:
+            content = soup.select_one(selector)
+            if content:
+                break
+        
+        if not content:
+            # Fallback to body
+            content = soup.body
+        
+        if not content:
+            return ""
+        
+        # Extract text
+        text = content.get_text(separator='\n')
+        
+        # Clean up
+        lines = [line.strip() for line in text.split('\n') if line.strip()]
+        text = '\n'.join(lines)
+        
+        # Limit length
+        if len(text) > 10000:
+            text = text[:10000] + "..."
+        
+        return text
+    
+    async def enrich_articles(
+        self, 
+        articles: List[RawArticle], 
+        max_concurrent: int = 5
+    ) -> List[RawArticle]:
+        """Enrich multiple articles with full text"""
+        semaphore = asyncio.Semaphore(max_concurrent)
+        
+        async def enrich_one(article: RawArticle) -> RawArticle:
+            async with semaphore:
+                # Skip if we already have substantial text
+                if article.full_text and len(article.full_text) > 500:
+                    return article
+                
+                full_text = await self.extract_article(article.url)
+                if full_text:
+                    article.full_text = full_text
+                
+                return article
+        
+        tasks = [enrich_one(article) for article in articles]
+        enriched = await asyncio.gather(*tasks)
+        
+        logger.info(f"Enriched {len([a for a in enriched if a.full_text])} articles with full text")
+        return enriched
+
+
+# ============================================================================
+# SECTION 5: CONTENT CLASSIFIER (Claude-based)
+# ============================================================================
+
+@dataclass
+class ClassificationResult:
+    """Result from content classification"""
+    categories: List[ContentCategory]
+    primary_category: ContentCategory
+    industries: List[Industry]
+    priority: Priority
+    relevance_score: float  # 0-1, how relevant to C1/composites
+    summary: str  # AI-generated summary
+    key_entities: List[str]  # Companies, products mentioned
+    sentiment: str  # positive, negative, neutral
+    confidence: float  # 0-1, classifier confidence
+
+
+class ContentClassifier:
+    """
+    Uses Claude to classify and score content.
+    
+    Determines:
+    - Category (competitor news, market trend, regulatory, etc.)
+    - Industries (aerospace, automotive, etc.)
+    - Priority (high, medium, low)
+    - Relevance score (0-1)
+    - Summary
+    - Key entities mentioned
+    
+    Usage:
+        classifier = ContentClassifier(config)
+        result = await classifier.classify(article)
+    """
+    
+    CLASSIFICATION_PROMPT = """You are a content classifier for a composites industry intelligence system serving Composites One, North America's largest composites distributor.
+
+Analyze the following article and provide classification in JSON format.
+
+<article>
+Title: {title}
+Source: {source}
+Content: {content}
+</article>
+
+<tracked_competitors>
+{competitors}
+</tracked_competitors>
+
+<tracked_oems>
+{oems}
+</tracked_oems>
+
+Classify this article and respond with ONLY valid JSON (no markdown, no explanation):
+
+{{
+    "primary_category": "competitor|market|regulatory|product|earnings|partnership|expansion|supply_chain|c1_mention|general",
+    "secondary_categories": ["category1", "category2"],
+    "industries": ["aerospace", "automotive", "marine", "wind_energy", "infrastructure", "sporting_goods", "defense", "industrial"],
+    "priority": "high|medium|low",
+    "relevance_score": 0.0-1.0,
+    "summary": "2-3 sentence summary focusing on implications for composites industry",
+    "key_entities": ["Company1", "Company2", "Product1"],
+    "sentiment": "positive|negative|neutral",
+    "confidence": 0.0-1.0,
+    "reasoning": "Brief explanation of classification"
+}}
+
+Priority Guidelines:
+- HIGH: Direct competitor announcements, major market shifts, regulatory changes affecting composites, C1 mentions
+- MEDIUM: Industry trends, partnerships, expansions in composites space
+- LOW: Tangentially related news, general market updates
+
+Relevance Score Guidelines:
+- 0.9-1.0: Directly about composites, competitors, or C1's markets
+- 0.7-0.9: Strongly related to composites industry
+- 0.5-0.7: Moderately related (adjacent industries, materials)
+- 0.3-0.5: Weakly related
+- 0.0-0.3: Minimally relevant
+"""
+
+    def __init__(self, config: IngestionConfig):
+        self.config = config
+        self.client = AsyncAnthropic(api_key=config.anthropic_api_key)
+        self.model = config.classifier_model
+        self.temperature = config.classifier_temperature
+        
+        # Cache for tracked entities (populated from DB)
+        self._competitors: List[str] = []
+        self._oems: List[str] = []
+    
+    async def load_tracked_entities(self, db):
+        """Load tracked entities from database for classification context"""
+        try:
+            # These would come from your database
+            competitors = await db.list_entities(entity_type="competitor")
+            oems = await db.list_entities(entity_type="oem")
+            
+            self._competitors = [e.name for e in competitors]
+            self._oems = [e.name for e in oems]
+            
+            logger.info(f"Loaded {len(self._competitors)} competitors, {len(self._oems)} OEMs for classification")
+        except Exception as e:
+            logger.warning(f"Could not load tracked entities: {e}")
+            # Use defaults
+            self._competitors = ["Hexcel", "Toray", "Solvay", "Owens Corning", "Huntsman", "Gurit", "Teijin"]
+            self._oems = ["Boeing", "Airbus", "Spirit AeroSystems", "GE", "Vestas", "Siemens Gamesa"]
+    
+    async def classify(self, article: RawArticle) -> ClassificationResult:
+        """Classify a single article"""
+        
+        # Build content (prefer full text, fall back to summary)
+        content = article.full_text or article.summary
+        if len(content) > 4000:
+            content = content[:4000] + "..."
+        
+        prompt = self.CLASSIFICATION_PROMPT.format(
+            title=article.title,
+            source=article.source_name,
+            content=content,
+            competitors=", ".join(self._competitors) if self._competitors else "Not loaded",
+            oems=", ".join(self._oems) if self._oems else "Not loaded",
+        )
+        
+        try:
+            response = await self.client.messages.create(
+                model=self.model,
+                max_tokens=1000,
+                temperature=self.temperature,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            
+            # Parse JSON response
+            result_text = response.content[0].text.strip()
+            
+            # Clean up potential markdown code blocks
+            if result_text.startswith("```"):
+                result_text = re.sub(r'^```json?\n?', '', result_text)
+                result_text = re.sub(r'\n?```$', '', result_text)
+            
+            data = json.loads(result_text)
+            
+            # Map to enums
+            primary_cat = ContentCategory(data.get("primary_category", "general"))
+            secondary_cats = [
+                ContentCategory(c) for c in data.get("secondary_categories", [])
+                if c in [e.value for e in ContentCategory]
+            ]
+            industries = [
+                Industry(i) for i in data.get("industries", [])
+                if i in [e.value for e in Industry]
+            ]
+            priority = Priority(data.get("priority", "low"))
+            
+            return ClassificationResult(
+                categories=[primary_cat] + secondary_cats,
+                primary_category=primary_cat,
+                industries=industries,
+                priority=priority,
+                relevance_score=float(data.get("relevance_score", 0.5)),
+                summary=data.get("summary", article.summary[:200]),
+                key_entities=data.get("key_entities", []),
+                sentiment=data.get("sentiment", "neutral"),
+                confidence=float(data.get("confidence", 0.7)),
+            )
+        
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse classification JSON: {e}")
+            return self._default_classification(article)
+        except Exception as e:
+            logger.error(f"Classification error: {e}")
+            return self._default_classification(article)
+    
+    async def classify_batch(
+        self, 
+        articles: List[RawArticle],
+        max_concurrent: int = 3
+    ) -> List[Tuple[RawArticle, ClassificationResult]]:
+        """Classify multiple articles with rate limiting"""
+        semaphore = asyncio.Semaphore(max_concurrent)
+        
+        async def classify_one(article: RawArticle) -> Tuple[RawArticle, ClassificationResult]:
+            async with semaphore:
+                result = await self.classify(article)
+                # Small delay to avoid rate limits
+                await asyncio.sleep(0.5)
+                return (article, result)
+        
+        tasks = [classify_one(article) for article in articles]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Filter out errors
+        valid_results = []
+        for result in results:
+            if isinstance(result, Exception):
+                logger.error(f"Batch classification error: {result}")
+            else:
+                valid_results.append(result)
+        
+        logger.info(f"Classified {len(valid_results)}/{len(articles)} articles")
+        return valid_results
+    
+    def _default_classification(self, article: RawArticle) -> ClassificationResult:
+        """Return default classification when AI fails"""
+        # Use keyword matching as fallback
+        text = f"{article.title} {article.summary}".lower()
+        
+        categories = []
+        for cat, keywords in CATEGORY_KEYWORDS.items():
+            if any(kw.lower() in text for kw in keywords):
+                categories.append(cat)
+        
+        industries = []
+        for ind, keywords in INDUSTRY_KEYWORDS.items():
+            if any(kw.lower() in text for kw in keywords):
+                industries.append(ind)
+        
+        primary = categories[0] if categories else ContentCategory.GENERAL
+        
+        return ClassificationResult(
+            categories=categories or [ContentCategory.GENERAL],
+            primary_category=primary,
+            industries=industries,
+            priority=Priority.LOW,
+            relevance_score=0.5,
+            summary=article.summary[:200],
+            key_entities=[],
+            sentiment="neutral",
+            confidence=0.3,
+        )
+
+
+# ============================================================================
+# SECTION 6: ENTITY LINKER (Match to Tracked Entities)
+# ============================================================================
+
+@dataclass
+class EntityMention:
+    """A mention of a tracked entity in content"""
+    entity_id: str
+    entity_name: str
+    entity_type: str  # competitor, oem, material_manufacturer, etc.
+    confidence: float = 1.0
+    context: str = ""  # Surrounding text
+
+
+class EntityLinker:
+    """
+    Links content to tracked entities.
+    
+    Identifies which tracked companies, OEMs, materials, etc.
+    are mentioned in articles.
+    
+    Usage:
+        linker = EntityLinker()
+        await linker.load_entities(db)
+        mentions = linker.find_mentions(article_text)
+    """
+    
+    def __init__(self):
+        self._entities: Dict[str, Dict] = {}  # id -> entity data
+        self._name_index: Dict[str, str] = {}  # lowercase name/alias -> id
+    
+    async def load_entities(self, db):
+        """Load all tracked entities from database"""
+        entity_types = ["competitor", "oem", "material_manufacturer", "material", "supplier"]
+        
+        for entity_type in entity_types:
+            try:
+                entities = await db.list_entities(entity_type=entity_type)
+                for entity in entities:
+                    self._entities[entity.id] = {
+                        "id": entity.id,
+                        "name": entity.name,
+                        "type": entity_type,
+                        "aliases": entity.aliases or [],
+                        "ticker": entity.metadata.ticker if hasattr(entity.metadata, 'ticker') else None,
+                    }
+                    
+                    # Index by name and aliases
+                    self._name_index[entity.name.lower()] = entity.id
+                    for alias in (entity.aliases or []):
+                        self._name_index[alias.lower()] = entity.id
+                    
+                    # Index by ticker if available
+                    if entity.metadata and hasattr(entity.metadata, 'ticker') and entity.metadata.ticker:
+                        self._name_index[entity.metadata.ticker.lower()] = entity.id
+            except Exception as e:
+                logger.warning(f"Error loading {entity_type} entities: {e}")
+        
+        logger.info(f"Loaded {len(self._entities)} entities with {len(self._name_index)} name variants")
+    
+    def find_mentions(self, text: str) -> List[EntityMention]:
+        """Find all entity mentions in text"""
+        if not text:
+            return []
+        
+        mentions = []
+        text_lower = text.lower()
+        found_ids = set()  # Avoid duplicates
+        
+        # Sort by length (longest first) to match "Owens Corning" before "Owens"
+        sorted_names = sorted(self._name_index.keys(), key=len, reverse=True)
+        
+        for name in sorted_names:
+            if name in text_lower:
+                entity_id = self._name_index[name]
+                
+                if entity_id in found_ids:
+                    continue
+                found_ids.add(entity_id)
+                
+                entity = self._entities.get(entity_id)
+                if not entity:
+                    continue
+                
+                # Extract context (surrounding text)
+                idx = text_lower.find(name)
+                start = max(0, idx - 50)
+                end = min(len(text), idx + len(name) + 50)
+                context = text[start:end]
+                
+                mentions.append(EntityMention(
+                    entity_id=entity_id,
+                    entity_name=entity["name"],
+                    entity_type=entity["type"],
+                    confidence=1.0 if len(name) > 5 else 0.8,  # Lower confidence for short names
+                    context=context,
+                ))
+        
+        return mentions
+    
+    def link_article(self, article: RawArticle) -> List[EntityMention]:
+        """Find all entity mentions in an article"""
+        text = f"{article.title}\n{article.summary or ''}\n{article.full_text or ''}"
+        return self.find_mentions(text)
+
+
+# ============================================================================
+# SECTION 7: DEDUPLICATION SERVICE
+# ============================================================================
+
+class DeduplicationService:
+    """
+    Prevents duplicate content from being stored.
+    
+    Uses multiple strategies:
+    1. URL exact match
+    2. Title similarity
+    3. Content hash
+    
+    Usage:
+        dedup = DeduplicationService(db)
+        is_dup, original_id = await dedup.check_duplicate(article)
+    """
+    
+    def __init__(self, db):
+        self.db = db
+        self._url_cache: set = set()
+        self._title_cache: Dict[str, str] = {}  # normalized title -> id
+    
+    async def load_recent_cache(self, hours: int = 168):
+        """Load recent URLs and titles into memory cache"""
+        try:
+            # Query recent corpus items
+            from app.models.entities import CorpusQuery
+            query = CorpusQuery(hours=hours, limit=1000)
+            items = await self.db.query_corpus(query)
+            
+            for item in items:
+                self._url_cache.add(self._normalize_url(item.url))
+                self._title_cache[self._normalize_title(item.title)] = item.id
+            
+            logger.info(f"Loaded {len(self._url_cache)} URLs into dedup cache")
+        except Exception as e:
+            logger.warning(f"Could not load dedup cache: {e}")
+    
+    async def check_duplicate(self, article: RawArticle) -> Tuple[bool, Optional[str]]:
+        """
+        Check if article is a duplicate.
+        
+        Returns:
+            (is_duplicate, original_id or None)
+        """
+        # 1. URL exact match
+        normalized_url = self._normalize_url(article.url)
+        
+        # Check memory cache first
+        if normalized_url in self._url_cache:
+            # Get original ID from DB
+            original_id = await self.db.check_duplicate(article.url)
+            if original_id:
+                return (True, original_id)
+        
+        # Check DB directly
+        original_id = await self.db.check_duplicate(article.url)
+        if original_id:
+            self._url_cache.add(normalized_url)
+            return (True, original_id)
+        
+        # 2. Title similarity
+        normalized_title = self._normalize_title(article.title)
+        if normalized_title in self._title_cache:
+            return (True, self._title_cache[normalized_title])
+        
+        # 3. Content hash (for very similar content with different URLs)
+        content_hash = self._content_hash(article)
+        # Would check against stored hashes in production
+        
+        # Not a duplicate - add to cache
+        self._url_cache.add(normalized_url)
+        self._title_cache[normalized_title] = None  # Will be updated with ID after storage
+        
+        return (False, None)
+    
+    def _normalize_url(self, url: str) -> str:
+        """Normalize URL for comparison"""
+        # Remove protocol, www, trailing slashes, query params
+        url = url.lower()
+        url = re.sub(r'^https?://', '', url)
+        url = re.sub(r'^www\.', '', url)
+        url = url.rstrip('/')
+        url = url.split('?')[0]
+        return url
+    
+    def _normalize_title(self, title: str) -> str:
+        """Normalize title for comparison"""
+        # Lowercase, remove punctuation, extra spaces
+        title = title.lower()
+        title = re.sub(r'[^\w\s]', '', title)
+        title = re.sub(r'\s+', ' ', title)
+        return title.strip()
+    
+    def _content_hash(self, article: RawArticle) -> str:
+        """Generate hash of article content"""
+        content = f"{article.title}{article.summary or ''}"
+        return hashlib.md5(content.encode()).hexdigest()
+
+
+# ============================================================================
+# SECTION 8: VECTOR STORE (ChromaDB Integration)
+# ============================================================================
+
+class VectorStore:
+    """
+    Vector store for semantic search of corpus content.
+    
+    Uses ChromaDB for local development, can be swapped for
+    Vertex AI Vector Search or Pinecone in production.
+    
+    Usage:
+        store = VectorStore(config)
+        await store.initialize()
+        await store.add_documents(corpus_items)
+        results = await store.search("carbon fiber supply shortage", k=10)
+    """
+    
+    def __init__(self, config: IngestionConfig):
+        self.config = config
+        self.client = None
+        self.collection = None
+        self._initialized = False
+    
+    async def initialize(self):
+        """Initialize the vector store"""
+        if not CHROMADB_AVAILABLE:
+            logger.warning("ChromaDB not available - vector search disabled")
+            return
+        
+        try:
+            # Create persistent client
+            self.client = chromadb.Client(Settings(
+                chroma_db_impl="duckdb+parquet",
+                persist_directory=self.config.chroma_persist_dir,
+                anonymized_telemetry=False,
+            ))
+            
+            # Get or create collection
+            self.collection = self.client.get_or_create_collection(
+                name="c1_corpus",
+                metadata={"hnsw:space": "cosine"}
+            )
+            
+            self._initialized = True
+            logger.info(f"Vector store initialized with {self.collection.count()} documents")
+        
+        except Exception as e:
+            logger.error(f"Failed to initialize vector store: {e}")
+    
+    async def add_documents(self, items: List[Dict[str, Any]]):
+        """Add documents to the vector store"""
+        if not self._initialized:
+            logger.warning("Vector store not initialized - skipping add")
+            return
+        
+        try:
+            ids = []
+            documents = []
+            metadatas = []
+            
+            for item in items:
+                ids.append(item["id"])
+                
+                # Combine title and summary for embedding
+                doc_text = f"{item['title']}\n\n{item.get('summary', '')}"
+                documents.append(doc_text)
+                
+                metadatas.append({
+                    "title": item["title"],
+                    "source": item.get("source_name", ""),
+                    "published_at": item.get("published_at", ""),
+                    "priority": item.get("priority", "low"),
+                    "categories": ",".join(item.get("categories", [])),
+                })
+            
+            self.collection.add(
+                ids=ids,
+                documents=documents,
+                metadatas=metadatas,
+            )
+            
+            logger.info(f"Added {len(items)} documents to vector store")
+        
+        except Exception as e:
+            logger.error(f"Error adding documents to vector store: {e}")
+    
+    async def search(
+        self, 
+        query: str, 
+        k: int = 10,
+        filter_dict: Optional[Dict] = None
+    ) -> List[Dict]:
+        """Search for similar documents"""
+        if not self._initialized:
+            logger.warning("Vector store not initialized - returning empty results")
+            return []
+        
+        try:
+            results = self.collection.query(
+                query_texts=[query],
+                n_results=k,
+                where=filter_dict,
+            )
+            
+            # Format results
+            formatted = []
+            for i, doc_id in enumerate(results["ids"][0]):
+                formatted.append({
+                    "id": doc_id,
+                    "document": results["documents"][0][i] if results["documents"] else "",
+                    "metadata": results["metadatas"][0][i] if results["metadatas"] else {},
+                    "distance": results["distances"][0][i] if results["distances"] else 0,
+                })
+            
+            return formatted
+        
+        except Exception as e:
+            logger.error(f"Vector search error: {e}")
+            return []
+    
+    async def delete_old_documents(self, days: int = 30):
+        """Delete documents older than N days"""
+        if not self._initialized:
+            return
+        
+        # ChromaDB doesn't have great support for date filtering
+        # In production, use a more sophisticated approach
+        logger.info(f"Document cleanup not implemented for ChromaDB")
+
+
+# ============================================================================
+# SECTION 9: DIGEST GENERATOR
+# ============================================================================
+
+@dataclass
+class DigestItem:
+    """A single item in the digest"""
+    corpus_item_id: str
+    title: str
+    summary: str
+    category: str
+    priority: str
+    source_name: str
+    source_url: str
+    published_at: datetime
+    entity_mentions: List[str]
+
+
+@dataclass 
+class Digest:
+    """A complete intelligence digest"""
+    id: str
+    period_start: datetime
+    period_end: datetime
+    hours_covered: int
+    executive_summary: str
+    items: List[DigestItem]
+    stats: Dict[str, Any]
+    generated_at: datetime
+
+
+class DigestGenerator:
+    """
+    Generates pre-computed intelligence digests.
+    
+    The digest provides:
+    - Executive summary of the period
+    - Priority items highlighted
+    - Items grouped by category
+    - Statistics
+    
+    Usage:
+        generator = DigestGenerator(config, db)
+        digest = await generator.generate(hours=72)
+    """
+    
+    SUMMARY_PROMPT = """You are creating an executive intelligence briefing for Composites One's commercial team.
+
+Based on the following intelligence items from the past {hours} hours, write a concise executive summary (3-5 sentences) highlighting:
+1. The most important competitive or market developments
+2. Any urgent items requiring attention
+3. Key themes or patterns
+
+<intelligence_items>
+{items}
+</intelligence_items>
+
+Write the executive summary in a professional, direct style. Focus on actionable intelligence.
+Do not use bullet points - write in flowing paragraphs."""
+
+    def __init__(self, config: IngestionConfig, db):
+        self.config = config
+        self.db = db
+        self.client = AsyncAnthropic(api_key=config.anthropic_api_key)
+    
+    async def generate(self, hours: int = 72) -> Digest:
+        """Generate a digest for the specified time period"""
+        logger.info(f"Generating {hours}-hour digest...")
+        
+        period_end = datetime.utcnow()
+        period_start = period_end - timedelta(hours=hours)
+        
+        # Query corpus for items in period
+        from app.models.entities import CorpusQuery, Priority
+        
+        query = CorpusQuery(
+            hours=hours,
+            limit=self.config.digest_max_items * 2,  # Get extra for filtering
+        )
+        
+        corpus_items = await self.db.query_corpus(query)
+        
+        if not corpus_items:
+            logger.warning("No corpus items found for digest")
+            return self._empty_digest(period_start, period_end, hours)
+        
+        # Sort by priority and relevance
+        sorted_items = sorted(
+            corpus_items,
+            key=lambda x: (
+                0 if x.priority == Priority.HIGH else 1 if x.priority == Priority.MEDIUM else 2,
+                -x.relevance_score
+            )
+        )
+        
+        # Take top items
+        top_items = sorted_items[:self.config.digest_max_items]
+        
+        # Convert to digest items
+        digest_items = []
+        for item in top_items:
+            digest_items.append(DigestItem(
+                corpus_item_id=item.id,
+                title=item.title,
+                summary=item.summary,
+                category=item.categories[0].value if item.categories else "general",
+                priority=item.priority.value,
+                source_name=item.source.name,
+                source_url=item.url,
+                published_at=item.published_at,
+                entity_mentions=[m.entity_name for m in item.entity_mentions[:5]],
+            ))
+        
+        # Generate executive summary
+        executive_summary = await self._generate_summary(digest_items, hours)
+        
+        # Calculate stats
+        stats = self._calculate_stats(digest_items)
+        
+        digest = Digest(
+            id=str(uuid.uuid4()),
+            period_start=period_start,
+            period_end=period_end,
+            hours_covered=hours,
+            executive_summary=executive_summary,
+            items=digest_items,
+            stats=stats,
+            generated_at=datetime.utcnow(),
+        )
+        
+        # Save to database
+        await self._save_digest(digest)
+        
+        logger.info(f"Generated digest with {len(digest_items)} items")
+        return digest
+    
+    async def _generate_summary(self, items: List[DigestItem], hours: int) -> str:
+        """Generate executive summary using Claude"""
+        if not items:
+            return "No significant intelligence to report for this period."
+        
+        # Format items for prompt
+        items_text = "\n\n".join([
+            f"[{item.priority.upper()}] {item.title}\n{item.summary[:200]}"
+            for item in items[:20]  # Limit for prompt size
+        ])
+        
+        prompt = self.SUMMARY_PROMPT.format(hours=hours, items=items_text)
+        
+        try:
+            response = await self.client.messages.create(
+                model=self.config.digest_model,
+                max_tokens=500,
+                temperature=0.3,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            
+            return response.content[0].text.strip()
+        
+        except Exception as e:
+            logger.error(f"Error generating digest summary: {e}")
+            return "Executive summary generation failed. Please review individual items."
+    
+    def _calculate_stats(self, items: List[DigestItem]) -> Dict[str, Any]:
+        """Calculate digest statistics"""
+        stats = {
+            "total_items": len(items),
+            "by_category": {},
+            "by_priority": {},
+            "unique_entities_mentioned": set(),
+            "sources_count": len(set(item.source_name for item in items)),
+        }
+        
+        for item in items:
+            # By category
+            cat = item.category
+            stats["by_category"][cat] = stats["by_category"].get(cat, 0) + 1
+            
+            # By priority
+            pri = item.priority
+            stats["by_priority"][pri] = stats["by_priority"].get(pri, 0) + 1
+            
+            # Entities
+            for entity in item.entity_mentions:
+                stats["unique_entities_mentioned"].add(entity)
+        
+        stats["unique_entities_mentioned"] = len(stats["unique_entities_mentioned"])
+        
+        return stats
+    
+    async def _save_digest(self, digest: Digest):
+        """Save digest to database"""
+        try:
+            await self.db.save_digest(digest)
+            logger.info(f"Saved digest {digest.id}")
+        except Exception as e:
+            logger.error(f"Error saving digest: {e}")
+    
+    def _empty_digest(self, start: datetime, end: datetime, hours: int) -> Digest:
+        """Create an empty digest when no content is available"""
+        return Digest(
+            id=str(uuid.uuid4()),
+            period_start=start,
+            period_end=end,
+            hours_covered=hours,
+            executive_summary="No intelligence items found for this period.",
+            items=[],
+            stats={
+                "total_items": 0,
+                "by_category": {},
+                "by_priority": {},
+                "unique_entities_mentioned": 0,
+                "sources_count": 0,
+            },
+            generated_at=datetime.utcnow(),
+        )
+
+
+# ============================================================================
+# SECTION 10: BACKGROUND JOB ORCHESTRATOR
+# ============================================================================
+
+@dataclass
+class IngestionStats:
+    """Statistics from an ingestion run"""
+    started_at: datetime
+    completed_at: Optional[datetime] = None
+    rss_articles_fetched: int = 0
+    fmp_articles_fetched: int = 0
+    articles_enriched: int = 0
+    articles_classified: int = 0
+    duplicates_skipped: int = 0
+    articles_stored: int = 0
+    errors: List[str] = field(default_factory=list)
+    
+    @property
+    def duration_seconds(self) -> float:
+        if self.completed_at:
+            return (self.completed_at - self.started_at).total_seconds()
+        return 0
+
+
+class IngestionOrchestrator:
+    """
+    Main orchestrator for the ingestion pipeline.
+    
+    Coordinates:
+    1. RSS feed fetching
+    2. FMP news fetching (for tracked tickers)
+    3. Article enrichment (full text extraction)
+    4. Content classification
+    5. Entity linking
+    6. Deduplication
+    7. Storage
+    8. Vector store indexing
+    9. Digest generation
+    
+    Usage:
+        orchestrator = IngestionOrchestrator(config)
+        await orchestrator.initialize()
+        stats = await orchestrator.run_full_ingestion()
+    """
+    
+    def __init__(self, config: IngestionConfig):
+        self.config = config
+        self.db = None
+        
+        # Components
+        self.rss_fetcher = RSSFetcher(config)
+        self.fmp_fetcher = FMPFetcher(config)
+        self.scraper = WebScraper()
+        self.classifier = ContentClassifier(config)
+        self.entity_linker = EntityLinker()
+        self.dedup_service = None
+        self.vector_store = VectorStore(config)
+        self.digest_generator = None
+        
+        self._initialized = False
+    
+    async def initialize(self):
+        """Initialize all components"""
+        logger.info("Initializing ingestion orchestrator...")
+        
+        # Initialize database
+        from app.db.database import get_db
+        self.db = get_db()
+        
+        # Initialize services that need DB
+        self.dedup_service = DeduplicationService(self.db)
+        self.digest_generator = DigestGenerator(self.config, self.db)
+        
+        # Load caches
+        await self.dedup_service.load_recent_cache()
+        await self.classifier.load_tracked_entities(self.db)
+        await self.entity_linker.load_entities(self.db)
+        
+        # Initialize vector store
+        await self.vector_store.initialize()
+        
+        self._initialized = True
+        logger.info("Ingestion orchestrator initialized")
+    
+    async def run_full_ingestion(self) -> IngestionStats:
+        """Run the complete ingestion pipeline"""
+        if not self._initialized:
+            await self.initialize()
+        
+        stats = IngestionStats(started_at=datetime.utcnow())
+        
+        try:
+            # Step 1: Fetch RSS feeds
+            logger.info("Step 1: Fetching RSS feeds...")
+            rss_articles = await self.rss_fetcher.fetch_all_feeds()
+            stats.rss_articles_fetched = len(rss_articles)
+            
+            # Step 2: Fetch FMP news for tracked tickers
+            logger.info("Step 2: Fetching FMP news...")
+            tickers = await self._get_tracked_tickers()
+            fmp_articles = await self.fmp_fetcher.fetch_for_tickers(tickers)
+            stats.fmp_articles_fetched = len(fmp_articles)
+            
+            # Combine all articles
+            all_articles = rss_articles + fmp_articles
+            logger.info(f"Total articles to process: {len(all_articles)}")
+            
+            # Step 3: Deduplicate
+            logger.info("Step 3: Deduplicating...")
+            unique_articles = []
+            for article in all_articles:
+                is_dup, original_id = await self.dedup_service.check_duplicate(article)
+                if is_dup:
+                    stats.duplicates_skipped += 1
+                else:
+                    unique_articles.append(article)
+            
+            logger.info(f"Unique articles after dedup: {len(unique_articles)}")
+            
+            # Step 4: Enrich with full text (for top articles)
+            logger.info("Step 4: Enriching articles...")
+            # Only enrich a subset to save time/resources
+            articles_to_enrich = unique_articles[:50]
+            enriched_articles = await self.scraper.enrich_articles(articles_to_enrich)
+            stats.articles_enriched = len([a for a in enriched_articles if a.full_text])
+            
+            # Use enriched + rest of unique
+            final_articles = enriched_articles + unique_articles[50:]
+            
+            # Step 5: Classify
+            logger.info("Step 5: Classifying content...")
+            classified = await self.classifier.classify_batch(final_articles)
+            stats.articles_classified = len(classified)
+            
+            # Step 6: Link entities and store
+            logger.info("Step 6: Linking entities and storing...")
+            stored_count = 0
+            vector_docs = []
+            
+            for article, classification in classified:
+                # Link entities
+                mentions = self.entity_linker.link_article(article)
+                
+                # Create corpus item
+                corpus_item = self._create_corpus_item(article, classification, mentions)
+                
+                # Store in database
+                try:
+                    await self.db.add_corpus_item(corpus_item)
+                    stored_count += 1
+                    
+                    # Prepare for vector store
+                    vector_docs.append({
+                        "id": corpus_item.id,
+                        "title": corpus_item.title,
+                        "summary": corpus_item.summary,
+                        "source_name": corpus_item.source.name,
+                        "published_at": corpus_item.published_at.isoformat(),
+                        "priority": corpus_item.priority.value,
+                        "categories": [c.value for c in corpus_item.categories],
+                    })
+                    
+                except Exception as e:
+                    stats.errors.append(f"Storage error: {str(e)[:100]}")
+            
+            stats.articles_stored = stored_count
+            
+            # Step 7: Update vector store
+            logger.info("Step 7: Updating vector store...")
+            await self.vector_store.add_documents(vector_docs)
+            
+            # Step 8: Generate digest
+            logger.info("Step 8: Generating digest...")
+            await self.digest_generator.generate(hours=self.config.digest_hours)
+            
+            stats.completed_at = datetime.utcnow()
+            logger.info(f"Ingestion complete in {stats.duration_seconds:.1f}s")
+            
+        except Exception as e:
+            logger.error(f"Ingestion error: {e}")
+            stats.errors.append(str(e))
+            stats.completed_at = datetime.utcnow()
+        
+        return stats
+    
+    async def run_rss_only(self) -> IngestionStats:
+        """Run RSS ingestion only (faster, for frequent runs)"""
+        if not self._initialized:
+            await self.initialize()
+        
+        stats = IngestionStats(started_at=datetime.utcnow())
+        
+        try:
+            # Fetch RSS
+            rss_articles = await self.rss_fetcher.fetch_all_feeds()
+            stats.rss_articles_fetched = len(rss_articles)
+            
+            # Deduplicate
+            unique_articles = []
+            for article in rss_articles:
+                is_dup, _ = await self.dedup_service.check_duplicate(article)
+                if is_dup:
+                    stats.duplicates_skipped += 1
+                else:
+                    unique_articles.append(article)
+            
+            # Classify and store
+            classified = await self.classifier.classify_batch(unique_articles)
+            stats.articles_classified = len(classified)
+            
+            for article, classification in classified:
+                mentions = self.entity_linker.link_article(article)
+                corpus_item = self._create_corpus_item(article, classification, mentions)
+                
+                try:
+                    await self.db.add_corpus_item(corpus_item)
+                    stats.articles_stored += 1
+                except Exception as e:
+                    stats.errors.append(str(e)[:100])
+            
+            stats.completed_at = datetime.utcnow()
+            
+        except Exception as e:
+            stats.errors.append(str(e))
+            stats.completed_at = datetime.utcnow()
+        
+        return stats
+    
+    async def run_digest_only(self) -> Digest:
+        """Generate digest only (no ingestion)"""
+        if not self._initialized:
+            await self.initialize()
+        
+        return await self.digest_generator.generate(hours=self.config.digest_hours)
+    
+    async def _get_tracked_tickers(self) -> List[str]:
+        """Get tickers for all tracked entities"""
+        tickers = []
+        
+        try:
+            # Get competitors
+            competitors = await self.db.list_entities(entity_type="competitor")
+            for comp in competitors:
+                if comp.metadata and comp.metadata.ticker:
+                    tickers.append(comp.metadata.ticker)
+            
+            # Get material manufacturers
+            manufacturers = await self.db.list_entities(entity_type="material_manufacturer")
+            for mfr in manufacturers:
+                if mfr.metadata and mfr.metadata.ticker:
+                    tickers.append(mfr.metadata.ticker)
+            
+            # Get OEMs (priority only)
+            oems = await self.db.list_entities(entity_type="oem", priority_only=True)
+            for oem in oems:
+                if oem.metadata and oem.metadata.ticker:
+                    tickers.append(oem.metadata.ticker)
+            
+        except Exception as e:
+            logger.warning(f"Error getting tracked tickers: {e}")
+            # Fallback to default tickers
+            tickers = ["HXL", "TRYIY", "OC", "HUN", "SOLVY"]
+        
+        return list(set(tickers))  # Dedupe
+    
+    def _create_corpus_item(
+        self,
+        article: RawArticle,
+        classification: ClassificationResult,
+        mentions: List[EntityMention]
+    ):
+        """Create a corpus item from processed article"""
+        from app.models.entities import CorpusItem, ContentSource, EntityMention as EMModel
+        
+        # Apply priority boost from source
+        priority_boost = article.raw_data.get("priority_boost", 0)
+        relevance = min(1.0, classification.relevance_score + priority_boost)
+        
+        # Determine final priority
+        priority = classification.priority
+        if relevance >= 0.9 and priority == Priority.MEDIUM:
+            priority = Priority.HIGH
+        
+        return CorpusItem(
+            id=str(uuid.uuid4()),
+            title=article.title,
+            summary=classification.summary,
+            full_text=article.full_text,
+            url=article.url,
+            source=ContentSource(
+                name=article.source_name,
+                url=article.url,
+                source_type=article.source_type,
+                published_at=article.published_at,
+            ),
+            categories=classification.categories,
+            priority=priority,
+            relevance_score=relevance,
+            entity_mentions=[
+                EMModel(
+                    entity_id=m.entity_id,
+                    entity_name=m.entity_name,
+                    entity_type=m.entity_type,
+                    confidence=m.confidence,
+                )
+                for m in mentions
+            ],
+            industries=classification.industries,
+            companies_mentioned=classification.key_entities,
+            published_at=article.published_at or datetime.utcnow(),
+        )
+
+
+# ============================================================================
+# SECTION 11: CLOUD SCHEDULER SETUP (GCP)
+# ============================================================================
+
+"""
+To deploy the ingestion pipeline on Google Cloud, you need:
+
+1. Cloud Run Job (for the ingestion worker)
+2. Cloud Scheduler (to trigger the job)
+
+CLOUD RUN JOB DOCKERFILE:
+```dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY app/ app/
+COPY ingestion_pipeline.py .
+
+CMD ["python", "ingestion_pipeline.py", "--full"]
+```
+
+DEPLOYMENT COMMANDS:
+```bash
+# Build and push image
+gcloud builds submit --tag gcr.io/PROJECT_ID/c1-ingestion
+
+# Create Cloud Run Job
+gcloud run jobs create c1-ingestion-job \
+    --image gcr.io/PROJECT_ID/c1-ingestion \
+    --region us-central1 \
+    --memory 2Gi \
+    --cpu 2 \
+    --max-retries 1 \
+    --task-timeout 30m \
+    --set-env-vars "ANTHROPIC_API_KEY=xxx,FMP_API_KEY=xxx"
+
+# Create Cloud Scheduler to run every 2 hours
+gcloud scheduler jobs create http c1-ingestion-schedule \
+    --location us-central1 \
+    --schedule "0 */2 * * *" \
+    --uri "https://us-central1-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/PROJECT_ID/jobs/c1-ingestion-job:run" \
+    --http-method POST \
+    --oauth-service-account-email SERVICE_ACCOUNT@PROJECT_ID.iam.gserviceaccount.com
+
+# Create a separate scheduler for digest generation (every 6 hours)
+gcloud scheduler jobs create http c1-digest-schedule \
+    --location us-central1 \
+    --schedule "0 */6 * * *" \
+    --uri "https://your-api-url.run.app/api/digest/refresh" \
+    --http-method POST \
+    --oauth-service-account-email SERVICE_ACCOUNT@PROJECT_ID.iam.gserviceaccount.com
+```
+
+ALTERNATIVE: Cloud Functions
+```python
+# For lighter-weight deployment, use Cloud Functions with Pub/Sub trigger
+
+import functions_framework
+from google.cloud import pubsub_v1
+
+@functions_framework.cloud_event
+async def ingest_trigger(cloud_event):
+    config = IngestionConfig()
+    orchestrator = IngestionOrchestrator(config)
+    await orchestrator.initialize()
+    stats = await orchestrator.run_full_ingestion()
+    
+    print(f"Ingestion complete: {stats.articles_stored} articles stored")
+    return {"status": "complete", "stored": stats.articles_stored}
+```
+"""
+
+
+# ============================================================================
+# MAIN ENTRY POINT
+# ============================================================================
+
+async def main():
+    """Main entry point for running the ingestion pipeline"""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="C1 Intelligence Hub Ingestion Pipeline")
+    parser.add_argument("--full", action="store_true", help="Run full ingestion")
+    parser.add_argument("--backfill", type=int, help="Number of days to backfill")
+    parser.add_argument("--rss", action="store_true", help="Run RSS ingestion only")
+    parser.add_argument("--digest", action="store_true", help="Generate digest only")
+    parser.add_argument("--test", action="store_true", help="Run in test mode (no storage)")
+    
+    args = parser.parse_args()
+    
+    config = IngestionConfig()
+    orchestrator = IngestionOrchestrator(config)
+    
+    if args.full or args.backfill or (not args.rss and not args.digest):
+        logger.info("Running full ingestion pipeline...")
+        await orchestrator.initialize()
+        stats = await orchestrator.run_full_ingestion(backfill_days=args.backfill)
+        print(f"\n{'='*50}")
+        print("INGESTION COMPLETE")
+        print(f"{'='*50}")
+        print(f"Duration: {stats.duration_seconds:.1f}s")
+        print(f"RSS Articles: {stats.rss_articles_fetched}")
+        print(f"FMP Articles: {stats.fmp_articles_fetched}")
+        print(f"Duplicates Skipped: {stats.duplicates_skipped}")
+        print(f"Articles Stored: {stats.articles_stored}")
+        if stats.errors:
+            print(f"Errors: {len(stats.errors)}")
+            for err in stats.errors[:5]:
+                print(f"  - {err}")
+    
+    elif args.rss:
+        logger.info("Running RSS-only ingestion...")
+        await orchestrator.initialize()
+        stats = await orchestrator.run_rss_only()
+        print(f"RSS ingestion complete: {stats.articles_stored} articles stored")
+    
+    elif args.digest:
+        logger.info("Generating digest...")
+        await orchestrator.initialize()
+        digest = await orchestrator.run_digest_only()
+        print(f"Digest generated: {len(digest.items)} items")
+        print(f"Executive Summary: {digest.executive_summary[:200]}...")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+
+
+# ============================================================================
+# REQUIREMENTS.TXT ADDITIONS
+# ============================================================================
+"""
+Add these to your requirements.txt:
+
+# Ingestion Pipeline
+feedparser>=6.0.0
+beautifulsoup4>=4.12.0
+httpx>=0.26.0
+anthropic>=0.18.0
+
+# Vector Store (optional)
+chromadb>=0.4.0
+
+# Background Jobs
+google-cloud-scheduler>=2.0.0  # If using GCP
+google-cloud-run>=0.10.0       # If using GCP
+
+# Async
+aiohttp>=3.9.0
+"""
