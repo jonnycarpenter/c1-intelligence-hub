@@ -10,12 +10,20 @@ Operational scripts organized by purpose. **Use this index to find the right scr
 
 | Script | Purpose | When to Use |
 |--------|---------|-------------|
-| `scheduler_report.py` | **PRIMARY** daily health report | Check ingestion pipeline health, view stats |
-| `production_dashboard.py` | Production metrics dashboard | Monitor production deployment |
+| `production_dashboard.py` | **PRIMARY** unified health dashboard | Daily monitoring (runs health check + optional log analysis) |
+| `scheduler_report.py` | Cloud Run log analysis | Deep dive into scheduler execution logs |
 | `compare_prod_data.py` | Compare prod vs local data | Debug data discrepancies |
 | `query_bq_detailed.py` | Detailed BigQuery queries | Ad-hoc data exploration |
 
-**Most Common**: `python scripts/monitoring/scheduler_report.py`
+**Quick Check** (30 sec):
+```bash
+python scripts/monitoring/production_dashboard.py
+```
+
+**Full Analysis** (3-5 min):
+```bash
+python scripts/monitoring/production_dashboard.py --detailed
+```
 
 ---
 
@@ -59,6 +67,9 @@ python scripts/operations/backfill/backfill_sec_filings.py --days 7
 
 # Press releases via Exa.ai (company-specific searches)
 python scripts/operations/backfill/backfill_press_releases.py --days 7
+
+# FMP Premium News (Benzinga, SeekingAlpha, Bloomberg, etc.)
+python scripts/operations/backfill/backfill_premium_news.py --days 30
 ```
 
 ### Maintenance (`operations/maintenance/`)
@@ -112,9 +123,20 @@ Run after deployments to verify features:
 
 ## Quick Reference
 
-**Daily health check**:
+**Daily health check** (recommended):
 ```bash
-python scripts/monitoring/scheduler_report.py
+python scripts/monitoring/production_dashboard.py
+```
+
+**Backfill industry queries** (Exa + Tavily):
+```bash
+python scripts/operations/backfill/backfill_industry_queries.py --days 7
+```
+
+**Backfill earnings transcripts** (API Ninja - Q3 2025):
+```bash
+# Via orchestrator
+python -c "import asyncio; from app.ingestion.orchestrator import *; asyncio.run(IngestionOrchestrator(IngestionConfig()).run_earnings_only(year=2025, quarter=3))"
 ```
 
 **Trigger manual ingestion**:
@@ -122,12 +144,21 @@ python scripts/monitoring/scheduler_report.py
 python scripts/operations/triggers/manual_trigger_ingest.py
 ```
 
-**Backfill missing data**:
-```bash
-python scripts/operations/triggers/trigger_backfill.py
-```
-
 **Test after deployment**:
 ```bash
 python scripts/verification/verify_enhancements.py
 ```
+
+---
+
+## Active Data Sources (Jan 2026)
+
+| Source | Type | Coverage |
+|--------|------|----------|
+| RSS | Industry news feeds | Multiple composites/materials publications |
+| SEC Filings | 10-K, 10-Q | ~50 tracked public companies |
+| API Ninja Earnings | Q3 2025 transcripts | 35/48 companies (73% coverage) |
+| FMP Premium News | Benzinga, Seeking Alpha | All tracked companies |
+| StockNews API | Market news | Ticker-based queries |
+| Exa.ai | Web search | 91 industry queries |
+| Tavily | Web search | 145 industry queries |

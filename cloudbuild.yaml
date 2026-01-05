@@ -1,5 +1,10 @@
 # Cloud Build configuration for C1 Intelligence Hub
-# Triggers on push to main branch
+# Triggers on push to main branch (via GitHub trigger)
+#
+# MANUAL DEPLOY (always use --region=us-central1):
+#   gcloud builds submit --config=cloudbuild.yaml --region=us-central1 --project=gen-lang-client-0436975498
+#
+# GitHub trigger should be configured in GCP Console with region=us-central1
 
 steps:
   # Build the container image
@@ -55,7 +60,7 @@ steps:
       - '--add-volume-mount'
       - 'volume=data-volume,mount-path=/app/data'
       - '--set-secrets'
-      - 'ANTHROPIC_API_KEY=anthropic-api-key:latest,API_NINJA_KEY=api-ninja-key:latest,TAVILY_API_KEY=tavily-api-key:latest,FMP_API_KEY=fmp-api-key:latest,SEC_IO_KEY=SEC_IO_KEY:latest,IMPORTYETI_API_KEY=importyeti-api-key:latest,APOLLO_API_KEY=apollo-api-key:latest,EXA_API_KEY=EXA_API_KEY:latest'
+      - 'ANTHROPIC_API_KEY=anthropic-api-key:latest,API_NINJA_KEY=api-ninja-key:latest,TAVILY_API_KEY=tavily-api-key:latest,FMP_API_KEY=FMP_API_KEY:latest,SEC_IO_KEY=SEC_IO_KEY:latest,IMPORTYETI_API_KEY=importyeti-api-key:latest,APOLLO_API_KEY=apollo-api-key:latest,EXA_API_KEY=EXA_API_KEY:latest,LOGO_DEV_TOKEN=LOGO_DEV_TOKEN:latest'
       - '--set-env-vars'
       - 'ENVIRONMENT=production,GCP_PROJECT_ID=${PROJECT_ID},GCP_DATASET_ID=c1_intelligence,GCS_BUCKET_NAME=${_DATA_BUCKET},KNOWLEDGE_PERSIST_DIR=/app/data/knowledge_db,SITE_ACCESS_PASSWORD=${_SITE_PASSWORD}'
 

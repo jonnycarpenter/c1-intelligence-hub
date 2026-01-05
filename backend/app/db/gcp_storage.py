@@ -31,6 +31,39 @@ from app.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
+def _safe_parse_list(value: Any) -> List[str]:
+    """
+    Safely parse a value that could be:
+    - None or empty string -> []
+    - A JSON array string like '["a", "b"]' -> ['a', 'b']
+    - A comma-separated string like 'a, b, c' -> ['a', 'b', 'c']
+    - Already a list -> return as-is
+    """
+    if not value:
+        return []
+    
+    # Already a list (e.g., from SQLite JSON deserialization)
+    if isinstance(value, list):
+        return value
+    
+    # Try JSON first
+    if isinstance(value, str):
+        value = value.strip()
+        if value.startswith('['):
+            try:
+                parsed = json.loads(value)
+                if isinstance(parsed, list):
+                    return parsed
+            except json.JSONDecodeError:
+                pass
+        
+        # Fall back to comma-separated parsing
+        if value:
+            return [item.strip() for item in value.split(',') if item.strip()]
+    
+    return []
+
+
 # =============================================================================
 # Configuration
 # =============================================================================
@@ -199,6 +232,21 @@ class DataStorageInterface:
     
     async def get_industries(self) -> List[Dict[str, Any]]:
         """Get industries list."""
+        raise NotImplementedError
+
+    # Deduplication
+    async def check_duplicate(self, url: str) -> Optional[str]:
+        """
+        Check if URL already exists in articles table.
+        Returns article_id if duplicate, None otherwise.
+        """
+        raise NotImplementedError
+    
+    async def get_recent_articles_for_dedup(self, hours: int = 168, limit: int = 2000) -> List[Dict[str, Any]]:
+        """
+        Get recent articles for deduplication cache loading.
+        Returns list of dicts with id, url, title.
+        """
         raise NotImplementedError
 
     # Freight Rates
@@ -2201,9 +2249,9 @@ class BigQueryDataStorage(DataStorageInterface):
                 "title": row.title,
                 "content": row.content,
                 "agent": row.agent,
-                "sources": json.loads(row.sources) if row.sources else [],
-                "companies_mentioned": json.loads(row.companies_mentioned) if row.companies_mentioned else [],
-                "materials_mentioned": json.loads(row.materials_mentioned) if row.materials_mentioned else [],
+                "sources": _safe_parse_list(row.sources),
+                "companies_mentioned": _safe_parse_list(row.companies_mentioned),
+                "materials_mentioned": _safe_parse_list(row.materials_mentioned),
                 "user_id": row.user_id,
                 "created_at": row.created_at.isoformat() if row.created_at else None,
             })
@@ -2331,10 +2379,10 @@ class BigQueryDataStorage(DataStorageInterface):
                 "description": row.description,
                 "alt_text": row.alt_text,
                 "extracted_text": row.extracted_text,
-                "extracted_data_points": json.loads(row.extracted_data_points) if row.extracted_data_points else [],
-                "topics": json.loads(row.topics) if row.topics else [],
-                "companies": json.loads(row.companies) if row.companies else [],
-                "industries": json.loads(row.industries) if row.industries else [],
+                "extracted_data_points": _safe_parse_list(row.extracted_data_points),
+                "topics": _safe_parse_list(row.topics),
+                "companies": _safe_parse_list(row.companies),
+                "industries": _safe_parse_list(row.industries),
                 "time_period": row.time_period,
                 "relevance_score": row.relevance_score,
                 "quality_score": row.quality_score,
@@ -2404,8 +2452,8 @@ class BigQueryDataStorage(DataStorageInterface):
                 "chart_type": row.chart_type,
                 "description": row.description,
                 "alt_text": row.alt_text,
-                "topics": json.loads(row.topics) if row.topics else [],
-                "companies": json.loads(row.companies) if row.companies else [],
+                "topics": _safe_parse_list(row.topics),
+                "companies": _safe_parse_list(row.companies),
                 "time_period": row.time_period,
                 "relevance_score": row.relevance_score,
                 "article_title": row.article_title,
@@ -2468,12 +2516,82 @@ class BigQueryDataStorage(DataStorageInterface):
                 source_type=row.source_type or "",
                 summary=row.summary,
                 category=row.category,
-                topics=json.loads(row.topics) if row.topics else [],
-                companies_mentioned=json.loads(row.companies_mentioned) if row.companies_mentioned else [],
+                topics=_safe_parse_list(row.topics),
+                companies_mentioned=_safe_parse_list(row.companies_mentioned),
                 relevance_score=row.relevance_score or 0.5,
                 fetched_at=row.fetched_at,
             ))
         return records
+    
+    # =========================================================================
+    # Deduplication Methods
+    # =========================================================================
+    
+    async def check_duplicate(self, url: str) -> Optional[str]:
+        """
+        Check if URL already exists in articles table.
+        Returns article_id if duplicate, None otherwise.
+        
+        This is used by DeduplicationService to prevent storing duplicate content.
+        """
+        if not url:
+            return None
+            
+        from google.cloud import bigquery
+        
+        table_id = f"{self.config.full_dataset_id}.articles"
+        
+        # Use parameterized query for safety
+        query = f"""
+        SELECT id FROM `{table_id}`
+        WHERE url = @url
+        LIMIT 1
+        """
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("url", "STRING", url)
+            ]
+        )
+        
+        try:
+            results = list(self.client.query(query, job_config=job_config).result())
+            if results:
+                return results[0].id
+            return None
+        except Exception as e:
+            logger.warning(f"Error checking duplicate for URL: {e}")
+            return None
+    
+    async def get_recent_articles_for_dedup(self, hours: int = 168, limit: int = 2000) -> List[Dict[str, Any]]:
+        """
+        Get recent articles for deduplication cache loading.
+        
+        Returns list of dicts with id, url, title for building in-memory cache.
+        Default: last 168 hours (7 days), up to 2000 articles.
+        """
+        table_id = f"{self.config.full_dataset_id}.articles"
+        
+        query = f"""
+        SELECT id, url, title
+        FROM `{table_id}`
+        WHERE fetched_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {hours} HOUR)
+        ORDER BY fetched_at DESC
+        LIMIT {limit}
+        """
+        
+        try:
+            results = []
+            for row in self.client.query(query).result():
+                results.append({
+                    "id": row.id,
+                    "url": row.url or "",
+                    "title": row.title or ""
+                })
+            logger.info(f"Loaded {len(results)} recent articles for dedup cache from BigQuery")
+            return results
+        except Exception as e:
+            logger.error(f"Error loading dedup cache from BigQuery: {e}")
+            return []
     
     # =========================================================================
     # Digest Items Storage (Classified Articles)
@@ -2619,17 +2737,17 @@ class BigQueryDataStorage(DataStorageInterface):
                 "priority": row.priority,
                 "digest_summary": row.digest_summary,
                 "original_summary": row.original_summary,
-                "companies": json.loads(row.companies) if row.companies else [],
-                "materials": json.loads(row.materials) if row.materials else [],
-                "topics": json.loads(row.topics) if row.topics else [],
-                "industries": json.loads(row.industries) if row.industries else [],
+                "companies": _safe_parse_list(row.companies),
+                "materials": _safe_parse_list(row.materials),
+                "topics": _safe_parse_list(row.topics),
+                "industries": _safe_parse_list(row.industries),
                 "relevance_score": row.relevance_score,
                 "confidence": row.confidence,
                 "classified_at": row.classified_at.isoformat() if row.classified_at else None,
                 # Coverage tracking fields
                 "coverage_count": getattr(row, 'coverage_count', 1) or 1,
-                "duplicate_sources": json.loads(row.duplicate_sources) if getattr(row, 'duplicate_sources', None) else [],
-                "all_urls": json.loads(row.all_urls) if getattr(row, 'all_urls', None) else [],
+                "duplicate_sources": _safe_parse_list(getattr(row, 'duplicate_sources', None)),
+                "all_urls": _safe_parse_list(getattr(row, 'all_urls', None)),
             })
         
         return items
