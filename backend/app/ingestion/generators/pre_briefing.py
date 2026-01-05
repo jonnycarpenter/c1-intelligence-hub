@@ -82,35 +82,102 @@ You must respond with a single, valid JSON object. Do not include any text befor
                 logger.warning(f"Could not initialize BigQuery storage: {e}")
         return self._bq_storage
 
-    async def _get_articles(self, days: int = 14) -> tuple:
-        period_end = datetime.utcnow()
-        period_start = period_end - timedelta(days=days)
+    async def _get_articles(
+        self, 
+        days: int = 14,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None
+    ) -> tuple:
+        """
+        Fetch articles from BigQuery for the specified period.
         
-        articles = await self.db.query_corpus(
-            hours=days * 24,
-            limit=50
-        )
+        Args:
+            days: Number of days to look back (used if start_date/end_date not provided)
+            start_date: Custom period start (for historical pre-briefings)
+            end_date: Custom period end (for historical pre-briefings)
+            
+        Returns:
+            tuple: (articles, period_start, period_end)
+        """
+        # Determine period
+        if start_date and end_date:
+            period_start = start_date
+            period_end = end_date
+        else:
+            period_end = datetime.utcnow()
+            period_start = period_end - timedelta(days=days)
+        
+        # Query BigQuery (primary source of truth)
+        bq_storage = await self._get_bq_storage()
+        if bq_storage:
+            logger.info(f"Agent 1: Querying BigQuery articles from {period_start.date()} to {period_end.date()}")
+            articles = await bq_storage.get_articles(
+                start_date=period_start,
+                end_date=period_end,
+                limit=50
+            )
+            logger.info(f"Agent 1: Found {len(articles)} articles in BigQuery")
+        else:
+            # Fallback to SQLite only if BigQuery unavailable
+            logger.warning("BigQuery unavailable, falling back to SQLite")
+            articles = await self.db.query_corpus(
+                hours=days * 24,
+                limit=50
+            )
+        
         return articles, period_start, period_end
 
     def _build_articles_text(self, articles: List) -> str:
+        """Build formatted text from articles for LLM prompt."""
         articles_text = []
         for i, a in enumerate(articles, 1):
-            source_name = a.source.name if hasattr(a.source, 'name') else 'Unknown'
+            # Handle both ArticleRecord (BigQuery) and CorpusItem (SQLite) objects
+            if hasattr(a, 'source_name'):
+                # ArticleRecord from BigQuery
+                source_name = a.source_name or 'Unknown'
+            elif hasattr(a, 'source') and hasattr(a.source, 'name'):
+                # CorpusItem from SQLite
+                source_name = a.source.name
+            else:
+                source_name = 'Unknown'
+            
             date_str = a.published_at.date() if a.published_at else 'Unknown'
             
             articles_text.append(
                 f"[{i}] Title: {a.title}\n"
                 f"Source: {source_name}\n"
                 f"Date: {date_str}\n"
-                f"Summary: {a.summary}"
+                f"Summary: {a.summary or 'No summary available'}"
             )
         return "\n\n".join(articles_text)
 
-    async def generate_pre_brief(self, days: int = 14) -> Optional[Dict[str, Any]]:
-        """Run Agent 1 analysis."""
-        logger.info(f"Agent 1: Generating pre-brief for last {days} days")
+    async def generate_pre_brief(
+        self, 
+        days: int = 14,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Run Agent 1 analysis.
         
-        articles, period_start, period_end = await self._get_articles(days)
+        Args:
+            days: Number of days to look back (used if start_date/end_date not provided)
+            start_date: Custom period start (for historical pre-briefings)
+            end_date: Custom period end (for historical pre-briefings)
+            
+        Returns:
+            Pre-brief record dict or None on failure
+        """
+        if start_date and end_date:
+            logger.info(f"Agent 1: Generating pre-brief for {start_date.date()} to {end_date.date()}")
+        else:
+            logger.info(f"Agent 1: Generating pre-brief for last {days} days")
+        
+        articles, period_start, period_end = await self._get_articles(
+            days=days, 
+            start_date=start_date, 
+            end_date=end_date
+        )
         if not articles:
             logger.warning("No articles found for pre-briefing")
             return None
@@ -169,6 +236,22 @@ You must respond with a single, valid JSON object. Do not include any text befor
             return None
 
 # Convenience function
-async def run_agent_1() -> Optional[Dict[str, Any]]:
+async def run_agent_1(
+    days: int = 14,
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None
+) -> Optional[Dict[str, Any]]:
+    """
+    Run Agent 1 (Pre-Brief Generator).
+    
+    Args:
+        days: Number of days to look back (used if start_date/end_date not provided)
+        start_date: Custom period start (for historical pre-briefings)
+        end_date: Custom period end (for historical pre-briefings)
+    """
     generator = PreBriefGenerator()
-    return await generator.generate_pre_brief(days=14)
+    return await generator.generate_pre_brief(
+        days=days,
+        start_date=start_date,
+        end_date=end_date
+    )

@@ -37,7 +37,7 @@ duckduckgo-search>=8.0.0
 aiosqlite>=0.20.0
 
 # Vector store
-chromadb>=0.5.0
+google-cloud-aiplatform>=1.38.0
 
 # Embeddings (Vertex AI for production, sentence-transformers for local)
 google-cloud-aiplatform>=1.38.0

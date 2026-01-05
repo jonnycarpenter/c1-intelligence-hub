@@ -1645,6 +1645,7 @@ class BigQueryDataStorage(DataStorageInterface):
             bigquery.SchemaField("id", "STRING", mode="REQUIRED"),
             bigquery.SchemaField("briefing_type", "STRING", mode="REQUIRED"),
             bigquery.SchemaField("briefing_title", "STRING"),
+            bigquery.SchemaField("bluf", "STRING"),  # Bottom Line Up Front - 1 sentence summary
             bigquery.SchemaField("sections", "STRING"),  # JSON array of sections
             bigquery.SchemaField("all_companies_mentioned", "STRING"),  # JSON array with logos
             bigquery.SchemaField("key_topics_this_week", "STRING"),  # JSON array
@@ -1706,6 +1707,7 @@ class BigQueryDataStorage(DataStorageInterface):
             "id": briefing_data['id'],
             "briefing_type": briefing_data.get('briefing_type', 'weekly_executive'),
             "briefing_title": briefing_data.get('briefing_title', ''),
+            "bluf": briefing_data.get('bluf', ''),
             "sections": json.dumps(briefing_data.get('sections', [])),
             "all_companies_mentioned": json.dumps(briefing_data.get('all_companies_mentioned', [])),
             "key_topics_this_week": json.dumps(briefing_data.get('key_topics_this_week', [])),
@@ -1754,6 +1756,9 @@ class BigQueryDataStorage(DataStorageInterface):
             row = results[0]
             briefing = dict(row)
             
+            # Ensure bluf is a string (not None)
+            briefing['bluf'] = briefing.get('bluf') or ''
+            
             # Parse JSON fields
             for json_field in ['sections', 'all_companies_mentioned', 'key_topics_this_week', 'article_ids']:
                 if briefing.get(json_field):
@@ -1787,6 +1792,8 @@ class BigQueryDataStorage(DataStorageInterface):
             briefings = []
             for row in results:
                 briefing = dict(row)
+                # Ensure bluf is a string (not None)
+                briefing['bluf'] = briefing.get('bluf') or ''
                 for json_field in ['sections', 'all_companies_mentioned', 'key_topics_this_week', 'article_ids']:
                     if briefing.get(json_field):
                         try:

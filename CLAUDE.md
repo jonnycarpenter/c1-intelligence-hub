@@ -86,6 +86,7 @@ When adding a new API key/secret:
 | `README.md` (root) | Project overview, setup, deployment | Major features, setup changes |
 | `CLAUDE.md` (this file) | AI agent instructions, session context | Every session, new patterns |
 | `backend/app/db/README.md` | Database layer (BigQuery) | Adding tables, changing storage |
+| `backend/app/services/README.md` | Business logic services (digest, etc.) | Adding/modifying services |
 | `backend/app/mcp/tools/README.md` | MCP agent tools | Adding/modifying agent tools |
 | `backend/app/tools/README.md` | Ingestion data collectors | Adding/modifying data sources |
 | `backend/app/utils/README.md` | Shared utilities | Adding utility modules |
@@ -146,6 +147,31 @@ These files have critical bug fixes - be careful editing:
 - `app/models/corpus.py` - feed_eligible field
 
 ## Recent Changes (January 5, 2026)
+
+### Session 13 - Agent 1 BigQuery Fix ✅ (READY TO DEPLOY)
+- **Fixed**: PreBriefGenerator now queries BigQuery `articles` (3,308+ items) instead of SQLite (776 items)
+- **Modified**: `_get_articles()` in [pre_briefing.py](backend/app/ingestion/generators/pre_briefing.py)
+- **Added**: Custom date range support (`start_date`, `end_date` params) for historical pre-briefings
+- **Generated**: 3 historical pre-briefings + 1 weekly briefing with proper net_new/continuing classification
+- **Scripts Created**: `scripts/testing/test_prebriefing_bq.py`, `scripts/operations/generate_briefings.py`
+
+### Session 12 - Digest Cards Data Source Verification ✅
+- **Verified BigQuery Integration**: Confirmed digest cards ARE pulling from `digest_items` table (not SQLite/ChromaDB)
+- **Storage Backend**: `BigQueryDataStorage` properly configured with hardcoded production defaults
+- **Data Flow Validated**: Frontend → API → DigestService → BigQueryDataStorage → BigQuery
+- **Current Status**: 44 items in last 72 hours being served correctly
+- **Legacy Files Identified**: SQLite files exist but are NOT in use by the application
+- **Diagnostic Scripts**: Created `check_digest_data.py` and `check_digest_service.py` for future debugging
+
+### Session 11 - Historical Context Enhancement ✅
+- **Historical Context Now Rich**: Agent 2 gets full context from prior briefings
+  - Before: Just topic names ("Defense, Resins, Aerospace")
+  - After: BLUF, section headlines with net_new/continuing status, key companies, overall trend
+  - Enables accurate "differential analysis" for net_new vs continuing classification
+  - Modified: `_get_historical_context()` in [weekly_briefing.py](backend/app/ingestion/generators/weekly_briefing.py)
+- **BLUF Now Persisted**: Added `bluf` column to BigQuery `weekly_briefings` table
+  - Added to schema, save method, and get methods in [gcp_storage.py](backend/app/db/gcp_storage.py)
+  - Created migration script: `scripts/operations/migrations/add_bluf_column.py`
 
 ### Session 10 - Source Articles & BLUF ✅
 - **Source Articles Now Linked**: Citations `[1]`, `[2]`, `[Exa:N]` in briefings now have clickable links

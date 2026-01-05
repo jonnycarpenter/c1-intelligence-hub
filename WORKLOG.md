@@ -4,36 +4,56 @@ This file tracks completed work and open items across AI assistant sessions.
 
 ---
 
-## 🚀 SESSION 13 HANDOFF - START HERE
+## Session 13 (January 5, 2026) - Briefing Pipeline Fix ✅
 
-### Immediate Priority: Fix Agent 1 Data Source
+### ✅ Completed
 
-**Problem**: PreBriefGenerator (Agent 1) queries SQLite `corpus_items` table (776 items) instead of BigQuery `articles` (3,308 items).
+1. **Fixed Agent 1 Data Source - SQLite → BigQuery** 🎉
+   - **Problem**: PreBriefGenerator (Agent 1) was querying SQLite `corpus_items` (776 items) instead of BigQuery `articles` (3,308+ items)
+   - **Solution**: Rewrote `_get_articles()` in `pre_briefing.py` to use `BigQueryDataStorage.get_articles()` instead of `self.db.query_corpus()`
+   - **Added**: Custom date range support for historical pre-briefings (`start_date`, `end_date` parameters)
+   - **File Modified**: [pre_briefing.py](backend/app/ingestion/generators/pre_briefing.py)
 
-**Location**: `backend/app/ingestion/generators/pre_briefing.py` line 89
-```python
-articles = await self.db.query_corpus(hours=days * 24, limit=50)  # ← SQLite!
+2. **Generated 3 Historical Pre-Briefings** 🎉
+   - Period 3: Nov 24 - Dec 7, 2025 (50 articles, 27 observations)
+   - Period 2: Dec 8-21, 2025 (50 articles, 20 observations)
+   - Period 1: Dec 22 - Jan 4, 2026 (50 articles, 23 observations)
+   - All saved to BigQuery `pre_briefings` table
+
+3. **Generated Weekly Briefing** 🎉
+   - ID: `c21f6cdc-1b55-4d1b-9a89-51aff8aa905f`
+   - 4 strategic sections with net_new/continuing status
+   - BLUF: "Defense spending surge anchored by the $151B Golden Dome initiative..."
+   - Sections: Golden Dome Demand Catalyst, Space Launch Composites Inflection, Aerospace OEM Recovery Validation, Supply Chain & Materials Intelligence
+   - Uses rich historical context from prior briefings
+
+4. **Scripts Created**
+   - `scripts/testing/test_prebriefing_bq.py` - Validates BigQuery data source
+   - `scripts/operations/generate_briefings.py` - Generates historical pre-briefings + weekly briefing
+
+### 📋 Ready to Deploy
+
+All Session 11 improvements (BLUF persistence, rich historical context) + Session 13 fixes are ready:
+- Agent 1 now uses BigQuery (full article corpus)
+- 3 pre-briefings provide historical context
+- Weekly briefing generated with proper net_new/continuing classification
+
+**Deploy Command**:
+```bash
+git add .
+git commit -m "Fix Agent 1 to use BigQuery, generate historical briefings"
+git push origin main
 ```
 
-**Fix Required**:
-1. Add method to query BigQuery `articles` table with date range
-2. Or modify `_get_articles()` to use BigQuery storage instead of `self.db`
+### 📋 Open Items / To Do
 
-**After Fix**:
-1. Delete existing pre_briefings and weekly_briefings from BigQuery
-2. Generate 3 pre-briefings:
-   - Period 1: Dec 22, 2025 - Jan 4, 2026 (current)
-   - Period 2: Dec 8-21, 2025 (historical)
-   - Period 3: Nov 24 - Dec 7, 2025 (historical)
-3. Generate 1 weekly briefing (uses Period 1 + historical context from 2 & 3)
-4. Deploy to Cloud Run
-
-**Data Available in BigQuery**:
-- Dec 22 - Jan 5: 1,294 articles ✅
-- Dec 8-21: 383 articles ✅
-- Nov 24 - Dec 7: 122 articles ✅
-
-**Do NOT deploy until this is fixed** - current code changes won't show improvement.
+| Priority | Issue | Description |
+|----------|-------|-------------|
+| � Medium | **Earnings Call Briefings** | Special briefing type triggered when new Q1 2026 earnings transcripts arrive (~late Jan). Longer-form summaries of key supplier/OEM calls. Data source already exists (`API Ninja Earnings`). |
+| 🟡 Medium | **Pre-Brief Article Selection** | Currently takes 50 most recent by `published_at`. Could improve with relevance scoring, source diversity, or company prioritization. |
+| �🟢 Low | **Ad-hoc Briefing Stateless** | `AdHocBriefingAgent.follow_up_count` resets each request |
+| 🟢 Low | **Convert to Native Claude Tools** | Currently uses custom JSON format for tool calls |
+| 🟢 Low | **Domain Resolution Heuristics** | `company_name_to_domain()` guesses domains |
 
 ---
 

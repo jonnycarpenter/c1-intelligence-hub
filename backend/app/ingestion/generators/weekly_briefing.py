@@ -178,7 +178,17 @@ Otherwise, respond with the final briefing JSON:
         return self._vector_store
     
     async def _get_historical_context(self, limit: int = 2) -> str:
-        """Get context from the last N weekly briefings."""
+        """
+        Get rich context from the last N weekly briefings for differential analysis.
+        
+        Includes:
+        - BLUF (Bottom Line Up Front) summary
+        - Section headlines with net_new/continuing status
+        - Key companies mentioned
+        - Overall trend analysis
+        
+        This enables Agent 2 to accurately identify what's genuinely new vs. continuing.
+        """
         try:
             bq_storage = await self._get_bq_storage()
             briefings = []
@@ -189,20 +199,81 @@ Otherwise, respond with the final briefing JSON:
                 briefings = await self.db.get_weekly_briefing_history(limit=limit)
             
             if not briefings:
-                return "No historical briefings found."
+                return "No historical briefings found. Treat all developments as potentially new."
             
-            context = []
-            for b in briefings:
-                date_str = b.get('period_end', 'Unknown')
-                topics = ", ".join(b.get("key_topics_this_week", []))
-                context.append(f"Briefing Date: {date_str}\nTopics: {topics}")
+            context_parts = []
+            for idx, b in enumerate(briefings, 1):
+                # Format date
+                period_end = b.get('period_end', 'Unknown')
+                if hasattr(period_end, 'strftime'):
+                    date_str = period_end.strftime('%B %d, %Y')
+                else:
+                    date_str = str(period_end)[:10] if period_end else 'Unknown'
                 
-            return "\n\n".join(context)
+                # Start with header and BLUF
+                briefing_context = [f"=== PRIOR BRIEFING {idx}: Week ending {date_str} ==="]
+                
+                bluf = b.get('bluf', '')
+                if bluf:
+                    briefing_context.append(f"BLUF: {bluf}")
+                
+                # Extract section headlines with status
+                sections = b.get('sections', [])
+                if sections:
+                    briefing_context.append("\nSECTION HEADLINES:")
+                    for section in sections:
+                        header = section.get('header', 'Update')
+                        headline = section.get('headline', {})
+                        headline_text = headline.get('text', '') if isinstance(headline, dict) else str(headline)
+                        headline_status = headline.get('status', 'unknown') if isinstance(headline, dict) else 'unknown'
+                        
+                        # Clean up headline text (remove [[Company]] tags for readability)
+                        clean_headline = re.sub(r'\[\[([^\]]+)\]\]', r'\1', headline_text)
+                        # Remove citation markers for context clarity
+                        clean_headline = re.sub(r'\[(?:Exa:)?\d+\]', '', clean_headline).strip()
+                        
+                        briefing_context.append(f"  • [{header}] ({headline_status}): {clean_headline}")
+                        
+                        # Include key insights with status
+                        insights = section.get('insights', [])
+                        for insight in insights[:2]:  # Limit to top 2 insights per section
+                            insight_text = insight.get('text', '') if isinstance(insight, dict) else str(insight)
+                            insight_status = insight.get('status', 'unknown') if isinstance(insight, dict) else 'unknown'
+                            clean_insight = re.sub(r'\[\[([^\]]+)\]\]', r'\1', insight_text)
+                            clean_insight = re.sub(r'\[(?:Exa:)?\d+\]', '', clean_insight).strip()
+                            if clean_insight:
+                                briefing_context.append(f"      - ({insight_status}): {clean_insight[:150]}...")
+                
+                # Key companies
+                companies = b.get('all_companies_mentioned', [])
+                if companies:
+                    # Handle both list of strings and list of dicts with 'name' key
+                    company_names = []
+                    for c in companies[:10]:  # Limit to top 10
+                        if isinstance(c, dict):
+                            company_names.append(c.get('name', str(c)))
+                        else:
+                            company_names.append(str(c))
+                    briefing_context.append(f"\nKEY COMPANIES: {', '.join(company_names)}")
+                
+                # Topics covered
+                topics = b.get('key_topics_this_week', [])
+                if topics:
+                    briefing_context.append(f"TOPICS: {', '.join(topics[:8])}")  # Limit to 8
+                
+                # Overall trend
+                overall_trend = b.get('overall_trend', '')
+                if overall_trend:
+                    briefing_context.append(f"\nOVERALL TREND: {overall_trend[:300]}...")
+                
+                context_parts.append("\n".join(briefing_context))
+            
+            return "\n\n".join(context_parts)
                 
         except Exception as e:
-            logger.warning(f"Could not get historical context: {e}")
+            logger.warning(f"Could not get historical context: {e}", exc_info=True)
         
-        return "Error retrieving historical context."
+        return "Error retrieving historical context. Proceed with caution on net_new classifications."
     
     async def _get_latest_pre_brief(self) -> Optional[Dict[str, Any]]:
         """Fetch the latest Agent 1 output from BigQuery."""
