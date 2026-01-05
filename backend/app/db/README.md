@@ -138,7 +138,7 @@ The script:
 |-------|---------|------------|
 | `articles` | Raw articles (title, content, URL, source_type) | Ingestion pipeline |
 | `article_chunk_embeddings` | **Vector store** - chunked text + Vertex AI embeddings for semantic search | `bq_vector_store.py` |
-| `digest_items` | Classified articles with summaries, categories, priorities | Ingestion pipeline |
+| `digest_items` | Classified articles with summaries, categories, priorities (✅ **Verified Jan 5, 2026**: Digest cards pull from this table via `BigQueryDataStorage`) | Ingestion pipeline |
 | `article_tags` | Normalized tags (companies, materials, topics) for trending analytics | Ingestion pipeline |
 | `article_images` | Extracted images with vision analysis | Image enricher |
 
@@ -210,4 +210,4 @@ The hardcoded defaults ensure the system works even if env vars are missing.
 
 ---
 
-*Last updated: January 4, 2026*
+*Last updated: January 5, 2026*
