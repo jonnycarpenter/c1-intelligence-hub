@@ -4,6 +4,317 @@ This file tracks completed work and open items across AI assistant sessions.
 
 ---
 
+## Session 20 (January 5, 2026) - Ingestion Throughput Tuning ✅
+
+### 📋 Context
+
+Reviewed bottleneck analysis from previous Opus session regarding Exa.ai industry queries backfill. The system was experiencing delays during high-volume runs (1000+ articles). Analysis identified conservative batching and concurrency settings as root cause.
+
+### ✅ Completed
+
+1. **Reduced Default Lookback Window** 🎉
+   - **Change**: 3 days → 2 days for scheduled (non-backfill) runs
+   - **File**: [orchestrator.py](backend/app/ingestion/orchestrator.py) lines 205-210
+   - **Impact**: ~30% reduction in article volume
+   - **Rationale**: Running daily, so 2-day window provides 1-day overlap buffer; Exa/Tavily index content within 24 hours
+
+2. **Increased Classifier Concurrency** 🎉
+   - **Change**: `max_concurrent` 3 → 10, sleep 0.5s → 0.2s
+   - **File**: [classifier.py](backend/app/ingestion/processing/classifier.py) lines 295, 303
+   - **Impact**: Classification time reduced from ~20min to ~7min for 400 articles
+   - **Rationale**: Claude API handles 10 concurrent calls well
+
+### 📁 Files Modified
+- [orchestrator.py](backend/app/ingestion/orchestrator.py) - Lookback window
+- [classifier.py](backend/app/ingestion/processing/classifier.py) - Concurrency settings
+
+### 📊 Performance Expectations
+
+| Metric | Before | After |
+|--------|--------|-------|
+| Articles per run | 400-600 | 250-400 |
+| Classification time | ~25 min | ~7-10 min |
+| Total run time | ~35-40 min | ~15-20 min |
+
+### 📋 Not Changed (Optional Future Optimizations)
+
+These were identified but not implemented (lookback cut provides sufficient headroom):
+- Embedding batch size (5 → 20) - Vertex AI can handle larger batches
+- Insert batch size (5 → 25) - BigQuery streaming can handle more
+
+---
+
+## Session 19 (January 5, 2026) - Deep Research Workflow Review & Phase 1 Fixes ✅
+
+### 📋 Context
+
+Reviewed the multi-agent Deep Research workflow to understand current architecture and plan enhancements. This workstream will span multiple sessions.
+
+### ✅ Phase 1 Fixes Completed
+
+1. **Fixed Schema Mismatch in financial.py** 🐛
+   - `brief.research_intent` → `brief.clarified_intent`
+   - `brief.key_entities` → `brief.entities_to_track`
+   - `brief.time_period` → `brief.timeframe`
+
+2. **Fixed Conditional Edge Bug in research_workflow.py** 🐛
+   - Changed `"end": END` to `END: END` for proper LangGraph routing
+
+3. **Model Configuration Centralized** ⚙️
+   - Added to [settings.py](backend/app/config/settings.py):
+     - `deep_research_groomer_model`
+     - `deep_research_financial_model`
+     - `deep_research_industry_model`
+     - `deep_research_synthesizer_model`
+   - All default to `claude-sonnet-4-5` (changed from opus for cost efficiency)
+   - Updated all 4 agent files to use `settings.deep_research_*_model`
+
+### 📁 Files Modified
+- [financial.py](backend/app/agents/research/financial.py) - Schema fix + settings model
+- [groomer.py](backend/app/agents/research/groomer.py) - Settings model
+- [industry.py](backend/app/agents/research/industry.py) - Settings model
+- [synthesizer.py](backend/app/agents/research/synthesizer.py) - Settings model
+- [research_workflow.py](backend/app/graph/research_workflow.py) - Edge bug fix
+- [settings.py](backend/app/config/settings.py) - New model settings
+
+### 🏗️ Current Architecture
+
+**4-Node LangGraph Pipeline:**
+```
+[User Query] → [Groomer] → [Financial Agent] → [Industry Agent] → [Synthesizer] → [Final Report]
+```
+
+| Node | Model | Purpose |
+|------|-------|---------|
+| Groomer | `claude-sonnet-4-5` | Query interpretation, clarification, sub-query generation |
+| Financial Agent | `claude-opus-4-5` | SEC filings, earnings calls, analyst ratings |
+| Industry Agent | `claude-opus-4-5` | Trade publications, market signals, news |
+| Synthesizer | `claude-opus-4-5` | Merges findings into executive-ready report |
+
+**Key Files:**
+- [research_workflow.py](backend/app/graph/research_workflow.py) - LangGraph workflow definition
+- [state.py](backend/app/agents/research/state.py) - Pydantic schemas (DeepResearchState, ResearchBrief, etc.)
+- [groomer.py](backend/app/agents/research/groomer.py) - Query grooming node
+- [financial.py](backend/app/agents/research/financial.py) - Financial research node
+- [industry.py](backend/app/agents/research/industry.py) - Industry research node
+- [synthesizer.py](backend/app/agents/research/synthesizer.py) - Report synthesis node
+- [deep_research.py](backend/app/api/routes/deep_research.py) - API route
+
+### 🛠️ MCP Tools Currently Used
+
+**Financial Agent:**
+| Tool | Source | Purpose |
+|------|--------|---------|
+| `get_earnings_transcript_ninja` | api_ninja_earnings | Earnings call transcripts |
+| `query_corpus` | corpus_query | Internal pre-ingested financial data |
+| `get_company_news` | stocknews_api | Recent company news by ticker |
+| `get_press_releases` | stocknews_api | Official company announcements |
+| `get_analyst_ratings` | stocknews_api | Upgrades, downgrades, price targets |
+| `get_sentiment_summary` | stocknews_api | Aggregated news sentiment |
+| `SECFilingCollector` | tools/sec_filings | SEC 10-K, 10-Q, 8-K filings |
+
+**Industry Agent:**
+| Tool | Source | Purpose |
+|------|--------|---------|
+| `news_search` | exa_search | Semantic news search |
+| `web_search` | exa_search | Web search with domain filtering |
+| `find_similar` | exa_search | Find similar content |
+| `query_corpus` | corpus_query | Internal pre-ingested industry data |
+| `get_market_signals` | corpus_query | Aggregated market signals |
+| `get_google_trends` | google_trends | Demand signal validation |
+| `get_company_news` | stocknews_api | Company news by ticker |
+| `search_news_keyword` | stocknews_api | Keyword-based news search |
+| `get_press_releases` | stocknews_api | Press releases |
+| `get_trending_headlines` | stocknews_api | Major market events |
+| `get_freight_rates` | timeseries_data | Shipping/logistics cost data |
+
+### 🐛 Issues Identified
+
+1. **Schema Mismatch in Financial Agent** - References `brief.research_intent`, `brief.key_entities`, `brief.time_period` but ResearchBrief uses `clarified_intent`, `entities_to_track`, `timeframe`
+2. **Sequential Execution** - Financial → Industry runs sequentially; should be parallel
+3. **No Real-Time Streaming** - Waits for entire workflow, then streams status
+4. **Hardcoded Models** - Should use settings
+5. **Conditional Edge Bug** - `"end"` mapping but returns `END` constant
+
+### 📋 Deep Research Enhancement Roadmap
+
+This workstream spans multiple sessions. Phase 1 complete, Phase 2 and 3 pending.
+
+---
+
+## 🔜 PHASE 2: Category Agent + Validator Agent (NEXT SESSION)
+
+### Target Workflow After Phase 2:
+```
+[Groomer] → [Financial + Industry] → [Synthesizer] → [Category Agent] → [Validator] → [Final Report]
+```
+
+### 2.1 Prerequisites - New MCP Tools Needed
+
+#### `query_datasheets` Tool (NEW)
+- **Purpose**: Query BigQuery `datasheets` table for product spec sheets
+- **Tables**: `datasheets`, `datasheet_scrape_runs`, `datasheet_suppliers`
+- **Note**: REST API exists at [datasheets.py](backend/app/api/routes/datasheets.py), need MCP wrapper
+- **Current gap**: `product_intelligence.py` uses hardcoded `PRODUCT_CATALOG` dict (1500 lines), not connected to BigQuery
+
+#### `get_grounding_from_bq` Helper (NEW)
+- **Purpose**: Replace CSV loading in `grounding.py` with BigQuery queries
+- **Tables**: `companies`, `industries`, `materials` (verify these exist in BQ)
+
+### 2.2 Category Agent Specification
+
+**Role**: Advanced sales engineer providing territory-specific sales intelligence
+
+**Business Context** (from Dave, CCO):
+- Give 100-person field sales team "ammo to win" in customer conversations
+- Break out insights for specific industries and use cases
+- Force multiplier for strategic decisions
+
+**Territory Focus Areas**:
+| Territory | Primary Industries |
+|-----------|-------------------|
+| East | Aerospace, Wind Energy, Automotive (utility vehicles), Defense |
+| West | Marine (boats), RVs, Spas |
+
+**Note**: Both territories sell to all industries; these are strategic focuses only.
+
+**Placement**: Post-Synthesis (takes full research report, adds sales layer)
+
+**Tools**:
+- `query_datasheets` (new - BigQuery product specs)
+- `query_corpus` (existing - historical intel)
+- `get_category_context` (new helper - industry→category→product mappings)
+
+**Output Schema**:
+```python
+class CategoryAgentOutput(BaseModel):
+    territory_insights: Dict[str, TerritoryInsight]  # "east" | "west"
+    product_recommendations: List[ProductRecommendation]
+    sales_plays: List[SalesPlay]
+    industry_talking_points: Dict[str, List[str]]
+
+class TerritoryInsight(BaseModel):
+    territory: str  # "east" | "west"
+    relevance_score: float  # 0-1 how relevant to territory
+    key_takeaways: List[str]
+    action_items: List[str]
+
+class ProductRecommendation(BaseModel):
+    product_name: str
+    supplier: str
+    material_category: str
+    why_relevant: str
+    datasheet_url: Optional[str]
+
+class SalesPlay(BaseModel):
+    play_name: str
+    target_industry: str
+    opening_hook: str  # Conversation starter
+    key_data_points: List[str]  # Facts to cite
+    objection_handlers: List[str]
+    next_steps: List[str]
+```
+
+**System Prompt Context (Hybrid Approach)**:
+- Hardcoded: Territory focus areas, top 10-15 industry→category mappings
+- Tool-based: Deep dives for specific products via `query_datasheets`
+
+**Always Runs**: Yes - Deep Research is the "full analysis" tool, users expect comprehensive output
+
+### 2.3 Validator Agent Specification
+
+**Role**: Citation and attribution verifier
+
+**Placement**: After Category Agent, before final output
+
+**Responsibilities**:
+1. Verify all citations in final report have valid sources
+2. Check that findings are properly attributed
+3. Flag any unsubstantiated claims
+4. Validate URLs are accessible (optional, may add latency)
+
+**Output Schema**:
+```python
+class ValidatorOutput(BaseModel):
+    validation_passed: bool
+    citation_issues: List[CitationIssue]
+    unsubstantiated_claims: List[str]
+    confidence_adjustments: Dict[str, str]  # finding_id -> adjusted confidence
+    warnings: List[str]
+
+class CitationIssue(BaseModel):
+    finding_id: str
+    issue_type: str  # "missing_url", "date_mismatch", "source_not_found"
+    description: str
+    suggested_fix: Optional[str]
+```
+
+### 2.4 Phase 2 Implementation Order
+
+1. Build `query_datasheets` MCP tool
+2. Build `get_grounding_from_bq` helper (if needed)
+3. Add `CategoryAgentOutput` schema to state.py
+4. Build Category Agent node
+5. Add `ValidatorOutput` schema to state.py
+6. Build Validator Agent node
+7. Update `research_workflow.py` to include new nodes
+8. Add model settings for new agents
+9. Test end-to-end
+
+---
+
+## 🔜 PHASE 3: Infrastructure Enhancements (FOLLOW-UP SESSION)
+
+### 3.1 Parallel Agent Execution
+- Run Financial + Industry agents simultaneously using LangGraph branch/join
+- Potential: Category Agent pre-processing in parallel with research
+
+### 3.2 Streaming Granularity
+- Stream tool execution progress ("Querying SEC for Hexcel 10-K...")
+- Real-time status updates per agent node
+- "Agent thinking" visibility in UI
+
+### 3.3 Memory/Context Integration
+- Connect to existing memory system
+- Avoid redundant fetches for repeat queries about same company
+- Cross-session context retention
+
+### 3.4 Report Caching
+- Cache final reports by query hash
+- TTL-based invalidation
+- Skip regeneration for identical queries
+
+---
+
+### 📋 Session Planning
+
+| Session | Focus | Status |
+|---------|-------|--------|
+| Session 19 | Phase 1: Foundation fixes | ✅ COMPLETE |
+| Session 20 | Phase 2: Category + Validator agents | 🔜 NEXT |
+| Session 21 | Phase 3: Parallel, streaming, memory, caching | 📋 PLANNED |
+
+---
+
+## Session 18 (January 5, 2026) - FMP Premium News Verification ✅
+
+### ✅ Verified
+
+1. **FMP `premium_news` Pipeline Working End-to-End** 🎉
+   - Investigated concern that `source_type='premium_news'` wasn't appearing in BigQuery
+   - **Result**: All good! Data is flowing correctly through entire pipeline:
+     - `articles` table: 170 items
+     - `article_chunk_embeddings` table: 696 chunks (~4 per article)
+     - `digest_items` table: 170 items
+   - Most recent fetch: Jan 5, 2026 @ 09:33 UTC
+   - Sources: Benzinga, MarketBeat, Motley Fool, GuruFocus, Zacks, 247 Wallst
+
+### 📋 No Changes Required
+
+Pure verification session - no code changes needed.
+
+---
+
 ## Session 17 (January 5, 2026) - Ad-Hoc Briefing Session Management ✅
 
 ### ✅ Completed
