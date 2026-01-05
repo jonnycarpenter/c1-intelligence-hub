@@ -77,6 +77,28 @@ When adding a new API key/secret:
 | **Pre-Brief Generator (Agent 1)** | `app/ingestion/generators/pre_briefing.py` |
 | **Weekly Briefing Generator (Agent 2)** | `app/ingestion/generators/weekly_briefing.py` |
 
+## README Documentation Index
+
+**At end of session**: Update relevant READMEs based on work done.
+
+| README | Purpose | Update When... |
+|--------|---------|----------------|
+| `README.md` (root) | Project overview, setup, deployment | Major features, setup changes |
+| `CLAUDE.md` (this file) | AI agent instructions, session context | Every session, new patterns |
+| `backend/app/db/README.md` | Database layer (BigQuery) | Adding tables, changing storage |
+| `backend/app/mcp/tools/README.md` | MCP agent tools | Adding/modifying agent tools |
+| `backend/app/tools/README.md` | Ingestion data collectors | Adding/modifying data sources |
+| `backend/app/utils/README.md` | Shared utilities | Adding utility modules |
+| `backend/app/ingestion/generators/README.md` | Briefing generators (2-agent pipeline) | Briefing logic changes |
+| `backend/scripts/README.md` | Script directory index | Adding new scripts |
+| `backend/scripts/monitoring/README.md` | Production monitoring scripts | Adding monitoring scripts |
+| `backend/scripts/health/README.md` | Health check scripts | Adding health checks |
+| `backend/scripts/operations/README.md` | Data operations (backfills, maintenance) | Adding operations scripts |
+| `backend/scripts/testing/README.md` | Ad-hoc test scripts | Adding test scripts |
+| `backend/scripts/verification/README.md` | Post-deployment verification | Adding verification scripts |
+| `backend/scripts/archive/README.md` | Deprecated scripts (DO NOT USE) | Moving scripts to archive |
+| `deploy/README.md` | GCP deployment configuration | Infra/deployment changes |
+
 ## Weekly Briefing Pipeline (2-Agent Architecture)
 
 The weekly "Need to Know" executive briefing uses a 2-agent pipeline:
