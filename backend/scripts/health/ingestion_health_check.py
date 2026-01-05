@@ -204,6 +204,56 @@ def get_table_stats() -> Dict:
     return stats
 
 
+def get_briefing_quality() -> Dict:
+    """Check quality of latest weekly briefing and pre-briefing count."""
+    try:
+        # Get latest weekly briefing quality
+        briefing_query = f"""
+        SELECT 
+            id,
+            briefing_title,
+            bluf,
+            sections,
+            generated_at
+        FROM `{PROJECT_ID}.{DATASET}.weekly_briefings`
+        ORDER BY generated_at DESC
+        LIMIT 1
+        """
+        briefing_result = run_bq_query(briefing_query)
+        
+        # Get pre-briefing count
+        prebrief_query = f"""
+        SELECT COUNT(*) as cnt 
+        FROM `{PROJECT_ID}.{DATASET}.pre_briefings`
+        """
+        prebrief_result = run_bq_query(prebrief_query)
+        
+        if not briefing_result:
+            return {"error": None, "id": None}
+        
+        row = briefing_result[0]
+        sections_json = row.get("sections", "[]")
+        
+        # Count sections
+        try:
+            import json
+            sections = json.loads(sections_json) if sections_json else []
+            section_count = len(sections)
+        except:
+            section_count = 0
+        
+        return {
+            "id": row.get("id"),
+            "title": row.get("briefing_title", ""),
+            "has_bluf": bool(row.get("bluf")),
+            "section_count": section_count,
+            "generated_at": row.get("generated_at"),
+            "pre_brief_count": int(prebrief_result[0].get("cnt", 0)) if prebrief_result else 0,
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
 def print_report(days_back: int):
     """Generate and print the health check report."""
     print("=" * 80)
@@ -329,7 +379,38 @@ def print_report(days_back: int):
             
             print(f"   {str(date):<12} {articles:<10} {digests:<10} {embeddings:<12} {status}")
     
-    # 6. Health Summary
+    # 6. Briefing Quality Check
+    print()
+    print("📝 WEEKLY BRIEFING QUALITY CHECK")
+    print("-" * 80)
+    briefing_quality = get_briefing_quality()
+    
+    if briefing_quality.get("error"):
+        print(f"   ⚠️  Could not check briefing quality: {briefing_quality['error']}")
+    elif not briefing_quality.get("id"):
+        print("   ❌ No weekly briefings found")
+    else:
+        print(f"   Latest briefing: {briefing_quality.get('generated_at', 'Unknown')}")
+        print(f"   Title: {briefing_quality.get('title', 'N/A')}")
+        
+        has_bluf = briefing_quality.get('has_bluf', False)
+        section_count = briefing_quality.get('section_count', 0)
+        pre_brief_count = briefing_quality.get('pre_brief_count', 0)
+        
+        bluf_status = "✅" if has_bluf else "❌"
+        section_status = "✅" if section_count >= 3 else "⚠️" if section_count > 0 else "❌"
+        prebrief_status = "✅" if pre_brief_count >= 2 else "⚠️" if pre_brief_count > 0 else "❌"
+        
+        print(f"   {bluf_status} BLUF: {'Present' if has_bluf else 'MISSING'}")
+        print(f"   {section_status} Sections: {section_count}")
+        print(f"   {prebrief_status} Historical pre-briefings: {pre_brief_count}")
+        
+        if has_bluf and section_count >= 3 and pre_brief_count >= 2:
+            print("   ✅ Briefing pipeline healthy")
+        else:
+            print("   ⚠️  Briefing may need attention")
+    
+    # 7. Health Summary
     print()
     print("🎯 HEALTH SUMMARY")
     print("-" * 80)
