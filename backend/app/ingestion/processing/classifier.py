@@ -177,18 +177,35 @@ Relevance Score Guidelines:
         self._competitors: List[str] = []
         self._oems: List[str] = []
     
-    async def load_tracked_entities(self, db):
-        """Load tracked entities from database for classification context"""
+    async def load_tracked_entities(self, storage=None):
+        """Load tracked entities from BigQuery for classification context.
+        
+        Args:
+            storage: BigQuery storage instance (optional, will be fetched if not provided)
+        """
         try:
-            competitors = await db.list_entities(entity_type="competitor")
-            oems = await db.list_entities(entity_type="oem")
+            # Use provided storage or fetch from BigQuery
+            if storage is None:
+                from app.db.gcp_storage import get_storage
+                storage = await get_storage()
             
-            self._competitors = [e.get("name") for e in competitors if e.get("name")]
-            self._oems = [e.get("name") for e in oems if e.get("name")]
+            # Get companies from BigQuery
+            companies = await storage.get_companies()
             
-            logger.info(f"Loaded {len(self._competitors)} competitors, {len(self._oems)} OEMs for classification")
+            # Filter by type for competitors and OEMs
+            self._competitors = [
+                c.get("name") for c in companies 
+                if c.get("type", "").lower() == "competitor" and c.get("name")
+            ]
+            self._oems = [
+                c.get("name") for c in companies 
+                if c.get("type", "").lower() == "oem" and c.get("name")
+            ]
+            
+            logger.info(f"Loaded {len(self._competitors)} competitors, {len(self._oems)} OEMs from BigQuery")
         except Exception as e:
-            logger.warning(f"Could not load tracked entities: {e}")
+            logger.warning(f"Could not load tracked entities from BigQuery: {e}")
+            # Fallback to hardcoded lists
             self._competitors = ["Hexcel", "Toray", "Solvay", "Owens Corning", "Huntsman", "Gurit", "Teijin"]
             self._oems = [
                 "Boeing", "Airbus", "Spirit AeroSystems", "GE Aerospace",  # Aerospace

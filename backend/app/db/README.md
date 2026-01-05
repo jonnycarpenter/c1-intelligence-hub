@@ -13,9 +13,11 @@ app/db/
 ├── gcp_storage.py      # PRIMARY - BigQuery + GCS storage
 ├── bq_vector_store.py  # Vector store using Vertex AI embeddings
 ├── vector_store.py     # Thin wrapper → always returns BigQuery vector store
-├── database.py         # ⚠️ DEPRECATED - Legacy SQLite (DO NOT USE for new code)
 └── __init__.py         # Exports
 ```
+
+> **Note**: `database.py` (legacy SQLite) was deleted in Session 13b (January 2026).
+> All storage now uses BigQuery exclusively via `gcp_storage.py`.
 
 ### Production Storage: `gcp_storage.py`
 
@@ -85,19 +87,16 @@ vs = get_production_vector_store()  # Always BigQuery
 
 ---
 
-## ⚠️ Deprecated: `database.py`
+## Migration Complete (January 2026)
 
-This file still contains SQLite code for legacy compatibility but should **NOT** be used for new features.
+**Deleted `database.py`** - All SQLite code has been removed. The system is now 100% BigQuery.
 
-**Status**: 
+**Migration Summary**:
 - ✅ **Deduplication** - Migrated to BigQuery (January 4, 2026)
-- ⏳ Still used by classifier/entity_linker for `list_entities()`
-- ⏳ Still used by briefing generators for briefing storage
-- New code should use `gcp_storage.py` only
-
-**Remaining SQLite Usage** (to be migrated):
-- `list_entities()` - Used by ContentClassifier and EntityLinker
-- `briefing_summaries` - To be migrated
+- ✅ **Classifier/EntityLinker** - Now use `get_companies()`, `get_materials()` from BigQuery
+- ✅ **DigestGenerator** - Now uses `get_digest_items()` from BigQuery
+- ✅ **Orchestrator** - Now uses `get_digest_stats()` for status
+- ✅ **Briefing Routes** - Removed SQLite fallbacks
 - `weekly_briefings` - To be migrated
 - `pre_briefings` - To be migrated
 

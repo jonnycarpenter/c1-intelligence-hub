@@ -30,14 +30,9 @@ from chromadb import Client
 # BigQuery is the ONLY database
 ```
 
-> **Note**: `app/db/database.py` still contains legacy SQLite code.
-> It's deprecated and should NOT be used for new features.
+> **Migration Complete (January 5, 2026)**:
+> `app/db/database.py` was deleted. All storage now uses BigQuery via `gcp_storage.py`.
 > See `app/db/README.md` for the current architecture.
->
-> **Migration Status (January 4, 2026)**:
-> - ✅ Deduplication - Now uses BigQuery via `gcp_storage.py`
-> - ⏳ Entity loading (classifier/linker) - Still uses SQLite `list_entities()`
-> - ⏳ Briefing generators - Still use SQLite for storage
 
 ### 3. NEVER Create New Local Database Files
 

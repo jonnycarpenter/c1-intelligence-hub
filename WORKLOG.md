@@ -4,6 +4,51 @@ This file tracks completed work and open items across AI assistant sessions.
 
 ---
 
+## Session 15 (January 5, 2026) - get_db Cleanup Complete ✅
+
+### ✅ Completed
+
+1. **Removed All `get_db()` Imports** 🎉
+   - **Files Fixed**: 
+     - `backend/app/api/routes/briefing.py` - Removed SQLite fallback, BigQuery-only
+     - `backend/app/ingestion/orchestrator.py` - Replaced `self.db` with `self.gcp_storage`
+     - `backend/app/ingestion/processing/classifier.py` - Updated `load_tracked_entities()` to use BigQuery
+     - `backend/app/ingestion/processing/linker.py` - Updated `load_entities()` to use BigQuery
+     - `backend/app/ingestion/generators/digest.py` - Updated to use BigQuery storage
+
+2. **Updated Data Loading Pattern** ✅
+   - Classifier now loads competitors/OEMs from BigQuery `companies` table (with hardcoded fallback)
+   - Linker now loads entities from BigQuery `companies` and `materials` tables
+   - DigestGenerator now uses `get_digest_items()` instead of deprecated `query_corpus()`
+   - Orchestrator's `get_status()` uses BigQuery `get_digest_stats()` instead of SQLite
+
+3. **Verified All Imports** ✅
+   - `from app.mcp.server import get_all_mcp_tools` - ✅ Works
+   - All modified files import cleanly
+
+### 📋 Future Work: Remove `resources/` Folder (CSV → BigQuery Migration)
+
+The same entity data exists in both CSV files and BigQuery tables. Recommendation is to fully migrate to BigQuery.
+
+**Scope Summary**:
+
+| File | Current Usage | Migration Required |
+|------|---------------|-------------------|
+| `backend/app/utils/grounding.py` | BigQuery primary, CSV fallback | Remove CSV fallback |
+| `backend/app/mcp/tools/data_management.py` | Writes to CSV files | Add BigQuery write methods (`add_company`, etc.) |
+| `backend/app/api/routes/data_preferences.py` | CRUD operations on CSV | Same - needs BigQuery CRUD |
+| `backend/app/config/settings.py` | Defines `companies_file`, etc. | Remove file path properties |
+| `backend/scripts/operations/maintenance/seed_bigquery.py` | Seeds BQ from CSV | Keep as one-time migration tool |
+
+**Required BigQuery Methods** (not yet implemented):
+- `add_company()` / `update_company()` / `delete_company()`
+- `add_material()` / `update_material()` / `delete_material()`
+- `add_industry()` / `update_industry()` / `delete_industry()`
+
+**When to do this**: Low priority. Current flow works. Can be done as a separate task.
+
+---
+
 ## Session 14 (January 5, 2026) - Digest System Investigation ✅
 
 ### ✅ Completed
@@ -84,23 +129,9 @@ All critical items resolved. System is healthy and functioning correctly. Option
 | ⚠️ Identified | **Priority Case Sensitivity** | Session 14 found 12% capitalized values - low priority fix recommended |
 | 🟢 Low | **Frontend Filter Should Be 7 Days** | Optional UX enhancement - change default from 72h to 168h |
 
-### 🚨 CRITICAL: Broken Imports - database.py Deleted
+### ✅ RESOLVED: Broken Imports - database.py Deleted (Fixed in Session 15)
 
-**Status**: `backend/app/db/database.py` was deleted but 6 files still import from it. App will crash on import.
-
-**Files to fix** (remove `get_db` import, use BigQuery directly):
-
-| File | Usage | Fix Strategy |
-|------|-------|--------------|
-| `app/ingestion/generators/pre_briefing.py` | `self.db.query_corpus()`, `self.db.save_pre_briefing()` | ✅ Already uses BigQuery for queries. Remove import, use `_get_bq_storage().save_pre_briefing()` |
-| `app/ingestion/generators/weekly_briefing.py` | `self.db.get_weekly_briefing_history()`, `self.db.get_articles_by_ids()` | Both have BigQuery fallbacks. Remove `self.db`, use `_get_bq_storage()` directly |
-| `app/ingestion/generators/briefing.py` | `self.db.query_corpus()` | Legacy category-based briefing. Use `BigQueryDataStorage.get_articles()` |
-| `app/api/routes/briefing.py` | Imports `BriefingGenerator` | Will break once briefing.py is fixed - no direct changes needed |
-| `app/agents/adhoc_briefing/agent.py` | `self.db` for corpus queries | Use `BigQueryDataStorage` |
-| `app/mcp/tools/corpus_query.py` | `get_db()` for corpus searches | Use `BigQueryDataStorage.search_articles()` |
-| `app/ingestion/orchestrator.py` | `self.db` passed to `DigestGenerator`, `load_tracked_entities()` | Complex - DigestGenerator needs BigQuery adapter |
-
-**Next Session Task**: Fix all 7 files to use BigQueryDataStorage instead of deleted get_db()
+**Status**: All `get_db` imports have been removed and replaced with BigQuery storage. See Session 15 above for details.
 
 ---
 

@@ -11,6 +11,9 @@ logger = logging.getLogger(__name__)
 class DigestGenerator:
     """
     Generates pre-computed intelligence digests.
+    
+    Note: This class now uses BigQuery storage for querying digest items.
+    The actual digest item storage is handled by the orchestrator's store_digest_items() call.
     """
     
     SUMMARY_PROMPT = """You are creating an executive intelligence briefing for Composites One's commercial team.
@@ -27,9 +30,15 @@ Based on the following intelligence items from the past {hours} hours, write a c
 Write the executive summary in a professional, direct style. Focus on actionable intelligence.
 Do not use bullet points - write in flowing paragraphs."""
 
-    def __init__(self, config, db):
+    def __init__(self, config, storage):
+        """Initialize DigestGenerator.
+        
+        Args:
+            config: Ingestion configuration
+            storage: BigQuery storage instance (from get_storage())
+        """
         self.config = config
-        self.db = db
+        self.storage = storage  # BigQuery storage
         self.client = AsyncAnthropic(api_key=config.anthropic_api_key)
         self.max_items = getattr(config, 'digest_max_items', 50)
         self.model = getattr(config, 'digest_model', "claude-sonnet-4-5")
@@ -41,35 +50,49 @@ Do not use bullet points - write in flowing paragraphs."""
         period_end = datetime.utcnow()
         period_start = period_end - timedelta(hours=hours)
         
-        corpus_items = await self.db.query_corpus(hours=hours, limit=self.max_items * 2)
+        # Query digest items from BigQuery
+        raw_items = await self.storage.get_digest_items(hours=hours, limit=self.max_items * 2)
         
-        if not corpus_items:
-            logger.warning("No corpus items found for digest")
+        if not raw_items:
+            logger.warning("No digest items found for digest generation")
             return self._empty_digest(period_start, period_end, hours)
         
-        # Sort by priority and relevance
-        sorted_items = sorted(
-            corpus_items,
-            key=lambda x: (
-                0 if x.priority == Priority.HIGH else 1 if x.priority == Priority.MEDIUM else 2,
-                -x.relevance_score
-            )
-        )
+        # Sort by priority and relevance (raw_items are dicts from BigQuery)
+        def priority_sort_key(item):
+            priority = (item.get("priority") or "medium").lower()
+            priority_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+            relevance = item.get("relevance_score") or 0.5
+            return (priority_order.get(priority, 2), -relevance)
         
+        sorted_items = sorted(raw_items, key=priority_sort_key)
         top_items = sorted_items[:self.max_items]
         
+        # Convert BigQuery dict items to DigestItem objects
         digest_items = []
         for item in top_items:
+            # Parse published_at if string
+            published_at = item.get("published_at")
+            if isinstance(published_at, str):
+                try:
+                    published_at = datetime.fromisoformat(published_at.replace("Z", "+00:00"))
+                except:
+                    published_at = None
+            
+            # Get entity mentions from companies field
+            companies = item.get("companies") or []
+            if isinstance(companies, str):
+                companies = [c.strip() for c in companies.split(",") if c.strip()]
+            
             digest_items.append(DigestItem(
-                corpus_item_id=item.id,
-                title=item.title,
-                summary=item.summary,
-                category=item.categories[0].value if item.categories else "general",
-                priority=item.priority.value,
-                source_name=item.source.name,
-                source_url=item.url,
-                published_at=item.published_at,
-                entity_mentions=[m.entity_name for m in item.entity_mentions[:5]],
+                corpus_item_id=item.get("article_id") or item.get("id"),
+                title=item.get("title", ""),
+                summary=item.get("digest_summary") or item.get("original_summary") or "",
+                category=item.get("category", "general"),
+                priority=item.get("priority", "medium"),
+                source_name=item.get("source_name", ""),
+                source_url=item.get("url", ""),
+                published_at=published_at,
+                entity_mentions=companies[:5],
             ))
         
         executive_summary = await self._generate_summary(digest_items, hours)
@@ -134,12 +157,14 @@ Do not use bullet points - write in flowing paragraphs."""
         return stats
     
     async def _save_digest(self, digest: Digest):
-        """Save digest to database"""
-        try:
-            await self.db.save_digest(digest)
-            logger.info(f"Saved digest {digest.id}")
-        except Exception as e:
-            logger.error(f"Error saving digest: {e}")
+        """Save digest metadata.
+        
+        Note: Individual digest items are stored by the orchestrator via store_digest_items().
+        This method logs the digest generation for tracking purposes.
+        """
+        # The actual items are already in BigQuery via the orchestrator's store_digest_items() call
+        # This method is kept for logging and potential future digest metadata storage
+        logger.info(f"Generated digest {digest.id} with {len(digest.items)} items")
     
     def _empty_digest(self, start: datetime, end: datetime, hours: int) -> Digest:
         return Digest(

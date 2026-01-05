@@ -1,21 +1,5 @@
 # C1 Intelligence Hub - AI Agent Instructions
 
-## 🚨 CRITICAL: Broken Imports (Jan 5, 2026)
-
-**`database.py` was deleted** but 7 files still import `get_db`. App crashes on import.
-
-**Next session task**: Fix these files to use `BigQueryDataStorage` instead of deleted `get_db()`:
-- `app/ingestion/generators/pre_briefing.py`
-- `app/ingestion/generators/weekly_briefing.py`
-- `app/ingestion/generators/briefing.py`
-- `app/agents/adhoc_briefing/agent.py`
-- `app/mcp/tools/corpus_query.py`
-- `app/ingestion/orchestrator.py`
-
-See `WORKLOG.md` → Session 13b for fix strategy per file.
-
----
-
 ## Session Continuity
 
 **At end of session**: Update `WORKLOG.md` with:

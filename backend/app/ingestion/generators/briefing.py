@@ -8,7 +8,6 @@ from collections import Counter
 from anthropic import AsyncAnthropic
 
 from app.models.corpus import ContentCategory, Priority
-from app.db.database import get_db
 from app.config.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -85,7 +84,6 @@ Respond with JSON only:
             scheduler_run: "morning" (8 AM CST) or "evening" (8 PM CST) - for tracking
         """
         self.config = config
-        self.db = get_db()
         self.client = AsyncAnthropic(api_key=config.anthropic_api_key)
         self.model = getattr(config, 'briefing_model', "claude-opus-4-5")
         self.scheduler_run = scheduler_run or self._detect_scheduler_run()
@@ -179,10 +177,16 @@ Respond with JSON only:
         period_end = datetime.utcnow()
         period_start = period_end - timedelta(days=days)
         
-        # Query articles for the category
-        articles = await self.db.query_corpus(
-            hours=days * 24,
-            categories=[category],
+        # Query articles for the category from BigQuery
+        bq_storage = await self._get_bq_storage()
+        if not bq_storage:
+            logger.error("BigQuery storage not available")
+            return None
+        
+        articles = await bq_storage.get_articles(
+            category=category.value,
+            start_date=period_start,
+            end_date=period_end,
             limit=100
         )
         

@@ -23,7 +23,6 @@ from collections import Counter
 from anthropic import AsyncAnthropic
 from exa_py import Exa
 
-from app.db.database import get_db
 from app.db.vector_store import get_production_vector_store
 from app.config.settings import settings
 from app.services.logo_service import logo_service, company_name_to_domain
@@ -146,7 +145,6 @@ Otherwise, respond with the final briefing JSON:
     def __init__(self, config=None):
         """Initialize the executive synthesizer (Agent 2)."""
         self.config = config or settings
-        self.db = get_db()
         self.client = AsyncAnthropic(api_key=self.config.anthropic_api_key)
         # Agent 2 uses the premium Opus model for strategic synthesis
         self.model = "claude-opus-4-5" 
@@ -194,9 +192,6 @@ Otherwise, respond with the final briefing JSON:
             briefings = []
             if bq_storage:
                 briefings = await bq_storage.get_weekly_briefing_history(limit=limit)
-            
-            if not briefings:
-                briefings = await self.db.get_weekly_briefing_history(limit=limit)
             
             if not briefings:
                 return "No historical briefings found. Treat all developments as potentially new."
@@ -291,9 +286,12 @@ Otherwise, respond with the final briefing JSON:
         if not article_ids:
             return []
         
-        # Batch query for articles
-        articles = await self.db.get_articles_by_ids(article_ids)
-        return articles
+        # Batch query for articles from BigQuery
+        bq_storage = await self._get_bq_storage()
+        if bq_storage:
+            articles = await bq_storage.get_articles_by_ids(article_ids)
+            return articles
+        return []
     
     def _build_articles_text(self, articles: List) -> str:
         """Build formatted article text for the prompt."""

@@ -23,7 +23,6 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional, AsyncIterator
 from anthropic import AsyncAnthropic
 
-from app.db.database import get_db
 from app.config.settings import settings
 from app.utils.logger import get_logger
 
@@ -148,7 +147,6 @@ Respond with a JSON object:
         self.config = config or settings
         self.client = AsyncAnthropic(api_key=self.config.anthropic_api_key)
         self.model = "claude-3-5-haiku-20241022"  # Fast model for quick responses
-        self.db = get_db()
         self._vector_store = None
         self._bq_storage = None
         

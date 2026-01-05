@@ -12,13 +12,18 @@ from datetime import datetime, timedelta
 from typing import Optional
 from langchain_core.tools import tool
 
-from app.db.database import get_db
+from app.db.gcp_storage import get_storage
 from app.db.vector_store import get_production_vector_store
 from app.models.corpus import ContentCategory, Priority
 from app.utils.grounding import load_companies, load_preferences
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+async def _get_bq_storage():
+    """Get BigQuery storage instance."""
+    return await get_storage()
 
 
 # Category aliases for natural language parsing
@@ -106,6 +111,22 @@ def _format_vector_result(result: dict) -> dict:
     }
 
 
+def _format_article_record(item) -> dict:
+    """Format an ArticleRecord from BigQuery for JSON output."""
+    return {
+        "id": item.id,
+        "title": item.title,
+        "summary": item.summary[:300] if item.summary else None,
+        "url": item.url,
+        "source": item.source_name or "",
+        "category": item.category or "general",
+        "priority": "medium",  # ArticleRecord doesn't have priority
+        "relevance_score": item.relevance_score or 0.5,
+        "companies_mentioned": item.companies_mentioned[:5] if item.companies_mentioned else [],
+        "published_at": item.published_at.isoformat() if item.published_at else None,
+    }
+
+
 @tool
 def query_corpus(
     query: Optional[str] = None,
@@ -151,17 +172,14 @@ def query_corpus(
     parsed_priority = PRIORITY_ALIASES.get(priority.lower()) if priority else None
     
     async def _query():
-        db = get_db()
-        # Use BigQuery vector store
+        # Use BigQuery vector store (primary method)
         vector_store = await get_production_vector_store()
         
-        # Ensure database initialized
-        await db.initialize()
-        
         results = []
+        search_method = "semantic"
         
-        # If we have a text query and vector store is available, use semantic search
-        if query and vector_store.is_available:
+        # Use semantic search via BigQuery vector store
+        if vector_store.is_available:
             # Build metadata filters
             where = {}
             if parsed_category:
@@ -171,7 +189,7 @@ def query_corpus(
             
             # Build search kwargs - include date range if provided
             search_kwargs = {
-                "query": query,
+                "query": query or "",  # Empty query returns recent items
                 "limit": limit,
                 "where": where if where else None,
             }
@@ -183,26 +201,31 @@ def query_corpus(
                 search_kwargs["date_to"] = date_to
             
             vector_results = await vector_store.search(**search_kwargs)
-            
             results = [_format_vector_result(r) for r in vector_results]
-            search_method = "semantic"
         else:
-            # Fall back to database query
-            # Convert single values to lists for the database method
-            categories = [ContentCategory(parsed_category)] if parsed_category else None
-            priorities = [Priority(parsed_priority)] if parsed_priority else None
+            # Fall back to BigQuery articles table
+            storage = await _get_bq_storage()
             
-            items = await db.query_corpus(
-                search_text=query,
-                hours=hours,
-                categories=categories,
-                priorities=priorities,
-                entity_name=company,
+            # Calculate date range from hours if not provided
+            start_date = None
+            end_date = None
+            if date_from:
+                start_date = datetime.fromisoformat(date_from)
+            elif hours:
+                start_date = datetime.utcnow() - timedelta(hours=hours)
+            if date_to:
+                end_date = datetime.fromisoformat(date_to)
+            
+            items = await storage.get_articles(
+                category=parsed_category,
+                start_date=start_date,
+                end_date=end_date,
+                search_query=query,
                 limit=limit,
             )
             
-            results = [_format_corpus_item(item) for item in items]
-            search_method = "database"
+            results = [_format_article_record(item) for item in items]
+            search_method = "bigquery"
         
         return {
             "status": "success",
@@ -252,62 +275,41 @@ def get_digest(hours: int = 72) -> str:
     logger.info(f"Getting digest for last {hours} hours")
     
     async def _get_digest():
-        db = get_db()
-        await db.initialize()
+        storage = await _get_bq_storage()
         
-        # Get latest digest (note: hours parameter is informational only - digest is pre-computed)
-        digest = await db.get_latest_digest()
+        # Get digest items from BigQuery (the primary source)
+        items = await storage.get_digest_items(lookback_hours=hours, limit=20)
         
-        if digest:
+        if items:
+            # Group by priority
+            high_priority = [i for i in items if i.get("priority") == "high"]
+            
             return {
                 "status": "success",
                 "digest": {
-                    "id": digest.id,
-                    "period_start": digest.period_start.isoformat() if digest.period_start else None,
-                    "period_end": digest.period_end.isoformat() if digest.period_end else None,
-                    "executive_summary": digest.executive_summary,
+                    "period_hours": hours,
                     "items": [
                         {
-                            "id": item.item_id,
-                            "title": item.title,
-                            "summary": item.summary[:200] if item.summary else None,
-                            "category": item.category.value if item.category else "general",
-                            "priority": item.priority.value if item.priority else "medium",
-                            "relevance_score": item.relevance_score,
+                            "id": item.get("id"),
+                            "title": item.get("title"),
+                            "summary": (item.get("digest_summary") or item.get("original_summary", ""))[:200],
+                            "category": item.get("category", "general"),
+                            "priority": item.get("priority", "medium"),
+                            "relevance_score": item.get("relevance_score", 0.5),
                         }
-                        for item in (digest.items or [])[:15]
+                        for item in items[:15]
                     ],
                     "stats": {
-                        "total_items": digest.stats.total_items if digest.stats else 0,
-                        "high_priority": digest.stats.high_priority if digest.stats else 0,
-                    } if digest.stats else None,
-                    "generated_at": digest.generated_at.isoformat() if digest.generated_at else None,
+                        "total_items": len(items),
+                        "high_priority": len(high_priority),
+                    },
                 },
             }
         else:
-            # No digest available, provide summary from corpus
-            items = await db.query_corpus(hours=hours, limit=20)
-            
-            # Group by priority
-            high_priority = [i for i in items if i.priority and i.priority.value == "high"]
-            
             return {
-                "status": "no_digest_available",
-                "message": "No pre-computed digest found. Here's a summary from the corpus.",
-                "summary": {
-                    "period_hours": hours,
-                    "total_items": len(items),
-                    "high_priority_count": len(high_priority),
-                    "high_priority_items": [
-                        {
-                            "title": item.title,
-                            "category": item.primary_category.value if item.primary_category else "general",
-                            "source": item.source.name if item.source else None,
-                        }
-                        for item in high_priority[:5]
-                    ],
-                },
-                "suggested_action": "Run ingestion to generate fresh digest",
+                "status": "no_items",
+                "message": f"No digest items found for the last {hours} hours.",
+                "suggested_action": "Run ingestion to generate fresh digest items",
             }
     
     try:
@@ -346,9 +348,7 @@ def get_entity_mentions(
     logger.info(f"Getting mentions for {entity_name}, last {hours} hours")
     
     async def _get_mentions():
-        db = get_db()
         vector_store = await get_production_vector_store()
-        await db.initialize()
         
         # Check if entity is tracked
         companies_df = load_companies()
@@ -361,7 +361,7 @@ def get_entity_mentions(
         if vector_store.is_available:
             vector_results = await vector_store.search(
                 query=f"{entity_name} news announcement activity",
-                limit=limit,
+                limit=limit * 2,  # Fetch more to filter
             )
             
             # Filter to items that likely mention the entity
@@ -372,19 +372,8 @@ def get_entity_mentions(
                 
                 if entity_name.lower() in doc or entity_name.lower() in companies:
                     results.append(_format_vector_result(r))
-        
-        # Also try database query with company filter
-        if len(results) < limit:
-            db_items = await db.query_corpus(
-                entity_name=entity_name,
-                hours=hours,
-                limit=limit - len(results),
-            )
-            
-            existing_ids = {r["id"] for r in results}
-            for item in db_items:
-                if item.id not in existing_ids:
-                    results.append(_format_corpus_item(item))
+                    if len(results) >= limit:
+                        break
         
         return {
             "status": "success",
@@ -427,12 +416,11 @@ def get_corpus_stats(hours: int = 72) -> str:
     logger.info(f"Getting corpus stats for last {hours} hours")
     
     async def _get_stats():
-        db = get_db()
+        storage = await _get_bq_storage()
         vector_store = await get_production_vector_store()
-        await db.initialize()
         
-        # Get database stats
-        db_stats = await db.get_corpus_stats(hours=hours)
+        # Get digest stats from BigQuery
+        digest_stats = await storage.get_digest_stats(hours=hours)
         
         # Get vector store count
         vector_count = await vector_store.get_count() if vector_store.is_available else 0
@@ -444,7 +432,7 @@ def get_corpus_stats(hours: int = 72) -> str:
         return {
             "status": "success",
             "time_range_hours": hours,
-            "corpus_stats": db_stats or {
+            "corpus_stats": digest_stats or {
                 "total_items": 0,
                 "items_in_period": 0,
             },
@@ -491,21 +479,36 @@ def get_priority_items(hours: int = 72, limit: int = 10) -> str:
     logger.info(f"Getting priority items for last {hours} hours, limit={limit}")
     
     async def _get_priority():
-        db = get_db()
-        await db.initialize()
+        storage = await _get_bq_storage()
         
-        items = await db.query_corpus(
-            hours=hours,
-            priorities=[Priority.HIGH],
+        # Get high-priority digest items from BigQuery
+        items = await storage.get_digest_items(
+            lookback_hours=hours,
             limit=limit,
         )
+        
+        # Filter to high priority items
+        high_priority = [i for i in items if i.get("priority") == "high"]
         
         return {
             "status": "success",
             "priority_level": "high",
             "time_range_hours": hours,
-            "count": len(items),
-            "items": [_format_corpus_item(item) for item in items],
+            "count": len(high_priority),
+            "items": [
+                {
+                    "id": item.get("id"),
+                    "title": item.get("title"),
+                    "summary": (item.get("digest_summary") or item.get("original_summary", ""))[:300],
+                    "url": item.get("url"),
+                    "source": item.get("source_name"),
+                    "category": item.get("category", "general"),
+                    "priority": item.get("priority", "high"),
+                    "relevance_score": item.get("relevance_score", 0.5),
+                    "published_at": item.get("published_at"),
+                }
+                for item in high_priority[:limit]
+            ],
         }
     
     try:
@@ -544,9 +547,7 @@ def get_competitor_activity(
     logger.info(f"Getting competitor activity: competitor={competitor_name}, hours={hours}")
     
     async def _get_competitor():
-        db = get_db()
         vector_store = await get_production_vector_store()
-        await db.initialize()
         
         # Get tracked competitors
         companies_df = load_companies()
@@ -557,7 +558,7 @@ def get_competitor_activity(
         results = []
         
         if competitor_name:
-            # Search for specific competitor
+            # Search for specific competitor using vector store
             if vector_store.is_available:
                 vector_results = await vector_store.search(
                     query=f"{competitor_name} news announcement partnership acquisition",
@@ -565,26 +566,15 @@ def get_competitor_activity(
                     where={"category": "competitor"},
                 )
                 results = [_format_vector_result(r) for r in vector_results]
-            
-            if len(results) < limit:
-                db_items = await db.query_corpus(
-                    entity_name=competitor_name,
-                    categories=[ContentCategory.COMPETITOR],
-                    hours=hours,
-                    limit=limit - len(results),
-                )
-                existing_ids = {r["id"] for r in results}
-                for item in db_items:
-                    if item.id not in existing_ids:
-                        results.append(_format_corpus_item(item))
         else:
             # Get all competitor activity
-            db_items = await db.query_corpus(
-                categories=[ContentCategory.COMPETITOR],
-                hours=hours,
-                limit=limit,
-            )
-            results = [_format_corpus_item(item) for item in db_items]
+            if vector_store.is_available:
+                vector_results = await vector_store.search(
+                    query="competitor announcement news partnership acquisition manufacturer",
+                    limit=limit,
+                    where={"category": "competitor"},
+                )
+                results = [_format_vector_result(r) for r in vector_results]
         
         return {
             "status": "success",
@@ -653,20 +643,15 @@ def get_market_signals(
     parsed_industry = industry_map.get(industry.lower()) if industry else None
     
     async def _get_market():
-        db = get_db()
         vector_store = await get_production_vector_store()
-        await db.initialize()
         
         results = []
         
-        # Search for market signals
+        # Search for market signals using vector store
         search_query = f"{parsed_industry or 'composites'} market trend demand forecast outlook"
         
         if vector_store.is_available:
             where = {"category": "market"}
-            if parsed_industry:
-                # Filter post-query for industry matching
-                pass
             
             vector_results = await vector_store.search(
                 query=search_query,
@@ -683,22 +668,6 @@ def get_market_signals(
                     results.append(_format_vector_result(r))
                     if len(results) >= limit:
                         break
-        
-        if len(results) < limit:
-            db_items = await db.query_corpus(
-                categories=[ContentCategory.MARKET],
-                hours=hours,
-                limit=limit - len(results),
-            )
-            existing_ids = {r["id"] for r in results}
-            for item in db_items:
-                if item.id not in existing_ids:
-                    # Check industry match
-                    if parsed_industry:
-                        item_industries = [i.value for i in (item.industries or [])]
-                        if parsed_industry not in item_industries:
-                            continue
-                    results.append(_format_corpus_item(item))
         
         days = hours // 24
         

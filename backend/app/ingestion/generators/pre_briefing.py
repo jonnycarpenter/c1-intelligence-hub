@@ -19,7 +19,6 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 from anthropic import AsyncAnthropic
 
-from app.db.database import get_db
 from app.config.settings import settings
 from app.utils.logger import get_logger
 
@@ -66,7 +65,6 @@ You must respond with a single, valid JSON object. Do not include any text befor
 
     def __init__(self, config=None):
         self.config = config or settings
-        self.db = get_db()
         self.client = AsyncAnthropic(api_key=self.config.anthropic_api_key)
         self.model = "claude-sonnet-4-5"
         self._bq_storage = None
@@ -118,12 +116,7 @@ You must respond with a single, valid JSON object. Do not include any text befor
             )
             logger.info(f"Agent 1: Found {len(articles)} articles in BigQuery")
         else:
-            # Fallback to SQLite only if BigQuery unavailable
-            logger.warning("BigQuery unavailable, falling back to SQLite")
-            articles = await self.db.query_corpus(
-                hours=days * 24,
-                limit=50
-            )
+            raise RuntimeError("BigQuery is required but not configured")
         
         return articles, period_start, period_end
 
@@ -222,11 +215,12 @@ You must respond with a single, valid JSON object. Do not include any text befor
                 "article_ids": [a.id for a in articles]
             }
 
-            # Save to both
-            await self.db.save_pre_briefing(record)
+            # Save to BigQuery
             bq_storage = await self._get_bq_storage()
             if bq_storage:
                 await bq_storage.save_pre_briefing(record)
+            else:
+                raise RuntimeError("BigQuery is required but not configured")
             
             logger.info(f"Agent 1: Pre-brief {pre_brief_id} generated and stored")
             return record

@@ -16,7 +16,6 @@ from pydantic import BaseModel, Field
 from datetime import datetime
 import json
 
-from app.db.database import get_db
 from app.config.settings import settings
 from app.utils.logger import get_logger
 
@@ -219,16 +218,14 @@ async def get_pulse_summaries(include_sources: bool = Query(True, description="I
     logger.info(f"Pulse summaries request (include_sources={include_sources})")
     
     try:
-        # Try BigQuery first (production), fall back to SQLite
+        # BigQuery is the only storage backend
         bq_storage = await _get_bq_storage()
         
-        if bq_storage:
-            briefings = await bq_storage.get_latest_briefings()
-            logger.info(f"Retrieved {len(briefings)} briefings from BigQuery")
-        else:
-            db = get_db()
-            briefings = await db.get_latest_briefings()
-            logger.info(f"Retrieved {len(briefings)} briefings from SQLite")
+        if not bq_storage:
+            raise HTTPException(status_code=503, detail="BigQuery storage not available")
+        
+        briefings = await bq_storage.get_latest_briefings()
+        logger.info(f"Retrieved {len(briefings)} briefings from BigQuery")
         
         # Optionally strip source_articles to reduce payload
         if not include_sources:
@@ -260,11 +257,10 @@ async def get_briefing_by_category(
     try:
         bq_storage = await _get_bq_storage()
         
-        if bq_storage:
-            briefings = await bq_storage.get_latest_briefings()
-        else:
-            db = get_db()
-            briefings = await db.get_latest_briefings()
+        if not bq_storage:
+            raise HTTPException(status_code=503, detail="BigQuery storage not available")
+        
+        briefings = await bq_storage.get_latest_briefings()
         
         # Find the matching category
         category_upper = category.upper()
@@ -348,17 +344,20 @@ async def get_briefing_history(
     try:
         bq_storage = await _get_bq_storage()
         
-        if bq_storage and quarter:
+        if not bq_storage:
+            raise HTTPException(status_code=503, detail="BigQuery storage not available")
+        
+        if quarter:
             briefings = await bq_storage.get_briefings_for_quarter(quarter, category)
             return briefings[:limit]
         else:
-            # SQLite fallback - just get latest
-            db = get_db()
-            briefings = await db.get_latest_briefings(limit_per_category=limit)
+            briefings = await bq_storage.get_latest_briefings(limit_per_category=limit)
             if category:
                 briefings = [b for b in briefings if b.get('category', '').upper() == category.upper()]
             return briefings
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error getting briefing history: {e}")
         raise HTTPException(status_code=500, detail="Failed to retrieve briefing history")
@@ -385,17 +384,12 @@ async def get_weekly_briefing():
     try:
         bq_storage = await _get_bq_storage()
         
-        if bq_storage:
-            briefing = await bq_storage.get_latest_weekly_briefing()
-            if briefing:
-                logger.info(f"Retrieved weekly briefing from BigQuery: {briefing.get('id', 'unknown')}")
-                return briefing
+        if not bq_storage:
+            raise HTTPException(status_code=503, detail="BigQuery storage not available")
         
-        # SQLite fallback
-        db = get_db()
-        briefing = await db.get_latest_weekly_briefing()
+        briefing = await bq_storage.get_latest_weekly_briefing()
         if briefing:
-            logger.info(f"Retrieved weekly briefing from SQLite: {briefing.get('id', 'unknown')}")
+            logger.info(f"Retrieved weekly briefing from BigQuery: {briefing.get('id', 'unknown')}")
             return briefing
         
         # No briefing found
@@ -422,15 +416,14 @@ async def get_weekly_briefing_history(
     try:
         bq_storage = await _get_bq_storage()
         
-        if bq_storage:
-            briefings = await bq_storage.get_weekly_briefing_history(limit=limit)
-            return briefings
+        if not bq_storage:
+            raise HTTPException(status_code=503, detail="BigQuery storage not available")
         
-        # SQLite fallback
-        db = get_db()
-        briefings = await db.get_weekly_briefing_history(limit=limit)
+        briefings = await bq_storage.get_weekly_briefing_history(limit=limit)
         return briefings
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error getting weekly briefing history: {e}")
         raise HTTPException(status_code=500, detail="Failed to retrieve briefing history")
@@ -538,15 +531,14 @@ async def get_adhoc_briefing_history(
     try:
         bq_storage = await _get_bq_storage()
         
-        if bq_storage:
-            briefings = await bq_storage.get_adhoc_briefing_history(limit=limit)
-            return briefings
+        if not bq_storage:
+            raise HTTPException(status_code=503, detail="BigQuery storage unavailable")
         
-        # SQLite fallback for local development
-        db = get_db()
-        briefings = await db.get_adhoc_briefing_history(limit=limit)
+        briefings = await bq_storage.get_adhoc_briefing_history(limit=limit)
         return briefings
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error getting ad hoc briefing history: {e}")
         raise HTTPException(status_code=500, detail="Failed to retrieve briefing history")
@@ -572,17 +564,11 @@ async def get_all_briefing_history(
     try:
         bq_storage = await _get_bq_storage()
         
-        weekly_briefings = []
-        adhoc_briefings = []
+        if not bq_storage:
+            raise HTTPException(status_code=503, detail="BigQuery storage unavailable")
         
-        if bq_storage:
-            weekly_briefings = await bq_storage.get_weekly_briefing_history(limit=weekly_limit)
-            adhoc_briefings = await bq_storage.get_adhoc_briefing_history(limit=adhoc_limit)
-        else:
-            # SQLite fallback for local development
-            db = get_db()
-            weekly_briefings = await db.get_weekly_briefing_history(limit=weekly_limit)
-            adhoc_briefings = await db.get_adhoc_briefing_history(limit=adhoc_limit)
+        weekly_briefings = await bq_storage.get_weekly_briefing_history(limit=weekly_limit)
+        adhoc_briefings = await bq_storage.get_adhoc_briefing_history(limit=adhoc_limit)
         
         return {
             "weekly_briefings": weekly_briefings,
@@ -591,6 +577,8 @@ async def get_all_briefing_history(
             "total_adhoc": len(adhoc_briefings),
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error getting all briefing history: {e}")
         raise HTTPException(status_code=500, detail="Failed to retrieve briefing history")

@@ -79,7 +79,7 @@ class IngestionOrchestrator:
     
     def __init__(self, config: IngestionConfig):
         self.config = config
-        self.db = None
+        self.gcp_storage = None  # BigQuery storage (initialized in initialize())
         
         # Components
         self.rss_fetcher = RSSFetcher(config)
@@ -106,16 +106,10 @@ class IngestionOrchestrator:
         """Initialize all components"""
         logger.info("Initializing ingestion orchestrator...")
         
-        # Legacy SQLite DB - ONLY used for classifier/entity_linker entity loading
-        # TODO: Migrate list_entities to BigQuery and remove this dependency
-        from app.db.database import get_db
-        self.db = get_db()
-        
-        # Deduplication Service - NOW USES BIGQUERY (no SQLite)
+        # Deduplication Service - uses BigQuery
         self.dedup_service = DeduplicationService()  # Will auto-initialize with BigQuery storage
         
-        # Other services (still use SQLite for entity loading - migration pending)
-        self.digest_generator = DigestGenerator(self.config, self.db)
+        # Briefing generator (doesn't need DB)
         self.briefing_generator = BriefingGenerator(self.config)
         
         # Initialize Tavily Client
@@ -124,9 +118,15 @@ class IngestionOrchestrator:
         # Load dedup cache from BigQuery
         await self.dedup_service.load_recent_cache()
         
-        # Load tracked entities from SQLite (TODO: migrate to BigQuery)
-        await self.classifier.load_tracked_entities(self.db)
-        await self.entity_linker.load_entities(self.db)
+        # GCP Storage for BigQuery operations (initialize early for entity loading)
+        self.gcp_storage = await get_storage()
+        
+        # Load tracked entities from BigQuery
+        await self.classifier.load_tracked_entities(self.gcp_storage)
+        await self.entity_linker.load_entities(self.gcp_storage)
+        
+        # DigestGenerator - now uses BigQuery storage
+        self.digest_generator = DigestGenerator(self.config, self.gcp_storage)
         
         # Image Enrichment Service (uses Tavily for image search + Claude for vision)
         if self.config.enable_image_enrichment:
@@ -141,8 +141,7 @@ class IngestionOrchestrator:
         # Vector Store Initialization (BigQuery-backed)
         self.vector_store = await get_production_vector_store()
         
-        # GCP Storage for digest_items table (feeds digest cards in UI)
-        self.gcp_storage = await get_storage()
+        # Note: self.gcp_storage already initialized above for entity loading
         
         self._initialized = True
         logger.info("Ingestion orchestrator initialized")
@@ -706,18 +705,19 @@ class IngestionOrchestrator:
         return stats
 
     async def _get_tracked_tickers(self) -> List[str]:
-        """Get tickers for all tracked entities from master company list"""
+        """Get tickers for all tracked entities from BigQuery/master company list"""
         tickers = []
         try:
-            # First try DB
-            competitors = await self.db.list_entities(entity_type="competitor")
-            for comp in competitors:
-                if comp.metadata and comp.metadata.ticker:
-                    tickers.append(comp.metadata.ticker)
+            # First try BigQuery companies table
+            companies = await self.gcp_storage.get_companies()
+            for comp in companies:
+                ticker = comp.get("ticker")
+                if ticker and ticker.lower() != 'private':
+                    tickers.append(ticker)
             
-            # Fallback to master company list CSV (comprehensive)
+            # Fallback to master company list CSV if BigQuery is empty
             if not tickers:
-                logger.info("No tracked entities in DB, loading from master company list")
+                logger.info("No companies in BigQuery, loading from master company list")
                 df = load_companies()
                 if not df.empty and 'stock_ticker' in df.columns:
                     tickers = df['stock_ticker'].dropna().tolist()
@@ -725,7 +725,7 @@ class IngestionOrchestrator:
                     tickers = [t for t in tickers if t and t.lower() != 'private']
                     logger.info(f"Loaded {len(tickers)} tickers from master company list")
         except Exception as e:
-            logger.warning(f"Error loading tickers: {e}, falling back to CSV")
+            logger.warning(f"Error loading tickers from BigQuery: {e}, falling back to CSV")
             try:
                 df = load_companies()
                 if not df.empty and 'stock_ticker' in df.columns:
@@ -1226,9 +1226,14 @@ class IngestionOrchestrator:
                  "latest_ingestion": None
              }
         
-        # Get DB stats
-        corpus_stats = await self.db.get_corpus_stats()
-        latest_run = await self.db.get_latest_ingestion()
+        # Get stats from BigQuery storage
+        try:
+            corpus_stats = await self.gcp_storage.get_digest_stats(hours=72)
+        except Exception as e:
+            logger.warning(f"Could not get corpus stats: {e}")
+            corpus_stats = {}
+        
+        latest_run = None  # Latest ingestion tracking moved to BigQuery logs
         
         return {
             "initialized": True,
@@ -1243,33 +1248,31 @@ class IngestionOrchestrator:
         """Get full company details from CSV and database"""
         companies_map = {}
         try:
-            # 1. Load from master CSV file
-            csv_companies = self._load_companies_from_csv()
-            
-            for comp in csv_companies:
+            # 1. Load from BigQuery companies table (primary source)
+            bq_companies = await self.gcp_storage.get_companies()
+            for comp in bq_companies:
                 ticker = comp.get("ticker")
                 if ticker:
-                    companies_map[ticker] = comp
-            
-            # 2. Merge with DB entities (might have user-added ones)
-            db_entities = await self.db.list_entities(entity_type=None)
-            for comp in db_entities:
-                ticker = comp.get("ticker")
-                if ticker:
-                    # DB version might have more metadata or user overrides
                     companies_map[ticker] = {
                         "id": comp.get("id"),
                         "name": comp.get("name"),
                         "ticker": ticker
                     }
             
+            # 2. Merge with CSV companies (backup source)
+            csv_companies = self._load_companies_from_csv()
+            for comp in csv_companies:
+                ticker = comp.get("ticker")
+                if ticker and ticker not in companies_map:
+                    companies_map[ticker] = comp
+            
             companies = list(companies_map.values())
             logger.info(f"Total tracked companies for ingestion: {len(companies)}")
             return companies
                 
         except Exception as e:
-            logger.error(f"Error getting tracked companies: {e}")
-            # Fallback to just CSV if DB fails
+            logger.error(f"Error getting tracked companies from BigQuery: {e}")
+            # Fallback to just CSV if BigQuery fails
             return self._load_companies_from_csv()
     
     def _load_companies_from_csv(self) -> List[Dict]:
