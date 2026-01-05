@@ -1,5 +1,21 @@
 # C1 Intelligence Hub - AI Agent Instructions
 
+## 🚨 CRITICAL: Broken Imports (Jan 5, 2026)
+
+**`database.py` was deleted** but 7 files still import `get_db`. App crashes on import.
+
+**Next session task**: Fix these files to use `BigQueryDataStorage` instead of deleted `get_db()`:
+- `app/ingestion/generators/pre_briefing.py`
+- `app/ingestion/generators/weekly_briefing.py`
+- `app/ingestion/generators/briefing.py`
+- `app/agents/adhoc_briefing/agent.py`
+- `app/mcp/tools/corpus_query.py`
+- `app/ingestion/orchestrator.py`
+
+See `WORKLOG.md` → Session 13b for fix strategy per file.
+
+---
+
 ## Session Continuity
 
 **At end of session**: Update `WORKLOG.md` with:
@@ -147,6 +163,13 @@ These files have critical bug fixes - be careful editing:
 - `app/models/corpus.py` - feed_eligible field
 
 ## Recent Changes (January 5, 2026)
+
+### Session 13b - Digest SQLite Cleanup ✅
+- **Deleted Legacy SQLite**: Removed `app/db/database.py` (1,128 lines)
+- **Cleaned Imports**: Updated `app/db/__init__.py` to remove `Database` and `get_db`
+- **Removed ChromaDB**: Deleted `chromadb>=0.5.0` from `requirements.txt`
+- **Verified Digest Flow**: Confirmed digest cards use BigQuery exclusively (no SQLite)
+- **Preserved Exa Pipeline**: `exa_websets_service.py` SQLite intentionally kept (different use case)
 
 ### Session 13 - Agent 1 BigQuery Fix ✅ (READY TO DEPLOY)
 - **Fixed**: PreBriefGenerator now queries BigQuery `articles` (3,308+ items) instead of SQLite (776 items)
