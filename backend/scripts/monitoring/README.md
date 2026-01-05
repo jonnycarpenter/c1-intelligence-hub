@@ -41,13 +41,16 @@ python scripts/monitoring/production_dashboard.py --detailed --days 3
 ## Data Sources Tracked
 
 The health check monitors these ingestion sources:
-- RSS feeds
-- SEC filings (10-K, 10-Q)
+- RSS feeds (14 industry feeds)
+- SEC filings (10-K, 10-Q, 8-K)
 - Earnings transcripts (API Ninja)
 - FMP Premium News (Benzinga, Seeking Alpha)
 - StockNews API
 - Exa.ai web search (91 queries)
 - Tavily web search (145 queries)
+- Drewry WCI freight rates
+
+For full ingestion pipeline documentation, see: `app/ingestion/README.md`
 
 ## Digest Data Quality Checks
 
