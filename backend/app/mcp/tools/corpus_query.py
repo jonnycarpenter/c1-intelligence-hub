@@ -4,7 +4,6 @@ These tools query cached/indexed intelligence content for faster retrieval
 without making external API calls. Available to ALL agents.
 
 Uses BigQuery as the primary data store with vector search capabilities.
-ChromaDB available as local development fallback.
 """
 
 import asyncio
@@ -91,7 +90,7 @@ def _format_corpus_item(item) -> dict:
 def _format_vector_result(result: dict) -> dict:
     """Format a vector search result for JSON output."""
     metadata = result.get("metadata", {})
-    # Handle both ChromaDB (source_name) and BigQuery (source_type) field names
+    # Handle both source_name and source_type field names
     source = metadata.get("source_name") or metadata.get("source_type", "")
     return {
         "id": result.get("id"),
@@ -153,7 +152,7 @@ def query_corpus(
     
     async def _query():
         db = get_db()
-        # Use production vector store (BigQuery in GCP, ChromaDB locally)
+        # Use BigQuery vector store
         vector_store = await get_production_vector_store()
         
         # Ensure database initialized
@@ -666,7 +665,7 @@ def get_market_signals(
         if vector_store.is_available:
             where = {"category": "market"}
             if parsed_industry:
-                # ChromaDB doesn't support contains, so we'll filter post-query
+                # Filter post-query for industry matching
                 pass
             
             vector_results = await vector_store.search(

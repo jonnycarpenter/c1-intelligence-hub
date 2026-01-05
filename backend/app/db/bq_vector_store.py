@@ -4,12 +4,15 @@ BigQuery Vector Store
 
 Production-ready vector search using BigQuery's native VECTOR_SEARCH.
 
-Benefits over ChromaDB:
-- Durable storage (no ephemeral container issues)
-- Scales automatically
+This is the ONLY vector store - all embeddings are stored in BigQuery.
+
+Features:
+- Durable storage with automatic backups
+- Scales automatically with BigQuery
 - Integrates with existing BigQuery data
 - Single source of truth for articles + embeddings
 - Supports hybrid search (metadata + semantic)
+- Uses Vertex AI for embeddings (text-embedding-005)
 
 Usage:
     store = BigQueryVectorStore()

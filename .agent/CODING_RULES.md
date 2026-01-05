@@ -30,6 +30,10 @@ from chromadb import Client
 # BigQuery is the ONLY database
 ```
 
+> **Note**: `app/db/database.py` still contains legacy SQLite code.
+> It's deprecated and should NOT be used for new features.
+> See `app/db/README.md` for the current architecture.
+
 ### 3. NEVER Create New Local Database Files
 
 ```
@@ -85,12 +89,21 @@ When you add a new file, update the appropriate README:
 ### 4. ALWAYS Use BigQuery for Data Storage
 
 ```python
-# ✅ CORRECT
-from app.db.bigquery_client import BigQueryClient
+# ✅ CORRECT - For article storage
+from app.db.gcp_storage import get_data_storage
 
-client = BigQueryClient()
-results = client.query("SELECT * FROM articles")
+storage = get_data_storage()  # Returns BigQueryDataStorage
+await storage.store_articles([...])
+
+# ✅ CORRECT - For vector search
+from app.db.vector_store import get_production_vector_store
+
+vs = get_production_vector_store()  # Returns BigQuery vector store
+results = await vs.similarity_search("query", k=10)
 ```
+
+> **GCP defaults are hardcoded** in `gcp_storage.py` and `settings.py`.
+> No env vars needed for production project/bucket.
 
 ---
 

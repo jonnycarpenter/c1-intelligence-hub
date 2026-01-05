@@ -175,8 +175,23 @@ gcloud scheduler jobs run daily-morning-ingest --location us-central1 --project 
 
 ### If data gap detected:
 ```bash
-# Run backfill with appropriate days
-# (Instructions in main documentation)
+# Run backfill scripts from backend directory
+cd backend
+python scripts/operations/backfill/backfill_sec_filings.py --days 6
+python scripts/operations/backfill/backfill_press_releases.py --days 6
+python scripts/operations/backfill/backfill_industry_queries.py --days 6
+```
+
+### If API keys missing from Cloud Run:
+```bash
+# Check which secrets are configured
+gcloud run services describe c1-hub --region us-central1 --format="yaml(spec.template.spec.containers[0].env)"
+
+# Add a missing secret (example for EXA_API_KEY)
+gcloud run services update c1-hub --region us-central1 --update-secrets="EXA_API_KEY=EXA_API_KEY:latest"
+
+# Verify secret exists in Secret Manager
+gcloud secrets list --format="table(name)"
 ```
 
 ### If dashboard script fails:

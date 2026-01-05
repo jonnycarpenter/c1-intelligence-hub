@@ -3,7 +3,7 @@ Corpus and Ingestion Data Models
 ================================
 
 Pydantic models for corpus items, digests, and ingestion tracking.
-These models are used both for API responses and SQLite storage.
+These models are used for API responses and BigQuery storage.
 """
 
 from datetime import datetime

@@ -162,6 +162,26 @@ c1-intelligence-hub_v2/
 | `FMP_API_KEY` | No | Financial Modeling Prep API key |
 | `ENVIRONMENT` | No | `development` or `production` |
 
+> **Note**: GCP project and bucket defaults are hardcoded in `backend/app/db/gcp_storage.py`
+> and `backend/app/config/settings.py`. The system works without env vars for GCP config.
+
+### Data Storage
+
+**BigQuery is the single source of truth.** All data flows to:
+- `gen-lang-client-0436975498.c1_intelligence.digest_items` - Classified articles
+- `gen-lang-client-0436975498.c1_intelligence.articles` - Raw articles with embeddings
+- `gen-lang-client-0436975498.c1_intelligence.ingestion_events` - Pipeline logs
+
+See `backend/app/db/README.md` for detailed documentation.
+
+#### SQLite Migration
+
+If you have legacy data in SQLite (from GCS bucket):
+```bash
+gsutil cp gs://gen-lang-client-0436975498-c1-hub-data/c1_corpus.db backend/data/
+cd backend && python migrate_sqlite_to_bq.py
+```
+
 ### Teams
 
 The app supports team-based memory and preferences:

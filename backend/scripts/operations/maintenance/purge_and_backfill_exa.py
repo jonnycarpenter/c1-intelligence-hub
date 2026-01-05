@@ -3,15 +3,16 @@ Selective Purge and Backfill Script for Exa.ai Migration
 
 This script:
 1. Purges ONLY web_news and press_release source types from:
-   - SQLite corpus_items table
    - BigQuery articles table  
    - BigQuery digest_items table
-   - ChromaDB vector store (matching source types)
+   - BigQuery vector store
 
 2. Runs a backfill from December 1, 2025 using the new Exa.ai client
    (which provides clean publishedDate values)
 
 3. Does NOT touch: SEC filings, RSS feeds, earnings transcripts
+
+NOTE: SQLite and ChromaDB have been removed - BigQuery is the only data store.
 
 Usage:
     python scripts/purge_and_backfill_exa.py --purge-only     # Just purge, no backfill

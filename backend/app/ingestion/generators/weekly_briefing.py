@@ -24,7 +24,7 @@ from anthropic import AsyncAnthropic
 from exa_py import Exa
 
 from app.db.database import get_db
-from app.db.vector_store import VectorStore
+from app.db.vector_store import get_production_vector_store
 from app.config.settings import settings
 from app.services.logo_service import logo_service, company_name_to_domain
 from app.utils.logger import get_logger
@@ -171,11 +171,10 @@ Otherwise, respond with the final briefing JSON:
                 logger.warning(f"Could not initialize BigQuery storage: {e}")
         return self._bq_storage
     
-    async def _get_vector_store(self) -> VectorStore:
-        """Get or initialize vector store."""
+    async def _get_vector_store(self):
+        """Get or initialize vector store (BigQuery-backed)."""
         if self._vector_store is None:
-            self._vector_store = VectorStore()
-            await self._vector_store.initialize()
+            self._vector_store = await get_production_vector_store()
         return self._vector_store
     
     async def _get_historical_context(self, limit: int = 2) -> str:
@@ -206,15 +205,12 @@ Otherwise, respond with the final briefing JSON:
         return "Error retrieving historical context."
     
     async def _get_latest_pre_brief(self) -> Optional[Dict[str, Any]]:
-        """Fetch the latest Agent 1 output."""
+        """Fetch the latest Agent 1 output from BigQuery."""
         try:
-            # Try SQLite first (faster for local dev)
-            pre_brief = await self.db.get_latest_pre_briefing()
-            if not pre_brief:
-                bq_storage = await self._get_bq_storage()
-                if bq_storage:
-                    pre_brief = await bq_storage.get_latest_pre_briefing()
-            return pre_brief
+            bq_storage = await self._get_bq_storage()
+            if bq_storage:
+                return await bq_storage.get_latest_pre_briefing()
+            return None
         except Exception as e:
             logger.error(f"Error fetching latest pre-brief: {e}")
             return None
@@ -516,20 +512,14 @@ Otherwise, respond with the final briefing JSON:
             return None
     
     async def _save_briefing(self, briefing: Dict[str, Any]):
-        """Save briefing to both SQLite and BigQuery."""
+        """Save briefing to BigQuery."""
         try:
-            # Save to SQLite (local)
-            await self.db.save_weekly_briefing(briefing)
-            logger.info("Saved weekly briefing to SQLite")
-        except Exception as e:
-            logger.error(f"Failed to save briefing to SQLite: {e}")
-        
-        try:
-            # Save to BigQuery (production)
             bq_storage = await self._get_bq_storage()
             if bq_storage:
                 await bq_storage.save_weekly_briefing(briefing)
                 logger.info("Saved weekly briefing to BigQuery")
+            else:
+                logger.warning("BigQuery storage not available - briefing not saved")
         except Exception as e:
             logger.error(f"Failed to save briefing to BigQuery: {e}")
 

@@ -314,3 +314,71 @@ User set up a Cloud Build trigger attached to the GitHub repo. This means:
 | Date extraction | ✅ Working (some dates found, some not - expected) |
 
 **Priority:** Investigate why SEC only tried one company before moving on.
+
+---
+
+## 11. FOLLOW-UP SESSION (Later January 4, 2026)
+
+### Root Cause: SQLite Fallback
+
+**Problem Discovered:** Data was being stored to SQLite instead of BigQuery.
+
+The `gcp_storage.py` had an `is_configured` property that checked for BOTH `project_id` AND `bucket_name`. If either was empty, the factory function fell back to `LocalDataStorage` (SQLite).
+
+**Investigation:** Found 21MB SQLite database in GCS bucket:
+```
+gs://gen-lang-client-0436975498-c1-hub-data/c1_corpus.db
+```
+
+This contained 776 articles that weren't making it to BigQuery.
+
+### Fixes Applied
+
+#### 1. Hardcoded GCP Defaults
+**Files:** `backend/app/db/gcp_storage.py`, `backend/app/config/settings.py`
+
+Added hardcoded defaults so the system ALWAYS uses BigQuery:
+```python
+_DEFAULT_PROJECT_ID = "gen-lang-client-0436975498"
+_DEFAULT_BUCKET_NAME = "gen-lang-client-0436975498-c1-hub-data"
+```
+
+#### 2. Removed ChromaDB Vector Store
+**File:** `backend/app/db/vector_store.py`
+
+Replaced 582 lines of ChromaDB code with a ~50 line thin wrapper that always returns BigQuery vector store.
+
+#### 3. Removed SQLite Fallback in Generators
+**Files:** 
+- `backend/app/ingestion/generators/weekly_briefing.py`
+- `backend/app/ingestion/generators/briefing.py`
+- `backend/app/agents/adhoc_briefing/agent.py`
+
+Removed conditional SQLite fallback logic.
+
+#### 4. Added Deprecation Warning
+**File:** `backend/app/db/gcp_storage.py`
+
+`LocalDataStorage` now prints deprecation warning if instantiated.
+
+### Migration Script
+
+Created `backend/migrate_sqlite_to_bq.py` to move data from SQLite -> BigQuery.
+
+**Results:**
+- 237 new rows inserted
+- 539 duplicates skipped (already in BQ)
+- 0 errors
+
+### Documentation Updated
+
+- Created `backend/app/db/README.md` - Documents the db layer
+- Updated `.agent/ARCHITECTURE.md` - Added ADR-005 for hardcoded GCP config
+- Updated `.agent/CODING_RULES.md` - Notes about deprecated database.py
+- Updated `README.md` - Added data storage section
+
+### Remaining Work
+
+1. **Deploy updated code** to Cloud Run
+2. **Re-run backfill** for lost ~1600 articles (will need to re-fetch from APIs)
+3. **Migrate remaining SQLite tables** (briefings, pre_briefings) - lower priority

@@ -5,7 +5,7 @@ Digest Service - Production Implementation
 Generates and manages intelligence digest items from real data sources.
 
 Data Flow:
-1. IngestionOrchestrator collects & classifies articles → stores in BigQuery/SQLite
+1. IngestionOrchestrator collects & classifies articles → stores in BigQuery
 2. DigestService queries stored digest items → serves to API
 
 Features:

@@ -128,8 +128,7 @@ class IngestionOrchestrator:
             )
             logger.info("Image enrichment service initialized")
         
-        # Vector Store Initialization
-        # Use factory to get the correct store for the environment (BigQuery in prod, Chroma in dev)
+        # Vector Store Initialization (BigQuery-backed)
         self.vector_store = await get_production_vector_store()
         
         # GCP Storage for digest_items table (feeds digest cards in UI)
@@ -729,7 +728,7 @@ class IngestionOrchestrator:
             companies_mentioned=classification.key_entities or [],
             relevance_score=classification.relevance_score,
             fetched_at=datetime.utcnow(),
-            metadata=article.raw_data or {},
+            # Note: metadata field removed - ArticleRecord doesn't support it and BQ table lacks the column
         )
 
     async def run_rss_only(self) -> IngestionStats:
@@ -1011,7 +1010,7 @@ class IngestionOrchestrator:
                     logger.error(f"BigQuery digest_items storage error: {e}")
                     stats.errors.append(f"BQ digest_items error: {str(e)[:100]}")
             
-            # Update vector store (ChromaDB)
+            # Update vector store (BigQuery)
             if vector_docs:
                 await self.vector_store.add_items(vector_docs)
             
@@ -1182,7 +1181,7 @@ class IngestionOrchestrator:
                     logger.error(f"BigQuery digest_items storage error: {e}")
                     stats.errors.append(f"BQ digest_items error: {str(e)[:100]}")
             
-            # Update vector store (ChromaDB)
+            # Update vector store (BigQuery)
             if vector_docs:
                 logger.info("Updating vector store...")
                 await self.vector_store.add_items(vector_docs)
@@ -1231,7 +1230,7 @@ class IngestionOrchestrator:
 
 
     async def _get_tracked_companies(self) -> List[Dict]:
-        """Get full company details from CSV and SQLite DB"""
+        """Get full company details from CSV and database"""
         companies_map = {}
         try:
             # 1. Load from master CSV file

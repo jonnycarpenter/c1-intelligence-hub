@@ -158,9 +158,8 @@ Respond with a JSON object:
         self.max_follow_ups = 2
     
     async def _get_vector_store(self):
-        """Get or initialize vector store."""
+        """Get or initialize vector store (BigQuery)."""
         if self._vector_store is None:
-            # Use production vector store factory to get correct instance (BQ vs Chroma)
             from app.db.vector_store import get_production_vector_store
             self._vector_store = await get_production_vector_store()
         return self._vector_store
@@ -401,17 +400,14 @@ Respond with JSON:
             }
     
     async def _save_adhoc_briefing(self, briefing: Dict[str, Any]):
-        """Save ad hoc briefing to storage (BigQuery or SQLite fallback)."""
+        """Save ad hoc briefing to BigQuery."""
         try:
             bq_storage = await self._get_bq_storage()
             if bq_storage:
                 await bq_storage.save_adhoc_briefing(briefing)
                 logger.info(f"Saved ad hoc briefing {briefing['id']} to BigQuery")
             else:
-                # SQLite fallback for local development
-                db = get_db()
-                await db.save_adhoc_briefing(briefing)
-                logger.info(f"Saved ad hoc briefing {briefing['id']} to SQLite")
+                logger.warning(f"BigQuery storage not available - briefing {briefing['id']} not saved")
         except Exception as e:
             logger.error(f"Failed to save ad hoc briefing: {e}")
     

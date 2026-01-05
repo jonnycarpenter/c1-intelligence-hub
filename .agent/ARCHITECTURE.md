@@ -136,6 +136,14 @@ app/mcp/tools/
 **Decision**: Never add new SQLite, ChromaDB, or similar local databases  
 **Rationale**: BigQuery handles all data needs, local DBs cause sync issues  
 
+### ADR-005: Hardcoded GCP Configuration Defaults
+**Date**: January 4, 2026  
+**Status**: Accepted  
+**Context**: Data was being lost to SQLite fallback when GCS_BUCKET_NAME env var was missing  
+**Decision**: Hardcode production GCP defaults in `gcp_storage.py` and `settings.py`  
+**Rationale**: Prevents silent fallback to SQLite; system always uses BigQuery even if env vars missing  
+**Values**: `project_id=gen-lang-client-0436975498`, `bucket=gen-lang-client-0436975498-c1-hub-data`  
+
 ---
 
 ## Adding New Components
@@ -169,5 +177,8 @@ app/mcp/tools/
 | `app/ingestion/orchestrator.py` | Ingestion pipeline coordinator |
 | `app/config/settings.py` | Environment configuration |
 | `app/db/bigquery_client.py` | BigQuery connection |
-| `app/services/gcp_storage.py` | GCS operations + feed_eligible logic |
+| `app/db/gcp_storage.py` | BigQuery + GCS storage (hardcoded defaults) |
+| `app/db/bq_vector_store.py` | Vector store with Vertex AI embeddings |
+| `app/db/vector_store.py` | Thin wrapper → always returns BigQuery |
 | `app/models/corpus.py` | Article model with feed_eligible field |
+| `migrate_sqlite_to_bq.py` | Migration script for legacy SQLite data |

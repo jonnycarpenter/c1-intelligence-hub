@@ -34,18 +34,23 @@ logger = get_logger(__name__)
 # =============================================================================
 # Configuration
 # =============================================================================
+# Production defaults - HARDCODED to prevent SQLite fallback
+# =============================================================================
+_DEFAULT_PROJECT_ID = "gen-lang-client-0436975498"
+_DEFAULT_BUCKET_NAME = "gen-lang-client-0436975498-c1-hub-data"
 
 @dataclass
 class GCPConfig:
     """GCP configuration settings."""
-    project_id: str = field(default_factory=lambda: os.getenv("GCP_PROJECT_ID", ""))
+    # Hardcoded production defaults ensure BigQuery is ALWAYS used
+    project_id: str = field(default_factory=lambda: os.getenv("GCP_PROJECT_ID", _DEFAULT_PROJECT_ID))
     dataset_id: str = field(default_factory=lambda: os.getenv("GCP_DATASET_ID", "c1_intelligence"))
-    bucket_name: str = field(default_factory=lambda: os.getenv("GCS_BUCKET_NAME", ""))
+    bucket_name: str = field(default_factory=lambda: os.getenv("GCS_BUCKET_NAME", _DEFAULT_BUCKET_NAME))
     location: str = field(default_factory=lambda: os.getenv("GCP_LOCATION", "us-central1"))
     
     @property
     def is_configured(self) -> bool:
-        """Check if GCP is properly configured."""
+        """Check if GCP is properly configured (always True with hardcoded defaults)."""
         return bool(self.project_id and self.bucket_name)
     
     @property
@@ -233,8 +238,13 @@ class DataStorageInterface:
 
 class LocalDataStorage(DataStorageInterface):
     """
-    Local SQLite storage for development.
-    Stores time-series data alongside the existing corpus database.
+    DEPRECATED: Local SQLite storage - NOT USED IN PRODUCTION.
+    
+    BigQuery is the ONLY storage backend. This class exists only for
+    backwards compatibility and should never be instantiated.
+    
+    If you see this class being used, it's a bug - check that
+    GCP_PROJECT_ID and GCS_BUCKET_NAME are set correctly.
     """
     
     def __init__(self, db_path: Optional[str] = None):
@@ -2769,15 +2779,20 @@ class BigQueryDataStorage(DataStorageInterface):
 
 def get_data_storage() -> DataStorageInterface:
     """
-    Get appropriate data storage backend based on environment.
+    Get appropriate data storage backend.
     
-    Returns BigQueryDataStorage if GCP is configured, otherwise LocalDataStorage.
+    With hardcoded production defaults, this should ALWAYS return BigQueryDataStorage.
+    LocalDataStorage (SQLite) should never be used in production.
     """
+    logger.info(f"GCP Config: project_id={gcp_config.project_id}, bucket={gcp_config.bucket_name}, is_configured={gcp_config.is_configured}")
+    
     if gcp_config.is_configured:
-        logger.info("Using BigQuery storage (GCP configured)")
+        logger.info("✅ Using BigQuery storage (GCP configured)")
         return BigQueryDataStorage(gcp_config)
     else:
-        logger.info("Using local SQLite storage (GCP not configured)")
+        # This should NEVER happen with hardcoded defaults
+        logger.critical("🚨 CRITICAL: Using local SQLite storage - DATA WILL NOT BE IN BIGQUERY!")
+        logger.critical(f"🚨 GCP Config check failed: project_id='{gcp_config.project_id}', bucket='{gcp_config.bucket_name}'")
         return LocalDataStorage()
 
 
@@ -2791,4 +2806,7 @@ async def get_storage() -> DataStorageInterface:
     if _storage_instance is None:
         _storage_instance = get_data_storage()
         await _storage_instance.initialize()
+        # Log storage type for verification
+        storage_type = type(_storage_instance).__name__
+        logger.info(f"Storage initialized: {storage_type}")
     return _storage_instance

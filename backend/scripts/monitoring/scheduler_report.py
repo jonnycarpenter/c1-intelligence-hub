@@ -460,7 +460,8 @@ def analyze_pipeline_steps(logs: List[Dict]) -> Dict:
         if match:
             steps["classified"] = int(match.group(1))
         
-        match = re.search(r"Added (\d+) items to ChromaDB", text)
+        # Vector store (BigQuery embeddings)
+        match = re.search(r"Added (\d+) items to (?:vector store|BigQuery)", text)
         if match:
             steps["stored_vectors"] = int(match.group(1))
         

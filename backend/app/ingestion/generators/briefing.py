@@ -260,11 +260,7 @@ Respond with JSON only:
                 **quality_metrics,
             }
             
-            # Save to SQLite (local)
-            await self.db.save_briefing(briefing_record)
-            logger.info(f"Saved briefing to SQLite for {category.value}")
-            
-            # Save to BigQuery (production)
+            # Save to BigQuery
             bq_storage = await self._get_bq_storage()
             if bq_storage:
                 try:
@@ -272,6 +268,8 @@ Respond with JSON only:
                     logger.info(f"Saved briefing to BigQuery for {category.value}")
                 except Exception as e:
                     logger.error(f"Failed to save briefing to BigQuery: {e}")
+            else:
+                logger.warning(f"BigQuery storage not available - briefing for {category.value} not saved")
             
             return briefing_record
             
