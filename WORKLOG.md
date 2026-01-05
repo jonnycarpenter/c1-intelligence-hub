@@ -4,6 +4,58 @@ This file tracks completed work and open items across AI assistant sessions.
 
 ---
 
+## Session 16 (January 5, 2026) - Cleanup Verification & Script Archive ✅
+
+### ✅ Completed
+
+1. **Verified Session 15 get_db Cleanup** 🎉
+   - Reviewed all 5 modified files: `briefing.py`, `orchestrator.py`, `classifier.py`, `linker.py`, `digest.py`
+   - Confirmed no `get_db` or `self.db` references in production code (`backend/app/**`)
+   - Confirmed `app/db/__init__.py` exports only BigQuery storage (no SQLite)
+   - Verified FastAPI app loads: `from app.main import app` ✅
+   - Verified MCP tools load: 48 tools ✅
+
+2. **Archived 10 Legacy Test Scripts** 📦
+   - Moved scripts that import deleted `app/db/database.py` to `backend/scripts/archive/`:
+     - `verify_enhancements.py`, `test_pulse_api.py`, `test_two_agent_pipeline.py`
+     - `test_briefing.py`, `purge_and_backfill_exa.py`, `purge_data.py`
+     - `load_companies.py`, `debug_entities.py`, `backfill_tags.py`, `check_data_sources.py`
+   - Updated `backend/scripts/archive/README.md` with documentation
+
+3. **Fixed Priority Case Normalization** ✅
+   - **Issue**: LLM returns mixed case (`"high"`, `"High"`, `"HIGH"`), but enum expects title case
+   - **Fix**: Added `.title()` normalization in `classifier.py` line 267
+   - **Result**: Future classifications will have consistent `"High"`, `"Medium"`, `"Low"` values
+   - **File**: [classifier.py](backend/app/ingestion/processing/classifier.py#L267-L268)
+
+4. **Codebase Health Verified** ✅
+   - No `database.py` imports remain in production code
+   - All remaining `database.py` imports are safely in `scripts/archive/`
+   - FastAPI + MCP tools load successfully
+
+### 📋 Verified Already Done
+
+- **Frontend 7-Day Filter**: Already implemented in `page.tsx` - uses `hours: 168` for pulse mode
+
+### 📋 Remaining Tech Debt (From Session 15)
+
+**CSV → BigQuery CRUD Migration** (Low Priority):
+| File | Current | Needed |
+|------|---------|--------|
+| `grounding.py` | BQ primary, CSV fallback | Remove CSV fallback |
+| `data_management.py` | Writes to CSV | Add BigQuery CRUD |
+| `data_preferences.py` | CSV CRUD | Add BigQuery CRUD |
+
+### 📋 Other Open Items (Medium-Low Priority)
+
+| Priority | Issue | Description |
+|----------|-------|-------------|
+| 🟡 Medium | **Ad-hoc Briefing Stateless** | `follow_up_count` resets per request - needs session management |
+| 🟢 Low | **Convert to Native Claude Tools** | Custom JSON → native Anthropic tool use |
+| 🟢 Low | **Domain Resolution Heuristics** | `company_name_to_domain()` guesses - could use lookup API |
+
+---
+
 ## Session 15 (January 5, 2026) - get_db Cleanup Complete ✅
 
 ### ✅ Completed

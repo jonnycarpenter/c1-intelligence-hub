@@ -263,7 +263,9 @@ Relevance Score Guidelines:
                 if i in [e.value for e in Industry]
             ]
             try:
-                priority = Priority(data.get("priority", "low"))
+                # Normalize priority to title case (e.g., "high" → "High", "LOW" → "Low")
+                raw_priority = data.get("priority", "low")
+                priority = Priority(raw_priority.title() if raw_priority else "Low")
             except ValueError:
                 priority = Priority.LOW
             
