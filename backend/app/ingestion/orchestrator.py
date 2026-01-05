@@ -203,11 +203,11 @@ class IngestionOrchestrator:
                 search_num_days = backfill_days
                 logger.info(f"Date filter: Backfill mode with {backfill_days} days lookback")
             else:
-                # Normal run: fetch recent (3 days for faster processing)
-                tier1_since = datetime.utcnow() - timedelta(days=3)
-                tier2_since = datetime.utcnow() - timedelta(days=3)
-                search_num_days = 3
-                logger.info(f"Date filter: Standard 3-day lookback")
+                # Normal run: 2-day lookback (1-day overlap buffer when running daily)
+                tier1_since = datetime.utcnow() - timedelta(days=2)
+                tier2_since = datetime.utcnow() - timedelta(days=2)
+                search_num_days = 2
+                logger.info(f"Date filter: Standard 2-day lookback")
             
             # Step 1b: Fetch Freight Rates (Drewry WCI)
             if "freight" in sources:

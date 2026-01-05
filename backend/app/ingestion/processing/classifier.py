@@ -292,7 +292,7 @@ Relevance Score Guidelines:
     async def classify_batch(
         self, 
         articles: List[RawArticle],
-        max_concurrent: int = 3
+        max_concurrent: int = 10
     ) -> List[Tuple[RawArticle, ClassificationResult]]:
         """Classify multiple articles with rate limiting"""
         semaphore = asyncio.Semaphore(max_concurrent)
@@ -300,7 +300,7 @@ Relevance Score Guidelines:
         async def classify_one(article: RawArticle) -> Tuple[RawArticle, ClassificationResult]:
             async with semaphore:
                 result = await self.classify(article)
-                await asyncio.sleep(0.5)
+                await asyncio.sleep(0.2)
                 return (article, result)
         
         tasks = [classify_one(article) for article in articles]
