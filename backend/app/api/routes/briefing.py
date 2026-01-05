@@ -149,6 +149,7 @@ class AdHocBriefingRequest(BaseModel):
     )
     is_follow_up: bool = Field(default=False, description="Whether this is a follow-up question")
     stream: bool = Field(default=False, description="Whether to stream the response")
+    session_id: Optional[str] = Field(default=None, description="Session ID for stateful conversation. Omit for new session.")
 
 
 class AdHocBriefingSourceUsed(BaseModel):
@@ -156,6 +157,17 @@ class AdHocBriefingSourceUsed(BaseModel):
     title: str
     url: Optional[str] = None
     relevance: Optional[str] = None
+
+
+class SessionInfo(BaseModel):
+    """Session state information returned with ad-hoc briefing responses."""
+    session_id: str
+    follow_up_count: int
+    max_follow_ups: int
+    turns_remaining: int
+    created_at: str
+    last_activity: str
+    history_length: int
 
 
 class AdHocBriefingResponse(BaseModel):
@@ -173,6 +185,9 @@ class AdHocBriefingResponse(BaseModel):
     generated_at: str
     model: Optional[str] = None
     error: Optional[str] = None
+    # Session management fields
+    session_id: Optional[str] = Field(default=None, description="Session ID for follow-up questions")
+    session: Optional[SessionInfo] = Field(default=None, description="Full session state")
 
 
 # =============================================================================
@@ -442,34 +457,44 @@ async def create_adhoc_briefing(request: AdHocBriefingRequest):
     - Fast response using Claude Haiku
     - Searches embedded articles (semantic search)
     - Context-aware of current brief and digest
-    - Max 2 follow-ups, then suggests Deep Research
+    - **Session-based follow-up tracking** - Max 2 follow-ups, then suggests Deep Research
     - Stores in adhoc_briefings BigQuery table
     
     Request body:
     - question: User's question (required)
     - context: {current_brief_headlines, current_brief_date, recent_digest_topics}
     - is_follow_up: Whether this is a follow-up question
-    - stream: Whether to stream the response (not implemented in this endpoint)
+    - session_id: Optional session ID for follow-up questions (omit for new session)
+    - stream: Whether to stream the response (use /adhoc/stream endpoint instead)
+    
+    Response includes:
+    - session_id: Use this for follow-up questions
+    - session: Full session state with follow_up_count and turns_remaining
     """
-    logger.info(f"Ad hoc briefing request: '{request.question[:50]}...' follow_up={request.is_follow_up}")
+    logger.info(f"Ad hoc briefing request: '{request.question[:50]}...' follow_up={request.is_follow_up} session={request.session_id}")
     
     try:
-        from app.agents.adhoc_briefing import AdHocBriefingAgent, BriefingContext
+        from app.agents.adhoc_briefing import AdHocBriefingAgent, BriefingContext, get_session_manager
+        
+        # Get or create session
+        session_manager = get_session_manager()
+        session = session_manager.get_or_create_session(request.session_id)
+        
+        logger.info(f"Using session {session.session_id} (follow_up_count={session.follow_up_count})")
         
         # Build context
         context = BriefingContext.from_dict(request.context)
         
-        # Get or create agent (in production, you'd want session management)
+        # Create agent and generate briefing with session
         agent = AdHocBriefingAgent()
-        
-        # Generate briefing
         result = await agent.generate_briefing(
             question=request.question,
             context=context,
             is_follow_up=request.is_follow_up,
+            session=session,
         )
         
-        logger.info(f"Ad hoc briefing generated: id={result.get('id')}, confidence={result.get('confidence')}")
+        logger.info(f"Ad hoc briefing generated: id={result.get('id')}, confidence={result.get('confidence')}, session={session.session_id}")
         
         return AdHocBriefingResponse(**result)
         
@@ -485,11 +510,28 @@ async def create_adhoc_briefing_stream(request: AdHocBriefingRequest):
     
     Returns a streaming response with chunks of the briefing as they're generated.
     Better UX for longer responses.
+    
+    Request body:
+    - question: User's question (required)
+    - context: {current_brief_headlines, current_brief_date, recent_digest_topics}
+    - is_follow_up: Whether this is a follow-up question
+    - session_id: Optional session ID for follow-up questions
+    
+    SSE events include:
+    - {"type": "content", "text": "..."} - Response text chunks
+    - {"type": "session_info", "session_id": "...", "follow_up_count": N, "turns_remaining": N} - Session state at end
+    - {"type": "redirect", ...} - Redirect to Deep Research
     """
-    logger.info(f"Ad hoc briefing stream request: '{request.question[:50]}...'")
+    logger.info(f"Ad hoc briefing stream request: '{request.question[:50]}...' session={request.session_id}")
     
     try:
-        from app.agents.adhoc_briefing import StreamingAdHocBriefingAgent, BriefingContext
+        from app.agents.adhoc_briefing import StreamingAdHocBriefingAgent, BriefingContext, get_session_manager
+        
+        # Get or create session
+        session_manager = get_session_manager()
+        session = session_manager.get_or_create_session(request.session_id)
+        
+        logger.info(f"Streaming with session {session.session_id} (follow_up_count={session.follow_up_count})")
         
         context = BriefingContext.from_dict(request.context)
         agent = StreamingAdHocBriefingAgent()
@@ -499,6 +541,7 @@ async def create_adhoc_briefing_stream(request: AdHocBriefingRequest):
                 question=request.question,
                 context=context,
                 is_follow_up=request.is_follow_up,
+                session=session,
             ):
                 yield f"data: {chunk}\n\n"
             yield "data: [DONE]\n\n"
@@ -542,6 +585,81 @@ async def get_adhoc_briefing_history(
     except Exception as e:
         logger.error(f"Error getting ad hoc briefing history: {e}")
         raise HTTPException(status_code=500, detail="Failed to retrieve briefing history")
+
+
+@router.get("/adhoc/session/{session_id}", response_model=Dict[str, Any])
+async def get_session_info(session_id: str):
+    """
+    Get information about a briefing session.
+    
+    Useful for:
+    - Checking how many follow-ups remain
+    - Viewing conversation history length
+    - Debugging session state
+    """
+    try:
+        from app.agents.adhoc_briefing import get_session_manager
+        
+        session_manager = get_session_manager()
+        session = session_manager.get_session(session_id)
+        
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found or expired")
+        
+        return session.to_dict()
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting session info: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve session")
+
+
+@router.delete("/adhoc/session/{session_id}")
+async def end_session(session_id: str):
+    """
+    End a briefing session explicitly.
+    
+    The session will also expire automatically after 30 minutes of inactivity.
+    """
+    try:
+        from app.agents.adhoc_briefing import get_session_manager
+        
+        session_manager = get_session_manager()
+        deleted = session_manager.delete_session(session_id)
+        
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Session not found")
+        
+        return {"message": "Session ended", "session_id": session_id}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error ending session: {e}")
+        raise HTTPException(status_code=500, detail="Failed to end session")
+
+
+@router.get("/adhoc/sessions/stats", response_model=Dict[str, Any])
+async def get_session_stats():
+    """
+    Get session manager statistics (admin/debug endpoint).
+    
+    Returns:
+    - total_sessions: Number of sessions in memory
+    - active_sessions: Non-expired sessions
+    - max_sessions: Maximum allowed sessions (LRU eviction after)
+    - ttl_minutes: Session timeout in minutes
+    """
+    try:
+        from app.agents.adhoc_briefing import get_session_manager
+        
+        session_manager = get_session_manager()
+        return session_manager.get_stats()
+        
+    except Exception as e:
+        logger.error(f"Error getting session stats: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve stats")
 
 
 # =============================================================================

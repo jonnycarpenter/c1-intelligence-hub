@@ -94,7 +94,14 @@ export function useWeeklyBriefing() {
 }
 
 /**
- * Hook for ad hoc quick briefings
+ * Hook for ad hoc quick briefings with session-based conversation tracking.
+ * 
+ * Session management:
+ * - First request creates a new session (session_id returned in response)
+ * - Subsequent requests use the same session_id for follow-up tracking
+ * - Max 2 follow-ups before redirect to Deep Research
+ * - Session expires after 30 minutes of inactivity
+ * - Call reset() to start a new session
  */
 export function useAdHocBriefing() {
     const [response, setResponse] = useState<AdHocBriefing | null>(null)
@@ -104,6 +111,8 @@ export function useAdHocBriefing() {
     const [error, setError] = useState<Error | null>(null)
     const [isTimeout, setIsTimeout] = useState(false)
     const [followUpCount, setFollowUpCount] = useState(0)
+    const [sessionId, setSessionId] = useState<string | null>(null)
+    const [turnsRemaining, setTurnsRemaining] = useState(2)
 
     const askQuestion = useCallback(async (
         question: string,
@@ -118,11 +127,21 @@ export function useAdHocBriefing() {
                 question,
                 context,
                 is_follow_up: isFollowUp,
+                session_id: sessionId ?? undefined,  // Pass existing session_id if we have one
             })
             setResponse(data)
+            
+            // Update session state from response
+            if (data.session_id) {
+                setSessionId(data.session_id)
+            }
             if (data.follow_up_count !== undefined) {
                 setFollowUpCount(data.follow_up_count)
             }
+            if (data.session?.turns_remaining !== undefined) {
+                setTurnsRemaining(data.session.turns_remaining)
+            }
+            
             return data
         } catch (err) {
             const error = err instanceof Error ? err : new Error('Failed to create briefing')
@@ -133,7 +152,7 @@ export function useAdHocBriefing() {
         } finally {
             setIsLoading(false)
         }
-    }, [])
+    }, [sessionId])
 
     const streamQuestion = useCallback(async (
         question: string,
@@ -150,6 +169,7 @@ export function useAdHocBriefing() {
                 question,
                 context,
                 is_follow_up: isFollowUp,
+                session_id: sessionId ?? undefined,  // Pass existing session_id if we have one
             })
 
             if (!stream) {
@@ -179,6 +199,17 @@ export function useAdHocBriefing() {
                             if (parsed.type === 'content') {
                                 fullText += parsed.text
                                 setStreamedText(fullText)
+                            } else if (parsed.type === 'session_info') {
+                                // Update session state from streaming response
+                                if (parsed.session_id) {
+                                    setSessionId(parsed.session_id)
+                                }
+                                if (parsed.follow_up_count !== undefined) {
+                                    setFollowUpCount(parsed.follow_up_count)
+                                }
+                                if (parsed.turns_remaining !== undefined) {
+                                    setTurnsRemaining(parsed.turns_remaining)
+                                }
                             } else if (parsed.type === 'redirect') {
                                 setResponse({
                                     id: '',
@@ -189,9 +220,10 @@ export function useAdHocBriefing() {
                                     suggest_deep_research: true,
                                     deep_research_query: parsed.deep_research_query,
                                     related_topics: [],
-                                    follow_up_count: followUpCount,
+                                    follow_up_count: parsed.follow_up_count ?? followUpCount,
                                     redirect_to_deep_research: true,
                                     generated_at: new Date().toISOString(),
+                                    session_id: parsed.session_id,
                                 })
                             }
                         } catch {
@@ -213,12 +245,14 @@ export function useAdHocBriefing() {
         } finally {
             setIsStreaming(false)
         }
-    }, [followUpCount])
+    }, [sessionId, followUpCount])
 
     const reset = useCallback(() => {
         setResponse(null)
         setStreamedText('')
         setFollowUpCount(0)
+        setSessionId(null)  // Clear session to start fresh
+        setTurnsRemaining(2)
         setError(null)
         setIsTimeout(false)
     }, [])
@@ -231,6 +265,8 @@ export function useAdHocBriefing() {
         error,
         isTimeout,
         followUpCount,
+        sessionId,        // Expose session ID for debugging/display
+        turnsRemaining,   // How many follow-ups left before redirect
         askQuestion,
         streamQuestion,
         reset,

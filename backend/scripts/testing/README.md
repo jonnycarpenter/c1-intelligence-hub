@@ -16,6 +16,7 @@ Ad-hoc test scripts for development and debugging.
 - `test_two_agent_pipeline.py` - Test briefing agent pipeline
 - `test_prebriefing_bq.py` - Test pre-briefing BigQuery integration
 - `check_lowium_bug.py` - Check digest priority value distribution
+- `test_briefing_sessions.py` - Test ad-hoc briefing session management
 
 ## Usage
 

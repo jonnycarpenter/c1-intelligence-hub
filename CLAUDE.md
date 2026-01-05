@@ -74,6 +74,7 @@ When adding a new API key/secret:
 | **Vector store (semantic search)** | `app/db/bq_vector_store.py` |
 | Deduplication service | `app/ingestion/processing/deduplication.py` |
 | Environment config | `app/config/settings.py` |
+| **Ad-hoc briefing session manager** | `app/agents/adhoc_briefing/session_manager.py` |
 | **Pre-Brief Generator (Agent 1)** | `app/ingestion/generators/pre_briefing.py` |
 | **Weekly Briefing Generator (Agent 2)** | `app/ingestion/generators/weekly_briefing.py` |
 
@@ -147,6 +148,13 @@ These files have critical bug fixes - be careful editing:
 - `app/models/corpus.py` - feed_eligible field
 
 ## Recent Changes (January 5, 2026)
+
+### Session 17 - Ad-Hoc Briefing Session Management ✅
+- **Fixed Stateless Issue**: Ad-hoc briefing `follow_up_count` now persists across requests
+- **Session Manager**: In-memory TTL cache (30-min expiry, max 1000 sessions) in `app/agents/adhoc_briefing/session_manager.py`
+- **API Updates**: New endpoints for session info (`GET /adhoc/session/{id}`), deletion, and stats
+- **Frontend Updates**: `useBriefing` hook tracks `sessionId` and `turnsRemaining`
+- **Result**: "Max 2 follow-ups then redirect to Deep Research" logic now works correctly
 
 ### Session 14 - Digest System Investigation ✅
 - **"Lowium" Bug**: Investigated and confirmed resolved (0 items found)

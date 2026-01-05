@@ -225,6 +225,7 @@ export default function AdHocBriefing({
     error,
     isTimeout,
     followUpCount,
+    turnsRemaining,
     askQuestion,
     reset
   } = useAdHocBriefing()
@@ -282,16 +283,26 @@ export default function AdHocBriefing({
           </button>
         </form>
 
-        {/* Follow-up indicator */}
-        {followUpCount > 0 && followUpCount < 2 && (
+        {/* Follow-up indicator - shows remaining turns from server-side session */}
+        {response && turnsRemaining > 0 && (
           <div className="px-3 pb-2 flex items-center gap-2 text-xs text-slate-400">
-            <span>Follow-up {followUpCount}/2</span>
+            <span>
+              {turnsRemaining === 2 
+                ? "2 follow-ups available" 
+                : `${turnsRemaining} follow-up remaining`}
+            </span>
             <button
               onClick={handleNewQuestion}
               className="text-amber-600 hover:text-amber-700 font-medium"
             >
-              Start new question
+              Start new conversation
             </button>
+          </div>
+        )}
+        {response && turnsRemaining === 0 && (
+          <div className="px-3 pb-2 flex items-center gap-2 text-xs text-amber-600">
+            <Sparkles size={12} />
+            <span>Follow-up limit reached. Use Deep Research for more detailed analysis.</span>
           </div>
         )}
       </div>

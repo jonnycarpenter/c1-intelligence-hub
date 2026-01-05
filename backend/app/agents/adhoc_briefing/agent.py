@@ -20,11 +20,14 @@ Design Principles:
 import uuid
 import json
 from datetime import datetime, timedelta
-from typing import List, Dict, Any, Optional, AsyncIterator
+from typing import List, Dict, Any, Optional, AsyncIterator, TYPE_CHECKING
 from anthropic import AsyncAnthropic
 
 from app.config.settings import settings
 from app.utils.logger import get_logger
+
+if TYPE_CHECKING:
+    from .session_manager import BriefingSession
 
 logger = get_logger(__name__)
 
@@ -243,6 +246,7 @@ Respond with a JSON object:
         question: str,
         context: BriefingContext,
         is_follow_up: bool = False,
+        session: Optional["BriefingSession"] = None,
     ) -> Dict[str, Any]:
         """
         Generate an ad hoc briefing response.
@@ -251,16 +255,28 @@ Respond with a JSON object:
             question: User's question
             context: Structured context from current brief/digest
             is_follow_up: Whether this is a follow-up question
+            session: Optional session for stateful conversation tracking
         
         Returns:
             Briefing response with answer, sources, and metadata
         """
-        # Check follow-up limit
-        if is_follow_up:
-            self.follow_up_count += 1
+        # Use session state if available, otherwise fall back to instance state
+        if session:
+            if is_follow_up:
+                session.increment_follow_up()
+            follow_up_count = session.follow_up_count
+            should_redirect = session.should_redirect_to_deep_research()
+            # Add question to conversation history
+            session.add_to_history("user", question)
+        else:
+            # Legacy behavior for backward compatibility
+            if is_follow_up:
+                self.follow_up_count += 1
+            follow_up_count = self.follow_up_count
+            should_redirect = self._should_redirect_to_deep_research()
         
-        if self._should_redirect_to_deep_research():
-            return {
+        if should_redirect:
+            redirect_response = {
                 "id": str(uuid.uuid4()),
                 "question": question,
                 "answer": (
@@ -271,8 +287,13 @@ Respond with a JSON object:
                 "sources_used": [],
                 "redirect_to_deep_research": True,
                 "deep_research_query": question,
+                "follow_up_count": follow_up_count,
                 "generated_at": datetime.utcnow().isoformat(),
             }
+            if session:
+                redirect_response["session_id"] = session.session_id
+                redirect_response["session"] = session.to_dict()
+            return redirect_response
         
         # Build search query by incorporating active filters if relevant
         search_query = question
@@ -314,14 +335,20 @@ Respond with a JSON object:
             for r in search_results[:5]
         ])
         
+        # Include conversation history if session exists
+        conversation_context = ""
+        if session and session.conversation_history:
+            conversation_context = f"\n\n{session.get_conversation_context()}\n"
+        
         full_prompt = f"""{context_string}
-
+{conversation_context}
 {search_context}
 
 User Question: {question}
 
 Based on the above context and search results, provide a focused briefing response.
 Be concise and cite sources. If the information is limited, acknowledge it.
+{f"This is follow-up #{follow_up_count} in this conversation. You have {max(0, (session.max_follow_ups if session else self.max_follow_ups) - follow_up_count)} follow-ups remaining before redirect to Deep Research." if is_follow_up else ""}
 
 Respond with JSON:
 {{
@@ -351,10 +378,11 @@ Respond with JSON:
             data = json.loads(result_text)
             
             # Build response record
+            answer_text = data.get("answer", "")
             briefing_response = {
                 "id": str(uuid.uuid4()),
                 "question": question,
-                "answer": data.get("answer", ""),
+                "answer": answer_text,
                 "sources_used": data.get("sources_used", []),
                 "confidence": data.get("confidence", "medium"),
                 "suggest_deep_research": data.get("suggest_deep_research", False),
@@ -365,10 +393,17 @@ Respond with JSON:
                     "digest_topics_count": len(context.recent_digest_topics),
                 },
                 "search_results_count": len(search_results),
-                "follow_up_count": self.follow_up_count,
+                "follow_up_count": follow_up_count,
                 "generated_at": datetime.utcnow().isoformat(),
                 "model": self.model,
             }
+            
+            # Add session info if available
+            if session:
+                briefing_response["session_id"] = session.session_id
+                briefing_response["session"] = session.to_dict()
+                # Add response to conversation history
+                session.add_to_history("assistant", answer_text)
             
             # Save to storage
             await self._save_adhoc_briefing(briefing_response)
@@ -431,21 +466,39 @@ class StreamingAdHocBriefingAgent(AdHocBriefingAgent):
         question: str,
         context: BriefingContext,
         is_follow_up: bool = False,
+        session: Optional["BriefingSession"] = None,
     ) -> AsyncIterator[str]:
         """
         Stream an ad hoc briefing response.
         
         Yields chunks of the response as they're generated.
-        """
-        # Check follow-up limit first
-        if is_follow_up:
-            self.follow_up_count += 1
         
-        if self._should_redirect_to_deep_research():
+        Args:
+            question: User's question
+            context: Structured context from current brief/digest
+            is_follow_up: Whether this is a follow-up question
+            session: Optional session for stateful conversation tracking
+        """
+        # Use session state if available
+        if session:
+            if is_follow_up:
+                session.increment_follow_up()
+            follow_up_count = session.follow_up_count
+            should_redirect = session.should_redirect_to_deep_research()
+            session.add_to_history("user", question)
+        else:
+            if is_follow_up:
+                self.follow_up_count += 1
+            follow_up_count = self.follow_up_count
+            should_redirect = self._should_redirect_to_deep_research()
+        
+        if should_redirect:
             yield json.dumps({
                 "type": "redirect",
                 "message": "For deeper analysis, please use the Deep Research feature.",
                 "deep_research_query": question,
+                "follow_up_count": follow_up_count,
+                "session_id": session.session_id if session else None,
             })
             return
         
@@ -456,6 +509,7 @@ class StreamingAdHocBriefingAgent(AdHocBriefingAgent):
             yield json.dumps({
                 "type": "no_results",
                 "message": "No relevant articles found. Try Deep Research for more sources.",
+                "session_id": session.session_id if session else None,
             })
             return
         
@@ -466,15 +520,21 @@ class StreamingAdHocBriefingAgent(AdHocBriefingAgent):
             for r in search_results[:5]
         ])
         
+        # Include conversation history if session exists
+        conversation_context = ""
+        if session and session.conversation_history:
+            conversation_context = f"\n\n{session.get_conversation_context()}\n"
+        
         full_prompt = f"""{context_string}
-
+{conversation_context}
 {search_context}
 
 User Question: {question}
 
 Provide a focused briefing response. Be concise and cite sources."""
 
-        # Stream response
+        # Stream response and collect full text for history
+        full_response = ""
         async with self.client.messages.stream(
             model=self.model,
             max_tokens=1500,
@@ -483,7 +543,21 @@ Provide a focused briefing response. Be concise and cite sources."""
             messages=[{"role": "user", "content": full_prompt}]
         ) as stream:
             async for text in stream.text_stream:
-                yield text
+                full_response += text
+                yield json.dumps({"type": "content", "text": text})
+        
+        # Save response to conversation history
+        if session and full_response:
+            session.add_to_history("assistant", full_response)
+        
+        # Emit session info at end
+        if session:
+            yield json.dumps({
+                "type": "session_info",
+                "session_id": session.session_id,
+                "follow_up_count": session.follow_up_count,
+                "turns_remaining": max(0, session.max_follow_ups - session.follow_up_count),
+            })
 
 
 # =============================================================================

@@ -137,6 +137,10 @@ c1-intelligence-hub_v2/
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/briefing/adhoc` | POST | Stream ad-hoc briefing (SSE) |
+| `/api/briefing/adhoc/stream` | POST | Alternative streaming endpoint |
+| `/api/briefing/adhoc/session/{id}` | GET | Get session info (follow-up count, etc.) |
+| `/api/briefing/adhoc/session/{id}` | DELETE | End/delete a session |
+| `/api/briefing/adhoc/sessions/stats` | GET | Session manager statistics |
 | `/api/research/start` | POST | Start deep research workflow |
 | `/api/research/stream/{id}` | GET | Stream research progress |
 | `/api/memory/log` | GET/POST | Long-term memory CRUD |

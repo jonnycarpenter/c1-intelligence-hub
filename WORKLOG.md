@@ -4,6 +4,66 @@ This file tracks completed work and open items across AI assistant sessions.
 
 ---
 
+## Session 17 (January 5, 2026) - Ad-Hoc Briefing Session Management ✅
+
+### ✅ Completed
+
+1. **Implemented Session-Based State Management** 🎉
+   - **Problem**: `AdHocBriefingAgent()` was instantiated fresh per API request, so `follow_up_count` always reset to 0
+   - **Solution**: In-memory session storage with TTL cache and LRU eviction
+   - **Result**: Follow-up tracking now persists across requests; "max 2 follow-ups then redirect to Deep Research" works correctly
+
+2. **New Backend Files** 📁
+   - **[session_manager.py](backend/app/agents/adhoc_briefing/session_manager.py)**: 
+     - `BriefingSession` dataclass (session_id, follow_up_count, conversation_history, timestamps)
+     - `BriefingSessionManager` singleton with LRU OrderedDict
+     - 30-minute TTL, max 1000 concurrent sessions
+     - Methods: `create_session()`, `get_session()`, `get_or_create_session()`, `delete_session()`, `cleanup_expired()`, `get_stats()`
+
+3. **Updated Backend Files** ✏️
+   - **[agent.py](backend/app/agents/adhoc_briefing/agent.py)**: 
+     - Added `session: Optional[BriefingSession]` parameter to `generate_briefing()` and `generate_briefing_stream()`
+     - Uses session state for follow_up_count (falls back to instance state for backward compatibility)
+     - Adds conversation history to session, injects into prompts for context
+     - Returns `session_id` and `session` dict in responses
+   - **[briefing.py](backend/app/api/routes/briefing.py)**:
+     - Added `session_id: Optional[str]` to `AdHocBriefingRequest`
+     - Updated `/adhoc` POST and `/adhoc/stream` POST to use session manager
+     - New endpoints: `GET /adhoc/session/{session_id}`, `DELETE /adhoc/session/{session_id}`, `GET /adhoc/sessions/stats`
+
+4. **Updated Frontend Files** 🖥️
+   - **[briefing.ts](frontend/src/types/briefing.ts)**: Added `BriefingSessionInfo` interface, `session_id` fields
+   - **[api.ts](frontend/src/lib/api.ts)**: Added `session_id` parameter to `createAdHocBriefing()` and `streamAdHocBriefing()`
+   - **[useBriefing.ts](frontend/src/hooks/useBriefing.ts)**: Track `sessionId` and `turnsRemaining` state, pass to API
+   - **[AdHocBriefing.tsx](frontend/src/components/dashboard/AdHocBriefing.tsx)**: Display server-side `turnsRemaining`
+
+5. **Testing** ✅
+   - Created [test_briefing_sessions.py](backend/scripts/testing/test_briefing_sessions.py) with 7 comprehensive tests
+   - All tests pass: session creation, retrieval, follow-up tracking, conversation history, cleanup, stats, agent integration
+   - Frontend build verified: `npm run build` ✓
+   - Backend imports verified: 48 MCP tools loaded ✓
+
+### 📋 Design Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| In-memory storage | Simple, no additional infrastructure; sessions are ephemeral anyway |
+| 30-min TTL | Balance between user convenience and memory usage |
+| 1000 session max | LRU eviction prevents unbounded memory growth |
+| Session ID in request/response | Stateless API design; client manages session continuity |
+| Backward compatible agent | `session` parameter is optional; old code still works |
+
+### 📋 Remaining Tech Debt (Updated)
+
+| Priority | Issue | Description |
+|----------|-------|-------------|
+| ~~🟡 Medium~~ | ~~Ad-hoc Briefing Stateless~~ | ✅ **FIXED** - Session management implemented |
+| 🟢 Low | **Convert to Native Claude Tools** | Custom JSON → native Anthropic tool use |
+| 🟢 Low | **Domain Resolution Heuristics** | `company_name_to_domain()` guesses - could use lookup API |
+| 🟢 Low | **CSV → BigQuery CRUD Migration** | `grounding.py` CSV fallback removal |
+
+---
+
 ## Session 16 (January 5, 2026) - Cleanup Verification & Script Archive ✅
 
 ### ✅ Completed

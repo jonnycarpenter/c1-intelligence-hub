@@ -84,12 +84,26 @@ export interface AdHocBriefingRequest {
   context?: AdHocBriefingContext
   is_follow_up?: boolean
   stream?: boolean
+  session_id?: string  // Optional session ID for follow-up questions
 }
 
 export interface AdHocSourceUsed {
   title: string
   url?: string
   relevance?: string
+}
+
+/**
+ * Session state for stateful ad-hoc briefing conversations
+ */
+export interface BriefingSessionInfo {
+  session_id: string
+  follow_up_count: number
+  max_follow_ups: number
+  turns_remaining: number
+  created_at: string
+  last_activity: string
+  history_length: number
 }
 
 export interface AdHocBriefing {
@@ -106,6 +120,9 @@ export interface AdHocBriefing {
   generated_at: string
   model?: string
   error?: string
+  // Session management fields
+  session_id?: string
+  session?: BriefingSessionInfo
 }
 
 // =============================================================================

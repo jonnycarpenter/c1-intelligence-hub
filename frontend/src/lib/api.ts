@@ -314,6 +314,9 @@ class ApiClient {
 
   /**
    * Generate an ad hoc briefing from a user question
+   * 
+   * @param request.session_id - Optional session ID for follow-up questions.
+   *   First request returns a session_id, pass it in subsequent requests for stateful conversation.
    */
   async createAdHocBriefing(request: {
     question: string
@@ -324,6 +327,7 @@ class ApiClient {
       active_filters?: string[]
     }
     is_follow_up?: boolean
+    session_id?: string
   }): Promise<any> {
     // Create AbortController for timeout
     const controller = new AbortController()
@@ -356,6 +360,8 @@ class ApiClient {
 
   /**
    * Stream an ad hoc briefing response
+   * 
+   * @param request.session_id - Optional session ID for follow-up questions.
    */
   async streamAdHocBriefing(request: {
     question: string
@@ -366,6 +372,7 @@ class ApiClient {
       active_filters?: string[]
     }
     is_follow_up?: boolean
+    session_id?: string
   }): Promise<ReadableStream<Uint8Array> | null> {
     // Create AbortController for timeout
     const controller = new AbortController()
