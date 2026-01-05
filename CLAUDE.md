@@ -74,6 +74,38 @@ When adding a new API key/secret:
 | **Vector store (semantic search)** | `app/db/bq_vector_store.py` |
 | Deduplication service | `app/ingestion/processing/deduplication.py` |
 | Environment config | `app/config/settings.py` |
+| **Pre-Brief Generator (Agent 1)** | `app/ingestion/generators/pre_briefing.py` |
+| **Weekly Briefing Generator (Agent 2)** | `app/ingestion/generators/weekly_briefing.py` |
+
+## Weekly Briefing Pipeline (2-Agent Architecture)
+
+The weekly "Need to Know" executive briefing uses a 2-agent pipeline:
+
+```
+Agent 1 (Pre-Brief)              Agent 2 (Synthesis)
+claude-sonnet-4-5                 claude-opus-4-5
+        │                               │
+        ▼                               ▼
+┌─────────────────┐            ┌─────────────────┐
+│ Analyze 50 most │            │ Compare against │
+│ recent articles │ ────────►  │ historical ctx  │
+│ from 14 days    │            │ + Exa search    │
+└─────────────────┘            └─────────────────┘
+        │                               │
+        ▼                               ▼
+  Pre-Brief JSON              Final Briefing JSON
+  (observations,              (sections, BLUF,
+   signal_types)               source_articles)
+```
+
+**Key Features:**
+- **Source Articles**: Each section includes `source_articles[]` with clickable links
+- **BLUF**: "Bottom Line Up Front" single-sentence summary
+- **Inline Logos**: `[[Company Name]]` tags render with Logo.dev images
+- **Net New vs Continuing**: Badges show if topic is new or continuing from prior weeks
+- **Exa Peripheral Search**: Agent 2 can search for adjacent intelligence
+
+**Schedule**: Monday 8:30 AM CST via Cloud Scheduler (`weekly-executive-briefing` job)
 
 ## Key BigQuery Tables
 
@@ -92,6 +124,15 @@ These files have critical bug fixes - be careful editing:
 - `app/models/corpus.py` - feed_eligible field
 
 ## Recent Changes (January 5, 2026)
+
+### Session 10 - Source Articles & BLUF ✅
+- **Source Articles Now Linked**: Citations `[1]`, `[2]`, `[Exa:N]` in briefings now have clickable links
+  - Added `_extract_citation_numbers()` to parse citations from text
+  - Each section includes `source_articles[]` array for the frontend
+- **BLUF Rendered**: "Bottom Line Up Front" now displays in briefing header
+  - Added `bluf` field to TypeScript types
+  - Styled callout in `WeeklyBriefingSection.tsx`
+- **Documentation**: Added generators README, updated CLAUDE.md with pipeline docs
 
 ### Session 9 - Logo.dev Fix & Briefing Review ✅
 - **Logo.dev Integration Fixed**: Secret had trailing `\r` causing URL parsing error. Recreated clean secret.
