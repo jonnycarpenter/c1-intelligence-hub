@@ -31,10 +31,24 @@ def print_banner(text: str, char: str = "="):
     print(char * 80)
     print()
 
-def run_script(script_name: str, args: list = None, timeout: int = 300) -> bool:
-    """Run a Python script and return success status."""
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    script_path = os.path.join(script_dir, script_name)
+def run_script(script_name: str, args: list = None, timeout: int = 300, subdir: str = None) -> bool:
+    """Run a Python script and return success status.
+    
+    Args:
+        script_name: Name of the script file
+        args: Command line arguments to pass
+        timeout: Max seconds to wait (default 5 min)
+        subdir: Subdirectory relative to scripts/ (e.g., 'health', 'monitoring')
+    """
+    # Get the scripts directory (parent of monitoring/)
+    monitoring_dir = os.path.dirname(os.path.abspath(__file__))
+    scripts_dir = os.path.dirname(monitoring_dir)
+    
+    if subdir:
+        script_path = os.path.join(scripts_dir, subdir, script_name)
+    else:
+        # Default to same directory (monitoring/)
+        script_path = os.path.join(monitoring_dir, script_name)
     
     if not os.path.exists(script_path):
         print(f"⚠️  Warning: {script_name} not found at {script_path}")
@@ -46,7 +60,7 @@ def run_script(script_name: str, args: list = None, timeout: int = 300) -> bool:
     
     try:
         # Run with timeout (default 5 minutes)
-        result = subprocess.run(cmd, cwd=script_dir, timeout=timeout)
+        result = subprocess.run(cmd, cwd=os.path.dirname(script_path), timeout=timeout)
         return result.returncode == 0
     except subprocess.TimeoutExpired:
         print(f"❌ Error: {script_name} timed out after {timeout} seconds")
@@ -111,7 +125,7 @@ Examples:
     print("   (This verifies actual data landed, not just logs)")
     print()
     
-    health_check_ok = run_script("ingestion_health_check.py", [f"--days={args.days}"])
+    health_check_ok = run_script("ingestion_health_check.py", [f"--days={args.days}"], subdir="health")
     
     if not health_check_ok:
         print()

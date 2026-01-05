@@ -34,8 +34,9 @@ from app.ingestion.processing import WebScraper, ContentClassifier, EntityLinker
 from app.ingestion.generators import DigestGenerator, BriefingGenerator
 from app.tools.press_releases.collector import PressReleaseCollector
 from app.tools.sec_filings.collector import SECFilingCollector
-from app.tools.earnings.collector import EarningsCollector
 from app.tools.stocknews.collector import StockNewsCollector
+from app.tools.fmp_news.collector import FMPNewsCollector
+from app.tools.earnings.collector import EarningsCollector
 from app.models.corpus import RawArticle
 from app.ingestion.freight.drewry_scraper import DrewryScraper
 
@@ -50,6 +51,7 @@ class IngestionConfig:
     sec_api_key: str = field(default_factory=lambda: settings.sec_api_key or os.getenv("SEC_IO_KEY", ""))
     api_ninja_key: str = field(default_factory=lambda: settings.api_ninja_key or os.getenv("API_NINJA_KEY", ""))
     stocknews_api_key: str = field(default_factory=lambda: settings.stocknews_api_key or os.getenv("STOCKNEWS_API_KEY", ""))
+    fmp_api_key: str = field(default_factory=lambda: settings.fmp_api_key or os.getenv("FMP_API_KEY", ""))
     
     # Ingestion Settings
     max_articles_per_feed: int = 20
@@ -83,8 +85,9 @@ class IngestionOrchestrator:
         self.rss_fetcher = RSSFetcher(config)
         self.pr_collector = PressReleaseCollector()
         self.sec_collector = SECFilingCollector()
-        self.earnings_collector = EarningsCollector()
+        self.earnings_collector = EarningsCollector()  # API Ninja earnings transcripts
         self.stocknews_collector = StockNewsCollector(api_key=config.stocknews_api_key)
+        self.fmp_news_collector = FMPNewsCollector(api_key=config.fmp_api_key)
         self.drewry_scraper = DrewryScraper()
         
         self.scraper = WebScraper()
@@ -103,18 +106,25 @@ class IngestionOrchestrator:
         """Initialize all components"""
         logger.info("Initializing ingestion orchestrator...")
         
+        # Legacy SQLite DB - ONLY used for classifier/entity_linker entity loading
+        # TODO: Migrate list_entities to BigQuery and remove this dependency
         from app.db.database import get_db
         self.db = get_db()
         
-        # Services needing DB
-        self.dedup_service = DeduplicationService(self.db)
+        # Deduplication Service - NOW USES BIGQUERY (no SQLite)
+        self.dedup_service = DeduplicationService()  # Will auto-initialize with BigQuery storage
+        
+        # Other services (still use SQLite for entity loading - migration pending)
         self.digest_generator = DigestGenerator(self.config, self.db)
         self.briefing_generator = BriefingGenerator(self.config)
         
         # Initialize Tavily Client
         self.tavily_client = TavilyClient(api_key=self.config.tavily_api_key)
         
+        # Load dedup cache from BigQuery
         await self.dedup_service.load_recent_cache()
+        
+        # Load tracked entities from SQLite (TODO: migrate to BigQuery)
         await self.classifier.load_tracked_entities(self.db)
         await self.entity_linker.load_entities(self.db)
         
@@ -144,14 +154,14 @@ class IngestionOrchestrator:
         Args:
             backfill_days: Number of days to backfill (optional)
             sources: List of sources to run. If None, runs ALL sources.
-                     Options: "rss", "industry_queries", "sec", "earnings", "stocknews", "freight", "press_releases"
+                     Options: "rss", "industry_queries", "sec", "earnings", "stocknews", "fmp_news", "freight", "press_releases"
         """
         if not self._initialized:
             await self.initialize()
         
         # Default to ALL sources if none provided
         if not sources:
-            sources = ["rss", "industry_queries", "sec", "earnings", "stocknews", "freight", "press_releases"]
+            sources = ["rss", "industry_queries", "sec", "earnings", "stocknews", "fmp_news", "freight", "press_releases"]
             
         logger.info(f"Starting ingestion run with sources: {sources}")
         
@@ -266,22 +276,52 @@ class IngestionOrchestrator:
                 logger.info(f"SEC: Completed all companies, {len(sec_items)} total filings found")
                 stats.sec_filings_fetched = len(sec_items)
             
-            # 2c. Earnings Transcripts - Tier 1
+            # 2c. Earnings Transcripts (API Ninja) - Tier 1
+            # Uses quarter-based fetching (not date-based) for reliability
             earnings_items = []
-            if "earnings" in sources and (os.getenv("API_NINJA_KEY") or getattr(self.config, 'api_ninja_key', None)):
-                 logger.info(f"Fetching Earnings Transcripts (Since {tier1_since.date()})...")
-                 for comp in companies:
-                    if not comp.get("ticker"): continue
-                    try:
-                        transcripts = self.earnings_collector.collect_for_company(
-                            company_id=comp["id"],
-                            ticker=comp["ticker"],
-                            since=tier1_since,
-                            company_name=comp.get("name", "")
-                        )
-                        earnings_items.extend(transcripts)
-                    except Exception as e:
-                        logger.error(f"Earnings fetch failed for {comp['ticker']}: {e}")
+            if "earnings" in sources and self.config.api_ninja_key:
+                logger.info("Fetching Earnings Transcripts (API Ninja)...")
+                try:
+                    # Determine which quarter to fetch based on current date
+                    # Q3 2025 earnings calls happen in Oct-Nov 2025 (Q4 calendar)
+                    now = datetime.utcnow()
+                    # For backfill: get most recent completed quarter's earnings
+                    # Q1 earnings in Apr-May, Q2 in Jul-Aug, Q3 in Oct-Nov, Q4 in Jan-Feb
+                    if now.month >= 10:  # Oct-Dec: Q3 earnings available
+                        target_year, target_quarter = now.year, 3
+                    elif now.month >= 7:  # Jul-Sep: Q2 earnings available
+                        target_year, target_quarter = now.year, 2
+                    elif now.month >= 4:  # Apr-Jun: Q1 earnings available
+                        target_year, target_quarter = now.year, 1
+                    else:  # Jan-Mar: Q4 of previous year available
+                        target_year, target_quarter = now.year - 1, 4
+                    
+                    logger.info(f"Targeting Q{target_quarter} {target_year} earnings transcripts")
+                    
+                    # Get companies with stock tickers
+                    earnings_companies = [c for c in companies if c.get('stock_ticker')]
+                    logger.info(f"Checking {len(earnings_companies)} companies for earnings transcripts...")
+                    
+                    for comp in earnings_companies:
+                        try:
+                            transcripts = self.earnings_collector.collect_for_company(
+                                company_id=comp.get('id'),
+                                ticker=comp['stock_ticker'],
+                                company_name=comp.get('name', ''),
+                                since=None  # We're using explicit quarter, not date filtering
+                            )
+                            # Filter to target quarter only (collector may return multiple)
+                            for t in transcripts:
+                                if t.year == target_year and t.quarter == target_quarter:
+                                    earnings_items.append(self._convert_earnings_to_article(t))
+                        except Exception as e:
+                            logger.error(f"Earnings fetch failed for {comp.get('stock_ticker')}: {e}")
+                    
+                    stats.earnings_transcripts_fetched = len(earnings_items)
+                    logger.info(f"Earnings: {len(earnings_items)} transcripts collected for Q{target_quarter} {target_year}")
+                except Exception as e:
+                    logger.error(f"Earnings collection failed: {e}")
+                    stats.errors.append(f"Earnings error: {str(e)[:100]}")
             
             # 2e. StockNewsAPI Premium Financial News - Tier 2
             stocknews_items = []
@@ -300,6 +340,24 @@ class IngestionOrchestrator:
                 except Exception as e:
                     logger.error(f"StockNewsAPI fetch failed: {e}")
                     stats.errors.append(f"StockNewsAPI error: {str(e)[:100]}")
+            
+            # 2e2. FMP Premium News (Benzinga, Seeking Alpha, etc.) - Tier 2
+            premium_news_items = []
+            if "fmp_news" in sources and (self.config.fmp_api_key or os.getenv("FMP_API_KEY")):
+                logger.info(f"Fetching FMP Premium News (Since {tier2_since.date()})...")
+                try:
+                    # Collect premium news for tracked company tickers from BigQuery
+                    fmp_raw = await self.fmp_news_collector.collect_latest(
+                        max_articles=200,
+                        max_age_hours=search_num_days * 24,
+                    )
+                    # Convert to RawArticle format with source_type="premium_news"
+                    premium_news_items = [self._convert_fmp_to_article(item) for item in fmp_raw]
+                    stats.premium_news_articles_fetched = len(premium_news_items)
+                    logger.info(f"FMP Premium News: {len(premium_news_items)} articles (API calls: {self.fmp_news_collector.api_call_count})")
+                except Exception as e:
+                    logger.error(f"FMP Premium News fetch failed: {e}")
+                    stats.errors.append(f"FMP error: {str(e)[:100]}")
             
             # 2f. General Web Search (Exa) - Tier 2
             web_items = []
@@ -431,7 +489,7 @@ class IngestionOrchestrator:
             
             # Combine ALL articles (no filtering for storage)
             all_articles = (rss_articles + converted_prs + converted_sec + 
-                           converted_earnings + web_items + stocknews_items)
+                           converted_earnings + web_items + stocknews_items + premium_news_items)
             
             # Build a map of article -> feed_eligible status for later use
             article_feed_status = {id(a): is_feed_eligible(a) for a in all_articles}
@@ -889,31 +947,13 @@ class IngestionOrchestrator:
                 stats.sec_filings_fetched = len(sec_items)
                 logger.info(f"Collected {len(sec_items)} SEC filings")
             
-            # 2. Earnings Transcripts
-            earnings_items = []
-            if os.getenv("API_NINJA_KEY") or getattr(self.config, 'api_ninja_key', None):
-                logger.info(f"Fetching Earnings Transcripts (Since {tier1_since.date()})...")
-                for comp in companies:
-                    if not comp.get("ticker"): 
-                        continue
-                    try:
-                        transcripts = self.earnings_collector.collect_for_company(
-                            company_id=comp["id"],
-                            ticker=comp["ticker"],
-                            since=tier1_since,
-                            company_name=comp.get("name", "")
-                        )
-                        earnings_items.extend(transcripts)
-                    except Exception as e:
-                        logger.error(f"Earnings fetch failed for {comp['ticker']}: {e}")
-                stats.earnings_transcripts_fetched = len(earnings_items)
-                logger.info(f"Collected {len(earnings_items)} earnings transcripts")
+            # NOTE: Earnings transcripts disabled - FMP requires premium subscription (402 error)
+            # TODO: Re-enable when FMP premium acquired or API Ninja URL dedup issue fixed
             
             # Convert to RawArticle format
             converted_sec = [self._convert_sec_to_article(item) for item in sec_items]
-            converted_earnings = [self._convert_earnings_to_article(item) for item in earnings_items]
             
-            all_articles = converted_sec + converted_earnings
+            all_articles = converted_sec
             logger.info(f"Total financial articles to process: {len(all_articles)}")
             
             # Deduplicate
@@ -1026,169 +1066,139 @@ class IngestionOrchestrator:
         
         return stats
 
-    async def run_earnings_only(self, backfill_days: int = 83) -> IngestionStats:
+    async def run_earnings_only(self, year: int = None, quarter: int = None) -> IngestionStats:
         """
         Run targeted backfill for Earnings transcripts only.
-        Skips RSS, PR, SEC, and web search to save time and API costs.
+        
+        Uses API Ninja earnings transcripts with quarter-based fetching.
+        
+        Args:
+            year: Target year (e.g., 2025). Defaults to current year.
+            quarter: Target quarter (1-4). Defaults to most recent completed quarter.
         """
+        stats = IngestionStats(started_at=datetime.utcnow())
+        
         if not self._initialized:
             await self.initialize()
         
-        stats = IngestionStats(started_at=datetime.utcnow())
-        
         try:
-            # Get tracked companies
-            companies = await self._get_tracked_companies()
-            logger.info(f"Loaded {len(companies)} companies for earnings backfill")
+            # Determine target quarter if not specified
+            now = datetime.utcnow()
+            if year is None:
+                year = now.year
+            if quarter is None:
+                # Default to most recent completed quarter's earnings
+                if now.month >= 10:
+                    quarter = 3
+                elif now.month >= 7:
+                    quarter = 2
+                elif now.month >= 4:
+                    quarter = 1
+                else:
+                    quarter = 4
+                    year = year - 1
             
-            # Calculate date range
-            since_date = datetime.utcnow() - timedelta(days=backfill_days)
-            logger.info(f"Backfilling earnings transcripts since {since_date.date()} ({backfill_days} days)")
+            logger.info(f"Running earnings backfill for Q{quarter} {year}")
             
-            # Collect Earnings Transcripts
+            # Get companies with stock tickers from BigQuery companies table
+            storage = await get_storage()
+            companies_raw = await storage.get_companies()
+            # Filter to public companies (have ticker, not 'private')
+            companies = [c for c in companies_raw if c.get('ticker') and c.get('ticker') != 'private']
+            logger.info(f"Found {len(companies)} public companies with stock tickers")
+            
             earnings_items = []
-            if os.getenv("API_NINJA_KEY") or getattr(self.config, 'api_ninja_key', None):
-                logger.info(f"Fetching Earnings Transcripts for {len(companies)} companies...")
-                for i, comp in enumerate(companies):
-                    if not comp.get("ticker"): 
-                        continue
-                    try:
-                        transcripts = self.earnings_collector.collect_for_company(
-                            company_id=comp["id"],
-                            ticker=comp["ticker"],
-                            since=since_date,
-                            company_name=comp.get("name", "")
-                        )
-                        if transcripts:
-                            logger.info(f"  [{i+1}/{len(companies)}] {comp['ticker']}: {len(transcripts)} transcripts")
-                        earnings_items.extend(transcripts)
-                    except Exception as e:
-                        logger.error(f"Earnings fetch failed for {comp['ticker']}: {e}")
-                        stats.errors.append(f"Earnings {comp['ticker']}: {str(e)[:50]}")
-                stats.earnings_transcripts_fetched = len(earnings_items)
-                logger.info(f"Collected {len(earnings_items)} earnings transcripts total")
-            else:
-                logger.warning("API_NINJA_KEY not set - cannot fetch earnings transcripts")
-                stats.errors.append("API_NINJA_KEY not configured")
-            
-            if not earnings_items:
-                logger.info("No earnings transcripts to process")
-                stats.status = "completed"
-                stats.completed_at = datetime.utcnow()
-                return stats
-            
-            # Convert to RawArticle format
-            all_articles = [self._convert_earnings_to_article(item) for item in earnings_items]
-            logger.info(f"Converted {len(all_articles)} earnings to articles")
-            
-            # Deduplicate
-            logger.info("Deduplicating...")
-            unique_articles = []
-            for article in all_articles:
-                is_dup, _ = await self.dedup_service.check_duplicate(article)
-                if is_dup:
-                    stats.duplicates_skipped += 1
-                else:
-                    unique_articles.append(article)
-            
-            logger.info(f"Unique articles after dedup: {len(unique_articles)}")
-            
-            if not unique_articles:
-                logger.info("All earnings transcripts were duplicates")
-                stats.status = "completed"
-                stats.completed_at = datetime.utcnow()
-                return stats
-            
-            # Classify
-            logger.info("Classifying content...")
-            classified = await self.classifier.classify_batch(unique_articles)
-            stats.articles_classified = len(classified)
-            
-            # Store
-            logger.info("Linking entities and storing...")
-            stored_count = 0
-            vector_docs = []
-            article_records = []  # For BigQuery articles table
-            
-            for article, classification in classified:
-                mentions = self.entity_linker.link_article(article)
-                corpus_item = self._create_corpus_item(article, classification, mentions)
-                
+            for comp in companies:
+                ticker = comp['ticker']
                 try:
-                    stored_count += 1
-                    vector_docs.append(corpus_item)
+                    # Use collect_for_quarter to fetch the specific quarter directly
+                    transcript = self.earnings_collector.collect_for_quarter(
+                        ticker=ticker,
+                        year=year,
+                        quarter=quarter,
+                        company_name=comp.get('name', '')
+                    )
+                    if transcript:
+                        earnings_items.append(self._convert_earnings_to_article(transcript))
+                        logger.info(f"  ✓ {ticker}: Q{quarter} {year} transcript found")
+                except Exception as e:
+                    logger.debug(f"  X {ticker}: {e}")
+            
+            stats.earnings_transcripts_fetched = len(earnings_items)
+            logger.info(f"Collected {len(earnings_items)} earnings transcripts")
+            
+            if earnings_items:
+                # Deduplicate
+                unique_items = []
+                for item in earnings_items:
+                    is_dup, _ = await self.dedup_service.check_duplicate(item)
+                    if is_dup:
+                        stats.duplicates_skipped += 1
+                    else:
+                        unique_items.append(item)
+                
+                logger.info(f"After dedup: {len(unique_items)} new transcripts (skipped {stats.duplicates_skipped} dupes)")
+                
+                if unique_items:
+                    # Classify
+                    classified = await self.classifier.classify_batch(unique_items)
+                    stats.articles_classified = len(classified)
                     
-                    # Build ArticleRecord for BigQuery articles table
-                    article_records.append(self._create_article_record(article, classification))
-                except Exception as e:
-                    stats.errors.append(f"Storage error: {str(e)[:100]}")
+                    # Store in BigQuery articles table
+                    article_records = []
+                    for article, classification in classified:
+                        article_records.append(self._create_article_record(article, classification))
+                    
+                    if article_records:
+                        bq_articles_stored = await self.gcp_storage.store_articles(article_records)
+                        logger.info(f"Stored {bq_articles_stored} articles in BigQuery")
+                    
+                    # Store digest items for UI
+                    digest_items = []
+                    now_utc = datetime.utcnow()
+                    for article, classification in classified:
+                        article_id = str(uuid.uuid4())
+                        # Determine feed_eligible based on date
+                        feed_eligible = True
+                        if article.published_at:
+                            pub_date = _make_naive_utc(article.published_at)
+                            if pub_date > now_utc:  # Future date = bad parsing
+                                feed_eligible = False
+                        else:
+                            feed_eligible = False
+                        
+                        digest_item = {
+                            "article_id": article_id,
+                            "title": article.title,
+                            "headline": article.title,  # Use title as headline for SEC/earnings
+                            "url": article.url,
+                            "published_at": article.published_at.isoformat() if article.published_at else None,
+                            "source_name": article.source_name,
+                            "source_type": article.source_type,
+                            "category": classification.primary_category.value if classification.primary_category else "financial",
+                            "priority": classification.priority.value if classification.priority else "high",
+                            "digest_summary": classification.summary,
+                            "original_summary": article.summary,
+                            "companies": classification.companies or classification.key_entities,
+                            "materials": classification.materials or [],
+                            "topics": [c.value for c in classification.categories] if classification.categories else [],
+                            "industries": [i.value for i in classification.industries] if classification.industries else [],
+                            "relevance_score": classification.relevance_score,
+                            "confidence": classification.confidence,
+                            "classifier_model": self.config.classifier_model,
+                            "classified_at": now_utc.isoformat(),
+                            "feed_eligible": feed_eligible,
+                        }
+                        digest_items.append(digest_item)
+                    
+                    if digest_items:
+                        digest_stored = await self.gcp_storage.store_digest_items(digest_items)
+                        logger.info(f"Stored {digest_stored} digest items in BigQuery")
+                    
+                    logger.info(f"Stored {len(classified)} earnings transcripts")
             
-            stats.articles_stored = stored_count
-            
-            # Store articles in BigQuery articles table
-            logger.info("Storing articles in BigQuery...")
-            if article_records:
-                try:
-                    bq_articles_stored = await self.gcp_storage.store_articles(article_records)
-                    logger.info(f"Stored {bq_articles_stored} articles in BigQuery articles table")
-                except Exception as e:
-                    logger.error(f"BigQuery articles storage error: {e}")
-                    stats.errors.append(f"BQ articles error: {str(e)[:100]}")
-            
-            # Store digest items for UI digest cards (BigQuery digest_items table)
-            logger.info("Storing digest items in BigQuery...")
-            digest_items_for_ui = []
-            now_utc = datetime.utcnow()
-            for article, classification in classified:
-                # Determine feed eligibility based on date
-                feed_eligible = True
-                if article.published_at:
-                    pub_date = _make_naive_utc(article.published_at)
-                    if pub_date > now_utc:  # Future date = bad parsing
-                        feed_eligible = False
-                else:
-                    feed_eligible = False  # No date = not feed eligible
-                
-                article_id = str(uuid.uuid4())
-                digest_item = {
-                    "article_id": article_id,
-                    "title": article.title,
-                    "url": article.url,
-                    "published_at": article.published_at.isoformat() if article.published_at else None,
-                    "source_name": article.source_name,
-                    "source_type": article.source_type,
-                    "category": classification.primary_category.value if classification.primary_category else "market",
-                    "priority": classification.priority.value if classification.priority else "medium",
-                    "digest_summary": classification.summary,
-                    "original_summary": article.summary,
-                    "companies": classification.companies or classification.key_entities,
-                    "materials": classification.materials or [],
-                    "topics": [c.value for c in classification.categories] if classification.categories else [],
-                    "industries": [i.value for i in classification.industries] if classification.industries else [],
-                    "relevance_score": classification.relevance_score,
-                    "confidence": classification.confidence,
-                    "classifier_model": self.config.classifier_model,
-                    "classified_at": datetime.utcnow().isoformat(),
-                    "feed_eligible": feed_eligible,
-                }
-                digest_items_for_ui.append(digest_item)
-            
-            if digest_items_for_ui:
-                try:
-                    stored_digest_items = await self.gcp_storage.store_digest_items(digest_items_for_ui)
-                    logger.info(f"Stored {stored_digest_items} digest items in BigQuery digest_items table")
-                except Exception as e:
-                    logger.error(f"BigQuery digest_items storage error: {e}")
-                    stats.errors.append(f"BQ digest_items error: {str(e)[:100]}")
-            
-            # Update vector store (BigQuery)
-            if vector_docs:
-                logger.info("Updating vector store...")
-                await self.vector_store.add_items(vector_docs)
-            
-            stats.completed_at = datetime.utcnow()
             stats.status = "completed"
-            logger.info(f"Earnings backfill complete in {stats.duration_seconds:.1f}s")
+            stats.completed_at = datetime.utcnow()
             
         except Exception as e:
             logger.error(f"Earnings backfill error: {e}", exc_info=True)
@@ -1359,41 +1369,53 @@ class IngestionOrchestrator:
         )
 
     def _convert_earnings_to_article(self, transcript) -> RawArticle:
-        """Convert an EarningsTranscript to RawArticle"""
-        # Convert Participant objects to dicts for JSON serialization
+        """Convert an EarningsTranscript (FMP or legacy API Ninja) to RawArticle.
+        
+        Supports both FMPEarningsTranscript and legacy EarningsTranscript models.
+        FMP model uses @property ticker -> symbol alias for compatibility.
+        """
+        # Convert Participant objects to dicts for JSON serialization (if available)
         participants_data = None
-        if transcript.participants:
+        if hasattr(transcript, 'participants') and transcript.participants:
             participants_data = [
-                p.model_dump() if hasattr(p, 'model_dump') else p
+                p.model_dump() if hasattr(p, 'model_dump') else (p.to_dict() if hasattr(p, 'to_dict') else p)
                 for p in transcript.participants
             ]
         
-        # Convert TranscriptSection objects to dicts for JSON serialization
+        # Convert TranscriptSection objects to dicts for JSON serialization (if available)
         transcript_split_data = None
-        if transcript.transcript_split:
+        if hasattr(transcript, 'transcript_split') and transcript.transcript_split:
             transcript_split_data = [
-                s.model_dump() if hasattr(s, 'model_dump') else s
+                s.model_dump() if hasattr(s, 'model_dump') else (s.to_dict() if hasattr(s, 'to_dict') else s)
                 for s in transcript.transcript_split
             ]
         
+        # Use FMP's real URL if available, otherwise generate a unique ID URL
+        # FMP provides: https://financialmodelingprep.com/api/v3/earning_call_transcript/{ticker}?quarter={q}&year={y}
+        earnings_url = transcript.url or f"earnings://{transcript.ticker}/{transcript.year}/Q{transcript.quarter}"
+        
+        # Get company name with fallback
+        company_name = getattr(transcript, 'company_name', '') or transcript.ticker
+        
         return RawArticle(
-            title=f"{transcript.company_name} Q{transcript.quarter} {transcript.year} Earnings Call",
-            url=transcript.url or "",
+            title=f"{company_name} Q{transcript.quarter} {transcript.year} Earnings Call",
+            url=earnings_url,
             summary=transcript.content[:1000] + "..." if len(transcript.content) > 1000 else transcript.content,
             full_text=transcript.content,
             published_at=transcript.date,
             source_name=f"Earnings - Q{transcript.quarter} {transcript.year}",
-            source_type="earnings",
+            source_type="earnings_transcript",  # Consistent source type
             raw_data={
                 "ticker": transcript.ticker,
                 "quarter": transcript.quarter,
                 "year": transcript.year,
                 "participants": participants_data,
                 "transcript_split": transcript_split_data,
-                "earnings_timing": transcript.earnings_timing,
-                "cik": transcript.cik,
-                "timestamp": transcript.timestamp,
-                "sentiment": transcript.sentiment
+                "earnings_timing": getattr(transcript, 'earnings_timing', None),
+                "cik": getattr(transcript, 'cik', None),
+                "timestamp": getattr(transcript, 'timestamp', None),
+                "sentiment": getattr(transcript, 'sentiment', None),
+                "source_api": "fmp",  # Track which API provided this
             }
         )
 
@@ -1416,6 +1438,27 @@ class IngestionOrchestrator:
                 "rank_score": article.rank_score,
                 "search_query": article.search_query,
                 "search_type": article.search_type,
+                "image_url": article.image_url,
+            }
+        )
+
+    def _convert_fmp_to_article(self, article) -> RawArticle:
+        """Convert an FMPNewsArticle to RawArticle for the pipeline.
+        
+        Uses source_type='premium_news' to distinguish FMP premium content
+        (Benzinga, Seeking Alpha, etc.) from other sources.
+        """
+        return RawArticle(
+            title=article.title,
+            url=article.url,
+            summary=article.text[:1000] + "..." if len(article.text) > 1000 else article.text,
+            full_text=article.text,
+            published_at=article.published_at,
+            source_name=article.publisher,  # e.g., "Benzinga", "Seeking Alpha"
+            source_type="premium_news",  # Distinct source type for FMP premium content
+            raw_data={
+                "symbol": article.symbol,
+                "site": article.site,
                 "image_url": article.image_url,
             }
         )

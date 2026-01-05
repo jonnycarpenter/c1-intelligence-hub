@@ -134,6 +134,81 @@ class EarningsCollector:
                     
         return transcripts
 
+    def collect_for_quarter(self, ticker: str, year: int, quarter: int, company_name: str = "") -> Optional['EarningsTranscript']:
+        """
+        Fetch a specific quarter's earnings transcript for a ticker.
+        
+        Args:
+            ticker: Stock ticker symbol
+            year: Year of the earnings call
+            quarter: Quarter (1-4)
+            company_name: Optional company name
+            
+        Returns:
+            EarningsTranscript object if found, None otherwise
+        """
+        if not ticker or not self.api_key:
+            return None
+            
+        try:
+            transcript_data = self._fetch_transcript(ticker, year, quarter)
+            if not transcript_data:
+                return None
+                
+            # Process participants
+            raw_participants = transcript_data.get("participants", [])
+            processed_participants = []
+            if isinstance(raw_participants, list):
+                for p in raw_participants:
+                    if isinstance(p, dict):
+                        processed_participants.append(Participant(
+                            name=p.get('name', ''),
+                            role=p.get('role') or None,
+                            company=p.get('company') or None,
+                        ))
+                    elif isinstance(p, str):
+                        processed_participants.append(Participant(name=p))
+            
+            # Process transcript_split
+            raw_split = transcript_data.get("transcript_split", [])
+            processed_sections = []
+            if isinstance(raw_split, list):
+                for section in raw_split:
+                    if isinstance(section, dict) and section.get("text"):
+                        processed_sections.append(TranscriptSection(
+                            speaker=section.get('speaker', 'Unknown'),
+                            role=section.get('role') or None,
+                            company=section.get('company') or None,
+                            text=section.get('text', ''),
+                        ))
+            
+            # Parse the date
+            call_date = datetime.utcnow()
+            if transcript_data.get("date"):
+                try:
+                    call_date = datetime.strptime(transcript_data.get("date"), "%Y-%m-%d")
+                except:
+                    pass
+            
+            return EarningsTranscript(
+                id=str(uuid.uuid4()),
+                company_name=company_name or ticker,
+                ticker=ticker,
+                year=year,
+                quarter=quarter,
+                date=call_date,
+                content=transcript_data.get("transcript", ""),
+                participants=processed_participants if processed_participants else None,
+                transcript_split=processed_sections if processed_sections else None,
+                earnings_timing=transcript_data.get("earnings_timing"),
+                cik=transcript_data.get("cik"),
+                timestamp=transcript_data.get("timestamp"),
+                collected_at=datetime.utcnow()
+            )
+        except Exception as e:
+            logger.debug(f"Failed to fetch {ticker} Q{quarter} {year}: {e}")
+            return None
+
     def _fetch_transcript(self, ticker: str, year: int, quarter: int) -> Optional[dict]:
         """Fetch a single transcript from API Ninjas"""
         url = f"{self.base_url}/earningstranscript"

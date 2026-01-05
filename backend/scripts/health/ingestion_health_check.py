@@ -106,7 +106,8 @@ def get_daily_article_counts(days_back: int = 7) -> List[Dict]:
         COUNTIF(source_type = 'press_release') as press_releases,
         COUNTIF(source_type = 'sec_filing') as sec_filings,
         COUNTIF(source_type = 'earnings_transcript') as earnings,
-        COUNTIF(source_type = 'stocknews') as stocknews,
+        COUNTIF(source_type = 'stocknewsapi') as stocknews,
+        COUNTIF(source_type = 'premium_news') as fmp_news,
         COUNTIF(source_type = 'web_search' OR source_type = 'web_news') as web_legacy,
         COUNTIF(source_type = 'web_news_exa') as exa,
         COUNTIF(source_type = 'web_news_tavily') as tavily
@@ -252,30 +253,29 @@ def print_report(days_back: int):
         print("   ❌ NO ARTICLES FOUND in last {days_back} days!")
         print("   This is a CRITICAL FAILURE - ingestion pipeline is not working.")
     else:
-        print(f"   {'Date':<12} {'Total':<8} {'RSS':<6} {'PR':<6} {'SEC':<6} {'Earn':<6} {'News':<6} {'Exa':<6} {'Tvly':<6} {'Sources':<8}")
-        print("   " + "-" * 85)
+        print(f"   {'Date':<12} {'Total':<7} {'RSS':<5} {'SEC':<5} {'Earn':<5} {'FMP':<5} {'News':<5} {'Exa':<5} {'Tvly':<5} {'Src':<5}")
+        print("   " + "-" * 75)
         for row in daily_counts:
             date = row.get("date", "")
             total = int(row.get("total_articles", 0))
             rss = int(row.get("rss", 0))
-            pr = int(row.get("press_releases", 0))
             sec = int(row.get("sec_filings", 0))
             earn = int(row.get("earnings", 0))
+            fmp = int(row.get("fmp_news", 0))
             news = int(row.get("stocknews", 0))
             exa = int(row.get("exa", 0))
-            industry_queries = int(row.get("industry_queries", 0)) or int(row.get("tavily", 0))  # Support old 'tavily' name
+            tavily = int(row.get("tavily", 0))
             
-            # Combine legacy web results into Exa or display separately? 
-            # For now, let's assume legacy 'web_news' maps to Exa or just ignore if 0
+            # Combine legacy web results into Exa
             legacy_web = int(row.get("web_legacy", 0))
             if legacy_web > 0:
-                exa += legacy_web # Attribute legacy to Exa for simpler view, or just add note
+                exa += legacy_web
                 
             sources = int(row.get("sources_used", 0))
             
             # Flag low days
             flag = "⚠️ " if total < 30 else "   "
-            print(f"   {flag}{date:<12} {total:<8} {rss:<6} {pr:<6} {sec:<6} {earn:<6} {news:<6} {exa:<6} {industry_queries:<6} {sources}/8")
+            print(f"   {flag}{date:<12} {total:<7} {rss:<5} {sec:<5} {earn:<5} {fmp:<5} {news:<5} {exa:<5} {tavily:<5} {sources}/9")
     
     # 4. Date Filter Analysis (NEW)
     print()
@@ -354,10 +354,19 @@ def print_report(days_back: int):
         print(f"   ⚠️  WARNING: {future_date} articles with future dates - review date extraction")
     
     print()
-    print("📌 KEY CHANGES (Jan 2026):")
-    print("   • ALL articles are now stored regardless of date")
-    print("   • feed_eligible flag controls Drumbeat feed visibility")
-    print("   • Articles without valid dates are stored but hidden from feed")
+    print("📌 ACTIVE DATA SOURCES (Jan 2026):")
+    print("   • RSS feeds (industry news)")
+    print("   • SEC filings (10-K, 10-Q for tracked companies)")
+    print("   • API Ninja earnings transcripts (35 companies with Q3 2025 data)")
+    print("   • FMP Premium News (Benzinga, Seeking Alpha via FMP API)")
+    print("   • StockNews API (market news)")
+    print("   • Exa.ai (industry web search - 91 queries)")
+    print("   • Tavily (industry web search - 145 queries)")
+    print()
+    print("📌 KEY ARCHITECTURE:")
+    print("   • ALL articles stored regardless of date (feed_eligible flag controls visibility)")
+    print("   • Deduplication via BigQuery (no SQLite)")
+    print("   • Earnings use quarter-based fetching (not date ranges)")
     
     print()
     print("=" * 80)

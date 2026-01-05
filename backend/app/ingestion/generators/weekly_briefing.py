@@ -243,9 +243,47 @@ Otherwise, respond with the final briefing JSON:
         
         return "\n\n".join(articles_text)
     
-    def _build_source_articles(self, articles: List, article_numbers: List[int]) -> List[Dict[str, Any]]:
-        """Build source article metadata for the articles used in a section."""
+    def _extract_citation_numbers(self, text: str) -> tuple[List[int], List[int]]:
+        """
+        Extract citation numbers from text.
+        
+        Returns:
+            Tuple of (pre_brief_citations, exa_citations)
+            - pre_brief_citations: List of [N] citation numbers (1-indexed)
+            - exa_citations: List of [Exa:N] citation numbers (1-indexed)
+        """
+        # Match [1], [2], etc. but NOT [[Company]] or [Exa:N]
+        pre_brief_pattern = r'\[(\d+)\](?!\])'
+        pre_brief_citations = [int(m) for m in re.findall(pre_brief_pattern, text)]
+        
+        # Match [Exa:1], [Exa:2], etc.
+        exa_pattern = r'\[Exa:(\d+)\]'
+        exa_citations = [int(m) for m in re.findall(exa_pattern, text)]
+        
+        return sorted(set(pre_brief_citations)), sorted(set(exa_citations))
+    
+    def _build_source_articles(
+        self, 
+        articles: List, 
+        article_numbers: List[int],
+        peripheral_articles: List[Dict[str, Any]] = None,
+        exa_numbers: List[int] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Build source article metadata for the articles used in a section.
+        
+        Args:
+            articles: List of Article objects from pre-brief
+            article_numbers: List of [N] citation numbers from pre-brief (1-indexed)
+            peripheral_articles: List of Exa search results (optional)
+            exa_numbers: List of [Exa:N] citation numbers (1-indexed, optional)
+        
+        Returns:
+            List of source article dicts for the frontend
+        """
         source_articles = []
+        
+        # Add pre-brief articles
         for num in article_numbers:
             if 1 <= num <= len(articles):
                 a = articles[num - 1]  # Convert to 0-indexed
@@ -257,6 +295,25 @@ Otherwise, respond with the final briefing JSON:
                     "source_name": a.source.name if hasattr(a.source, 'name') else str(a.source),
                     "published_at": a.published_at.isoformat() if a.published_at else None,
                 })
+        
+        # Add Exa peripheral search articles
+        if peripheral_articles and exa_numbers:
+            for num in exa_numbers:
+                # Find the Exa article with this ID
+                exa_article = next(
+                    (p for p in peripheral_articles if p.get('exa_id') == num), 
+                    None
+                )
+                if exa_article:
+                    source_articles.append({
+                        "article_number": f"Exa:{num}",
+                        "id": f"exa-{num}",
+                        "title": exa_article.get('title', 'Unknown'),
+                        "url": exa_article.get('url', ''),
+                        "source_name": "Exa Research",
+                        "published_at": exa_article.get('published_date'),
+                    })
+        
         return source_articles
     
     def _enrich_with_logos(self, companies: List[str]) -> List[Dict[str, Any]]:
@@ -464,7 +521,7 @@ Otherwise, respond with the final briefing JSON:
             return None
         
         try:
-            # Process sections and add logos
+            # Process sections and add logos + source articles
             processed_sections = []
             for section in data.get("sections", []):
                 # Aggregate companies for logo enrichment
@@ -474,11 +531,27 @@ Otherwise, respond with the final briefing JSON:
                 for insight in section.get("insights", []):
                     section_companies.update(insight.get("companies_mentioned", []))
                 
+                # Extract citation numbers from section text
+                all_section_text = headline.get("text", "")
+                for insight in section.get("insights", []):
+                    all_section_text += " " + insight.get("text", "")
+                
+                pre_brief_citations, exa_citations = self._extract_citation_numbers(all_section_text)
+                
+                # Build source articles for this section
+                section_source_articles = self._build_source_articles(
+                    articles=articles,
+                    article_numbers=pre_brief_citations,
+                    peripheral_articles=peripheral_results,
+                    exa_numbers=exa_citations
+                )
+                
                 processed_sections.append({
                     "header": section.get("header", "Update"),
                     "headline": headline,
                     "insights": section.get("insights", []),
                     "companies_with_logos": self._enrich_with_logos(list(section_companies)),
+                    "source_articles": section_source_articles,
                 })
             
             # Build the complete briefing record

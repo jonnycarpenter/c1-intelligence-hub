@@ -53,6 +53,8 @@ export interface WeeklyBriefing {
   id: string
   briefing_type: 'weekly_executive'
   briefing_title: string
+  /** Bottom Line Up Front - single sentence high-level summary */
+  bluf?: string
   sections: BriefingSection[]
   all_companies_mentioned: CompanyWithLogo[]
   key_topics_this_week: string[]

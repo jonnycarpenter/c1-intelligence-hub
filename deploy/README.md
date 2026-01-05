@@ -62,27 +62,48 @@ This folder contains all the configuration needed to deploy C1 Intelligence Hub 
 
 ## Quick Start
 
-### Option 1: Shell Script (Linux/Mac/WSL)
+### Production Deployment (via Git - Recommended)
+
+The recommended deployment method is via git push, which triggers Cloud Build automatically:
+
+```bash
+# Make changes, commit, and push
+git add .
+git commit -m "Description of changes"
+git push origin main
+
+# Cloud Build trigger deploys to Cloud Run automatically
+# Monitor at: https://console.cloud.google.com/cloud-build/builds?project=gen-lang-client-0436975498
+```
+
+**Current Production URL**: `https://c1-hub-4iz75bvpyq-uc.a.run.app`
+
+### Initial Setup (One-Time)
 
 ```bash
 # 1. Run setup script
 chmod +x deploy/setup-gcp.sh
 ./deploy/setup-gcp.sh YOUR_PROJECT_ID
 
-# 2. Add API keys to Secret Manager
-echo -n "sk-ant-xxxxx" | gcloud secrets versions add anthropic-api-key --data-file=-
-echo -n "your-fmp-key" | gcloud secrets versions add fmp-api-key --data-file=-
-echo -n "your-api-ninja-key" | gcloud secrets versions add api-ninja-key --data-file=-
-echo -n "your-tavily-key" | gcloud secrets versions add tavily-api-key --data-file=-
+# 2. Add API keys to Secret Manager (use -n to avoid trailing newlines!)
+echo -n "sk-ant-xxxxx" | gcloud secrets create anthropic-api-key --data-file=- --project=gen-lang-client-0436975498
+echo -n "your-fmp-key" | gcloud secrets create FMP_API_KEY --data-file=- --project=gen-lang-client-0436975498
+echo -n "your-api-ninja-key" | gcloud secrets create api-ninja-key --data-file=- --project=gen-lang-client-0436975498
+echo -n "your-tavily-key" | gcloud secrets create tavily-api-key --data-file=- --project=gen-lang-client-0436975498
+echo -n "your-logo-dev-token" | gcloud secrets create LOGO_DEV_TOKEN --data-file=- --project=gen-lang-client-0436975498
 
-# 3. Deploy to Cloud Run (builds run in us-central1)
-gcloud builds submit --config=deploy/cloudbuild.yaml \
-  --region=us-central1 \
-  --substitutions=_DATA_BUCKET=YOUR_PROJECT_ID-c1-hub-data
-
-# 4. Deploy scheduler jobs (after Cloud Run is up)
+# 3. Deploy scheduler jobs (after Cloud Run is up)
 chmod +x deploy/scheduler/deploy-scheduler.sh
 ./deploy/scheduler/deploy-scheduler.sh YOUR_PROJECT_ID https://c1-hub-xxxxx-uc.a.run.app
+```
+
+### Manual Deploy (if needed)
+
+```bash
+# From repo root (builds run in us-central1)
+gcloud builds submit --config=cloudbuild.yaml \
+  --region=us-central1 \
+  --project=gen-lang-client-0436975498
 ```
 
 ### Option 2: Terraform (Infrastructure as Code)
@@ -98,10 +119,11 @@ terraform apply -var="project_id=YOUR_PROJECT_ID"
 
 # 3. Add API keys (see output from terraform apply)
 
-# 4. Deploy to Cloud Run (builds run in us-central1)
-gcloud builds submit --config=../cloudbuild.yaml \
+# 4. Deploy to Cloud Run (from repo root, builds run in us-central1)
+cd ../..
+gcloud builds submit --config=cloudbuild.yaml \
   --region=us-central1 \
-  --substitutions=_DATA_BUCKET=$(terraform output -raw data_bucket_name)
+  --project=gen-lang-client-0436975498
 
 # 5. Enable scheduler jobs
 terraform apply \

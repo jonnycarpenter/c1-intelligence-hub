@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     groq_api_key: str = ""
     api_ninja_key: str = ""
     stocknews_api_key: str = Field(validation_alias=AliasChoices("STOCKNEWS_API_KEY", "STOCK_NEWS_API_KEY", "STOCK_NEWS_API"), default="")
+    fmp_api_key: str = Field(validation_alias=AliasChoices("FMP_API_KEY", "FMP_API_KEY"), default="")  # Financial Modeling Prep
     
     # X/Twitter API (for social intelligence)
     x_bearer_token: str = ""

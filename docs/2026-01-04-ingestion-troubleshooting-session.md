@@ -6,6 +6,36 @@ This document captures the debugging session for the C1 Intelligence Hub ingesti
 
 ---
 
+## ✅ COMPLETED ITEMS (as of end of Jan 4, 2026 session)
+
+| Item | Status | Details |
+|------|--------|---------|
+| Bug #1: Sources parameter not passed | ✅ DONE | Commit `ef4a9a4` |
+| Bug #2: Tier dates NameError | ✅ DONE | Commit `ef4a9a4` |
+| Bug #3: feed_eligible implementation | ✅ DONE | Commit `3a1970e` |
+| SQLite fallback - hardcoded GCP defaults | ✅ DONE | Commit `8f46ff0` |
+| ChromaDB vector_store.py replaced | ✅ DONE | Commit `8f46ff0` |
+| SQLite fallback in generators removed | ✅ DONE | Commit `8f46ff0` |
+| LocalDataStorage deprecation warning | ✅ DONE | Commit `8f46ff0` |
+| Migration script created | ✅ DONE | `backend/migrate_sqlite_to_bq.py` |
+| 237 articles migrated SQLite → BigQuery | ✅ DONE | 539 duplicates skipped |
+| Documentation updated | ✅ DONE | db/README.md, ARCHITECTURE.md, CODING_RULES.md |
+| Cloud Scheduler: tavily → industry_queries | ✅ DONE | Fixed `daily-evening-ingest` and `ingest-deep-dive` |
+| Cloud Build trigger: push to master | ✅ DONE | Build `1ac10ec0` triggered |
+
+## ❌ STILL PENDING
+
+| Item | Priority | Details |
+|------|----------|---------|
+| Verify Cloud Build completed | HIGH | Check `gcloud builds list --region=us-central1 --limit=1` |
+| Run backfill for lost articles | HIGH | `POST /api/v1/scheduler/ingest` with `backfill_days: 6` |
+| Process articles → digest_items | HIGH | 237 migrated articles NOT in digest_items, won't show in Drumbeat |
+| SEC filings investigation | MEDIUM | Only 1 query, 429 error - needs more logging |
+| EXA_API_KEY not configured | MEDIUM | Missing from Cloud Run env vars |
+| Migrate SQLite briefings tables | LOW | briefings, pre_briefings tables |
+
+---
+
 ## 1. ORIGINAL PROBLEM
 
 Data was not making it into BigQuery tables. Cloud Scheduler jobs were failing.
@@ -382,3 +412,95 @@ Created `backend/migrate_sqlite_to_bq.py` to move data from SQLite -> BigQuery.
 1. **Deploy updated code** to Cloud Run
 2. **Re-run backfill** for lost ~1600 articles (will need to re-fetch from APIs)
 3. **Migrate remaining SQLite tables** (briefings, pre_briefings) - lower priority
+
+---
+
+## 12. DIGEST_ITEMS TABLE - CRITICAL FOR DRUMBEAT FEED
+
+### 12.1 The Two-Table Architecture
+
+The system has TWO key tables:
+
+| Table | Purpose | Populated By |
+|-------|---------|--------------|
+| `articles` | Raw ingested articles | Ingestion pipeline (orchestrator) |
+| `digest_items` | Processed/classified articles | Digest pipeline (separate job) |
+
+**CRITICAL:** The **Drumbeat Feed** (the "relevant up-to-date news feed" in the UI) reads from `digest_items`, NOT from `articles`.
+
+### 12.2 What the Digest Pipeline Does
+
+1. Reads new articles from `articles` table
+2. Runs classification (relevance scoring, category assignment, priority)
+3. Writes enriched records to `digest_items` table
+4. Only articles with `feed_eligible=True` appear in the Drumbeat Feed
+
+### 12.3 The Current Gap
+
+When we migrated 237 articles from SQLite to BigQuery:
+- ✅ They went into `articles` table
+- ❌ They are NOT in `digest_items` table
+- ❌ They will NOT appear in Drumbeat Feed until digest job processes them
+
+**Verification Query:**
+```sql
+SELECT 
+    a.id, a.title, a.fetched_at,
+    d.article_id IS NOT NULL as in_digest
+FROM c1_intelligence.articles a
+LEFT JOIN c1_intelligence.digest_items d ON a.id = d.article_id
+WHERE a.fetched_at >= TIMESTAMP('2025-12-29')
+ORDER BY a.fetched_at DESC
+```
+
+### 12.4 How to Fix: Process Missing Articles
+
+The digest/classification job needs to run to process the missing articles. Options:
+
+1. **Wait for daily scheduler job** - But may not pick up older articles
+2. **Manually trigger digest processing** - Check for `/api/v1/digest/` endpoints
+3. **Run backfill digest** - May need custom script
+
+**TODO:** Investigate how to trigger digest processing for articles already in `articles` table but missing from `digest_items`.
+
+### 12.5 Cloud Scheduler - Digest Job Status
+
+Check if there's a scheduled digest job:
+```powershell
+gcloud scheduler jobs list --location=us-central1 --format="table(name,schedule,httpTarget.uri)"
+```
+
+Look for jobs that hit `/api/v1/digest/` or similar endpoints.
+
+---
+
+## 13. CLOUD SCHEDULER FIX - "tavily" IS NOT A VALID SOURCE
+
+### 13.1 The Problem
+
+Several Cloud Scheduler jobs had `"sources": ["tavily"]` in their payloads. This is **silently ignored** because `"tavily"` is not a valid orchestrator source.
+
+### 13.2 Valid Sources
+
+The orchestrator recognizes these sources:
+- `rss` - RSS feed ingestion
+- `industry_queries` - Runs BOTH Exa AND Tavily searches
+- `sec` - SEC filings
+- `earnings` - Earnings transcripts
+- `stocknews` - Stock news API
+- `freight` - Freight/logistics news
+- `press_releases` - Press release ingestion
+
+**Note:** There is no standalone `"tavily"` source. The Tavily API is called as part of `"industry_queries"`.
+
+### 13.3 Jobs Fixed
+
+Updated the following scheduler jobs:
+
+1. **daily-evening-ingest** - Changed from `["tavily"]` to `["industry_queries"]`
+2. **ingest-deep-dive** - Changed from `["tavily"]` to `["industry_queries"]`
+
+Command used:
+```powershell
+gcloud scheduler jobs update http JOB_NAME --location=us-central1 --message-body='{"sources": ["industry_queries"]}'
+```

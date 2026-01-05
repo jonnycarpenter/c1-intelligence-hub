@@ -26,8 +26,10 @@ class DeduplicationService:
     """
     Prevents duplicate content from being stored.
     
+    Uses BigQuery as the source of truth for deduplication checks.
+    
     Supports:
-    - URL-based exact matching
+    - URL-based exact matching (BigQuery query)
     - Title similarity matching (for cross-source duplicates)
     - Article aggregation (grouping same stories from multiple sources)
     """
@@ -35,39 +37,70 @@ class DeduplicationService:
     # Similarity threshold for title matching (0.85 = 85% similar)
     TITLE_SIMILARITY_THRESHOLD = 0.85
     
-    def __init__(self, db):
-        self.db = db
+    def __init__(self, storage=None):
+        """
+        Initialize DeduplicationService.
+        
+        Args:
+            storage: BigQueryDataStorage instance (optional, will be initialized if not provided)
+        """
+        self.storage = storage
         self._url_cache: set = set()
         self._title_cache: Dict[str, str] = {}  # normalized_title -> article_id
         self._title_to_articles: Dict[str, List[Dict]] = {}  # For aggregation tracking
+        self._initialized = False
+    
+    async def initialize(self):
+        """Initialize storage connection if not provided."""
+        if self._initialized:
+            return
+        
+        if not self.storage:
+            from app.db.gcp_storage import get_storage
+            self.storage = await get_storage()
+        
+        self._initialized = True
     
     async def load_recent_cache(self, hours: int = 168):
-        """Load recent URLs and titles into memory cache"""
+        """Load recent URLs and titles into memory cache from BigQuery"""
+        await self.initialize()
+        
         try:
-            items = await self.db.query_corpus(hours=hours, limit=1000)
+            # Use BigQuery to load recent articles for cache
+            items = await self.storage.get_recent_articles_for_dedup(hours=hours, limit=2000)
             
             for item in items:
-                self._url_cache.add(self._normalize_url(item.url))
-                self._title_cache[self._normalize_title(item.title)] = item.id
+                url = item.get("url", "")
+                title = item.get("title", "")
+                article_id = item.get("id", "")
+                
+                if url:
+                    self._url_cache.add(self._normalize_url(url))
+                if title:
+                    self._title_cache[self._normalize_title(title)] = article_id
             
-            logger.info(f"Loaded {len(self._url_cache)} URLs into dedup cache")
+            logger.info(f"Loaded {len(self._url_cache)} URLs and {len(self._title_cache)} titles into dedup cache from BigQuery")
         except Exception as e:
-            logger.warning(f"Could not load dedup cache: {e}")
+            logger.warning(f"Could not load dedup cache from BigQuery: {e}")
     
     async def check_duplicate(self, article: RawArticle) -> Tuple[bool, Optional[str]]:
         """
         Check if article is a duplicate.
         Returns: (is_duplicate, original_id or None)
         """
-        # 1. URL exact match
+        await self.initialize()
+        
+        # 1. URL exact match - check in-memory cache first
         normalized_url = self._normalize_url(article.url)
         
         if normalized_url in self._url_cache:
-            original_id = await self.db.check_duplicate(article.url)
+            # Verify in BigQuery
+            original_id = await self.storage.check_duplicate(article.url)
             if original_id:
                 return (True, original_id)
         
-        original_id = await self.db.check_duplicate(article.url)
+        # Check BigQuery directly (in case cache missed it)
+        original_id = await self.storage.check_duplicate(article.url)
         if original_id:
             self._url_cache.add(normalized_url)
             return (True, original_id)
@@ -82,7 +115,7 @@ class DeduplicationService:
         if similar_title:
             return (True, self._title_cache.get(similar_title))
         
-        # Not a duplicate
+        # Not a duplicate - add to cache
         self._url_cache.add(normalized_url)
         self._title_cache[normalized_title] = None
         

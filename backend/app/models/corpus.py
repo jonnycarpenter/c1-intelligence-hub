@@ -206,6 +206,7 @@ class IngestionStats(BaseModel):
     earnings_transcripts_fetched: int = 0
     web_articles_fetched: int = 0  # General web search (Exa industry queries + per-company)
     stocknews_articles_fetched: int = 0  # StockNewsAPI premium financial news
+    premium_news_articles_fetched: int = 0  # FMP premium news (Benzinga, Seeking Alpha, etc.)
     articles_enriched: int = 0
     articles_classified: int = 0
     duplicates_skipped: int = 0
@@ -236,7 +237,8 @@ class IngestionStats(BaseModel):
             self.pr_articles_fetched + 
             self.sec_filings_fetched +
             self.web_articles_fetched +
-            self.stocknews_articles_fetched
+            self.stocknews_articles_fetched +
+            self.premium_news_articles_fetched
         )
     
     class Config:

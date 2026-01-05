@@ -4,6 +4,37 @@ This file tracks completed work and open items across AI assistant sessions.
 
 ---
 
+## Session 10 (January 5, 2026)
+
+### ✅ Completed
+
+1. **Source Articles Now Linked in Weekly Briefings** 🎉
+   - **Root Cause**: `WeeklyBriefingGenerator._build_source_articles()` existed but was never called when building `processed_sections`
+   - **Fix**: Added `_extract_citation_numbers()` method to parse `[N]` and `[Exa:N]` citations from section text
+   - Enhanced `_build_source_articles()` to handle both pre-brief and Exa peripheral search sources
+   - Now each section includes `source_articles` array with `{id, title, url, source_name, published_at}`
+   - Citations like `[1]`, `[2]` in text now have corresponding clickable links in the Sources footer
+   - **File Modified**: [weekly_briefing.py](backend/app/ingestion/generators/weekly_briefing.py)
+
+2. **BLUF (Bottom Line Up Front) Now Rendered** 🎉
+   - **Root Cause**: Frontend `WeeklyBriefing` type didn't include `bluf` field, and component didn't render it
+   - **Fix**: Added `bluf?: string` to TypeScript type and styled BLUF display in briefing header
+   - BLUF appears as a highlighted callout box with "BLUF" label, positioned prominently after the title
+   - **Files Modified**: 
+     - [briefing.ts](frontend/src/types/briefing.ts) - Added `bluf` to `WeeklyBriefing` interface
+     - [WeeklyBriefingSection.tsx](frontend/src/components/dashboard/WeeklyBriefingSection.tsx) - Added BLUF display
+
+### 📋 Open Items / To Do (Remaining from Session 9)
+
+| Priority | Issue | Description |
+|----------|-------|-------------|
+| 🟡 Medium | **Historical Context Too Sparse** | Agent 2 only gets topic list from previous briefings, not actual headlines - limits narrative continuity |
+| 🟡 Medium | **Ad-hoc Briefing Stateless** | `AdHocBriefingAgent.follow_up_count` resets each request - can't track multi-turn conversations |
+| 🟢 Low | **Convert to Native Claude Tools** | Currently uses custom JSON format for tool calls - could use native Anthropic tool use |
+| 🟢 Low | **Domain Resolution Heuristics** | `company_name_to_domain()` guesses domains - could add more known mappings or use lookup API |
+
+---
+
 ## Session 9 (January 5, 2026)
 
 ### ✅ Completed
@@ -35,9 +66,9 @@ This file tracks completed work and open items across AI assistant sessions.
 
 | Priority | Issue | Description |
 |----------|-------|-------------|
-| 🟡 Medium | **Source Articles Not Linked** | `source_articles` field in briefing sections is not populated - citations `[1]`, `[2]` reference articles but no clickable links |
+| ✅ Done | **Source Articles Not Linked** | Fixed in Session 10 - citations now have clickable links |
+| ✅ Done | **BLUF Not Rendered** | Fixed in Session 10 - BLUF now displays in briefing header |
 | 🟡 Medium | **Historical Context Too Sparse** | Agent 2 only gets topic list from previous briefings, not actual headlines - limits narrative continuity |
-| 🟡 Medium | **BLUF Not Rendered** | Agent generates `bluf` field but frontend doesn't display it |
 | 🟡 Medium | **Ad-hoc Briefing Stateless** | `AdHocBriefingAgent.follow_up_count` resets each request - can't track multi-turn conversations |
 | 🟢 Low | **Convert to Native Claude Tools** | Currently uses custom JSON format for tool calls - could use native Anthropic tool use |
 | 🟢 Low | **Domain Resolution Heuristics** | `company_name_to_domain()` guesses domains - could add more known mappings or use lookup API |

@@ -387,11 +387,19 @@ export default function WeeklyBriefingSection({
         </div>
       </div>
 
-      {/* Briefing Title */}
+      {/* Briefing Title + BLUF */}
       <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-100 rounded-xl p-4">
         <h3 className="text-lg font-bold text-slate-900">{briefing.briefing_title}</h3>
+        {briefing.bluf && (
+          <div className="mt-3 p-3 bg-white/60 rounded-lg border border-amber-200/50">
+            <div className="flex items-start gap-2">
+              <span className="text-xs font-bold text-amber-700 uppercase tracking-wider shrink-0 mt-0.5">BLUF</span>
+              <p className="text-sm font-medium text-slate-800 leading-relaxed">{briefing.bluf}</p>
+            </div>
+          </div>
+        )}
         {briefing.overall_trend && (
-          <p className="text-sm text-slate-600 mt-1">{briefing.overall_trend}</p>
+          <p className="text-sm text-slate-600 mt-3">{briefing.overall_trend}</p>
         )}
         <div className="mt-3 flex items-center gap-4 text-xs text-slate-500">
           <span>{briefing.article_count} articles analyzed</span>
