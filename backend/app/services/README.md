@@ -61,8 +61,15 @@ BigQuery: digest_items table
 - Clear cache: Call `refresh_digest()` or `trigger_ingestion()`
 
 **Diagnostic Scripts**:
+- `backend/scripts/testing/check_lowium_bug.py` - Check priority value distribution
 - `backend/check_digest_data.py` - Check raw BigQuery data
 - `backend/check_digest_service.py` - Test service output
+
+**Data Quality** (verified Jan 5, 2026):
+- Total items: 3,767
+- Feed eligible: 94.9%
+- Priority distribution: Healthy (high: 702, medium: 1,282, low: 1,783)
+- Known issue: 12% of items have capitalized priority values (`Low` vs `low`) - low priority fix
 
 ---
 

@@ -95,6 +95,13 @@ Ad-hoc test scripts for development:
 - `test_ingestion_new_tools.py` - Test new ingestion sources
 - `test_pulse_api.py` - Test Pulse API endpoints
 - `test_tools.py` - Test MCP tools
+- `check_lowium_bug.py` - **Check digest priority distribution** (data quality)
+
+**Digest Data Quality**:
+```bash
+python scripts/testing/check_lowium_bug.py
+```
+Shows priority value distribution and identifies malformed values.
 
 ---
 

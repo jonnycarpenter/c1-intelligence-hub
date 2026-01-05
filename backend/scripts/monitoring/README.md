@@ -48,3 +48,20 @@ The health check monitors these ingestion sources:
 - StockNews API
 - Exa.ai web search (91 queries)
 - Tavily web search (145 queries)
+
+## Digest Data Quality Checks
+
+### Check Priority Distribution
+```bash
+python scripts/testing/check_lowium_bug.py
+```
+Shows priority value distribution and identifies any malformed values.
+
+**Last verified**: Jan 5, 2026
+- Total items: 3,767
+- Priority distribution: Healthy
+- Known issue: 12% capitalized values (low priority)
+
+---
+
+*Last updated: January 5, 2026*

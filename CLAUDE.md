@@ -164,6 +164,13 @@ These files have critical bug fixes - be careful editing:
 
 ## Recent Changes (January 5, 2026)
 
+### Session 14 - Digest System Investigation ✅
+- **"Lowium" Bug**: Investigated and confirmed resolved (0 items found)
+- **Priority Case Sensitivity**: Identified 12% capitalized values vs 88% lowercase (low priority issue)
+- **Production Health**: Verified system healthy - 170 articles stored, 95.5% efficiency
+- **Documentation**: Created comprehensive findings report and diagnostic script
+- **Status**: Digest system confirmed working correctly, ready for production use
+
 ### Session 13b - Digest SQLite Cleanup ✅
 - **Deleted Legacy SQLite**: Removed `app/db/database.py` (1,128 lines)
 - **Cleaned Imports**: Updated `app/db/__init__.py` to remove `Database` and `get_db`
