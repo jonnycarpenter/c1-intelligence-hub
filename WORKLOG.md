@@ -43,8 +43,12 @@ This file tracks completed work and open items across AI assistant sessions.
 | File | Current | Needed |
 |------|---------|--------|
 | `grounding.py` | BQ primary, CSV fallback | Remove CSV fallback |
-| `data_management.py` | Writes to CSV | Add BigQuery CRUD |
-| `data_preferences.py` | CSV CRUD | Add BigQuery CRUD |
+
+**Legacy Files** (Superseded by Long-Term Memory - see `c1-mvp-longterm_memory.md`):
+| File | Status |
+|------|--------|
+| `data_management.py` | Legacy - replaced by long-term memory workflow |
+| `data_preferences.py` | Legacy - replaced by long-term memory workflow |
 
 ### 📋 Other Open Items (Medium-Low Priority)
 
