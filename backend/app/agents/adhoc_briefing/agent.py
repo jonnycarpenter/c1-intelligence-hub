@@ -1,20 +1,22 @@
 """
-Ad Hoc Quick Briefing Agent
-===========================
+Ad Hoc Briefing Agent (Enhanced)
+================================
 
-Handles user-generated "quick briefing" requests on the Pulse page.
+Handles user-generated briefing requests on the Pulse page.
 
-Key Features:
-- Fast response using Claude Haiku
+Key Features (v2 - January 2026):
+- Thorough responses using Claude Sonnet 4.5
+- Access to external tools: Exa news, StockNewsAPI, FMP premium news
 - Structured context from current brief + recent digest
-- Tool access to search full digest/briefing if needed
+- SSE progress events for tool execution
 - Max 2 follow-ups, then redirect to Deep Research
 - Stores briefings in adhoc_briefings BigQuery table
 
 Design Principles:
-- Speed over depth (use Haiku, semantic search only)
-- Context-aware but lightweight
-- Graceful fallback to Deep Research for complex queries
+- "Wow" intelligence over raw speed
+- Rich formatting with sections, bold, citations
+- Corpus-first, then external sources
+- 120-second timeout for thorough research
 """
 
 import uuid
@@ -90,38 +92,57 @@ Current UI Filters (Active): {filters}"""
 
 class AdHocBriefingAgent:
     """
-    Agent for generating quick ad hoc briefings based on user questions.
+    Agent for generating thorough ad hoc briefings based on user questions.
     
     Uses:
-    - Claude Haiku for speed
-    - Semantic search over articles_embedding only
+    - Claude Sonnet 4.5 for quality responses
+    - Corpus search FIRST (BigQuery vector store)
+    - External tools: Exa news, StockNewsAPI, FMP premium news
     - Structured context from current brief + digest
-    - Tool to search full content if needed
+    - Rich markdown formatting with citations
     """
     
-    SYSTEM_PROMPT = """You are an intelligence analyst assistant for C1 Intelligence Hub, a composites industry intelligence platform.
+    SYSTEM_PROMPT = """You are an intelligence analyst for C1 Intelligence Hub, a composites industry intelligence platform serving sales and strategy teams.
 
-Your role is to provide QUICK, FOCUSED briefings based on user questions about industry news and developments.
+Your role is to provide THOROUGH, WELL-SOURCED briefings on industry news, competitor activity, and market developments.
 
 CONTEXT AWARENESS:
 You have access to the current weekly executive briefing and recent digest topics. The user may be asking follow-up questions about topics they saw there.
 
-TOOLS:
-- search_articles: Search the articles database for relevant information
-- search_briefing_details: Get more details from the current weekly briefing (use if user references something specific)
+TOOLS AVAILABLE (use in this order):
+1. search_articles - Search our internal corpus FIRST (always start here)
+2. exa_news_search - Search recent news via Exa.ai
+3. stocknews_search - Get financial news for specific tickers
+4. fmp_news - Get premium news from Bloomberg, Benzinga, etc.
+5. search_briefing_details - Get details from current weekly briefing
 
-RESPONSE GUIDELINES:
-1. Be CONCISE - this is a quick briefing, not a research report
-2. Always cite sources with [Source: Article Title]
-3. If you can't find enough information, say so and suggest Deep Research
-4. Focus on actionable intelligence, not general background
-5. Use bullet points for clarity
+RESPONSE FORMAT (use this exact structure):
+
+## Overview
+[2-3 sentence executive summary with **bold** for key insights]
+
+## Key Findings
+- **Finding 1**: Detail with citation [Source Title](url)
+- **Finding 2**: Detail with citation
+- **Finding 3**: Additional insight
+
+## Market Context
+[If applicable: broader market implications, trends, or competitive context]
+
+## Sources
+1. [Source Title](url) - brief description of why relevant
+2. [Source Title](url) - brief description
+
+CITATION RULES:
+- ALWAYS include clickable URLs in [Title](url) format
+- Cite inline AND in the Sources section
+- If a source has no URL, just use the title
 
 FALLBACK:
-If you cannot adequately answer the question with available data, respond with:
-"I found limited information on this topic. Here's what I found: [brief summary]. For a comprehensive analysis, I recommend using the Deep Research feature which has access to additional resources."
+If you cannot find sufficient information, respond with:
+"I found limited information on this topic. Here's what I found: [summary]. For comprehensive analysis with additional sources, I recommend the **Deep Research** feature."
 
-Remember: Speed and relevance over completeness."""
+Quality over speed - take time to synthesize actionable intelligence."""
 
     ADHOC_BRIEFING_PROMPT = """<user_context>
 {context_string}
@@ -156,7 +177,8 @@ Respond with a JSON object:
         )
         # Raw client for streaming (fallback to Anthropic-only for streaming)
         self._streaming_client = AsyncAnthropic(api_key=self.config.anthropic_api_key)
-        self.model = "claude-3-5-haiku-20241022"  # Fast model for quick responses
+        self.model = "claude-sonnet-4-5"  # Thorough model for quality responses
+        self.timeout_seconds = 120  # 2-minute timeout
         self._vector_store = None
         self._bq_storage = None
         
@@ -208,7 +230,7 @@ Respond with a JSON object:
                 "source": metadata.get("source_name", "Unknown"),
                 "date": metadata.get("published_at", ""),
                 "category": metadata.get("category", ""),
-                "summary": r.get("document", "")[:500],  # Truncate for speed
+                "summary": r.get("document", ""),  # Full content, no truncation
                 "relevance_score": r.get("relevance_score", 0),
             })
         
@@ -243,6 +265,92 @@ Respond with a JSON object:
             logger.warning(f"Error searching briefing details: {e}")
         
         return {"relevant_sections": [], "message": "Could not find briefing details"}
+    
+    async def search_external_news(self, query: str) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Search external news sources (Exa, StockNews, FMP).
+        
+        Returns combined results from all available external tools.
+        This supplements the corpus search with live/recent sources.
+        """
+        results = {
+            "exa_news": [],
+            "stocknews": [],
+            "fmp_news": [],
+        }
+        
+        # Try Exa news search
+        try:
+            from app.mcp.tools.exa_search import news_search
+            exa_result = news_search.invoke({"query": query, "max_results": 5, "time_range": "week"})
+            if exa_result and isinstance(exa_result, str):
+                data = json.loads(exa_result)
+                if data.get("results"):
+                    results["exa_news"] = data["results"][:5]
+                    logger.info(f"Exa news returned {len(results['exa_news'])} results")
+        except Exception as e:
+            logger.warning(f"Exa news search failed: {e}")
+        
+        # Try StockNews keyword search
+        try:
+            from app.mcp.tools.stocknews_api import search_news_keyword
+            stocknews_result = search_news_keyword.invoke({"keyword": query, "days": 7, "items": 5})
+            if stocknews_result and isinstance(stocknews_result, str):
+                data = json.loads(stocknews_result)
+                if data.get("articles"):
+                    results["stocknews"] = data["articles"][:5]
+                    logger.info(f"StockNews returned {len(results['stocknews'])} results")
+        except Exception as e:
+            logger.warning(f"StockNews search failed: {e}")
+        
+        # Try FMP premium news (general market news)
+        try:
+            from app.mcp.tools.fmp_premium_news import get_fmp_premium_news
+            fmp_result = get_fmp_premium_news.invoke({"limit": 5})
+            if fmp_result and isinstance(fmp_result, str):
+                data = json.loads(fmp_result)
+                if data.get("articles"):
+                    results["fmp_news"] = data["articles"][:5]
+                    logger.info(f"FMP news returned {len(results['fmp_news'])} results")
+        except Exception as e:
+            logger.warning(f"FMP news search failed: {e}")
+        
+        return results
+    
+    def _format_external_results(self, external_results: Dict[str, List]) -> str:
+        """Format external tool results for inclusion in prompt."""
+        sections = []
+        
+        if external_results.get("exa_news"):
+            exa_section = "## Exa News Search Results\n"
+            for r in external_results["exa_news"]:
+                exa_section += f"### {r.get('title', 'Untitled')}\n"
+                exa_section += f"**URL:** {r.get('url', '')}\n"
+                exa_section += f"**Published:** {r.get('published_date', 'Unknown')}\n"
+                content = r.get('content', r.get('snippet', ''))
+                exa_section += f"**Content:** {content[:500] if content else ''}\n\n"
+            sections.append(exa_section)
+        
+        if external_results.get("stocknews"):
+            sn_section = "## StockNews Results\n"
+            for r in external_results["stocknews"]:
+                sn_section += f"### {r.get('title', 'Untitled')}\n"
+                sn_section += f"**Source:** {r.get('source', '')} | **URL:** {r.get('url', '')}\n"
+                sn_section += f"**Sentiment:** {r.get('sentiment', 'neutral')}\n"
+                text = r.get('text', '')
+                sn_section += f"**Content:** {text[:500] if text else ''}\n\n"
+            sections.append(sn_section)
+        
+        if external_results.get("fmp_news"):
+            fmp_section = "## FMP Premium News\n"
+            for r in external_results["fmp_news"]:
+                fmp_section += f"### {r.get('title', 'Untitled')}\n"
+                fmp_section += f"**Publisher:** {r.get('publisher', '')} | **URL:** {r.get('url', '')}\n"
+                text = r.get('text', '')
+                fmp_section += f"**Content:** {text[:500] if text else ''}\n\n"
+            sections.append(fmp_section)
+        
+        return "\n".join(sections) if sections else ""
     
     def _should_redirect_to_deep_research(self) -> bool:
         """Check if we should redirect user to deep research."""
@@ -337,10 +445,18 @@ Respond with a JSON object:
         # Build prompt with context and search results
         context_string = context.to_context_string()
         
-        search_context = "Relevant Articles Found:\n" + "\n".join([
-            f"- {r['title']} ({r['source']}, {r['date']})\n  Summary: {r['summary']}"
-            for r in search_results[:5]
+        # Include more articles in context (no truncation now)
+        search_context = "## Internal Corpus Results\n" + "\n".join([
+            f"### {r['title']}\n**Source:** {r['source']} | **Date:** {r['date']}\n**URL:** {r['url']}\n**Content:** {r['summary']}\n"
+            for r in search_results[:8]  # Include more articles
         ])
+        
+        # Search external sources for additional context
+        external_results = await self.search_external_news(question)
+        external_context = self._format_external_results(external_results)
+        if external_context:
+            search_context += "\n\n" + external_context
+            logger.info("Added external tool results to context")
         
         # Include conversation history if session exists
         conversation_context = ""
@@ -353,13 +469,14 @@ Respond with a JSON object:
 
 User Question: {question}
 
-Based on the above context and search results, provide a focused briefing response.
-Be concise and cite sources. If the information is limited, acknowledge it.
-{f"This is follow-up #{follow_up_count} in this conversation. You have {max(0, (session.max_follow_ups if session else self.max_follow_ups) - follow_up_count)} follow-ups remaining before redirect to Deep Research." if is_follow_up else ""}
+Using the internal corpus results above, provide a thorough briefing response.
+Follow the response format from your instructions (Overview, Key Findings, Sources).
+Use **bold** for key insights and include clickable [Title](url) citations.
+{f"This is follow-up #{follow_up_count}. You have {max(0, (session.max_follow_ups if session else self.max_follow_ups) - follow_up_count)} follow-ups remaining." if is_follow_up else ""}
 
-Respond with JSON:
+Respond with a JSON object:
 {{
-    "answer": "Your briefing response with citations",
+    "answer": "Your formatted briefing with ## sections, **bold**, and [Title](url) citations",
     "sources_used": [{{"title": "...", "url": "...", "relevance": "..."}}],
     "confidence": "high|medium|low",
     "suggest_deep_research": true|false
@@ -368,7 +485,7 @@ Respond with JSON:
         try:
             response = await self.client.messages_create(
                 model=self.model,
-                max_tokens=1500,
+                max_tokens=3000,  # Increased for richer formatting
                 temperature=0,
                 system=self.SYSTEM_PROMPT,
                 messages=[{"role": "user", "content": full_prompt}]

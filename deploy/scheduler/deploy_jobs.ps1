@@ -41,18 +41,10 @@ $Jobs = @(
         Name        = "ingest-deep-dive"
         Schedule    = "0 8 * * *" # 8 AM UTC = 2 AM CST (Standard Time)
         Uri         = "$ServiceUrl/api/v1/scheduler/ingest"
-        Body        = '{\"sources\": [\"industry_queries\", \"rss\", \"sec\", \"earnings\", \"stocknews\", \"tavily\"]}'
+        # ALL sources: industry_queries (Exa+Tavily), rss, sec, earnings, stocknews, fmp_news, freight, press_releases (Exa)
+        Body        = '{\"sources\": [\"industry_queries\", \"rss\", \"sec\", \"earnings\", \"stocknews\", \"fmp_news\", \"freight\", \"press_releases\"]}'
         Timeout     = "1800s"  # 30 min MAX - deep ingestion needs full time
-        Description = "Deep Loop: Comprehensive daily ingestion (Web Search, SEC, Earnings)"
-    },
-    @{
-        Name        = "daily-evening-ingest"
-        Schedule    = "0 2 * * *" # 2 AM UTC = 8 PM CST
-        Timezone    = "America/Chicago"
-        Uri         = "$ServiceUrl/api/v1/scheduler/ingest"
-        Body        = '{\"sources\": [\"industry_queries\", \"rss\", \"sec\"]}'
-        Timeout     = "1800s"  # 30 min MAX
-        Description = "Evening Loop: Second daily ingestion run"
+        Description = "Deep Loop: Comprehensive daily ingestion (ALL sources)"
     },
     @{
         Name        = "weekly-executive-briefing"
@@ -64,8 +56,15 @@ $Jobs = @(
     }
 )
 
-# Legacy Jobs to DELETE
-$LegacyJobs = @("daily-morning-ingest", "orchestrator-ingestion-morning", "orchestrator-ingestion-evening")
+# Legacy Jobs to DELETE (will be removed if they exist)
+$LegacyJobs = @(
+    "daily-morning-ingest",
+    "orchestrator-ingestion-morning", 
+    "orchestrator-ingestion-evening",
+    "daily-evening-ingest",        # Removed: redundant with ingest-deep-dive
+    "weekly-corpus-refresh",       # Removed: stub implementation (did nothing)
+    "weekly-data-cleanup"          # Removed: stub implementation (did nothing)
+)
 
 # Delete Legacy Jobs
 foreach ($jobName in $LegacyJobs) {
@@ -79,38 +78,46 @@ foreach ($jobName in $LegacyJobs) {
 
 # Create/Update New Jobs
 foreach ($job in $Jobs) {
-    $exists = gcloud scheduler jobs describe $job.Name --location=$Region --quiet 2>$null
+    # Extract values to avoid PowerShell hashtable reference issues with gcloud
+    $jobName = $job.Name
+    $jobSchedule = $job.Schedule
+    $jobUri = $job.Uri
+    $jobBody = $job.Body
+    $jobTimeout = $job.Timeout
+    $jobDescription = $job.Description
+    
+    $exists = gcloud scheduler jobs describe $jobName --location=$Region --quiet 2>$null
     
     if ($exists) {
-        Write-Host "Updating job: $($job.Name)" -ForegroundColor Cyan
-        gcloud scheduler jobs update http $job.Name `
+        Write-Host "Updating job: $jobName" -ForegroundColor Cyan
+        gcloud scheduler jobs update http $jobName `
             --location=$Region `
-            --schedule=$job.Schedule `
-            --uri=$job.Uri `
+            --schedule="$jobSchedule" `
+            --uri="$jobUri" `
             --http-method=POST `
-            --headers="Content-Type=application/json" `
-            --message-body=$job.Body `
+            --update-headers="Content-Type=application/json" `
+            --message-body="$jobBody" `
             --time-zone="UTC" `
             --oidc-service-account-email=$ServiceAccount `
             --oidc-token-audience=$ServiceUrl `
-            --attempt-deadline=$job.Timeout `
-            --description=$job.Description `
+            --attempt-deadline=$jobTimeout `
+            --description="$jobDescription" `
             --quiet
     }
     else {
-        Write-Host "Creating job: $($job.Name)" -ForegroundColor Green
-        gcloud scheduler jobs create http $job.Name `
+        Write-Host "Creating job: $jobName" -ForegroundColor Green
+        gcloud scheduler jobs create http $jobName `
             --location=$Region `
-            --schedule=$job.Schedule `
-            --uri=$job.Uri `
+            --schedule="$jobSchedule" `
+            --uri="$jobUri" `
             --http-method=POST `
             --headers="Content-Type=application/json" `
-            --message-body=$job.Body `
+            --message-body="$jobBody" `
             --time-zone="UTC" `
             --oidc-service-account-email=$ServiceAccount `
             --oidc-token-audience=$ServiceUrl `
-            --attempt-deadline=$job.Timeout `
-            --description=$job.Description `
+            --attempt-deadline=$jobTimeout `
+            --description="$jobDescription" `
             --quiet
     }
 }

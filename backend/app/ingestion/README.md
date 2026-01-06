@@ -2,6 +2,8 @@
 
 The data ingestion system for C1 Intelligence Hub. Collects, deduplicates, enriches, classifies, and stores articles from multiple sources into BigQuery.
 
+> ⚠️ **CRITICAL**: Reliable ingestion is the foundation of the entire product. Without daily ingestion, the Pulse page goes stale, Deep Research has no context, and briefings have nothing to summarize.
+
 ## Architecture
 
 ```
@@ -19,13 +21,114 @@ The data ingestion system for C1 Intelligence Hub. Collects, deduplicates, enric
 │  │  • Tavily (145)  │  │  3. Classifier   │  │  • digest_items          │   │
 │  │  • SEC EDGAR     │  │  4. Entity Link  │  │  • article_chunk_embeddings │
 │  │  • FMP News      │  │  5. Image Enrich │  │  • ingestion_events      │   │
-│  │  • StockNews     │  │                  │  │                          │   │
+│  │  • StockNews     │  │                  │  │  • freight_rates         │   │
 │  │  • Drewry (WCI)  │  │                  │  │                          │   │
 │  │  • Earnings      │  │                  │  │                          │   │
+│  │  • Press Releases│  │                  │  │                          │   │
 │  └──────────────────┘  └──────────────────┘  └──────────────────────────┘   │
 │                                                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
+
+## ⏰ Cloud Scheduler Jobs (Production)
+
+**GCP Project**: `gen-lang-client-0436975498`  
+**Region**: `us-central1`  
+**Canonical Definition**: [deploy/scheduler/deploy_jobs.ps1](../../../deploy/scheduler/deploy_jobs.ps1)
+
+### Current Jobs (as of January 6, 2026)
+
+| Job | Schedule | Timeout | Sources | Purpose |
+|-----|----------|---------|---------|---------|
+| `ingest-flash-update` | Every 4 hours | 15 min | rss, stocknews, freight | Fast-moving news sources |
+| `ingest-deep-dive` | 2 AM CST daily | 30 min | **ALL 8 sources** | Comprehensive daily collection |
+| `weekly-executive-briefing` | Mon 8:30 AM CST | 15 min | (triggers briefing) | Generates weekly "Need to Know" |
+
+### The 8 Data Sources for Deep Dive
+
+| Source Key | Description | API/Method | BQ source_type |
+|------------|-------------|------------|----------------|
+| `industry_queries` | Exa (91) + Tavily (145) web search | Neural + crawl | `web_news_exa`, `web_news_tavily` |
+| `rss` | 14 industry RSS feeds | Feed parsing | `rss` |
+| `sec` | SEC EDGAR filings (10-K, 10-Q, 8-K) | sec-api.io | `sec_filing` |
+| `earnings` | Earnings call transcripts | API Ninja | `earnings_transcript` |
+| `stocknews` | StockNews API articles | StockNews API | `stocknewsapi` |
+| `fmp_news` | FMP Premium news (Benzinga, etc.) | FMP API | `premium_news` |
+| `freight` | Drewry WCI freight rates | Web scraper | (stored in `freight_rates` table) |
+| `press_releases` | Company press releases | Exa search | `web_news_exa` |
+
+### API Endpoint
+
+```
+POST /api/v1/scheduler/ingest
+Content-Type: application/json
+
+{
+  "sources": ["industry_queries", "rss", "sec", "earnings", "stocknews", "fmp_news", "freight", "press_releases"],
+  "backfill_days": null
+}
+```
+
+### ⚠️ Critical Configuration Notes
+
+1. **Cloud Scheduler max timeout is 30 minutes (1800s)**
+   - `ingest-deep-dive` uses the full 30 min
+   - If ingestion exceeds 30 min, consider splitting into multiple jobs
+
+2. **JSON body escaping for PowerShell → gcloud**:
+   ```powershell
+   # CORRECT: Use escaped quotes
+   --message-body='{\"sources\": [\"rss\", \"stocknews\"]}'
+   
+   # WRONG: Unescaped quotes fail silently
+   --message-body='{"sources": ["rss", "stocknews"]}'
+   ```
+
+3. **Always use `--update-headers` for job updates** (not `--headers`)
+
+### Manual Trigger Commands
+
+```powershell
+# Test with single source (verify SDK fix works)
+$body = '{"sources": ["rss"]}'
+Invoke-RestMethod -Uri "https://c1-hub-4iz75bvpyq-uc.a.run.app/api/v1/scheduler/ingest" `
+  -Method Post -Body $body -ContentType "application/json" -TimeoutSec 300
+
+# Full deep dive (all 8 sources) - takes 10-20 minutes
+$body = '{"sources": ["industry_queries", "rss", "sec", "earnings", "stocknews", "fmp_news", "freight", "press_releases"]}'
+Invoke-RestMethod -Uri "https://c1-hub-4iz75bvpyq-uc.a.run.app/api/v1/scheduler/ingest" `
+  -Method Post -Body $body -ContentType "application/json" -TimeoutSec 1800
+```
+
+### Job Management Commands
+
+```powershell
+# List all scheduler jobs
+gcloud scheduler jobs list --location=us-central1 --project=gen-lang-client-0436975498
+
+# Check job status
+gcloud scheduler jobs describe ingest-deep-dive --location=us-central1 --project=gen-lang-client-0436975498
+
+# Pause a job (for maintenance)
+gcloud scheduler jobs pause ingest-deep-dive --location=us-central1 --project=gen-lang-client-0436975498
+
+# Resume a job
+gcloud scheduler jobs resume ingest-deep-dive --location=us-central1 --project=gen-lang-client-0436975498
+
+# Force-run a job now
+gcloud scheduler jobs run ingest-deep-dive --location=us-central1 --project=gen-lang-client-0436975498
+```
+
+### Deleted/Legacy Jobs (DO NOT RECREATE)
+
+| Job Name | Reason for Removal |
+|----------|-------------------|
+| `daily-evening-ingest` | Redundant - subset of `ingest-deep-dive` sources |
+| `weekly-corpus-refresh` | Stub - did nothing (BigQuery has no periodic reindex) |
+| `weekly-data-cleanup` | Stub - did nothing |
+| `daily-morning-ingest` | Legacy - replaced by `ingest-deep-dive` |
+| `orchestrator-ingestion-morning` | Legacy naming |
+| `orchestrator-ingestion-evening` | Legacy naming |
 
 ## Key Configuration
 
@@ -36,24 +139,6 @@ The data ingestion system for C1 Intelligence Hub. Collects, deduplicates, enric
 | **Classifier Sleep** | 0.2s between calls | `classifier.py:303` |
 | **Embedding Batch Size** | 5 chunks | `bq_vector_store.py:545` |
 | **Insert Batch Size** | 5 rows | `bq_vector_store.py:607` |
-
-## Data Sources
-
-### Flash Loop Sources (Frequent, Real-Time)
-| Source | Type | Articles/Day | Notes |
-|--------|------|--------------|-------|
-| RSS Feeds | 14 feeds | ~50-100 | CompositesWorld, JEC, FreightWaves, etc. |
-| Exa.ai | 91 queries | ~200-400 | Neural search, high quality |
-| Tavily | 145 queries | ~100-200 | Web crawl, broad coverage |
-| FMP Premium News | API | ~50-100 | Benzinga, Seeking Alpha |
-
-### Deep Loop Sources (Less Frequent, High Value)
-| Source | Type | Articles/Week | Notes |
-|--------|------|---------------|-------|
-| SEC Filings | 10-K, 10-Q, 8-K | ~20-50 | Via sec-api.io |
-| Earnings Transcripts | Q1-Q4 | ~40 per quarter | API Ninja |
-| Drewry WCI | Freight rates | Weekly | Container shipping index |
-| StockNews | Premium news | ~50-100 | Ticker-specific news |
 
 ## Processing Pipeline
 
@@ -71,6 +156,7 @@ The data ingestion system for C1 Intelligence Hub. Collects, deduplicates, enric
    - Claude claude-sonnet-4-5 for high accuracy
    - 10 concurrent calls, 0.2s throttle
    - Outputs: category, priority, relevance, summary
+   - **Uses `resilient_llm.py`** for Anthropic + OpenAI fallback
 
 4. **Entity Linking** (`processing/linker.py`)
    - Links to tracked companies from BigQuery
@@ -93,29 +179,15 @@ feed_eligible = (
 )
 ```
 
-## Running Ingestion
+## Running Ingestion Locally
 
-### Via Cloud Scheduler (Production)
-```
-# Flash Loop - Every 2 hours
-POST /api/v1/scheduler/ingest?sources=rss,industry_queries,fmp_news
-
-# Deep Loop - Every 6 hours  
-POST /api/v1/scheduler/ingest?sources=sec,earnings,stocknews
-
-# Weekly Briefing - Monday 8:30 AM CST
-POST /api/v1/scheduler/briefing
-```
-
-### Manually (Local/Testing)
-```bash
+```python
 # Full ingestion
-python -c "
 from app.ingestion.orchestrator import IngestionOrchestrator, IngestionConfig
 import asyncio
+
 o = IngestionOrchestrator(IngestionConfig())
 asyncio.run(o.run_full_ingestion())
-"
 
 # Specific sources only
 asyncio.run(o.run_full_ingestion(sources=['rss', 'fmp_news']))
@@ -190,6 +262,58 @@ See `processing/classifier.py` for the full `BLOCKED_SOURCES` set.
 
 ---
 
-*Last updated: January 5, 2026*
+## 🔧 Troubleshooting
+
+### Common Issues & Fixes
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| HTTP 422 from scheduler job | Malformed JSON body | Escape quotes: `'{\"sources\": [\"rss\"]}'` |
+| DEADLINE_EXCEEDED | Timeout too short | Set to 1800s (30 min max) |
+| "system: Input should be a valid list" | Anthropic SDK bug | Fixed in `resilient_llm.py` (Jan 2026) |
+| Articles stored without classification | Classification failing silently | Check Cloud Run logs for errors |
+| Job shows "PAUSED" state | Manually paused for maintenance | Resume with `gcloud scheduler jobs resume` |
+| No articles from source X | Source disabled in job config | Check `sources` array in job body |
+
+### Monitoring Commands
+
+```powershell
+# Check recent Cloud Run logs for errors
+gcloud logging read "resource.type=cloud_run_revision AND resource.labels.service_name=c1-hub AND severity>=ERROR" --limit=50 --project=gen-lang-client-0436975498
+
+# Check scheduler job execution history
+gcloud scheduler jobs describe ingest-deep-dive --location=us-central1 --format="yaml(state,lastAttemptTime,status)"
+
+# Query recent ingestion counts in BigQuery
+bq query --use_legacy_sql=false "
+SELECT DATE(fetched_at) as date, COUNT(*) as count, source_type
+FROM \`gen-lang-client-0436975498.c1_intelligence.articles\`
+WHERE fetched_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 3 DAY)
+GROUP BY date, source_type
+ORDER BY date DESC, count DESC
+"
+```
+
+### Health Check Scripts
+
+```bash
+# Comprehensive health check
+python backend/scripts/health/ingestion_health_check.py --days 7
+
+# Production dashboard (includes log analysis)
+python backend/scripts/monitoring/production_dashboard.py --detailed
+```
+
+### Critical Bug History (For Future Reference)
+
+**January 6, 2026 - Anthropic SDK `system` Parameter**
+- **Symptom**: All classification calls failing with "system: Input should be a valid list"
+- **Cause**: Anthropic SDK 0.75.0 rejects `system=None` parameter
+- **Fix**: Conditionally include `system` in kwargs only when provided
+- **File**: `backend/app/utils/resilient_llm.py` (see `messages_create` method)
+
+---
+
+*Last updated: January 6, 2026*
 
 

@@ -67,13 +67,19 @@ def run_bq_query(query: str, debug: bool = False) -> List[Dict]:
 
 
 def check_scheduler_status() -> Dict:
-    """Check Cloud Scheduler job status."""
+    """Check Cloud Scheduler job status.
+    
+    Current jobs (as of Jan 2026):
+    - ingest-flash-update: Every 4h (rss, stocknews, freight)
+    - ingest-deep-dive: 2 AM CST daily (ALL 8 sources)
+    - weekly-executive-briefing: Mon 8:30 AM CST
+    """
     gcloud_path = os.path.expandvars(r"%LOCALAPPDATA%\Google\Cloud SDK\google-cloud-sdk\bin\gcloud.cmd")
     if not os.path.exists(gcloud_path):
         gcloud_path = "gcloud"
     
-    # Filter for ingestion-related jobs (daily legacy + new ingest/briefing jobs)
-    cmd = f'"{gcloud_path}" scheduler jobs list --project={PROJECT_ID} --location=us-central1 --filter="name:(daily OR ingest OR briefing)" --format=json'
+    # Filter for current jobs: ingest-* and weekly-*
+    cmd = f'"{gcloud_path}" scheduler jobs list --project={PROJECT_ID} --location=us-central1 --filter="name:(ingest OR weekly)" --format=json'
     
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=15, shell=True, stdin=subprocess.DEVNULL)
@@ -96,21 +102,31 @@ def check_scheduler_status() -> Dict:
 
 
 def get_daily_article_counts(days_back: int = 7) -> List[Dict]:
-    """Get daily article counts from BigQuery articles table."""
+    """Get daily article counts from BigQuery articles table.
+    
+    Source types in BigQuery:
+    - rss: RSS feed articles
+    - web_news_exa: Exa search results (industry_queries + press_releases)
+    - web_news_tavily: Tavily search results (industry_queries)
+    - sec_filing: SEC EDGAR filings
+    - earnings_transcript: Earnings call transcripts
+    - stocknewsapi: StockNews API articles
+    - premium_news: FMP (Financial Modeling Prep) news
+    - freight: Drewry WCI freight rates (stored in freight_rates table)
+    """
     query = f"""
     SELECT 
         DATE(fetched_at) as date,
         COUNT(*) as total_articles,
         COUNT(DISTINCT source_type) as sources_used,
         COUNTIF(source_type = 'rss') as rss,
-        COUNTIF(source_type = 'press_release') as press_releases,
+        COUNTIF(source_type = 'web_news_exa') as exa,
+        COUNTIF(source_type = 'web_news_tavily') as tavily,
         COUNTIF(source_type = 'sec_filing') as sec_filings,
         COUNTIF(source_type = 'earnings_transcript') as earnings,
         COUNTIF(source_type = 'stocknewsapi') as stocknews,
         COUNTIF(source_type = 'premium_news') as fmp_news,
-        COUNTIF(source_type = 'web_search' OR source_type = 'web_news') as web_legacy,
-        COUNTIF(source_type = 'web_news_exa') as exa,
-        COUNTIF(source_type = 'web_news_tavily') as tavily
+        COUNTIF(source_type = 'press_release') as press_releases_legacy
     FROM `{PROJECT_ID}.{DATASET}.articles`
     WHERE fetched_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {days_back} DAY)
     GROUP BY date

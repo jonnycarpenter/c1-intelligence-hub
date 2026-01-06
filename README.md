@@ -200,6 +200,19 @@ c1-intelligence-hub_v2/
 
 See `backend/app/db/README.md` for detailed documentation.
 
+### Automated Data Ingestion
+
+Cloud Scheduler jobs automatically collect data:
+
+| Job | Schedule | Sources |
+|-----|----------|---------|
+| `ingest-flash-update` | Every 4 hours | RSS, StockNews, Freight |
+| `ingest-deep-dive` | 2 AM CST daily | All 8 sources (industry_queries, rss, sec, earnings, stocknews, fmp_news, freight, press_releases) |
+| `weekly-executive-briefing` | Mon 8:30 AM | Generates weekly briefing |
+
+**Full documentation**: [`backend/app/ingestion/README.md`](backend/app/ingestion/README.md)  
+**Deployment script**: [`deploy/scheduler/deploy_jobs.ps1`](deploy/scheduler/deploy_jobs.ps1)
+
 #### SQLite Migration
 
 If you have legacy data in SQLite (from GCS bucket):

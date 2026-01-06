@@ -168,6 +168,46 @@ app/mcp/tools/
 **Impact**: Added `langchain-openai>=0.2.0` and `openai>=1.54.0` to requirements  
 **Env Var**: `OPENAI_API_KEY` (optional, enables fallback)
 
+### ADR-008: Simplified Cloud Scheduler Job Structure
+**Date**: January 6, 2026  
+**Status**: Accepted  
+**Context**: Scheduler jobs had become fragmented with redundant jobs and stub implementations:
+- `daily-evening-ingest` duplicated sources already in `ingest-deep-dive`
+- `weekly-corpus-refresh` and `weekly-data-cleanup` were stubs (did nothing)
+- Jobs had malformed JSON bodies causing HTTP 422 errors
+- 30-minute Cloud Scheduler timeout was being exceeded
+
+**Decision**: Consolidate to exactly 3 scheduler jobs:
+| Job | Schedule | Sources | Timeout |
+|-----|----------|---------|---------|
+| `ingest-flash-update` | Every 4h | rss, stocknews, freight | 15 min |
+| `ingest-deep-dive` | 2 AM CST daily | ALL 8 sources | 30 min |
+| `weekly-executive-briefing` | Mon 8:30 AM CST | (triggers briefing) | 15 min |
+
+**Rationale**: 
+- Flash loop captures fast-moving news frequently
+- Deep dive runs comprehensive ingestion once daily
+- Removed redundant evening job (subset of deep-dive)
+- Removed stub maintenance jobs (did nothing useful)
+
+**Implementation**:
+- [deploy/scheduler/deploy_jobs.ps1](deploy/scheduler/deploy_jobs.ps1) - canonical job definitions
+- Legacy jobs auto-deleted when script runs
+- JSON bodies use escaped quotes for PowerShell: `'{\"key\": \"value\"}'`
+
+**The 8 Sources for Deep Dive**:
+1. `industry_queries` - Exa + Tavily web search (91 + 145 queries)
+2. `rss` - 14 RSS feeds
+3. `sec` - SEC EDGAR filings
+4. `earnings` - Earnings call transcripts
+5. `stocknews` - StockNews API
+6. `fmp_news` - FMP Premium news
+7. `freight` - Drewry WCI freight rates
+8. `press_releases` - Press releases via Exa
+
+**Critical Bug Fixed (Jan 6, 2026)**:
+Anthropic SDK 0.75.0 changed `system` parameter handling - passing `system=None` caused validation error. Fixed in `resilient_llm.py` by conditionally including parameter.
+
 ---
 
 ## Adding New Components

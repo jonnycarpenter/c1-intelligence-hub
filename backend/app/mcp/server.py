@@ -108,6 +108,9 @@ from app.mcp.tools.datasheets import (
     get_products_by_industry,
 )
 
+# FMP Premium News tools - premium financial news from Benzinga, Bloomberg, etc.
+from app.mcp.tools.fmp_premium_news import get_fmp_premium_news
+
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -118,7 +121,7 @@ def get_all_mcp_tools() -> List[BaseTool]:
     Get ALL available MCP tools as a flat list.
     
     The unified agent has access to all tools - no persona-based filtering.
-    Total: 52 tools across 9 categories.
+    Total: 53 tools across 9 categories.
     
     Categories:
         - Data Management (11): Company/material/industry tracker CRUD
@@ -129,7 +132,7 @@ def get_all_mcp_tools() -> List[BaseTool]:
         - Google Trends (3): Search interest analysis
         - Product Intelligence (6): Catalog and competitive analysis
         - Datasheets (4): Product spec sheets from BigQuery (Phase 2)
-        - Specialized (5): Earnings, visualization, images, documents
+        - Specialized (6): Earnings, visualization, images, documents, FMP news
         - Document Extraction (2): PDF and document crawling
     
     Returns:
@@ -206,13 +209,14 @@ def get_all_mcp_tools() -> List[BaseTool]:
         suggest_alternatives,
     ]
     
-    # Specialized tools (5)
+    # Specialized tools (6)
     specialized_tools = [
         get_earnings_transcript_ninja,
         search_earnings_keywords,
         create_chart,
         search_images,
         search_financial_visuals,
+        get_fmp_premium_news,
     ]
     
     # Document extraction tools (2)
