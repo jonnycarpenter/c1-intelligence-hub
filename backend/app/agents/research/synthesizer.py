@@ -244,6 +244,10 @@ async def synthesis_node(state: DeepResearchState) -> DeepResearchState:
         state["current_status"] = "synthesis_complete"
         
     except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Synthesizer failed to parse LLM output: {e}")
+        logger.error(f"Raw response content: {response.content[:500] if response else 'No response'}...")
         state["errors"].append({"node": "synthesis", "error": str(e)})
         state["current_status"] = "synthesis_failed"
         
