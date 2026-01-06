@@ -454,13 +454,13 @@ export default function Home() {
               <ChatInterface
                 mode={activeMode}
                 messages={messages}
-                onSendMessage={activeMode === 'research' ? handleResearchMessage : handleSendMessage}
+                onSendMessage={handleSendMessage}
                 isLoading={false}
                 isStreaming={isStreaming}
                 streamingContent={streamingState.content}
                 streamingThinking={streamingState.thinkingSteps}
                 currentAgent={streamingState.currentAgent}
-                hideStreamingContent={activeMode === 'research'}
+                hideStreamingContent={false}
               />
             </div>
           )}
