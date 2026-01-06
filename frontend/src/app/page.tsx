@@ -17,10 +17,14 @@ import { PipelineDashboard } from '@/components/pipeline'
 import DataPreferencesDashboard from '@/components/data-preferences/DataPreferencesDashboard'
 import { WelcomeTourModal } from '@/components/welcome'
 import { useDigest, useStreamingChat, useDeepResearch } from '@/hooks'
+import { useToast } from '@/components/ui'
 import { api } from '@/lib/api'
 import type { Mode, DigestItem, ReportItem, ResearchSection, RecentSearch, Message } from '@/types'
 
 export default function Home() {
+  // Toast notifications
+  const { addToast } = useToast()
+  
   // Core state
   const [activeMode, setActiveMode] = useState<Mode>('pulse')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -180,12 +184,12 @@ export default function Home() {
         tags: reportItems.map(item => item.category).filter((v, i, a) => a.indexOf(v) === i),
       })
 
-      console.log('Export complete and saved to memory')
+      addToast({ type: 'success', title: 'Report exported', message: 'Report saved and added to memory' })
     } catch (error) {
       console.error('Export failed:', error)
-      // TODO: Show error toast to user
+      addToast({ type: 'error', title: 'Export failed', message: 'Could not export report. Please try again.' })
     }
-  }, [reportItems])
+  }, [reportItems, addToast])
 
   // Handle refresh
   const handleRefresh = useCallback(async () => {
@@ -285,8 +289,8 @@ export default function Home() {
             name: s.name,
             url: s.url,
           })) || [],
-        }).catch(err => {
-          console.error('Failed to save research report:', err)
+        }).catch(() => {
+          // Silent failure - research is still visible to user
         })
       }
       // Clear active section
@@ -296,8 +300,9 @@ export default function Home() {
 
   // Scroll to a specific section in the canvas
   const handleScrollToSection = useCallback((sectionId: string) => {
-    // Could add actual scroll logic here
-    console.log('Scroll to section:', sectionId)
+    // TODO: Implement actual scroll logic if needed
+    const element = document.getElementById(`section-${sectionId}`)
+    element?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [])
 
   // Handle adding ReportItem (used by research sections)
@@ -470,7 +475,9 @@ export default function Home() {
         onRemoveItem={handleRemoveFromReport}
         onClearAll={() => setReportItems([])}
         onExport={handleExport}
-        onGeneratePodcast={() => console.log('Generating podcast...')}
+        onGeneratePodcast={() => {
+          addToast({ type: 'info', title: 'Coming soon', message: 'Podcast generation for custom reports is in development.' })
+        }}
       />
 
       {/* Welcome Tour Modal */}

@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Building2, FlaskConical, Tag, Factory, X } from 'lucide-react'
+import { Building2, FlaskConical, Tag, Factory, AlertTriangle, ChevronDown, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { DigestItem } from '@/types'
 
@@ -17,40 +17,38 @@ interface EntityAggregatorProps {
   onClearFilters: () => void
 }
 
-type EntityType = 'companies' | 'materials' | 'topics' | 'industries'
+type EntityType = 'companies' | 'materials' | 'topics' | 'industries' | 'highPriority'
 
-const entityConfig: Record<EntityType, { icon: typeof Building2; label: string; color: string; bgColor: string; borderColor: string; activeColor: string }> = {
+const entityConfig: Record<EntityType, { icon: typeof Building2; label: string; color: string; tooltipPrefix: string }> = {
   companies: {
     icon: Building2,
     label: 'Companies',
     color: 'text-blue-600',
-    bgColor: 'bg-blue-50',
-    borderColor: 'border-blue-200',
-    activeColor: 'bg-amber-100 border-amber-400 text-amber-800',
+    tooltipPrefix: 'companies',
   },
   materials: {
     icon: FlaskConical,
     label: 'Materials',
     color: 'text-emerald-600',
-    bgColor: 'bg-emerald-50',
-    borderColor: 'border-emerald-200',
-    activeColor: 'bg-amber-100 border-amber-400 text-amber-800',
-  },
-  topics: {
-    icon: Tag,
-    label: 'Topics',
-    color: 'text-amber-600',
-    bgColor: 'bg-amber-50',
-    borderColor: 'border-amber-200',
-    activeColor: 'bg-amber-100 border-amber-400 text-amber-800',
+    tooltipPrefix: 'materials',
   },
   industries: {
     icon: Factory,
     label: 'Industries',
     color: 'text-purple-600',
-    bgColor: 'bg-purple-50',
-    borderColor: 'border-purple-200',
-    activeColor: 'bg-amber-100 border-amber-400 text-amber-800',
+    tooltipPrefix: 'industries',
+  },
+  topics: {
+    icon: Tag,
+    label: 'Topics',
+    color: 'text-amber-600',
+    tooltipPrefix: 'topics',
+  },
+  highPriority: {
+    icon: AlertTriangle,
+    label: 'High Priority',
+    color: 'text-red-600',
+    tooltipPrefix: 'high priority items',
   },
 }
 
@@ -65,38 +63,34 @@ function formatLabel(label: string): string {
     .join(' ')
 }
 
-/**
- * Truncate a string to maxLen characters with ellipsis
- */
-function truncate(str: string, maxLen: number): string {
-  if (str.length <= maxLen) return str
-  return str.slice(0, maxLen - 1) + '…'
-}
-
-const MAX_VISIBLE = 5
-const MAX_NAME_LENGTH = 14
-
 export default function EntityAggregator({
   items,
   selectedEntities,
   onEntityToggle,
   onClearFilters,
 }: EntityAggregatorProps) {
-  const [expandedTypes, setExpandedTypes] = useState<Set<EntityType>>(new Set())
+  const [expandedType, setExpandedType] = useState<EntityType | null>(null)
 
-  // Aggregate entities across all items
-  const aggregatedEntities = useMemo(() => {
-    const counts: Record<EntityType, Map<string, number>> = {
+  // Aggregate entities and high priority count
+  const { aggregatedEntities, highPriorityCount } = useMemo(() => {
+    const counts: Record<Exclude<EntityType, 'highPriority'>, Map<string, number>> = {
       companies: new Map(),
       materials: new Map(),
       topics: new Map(),
       industries: new Map(),
     }
 
+    let highPriority = 0
+
     items.forEach(item => {
+      // Count high priority items
+      if (item.priority === 'high') {
+        highPriority++
+      }
+
       if (!item.entities) return
 
-      const types: EntityType[] = ['companies', 'materials', 'topics', 'industries']
+      const types: Array<Exclude<EntityType, 'highPriority'>> = ['companies', 'materials', 'topics', 'industries']
       types.forEach(type => {
         const entities = item.entities?.[type] || []
         entities.forEach(entity => {
@@ -108,7 +102,7 @@ export default function EntityAggregator({
     })
 
     // Convert to sorted arrays
-    const result: Record<EntityType, EntityCount[]> = {
+    const result: Record<Exclude<EntityType, 'highPriority'>, EntityCount[]> = {
       companies: [],
       materials: [],
       topics: [],
@@ -116,132 +110,124 @@ export default function EntityAggregator({
     }
 
     Object.entries(counts).forEach(([type, map]) => {
-      result[type as EntityType] = Array.from(map.entries())
+      result[type as Exclude<EntityType, 'highPriority'>] = Array.from(map.entries())
         .map(([name, count]) => ({ name, count }))
-        .sort((a, b) => b.count - a.count)
+        .sort((a, b) => b.count - a.count) // Sort by count descending
     })
 
-    return result
+    return { aggregatedEntities: result, highPriorityCount: highPriority }
   }, [items])
 
   const hasFilters = selectedEntities.size > 0
 
   const toggleExpand = (type: EntityType) => {
-    setExpandedTypes(prev => {
-      const next = new Set(prev)
-      if (next.has(type)) {
-        next.delete(type)
-      } else {
-        next.add(type)
-      }
-      return next
-    })
+    if (type === 'highPriority') return // High priority is not expandable (just a count)
+    setExpandedType(prev => prev === type ? null : type)
   }
 
-  // Calculate max count for "heat map" scaling per category
-  const getMaxCount = (type: EntityType) => {
-    const entities = aggregatedEntities[type]
-    return entities.length > 0 ? entities[0].count : 1
-  }
+  // Get distinct count for each type
+  const getCounts = () => ({
+    companies: aggregatedEntities.companies.length,
+    materials: aggregatedEntities.materials.length,
+    industries: aggregatedEntities.industries.length,
+    topics: aggregatedEntities.topics.length,
+    highPriority: highPriorityCount,
+  })
 
-  // Don't render if no entities
-  const hasAnyEntities = Object.values(aggregatedEntities).some(arr => arr.length > 0)
-  if (!hasAnyEntities) return null
+  const counts = getCounts()
+
+  // Don't render if no data
+  const hasAnyData = Object.values(counts).some(c => c > 0)
+  if (!hasAnyData) return null
 
   return (
-    <div className="space-y-2 pb-2 border-b border-slate-100 mb-2">
-      {/* Clear filters button */}
-      {hasFilters && (
-        <div className="flex justify-end">
+    <div className="space-y-2 pb-3 border-b border-slate-200 mb-4">
+      {/* Summary Stats Row */}
+      <div className="flex items-center gap-3 flex-wrap">
+        {(Object.keys(entityConfig) as EntityType[]).map(type => {
+          const config = entityConfig[type]
+          const Icon = config.icon
+          const count = counts[type]
+          const isExpanded = expandedType === type
+          const isExpandable = type !== 'highPriority'
+
+          if (count === 0) return null
+
+          return (
+            <button
+              key={type}
+              onClick={() => toggleExpand(type)}
+              disabled={!isExpandable}
+              className={cn(
+                'inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all',
+                isExpandable && 'hover:bg-slate-50 hover:border-slate-300 cursor-pointer',
+                !isExpandable && 'cursor-default',
+                isExpanded && 'bg-slate-50 border-slate-300 shadow-sm'
+              )}
+              title={`${count} ${config.tooltipPrefix} mentioned in the current drumbeat feed`}
+            >
+              <Icon size={16} className={config.color} />
+              <span className="text-sm font-semibold text-slate-700">{count}</span>
+              {isExpandable && (
+                <ChevronDown
+                  size={14}
+                  className={cn(
+                    'text-slate-400 transition-transform',
+                    isExpanded && 'rotate-180'
+                  )}
+                />
+              )}
+            </button>
+          )
+        })}
+
+        {/* Clear filters button */}
+        {hasFilters && (
           <button
             onClick={onClearFilters}
-            className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-md transition-colors"
+            className="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-md transition-colors"
           >
-            <X size={10} />
+            <X size={12} />
             Clear filters ({selectedEntities.size})
           </button>
+        )}
+      </div>
+
+      {/* Expandable Drawer for Pills */}
+      {expandedType && expandedType !== 'highPriority' && (
+        <div className="max-h-[200px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100 rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <div className="flex flex-wrap gap-1.5">
+            {aggregatedEntities[expandedType].map(({ name, count }) => {
+              const isSelected = selectedEntities.has(name)
+              const displayName = expandedType === 'industries' ? formatLabel(name) : name
+
+              return (
+                <button
+                  key={name}
+                  onClick={() => onEntityToggle(name, expandedType)}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border transition-all',
+                    isSelected
+                      ? 'bg-slate-900 border-slate-900 text-white shadow-sm'
+                      : 'bg-white border-slate-200 text-slate-700 hover:border-slate-400 hover:shadow-sm'
+                  )}
+                  title={`${displayName} (${count} mentions)`}
+                >
+                  <span className="max-w-[150px] truncate">{displayName}</span>
+                  <span
+                    className={cn(
+                      'text-[10px] font-bold px-1.5 py-0.5 rounded',
+                      isSelected ? 'bg-slate-700 text-slate-200' : 'bg-slate-100 text-slate-600'
+                    )}
+                  >
+                    {count}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
         </div>
       )}
-
-      {/* Entity rows */}
-      {(Object.keys(entityConfig) as EntityType[]).map(type => {
-        const config = entityConfig[type]
-        const entities = aggregatedEntities[type]
-        const Icon = config.icon
-        const isExpanded = expandedTypes.has(type)
-        const visibleEntities = isExpanded ? entities : entities.slice(0, MAX_VISIBLE)
-        const hasMore = entities.length > MAX_VISIBLE
-        const maxCount = getMaxCount(type)
-
-        if (entities.length === 0) return null
-
-        return (
-          <div key={type} className="flex items-start gap-3 group">
-            {/* Icon label (Compact) */}
-            <div
-              className={cn('flex items-center justify-center w-6 h-6 rounded-md shrink-0 mt-0.5 transition-colors', config.bgColor)}
-              title={config.label}
-            >
-              <Icon size={14} className={config.color} />
-            </div>
-
-            {/* Scrollable chips */}
-            <div className="flex-1 overflow-x-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
-              <div className="flex items-center gap-1.5 pb-1">
-                {visibleEntities.map(({ name, count }) => {
-                  const isSelected = selectedEntities.has(name)
-                  const displayName = type === 'industries' ? formatLabel(name) : name
-
-                  // Heat map calculation: higher percentage of maxCount = more opaque/saturated
-                  // Base opacity 10%, scales up to 100% (or distinct shades)
-                  // We'll simplisticly use opacity on the border/bg
-                  const intensity = Math.max(0.2, count / maxCount)
-
-                  return (
-                    <button
-                      key={name}
-                      onClick={() => onEntityToggle(name, type)}
-                      className={cn(
-                        'relative inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-medium border transition-all whitespace-nowrap',
-                        isSelected
-                          ? "bg-slate-900 border-slate-900 text-white shadow-sm"
-                          : "bg-white text-slate-700 hover:border-slate-300"
-                      )}
-                      style={!isSelected ? {
-                        opacity: 0.7 + (intensity * 0.3), // Slight opacity scaling
-                        borderColor: `rgba(0,0,0, ${intensity * 0.2})`, // Dynamic border darkness
-                        backgroundColor: `rgba(0,0,0, ${intensity * 0.02})` // Very subtle background tint
-                      } : {}}
-                      title={`${displayName} (${count} mentions)`}
-                    >
-                      <span className="max-w-[120px] truncate">{displayName}</span>
-                      {count > 1 && (
-                        <span className={cn(
-                          "text-[9px] font-bold px-1 rounded-sm",
-                          isSelected ? "bg-slate-700 text-slate-200" : "bg-slate-100 text-slate-500"
-                        )}>
-                          {count}
-                        </span>
-                      )}
-                    </button>
-                  )
-                })}
-
-                {/* Show more/less button */}
-                {hasMore && (
-                  <button
-                    onClick={() => toggleExpand(type)}
-                    className="inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-medium text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
-                    title={isExpanded ? "Show less" : `Show ${entities.length - MAX_VISIBLE} more`}
-                  >
-                    {isExpanded ? <X size={12} /> : '+'}
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        )
-      })}
     </div>
   )
 }

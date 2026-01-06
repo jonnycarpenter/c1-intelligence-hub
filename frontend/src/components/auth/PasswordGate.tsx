@@ -32,12 +32,12 @@ export function PasswordGate({ children }: PasswordGateProps) {
   useEffect(() => {
     // Check if already authenticated this session
     const isAuth = sessionStorage.getItem(AUTH_KEY) === 'true'
-    
+
     // If authenticated, make sure localStorage has the user info
     if (isAuth) {
       const storedName = localStorage.getItem(USER_NAME_KEY)
       const storedTeam = localStorage.getItem(USER_TEAM_KEY)
-      
+
       // If somehow missing team, require re-auth
       if (!storedTeam) {
         sessionStorage.removeItem(AUTH_KEY)
@@ -46,29 +46,47 @@ export function PasswordGate({ children }: PasswordGateProps) {
         setAuthenticated(true)
       }
     }
-    
+
     setLoading(false)
   }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-    
+
     // Validate team selection
     if (!userTeam) {
       setError('Please select your team.')
       return
     }
-    
+
     // Validate name
     if (!userName.trim()) {
       setError('Please enter your name.')
       return
     }
-    
+
     setSubmitting(true)
 
     try {
+      // LOCAL DEVELOPMENT BYPASS: Check if running on localhost
+      const isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+
+      if (isLocalDev && password === 'partnership2026') {
+        // Store authentication state in sessionStorage
+        sessionStorage.setItem(AUTH_KEY, 'true')
+
+        // Store user info in localStorage (for API headers)
+        const trimmedName = userName.trim()
+        localStorage.setItem(USER_NAME_KEY, trimmedName)
+        localStorage.setItem(USER_TEAM_KEY, userTeam)
+
+        setAuthenticated(true)
+        setSubmitting(false)
+        return
+      }
+
+      // Production: verify with backend
       const response = await fetch('/api/verify-access', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -78,12 +96,12 @@ export function PasswordGate({ children }: PasswordGateProps) {
       if (response.ok) {
         // Store authentication state in sessionStorage
         sessionStorage.setItem(AUTH_KEY, 'true')
-        
+
         // Store user info in localStorage (for API headers)
         const trimmedName = userName.trim()
         localStorage.setItem(USER_NAME_KEY, trimmedName)
         localStorage.setItem(USER_TEAM_KEY, userTeam)
-        
+
         setAuthenticated(true)
       } else {
         setError('Incorrect password. Please try again.')

@@ -105,10 +105,6 @@ export default function PipelineDashboard() {
   const hasSearchBlocks = searchBlocks.length > 0
   const hasConversation = conversationHistory.length > 0
 
-  // Debug logging
-  console.log('[PipelineDashboard] searchBlocks:', searchBlocks.length, searchBlocks)
-  console.log('[PipelineDashboard] hasSearchBlocks:', hasSearchBlocks)
-
   return (
     <div className="h-full flex bg-slate-50">
       {/* Left Panel - Chat Interface */}

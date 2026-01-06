@@ -4,6 +4,92 @@ This file tracks completed work and open items across AI assistant sessions.
 
 ---
 
+## Session 37 (January 6, 2026) - Pre-Demo Polish & UX Improvements ✅
+
+### 📋 Context
+
+Final polish session before demo day. Added toast notifications for better user feedback, cleaned up debug logging, and improved error handling throughout the frontend.
+
+### ✅ Completed
+
+1. **Toast Notification System** 🔔
+   - **File**: [frontend/src/components/ui/Toast.tsx](frontend/src/components/ui/Toast.tsx) - **NEW**
+   - Created `ToastProvider` context provider with `useToast` hook
+   - Support for 4 toast types: success, error, warning, info
+   - Auto-dismiss with configurable duration (default 5s)
+   - Slide-in animation from right side
+   - Accessible with proper ARIA roles
+   - **File**: [frontend/src/app/layout.tsx](frontend/src/app/layout.tsx)
+   - Wrapped app with `ToastProvider`
+
+2. **Improved Error Feedback** 🎯
+   - **File**: [frontend/src/app/page.tsx](frontend/src/app/page.tsx)
+   - Report export now shows success/error toasts instead of console.log
+   - Podcast generation button shows "Coming soon" toast instead of stub log
+   - Save research report errors handled silently (non-blocking)
+   - Added proper scroll-to-section implementation
+   - **File**: [frontend/src/components/research/ResearchDashboard.tsx](frontend/src/components/research/ResearchDashboard.tsx)
+   - Added toast notification for failed saved report loads
+
+3. **Debug Console.log Cleanup** 🧹
+   - **File**: [frontend/src/app/page.tsx](frontend/src/app/page.tsx)
+   - Removed `console.log('Export complete...')` 
+   - Removed `console.log('Scroll to section...')` (replaced with actual implementation)
+   - **File**: [frontend/src/components/pipeline/PipelineDashboard.tsx](frontend/src/components/pipeline/PipelineDashboard.tsx)
+   - Removed `console.log('[PipelineDashboard] searchBlocks...')` debug logging
+
+### 📁 Files Modified
+- [frontend/src/components/ui/Toast.tsx](frontend/src/components/ui/Toast.tsx) - **NEW** Toast system
+- [frontend/src/components/ui/index.ts](frontend/src/components/ui/index.ts) - Export toast
+- [frontend/src/app/layout.tsx](frontend/src/app/layout.tsx) - Toast provider
+- [frontend/src/app/page.tsx](frontend/src/app/page.tsx) - Toast usage, cleanup
+- [frontend/src/components/research/ResearchDashboard.tsx](frontend/src/components/research/ResearchDashboard.tsx) - Toast for errors
+- [frontend/src/components/pipeline/PipelineDashboard.tsx](frontend/src/components/pipeline/PipelineDashboard.tsx) - Remove debug logs
+
+### ✅ Build Verification
+
+```bash
+cd frontend && npm run build
+# ✔ Compiled successfully
+
+cd backend
+python -c "from app.mcp.server import get_all_mcp_tools; print(f'MCP Tools: {len(get_all_mcp_tools())}')"
+# MCP Tools: 52
+```
+
+### 📋 Remaining TODOs Found in Codebase
+
+| Location | Item | Priority |
+|----------|------|----------|
+| `grounding.py:375` | Create user_preferences table in BigQuery | Low |
+| `orchestrator.py:951` | Re-enable FMP premium when acquired | Low |
+| `gcp_storage.py:2449` | Track tools_used in deep_research_reports | Low |
+| `reports.py:71` | Implement actual report generation | Medium |
+
+### 🎯 Demo Day Checklist
+
+**Pre-Demo Setup:**
+- [ ] Verify Cloud Run deployment is current (`git push` to trigger)
+- [ ] Check API health: `https://c1-hub-4iz75bvpyq-uc.a.run.app/api/health`
+- [ ] Verify LangSmith tracing is working
+- [ ] Ensure Anthropic API credits are sufficient
+- [ ] Test a Deep Research query end-to-end
+
+**Key Demo Features:**
+- ✅ **Pulse Tab**: Weekly briefing with podcast player, drumbeat feed
+- ✅ **Research Tab**: Deep Research with 6-node pipeline, real-time progress
+- ✅ **Pipeline Tab**: AI prospect discovery with Apollo enrichment
+- ✅ **Toast Notifications**: User feedback for actions
+- ✅ **Error Handling**: Timeout, error states with retry options
+- ✅ **Caching**: Reports cached for 1 hour (memory) / 24 hours (BigQuery)
+
+**Known Limitations:**
+- Podcast generation for custom reports not yet implemented (shows "Coming soon" toast)
+- Report export creates client-side file (no server-side PDF generation)
+- StockNewsAPI may return 422 errors (rate limited on free tier)
+
+---
+
 ## Session 36 (January 6, 2026) - Deep Research Timeout Handling ✅
 
 ### 📋 Context

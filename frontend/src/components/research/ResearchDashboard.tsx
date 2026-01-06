@@ -5,6 +5,7 @@ import ResearchCanvas from './ResearchCanvas'
 import ResearchSidebar from './ResearchSidebar'
 import SavedReportsPanel from './SavedReportsPanel'
 import { api } from '@/lib/api'
+import { useToast } from '@/components/ui'
 import type { 
   ResearchSection, 
   RecentSearch, 
@@ -78,6 +79,7 @@ export default function ResearchDashboard({
   isTimeout,
   timeoutInfo,
 }: ResearchDashboardProps) {
+  const { addToast } = useToast()
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [showSavedReports, setShowSavedReports] = useState(false)
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null)
@@ -107,9 +109,9 @@ export default function ResearchDashboard({
         setShowSavedReports(false)
       }
     } catch (err) {
-      console.error('Failed to load saved report:', err)
+      addToast({ type: 'error', title: 'Load failed', message: 'Could not load saved report' })
     }
-  }, [sections, onSectionsUpdate])
+  }, [sections, onSectionsUpdate, addToast])
 
   // Handle continuing research on a saved report
   const handleContinueResearch = useCallback((reportId: string, query: string) => {

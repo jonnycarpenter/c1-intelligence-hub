@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import { PasswordGate } from '@/components/auth'
+import { ToastProvider } from '@/components/ui'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -18,9 +19,11 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.className} bg-slate-100 text-slate-900 min-h-screen antialiased`}>
-        <PasswordGate>
-          {children}
-        </PasswordGate>
+        <ToastProvider>
+          <PasswordGate>
+            {children}
+          </PasswordGate>
+        </ToastProvider>
       </body>
     </html>
   )
