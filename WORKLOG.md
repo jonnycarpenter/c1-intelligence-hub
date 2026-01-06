@@ -60,24 +60,44 @@ Logic: If parsed date > `utcnow() + 2 days`, reject it and set to `None`
 - Today/tomorrow → PASS ✓  
 - Future dates (May 2026, Sep 2026) → REJECTED ✓
 
-### ⏳ Next Steps for New Session
+### ⏳ Verification Queries (Post-Deployment)
+
+**1. Check if fix is actively rejecting future dates** (Cloud Run logs):
 ```powershell
-# 1. Deploy changes
-cd backend
-git add -A
-git commit -m "fix: Validate Exa API dates, reject future projection dates"
-git push origin main
-
-# 2. Wait for Cloud Build to complete (~5 min)
-# Check: https://console.cloud.google.com/cloud-build/builds?project=gen-lang-client-0436975498
-
-# 3. Verify fix is working after next ingestion
 gcloud logging read "resource.type=cloud_run_revision AND resource.labels.service_name=c1-hub AND textPayload:\"Rejecting future date\"" --limit=20 --project=gen-lang-client-0436975498 --format="table(timestamp,textPayload)"
+```
 
-# 4. Check that future-dated articles stop appearing
-# In BigQuery Console:
-SELECT COUNT(*) FROM `gen-lang-client-0436975498.c1_intelligence.digest_items` 
+**2. Count existing future-dated articles** (BigQuery - baseline):
+```sql
+SELECT COUNT(*) as future_count
+FROM `gen-lang-client-0436975498.c1_intelligence.digest_items` 
 WHERE published_at > CURRENT_TIMESTAMP()
+```
+
+**3. See what future-dated articles exist** (BigQuery):
+```sql
+SELECT title, published_at, source_url, created_at
+FROM `gen-lang-client-0436975498.c1_intelligence.digest_items` 
+WHERE published_at > CURRENT_TIMESTAMP()
+ORDER BY published_at DESC
+LIMIT 20
+```
+
+**4. Check articles ingested AFTER deployment with NULL published_at** (BigQuery):
+```sql
+-- These are articles where we rejected the future date
+SELECT title, source_url, published_at, created_at, feed_eligible
+FROM `gen-lang-client-0436975498.c1_intelligence.digest_items` 
+WHERE created_at > TIMESTAMP('2026-01-06 18:00:00 UTC')
+  AND published_at IS NULL
+ORDER BY created_at DESC
+LIMIT 20
+```
+
+**5. Confirm deployment succeeded**:
+```powershell
+gcloud builds describe 1ddef386-dcb0-497d-b407-34a00d7ce5d4 --project=gen-lang-client-0436975498 --format="value(status)"
+# Expected: SUCCESS
 ```
 
 ### 📝 Additional Observations
