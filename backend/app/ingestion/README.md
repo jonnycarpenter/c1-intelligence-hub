@@ -153,6 +153,43 @@ ingestion/
 | Classification time | ~25 min | ~7-10 min |
 | Total run time | ~35-40 min | ~15-20 min |
 
+## Source Score Boost
+
+The classifier applies a relevance score boost based on source quality tier. This helps prioritize articles from authoritative composites and business sources.
+
+| Tier | Boost | Sources |
+|------|-------|---------|
+| **Tier 1: Core Composites** | +0.15 | CompositesWorld, JEC Composites, Composites Manufacturing, composites.media |
+| **Tier 2: Premium Business** | +0.10 | Reuters, WSJ, Barron's, Financial Times, Bloomberg |
+| **Tier 3: Quality Sector** | +0.05 | Aviation Week, Defense News, FreightWaves, Supply Chain Dive, Seeking Alpha, Flight Global, CNBC, Manufacturing Dive, Plastics News |
+
+**How it works:**
+1. Claude assigns base `relevance_score` (0.0-1.0)
+2. Source boost is applied based on partial name matching
+3. Final score is capped at 1.0
+
+**Example:** An article from CompositesWorld with base score 0.7 → final score 0.85
+
+See `processing/classifier.py` for the full `SOURCE_SCORE_BOOSTS` dictionary.
+
+## Blocked Sources
+
+Articles from low-quality or irrelevant sources are filtered out entirely before classification (saves API costs and improves signal quality).
+
+| Category | Examples | Reason |
+|----------|----------|--------|
+| **Aggregators** | TradingView, Morningstar, GuruFocus | Repackaged content |
+| **Social/Noise** | Wikipedia, YouTube, LinkedIn, Reddit, Twitter | Not news sources |
+| **E-commerce** | Amazon, eBay, Alibaba | Not news |
+| **AI Search** | Perplexity | Not primary sources |
+| **Paywalled Teasers** | GrandViewResearch, MarketsAndMarkets, Mordor Intelligence, etc. | Just subscription prompts |
+
+Blocked articles are logged but not classified or stored.
+
+See `processing/classifier.py` for the full `BLOCKED_SOURCES` set.
+
 ---
 
 *Last updated: January 5, 2026*
+
+
