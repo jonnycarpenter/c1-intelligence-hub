@@ -271,6 +271,7 @@ See `processing/classifier.py` for the full `BLOCKED_SOURCES` set.
 | HTTP 422 from scheduler job | Malformed JSON body | Escape quotes: `'{\"sources\": [\"rss\"]}'` |
 | DEADLINE_EXCEEDED | Timeout too short | Set to 1800s (30 min max) |
 | "system: Input should be a valid list" | Anthropic SDK bug | Fixed in `resilient_llm.py` (Jan 2026) |
+| Articles with future dates (2026+) | Exa API returns projection dates | Fixed in `orchestrator.py` - validates dates |
 | Articles stored without classification | Classification failing silently | Check Cloud Run logs for errors |
 | Job shows "PAUSED" state | Manually paused for maintenance | Resume with `gcloud scheduler jobs resume` |
 | No articles from source X | Source disabled in job config | Check `sources` array in job body |
@@ -305,6 +306,13 @@ python backend/scripts/monitoring/production_dashboard.py --detailed
 ```
 
 ### Critical Bug History (For Future Reference)
+
+**January 6, 2026 - Exa API Future Date Validation**
+- **Symptom**: Articles appearing with future dates (May 2026, Sep 2026) in BigQuery
+- **Cause**: Exa API incorrectly extracts projection dates from market research pages (e.g., "expected to reach $X by 2026") as publication dates
+- **Fix**: Added validation to reject dates > `utcnow() + 2 days` in orchestrator and press_releases collector
+- **Files**: `orchestrator.py` (`_convert_search_result_to_article`), `app/tools/press_releases/collector.py`
+- **Behavior**: Articles with rejected dates get `published_at=None` → stored but `feed_eligible=False`
 
 **January 6, 2026 - Anthropic SDK `system` Parameter**
 - **Symptom**: All classification calls failing with "system: Input should be a valid list"

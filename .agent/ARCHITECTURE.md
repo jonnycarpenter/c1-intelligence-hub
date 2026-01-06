@@ -208,6 +208,31 @@ app/mcp/tools/
 **Critical Bug Fixed (Jan 6, 2026)**:
 Anthropic SDK 0.75.0 changed `system` parameter handling - passing `system=None` caused validation error. Fixed in `resilient_llm.py` by conditionally including parameter.
 
+### ADR-009: Exa API Future Date Validation
+**Date**: January 6, 2026  
+**Status**: Accepted  
+**Context**: Articles were appearing in BigQuery with impossible future dates (May 2026, Sep 2026). Investigation revealed Exa API was returning dates extracted from market projection content (e.g., "expected to reach $43B by 2026") as publication dates.
+
+**Decision**: Add future date validation when parsing Exa API responses. Reject any date more than 2 days in the future.
+
+**Rationale**: 
+- Exa's date extraction is unreliable for market research pages
+- Future dates break feed eligibility logic and confuse users
+- 2-day buffer allows for timezone differences without accepting obviously wrong dates
+
+**Implementation**:
+- `app/ingestion/orchestrator.py` - `_convert_search_result_to_article()` method
+- `app/tools/press_releases/collector.py` - `collect_for_company()` method
+- Rejected dates set to `None` → article stored but `feed_eligible=False`
+
+**Test Evidence**:
+```python
+# Exa returned these for market research pages:
+"2026-05-13T19:02:00.000Z"  # US aerospace composites market
+"2026-09-11T00:00:00.000Z"  # Aerospace composites market
+# Both now correctly rejected
+```
+
 ---
 
 ## Adding New Components

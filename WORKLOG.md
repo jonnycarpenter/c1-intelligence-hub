@@ -20,7 +20,7 @@ Without reliable daily ingestion:
 
 ## 🔄 SESSION 40 HANDOFF (January 6, 2026 - Evening)
 
-**Status**: Future date validation fix implemented, NEEDS DEPLOYMENT
+**Status**: Future date validation fix DEPLOYED (Build `1ddef386-dcb0-497d-b407-34a00d7ce5d4`)
 
 ### ✅ What Was Done
 1. ✅ Diagnosed root cause of future dates in BigQuery
@@ -28,6 +28,9 @@ Without reliable daily ingestion:
 3. ✅ Fixed `press_releases/collector.py` - Same future date validation
 4. ✅ Verified RSS ingestion working (61 articles in morning run)
 5. ✅ Verified deep ingestion working with all 8 sources
+6. ✅ Updated `ingestion/README.md` with troubleshooting details
+7. ✅ Added ADR-009 to `ARCHITECTURE.md`
+8. ✅ Deployed to Cloud Run (commit `df3e415`)
 
 ### 🔍 Root Cause: Future Dates from Exa API
 
