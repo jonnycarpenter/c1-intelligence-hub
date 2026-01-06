@@ -18,7 +18,76 @@ Without reliable daily ingestion:
 
 ---
 
-## � SESSION 39 HANDOFF (January 6, 2026)
+## 🔄 SESSION 40 HANDOFF (January 6, 2026 - Evening)
+
+**Status**: Future date validation fix implemented, NEEDS DEPLOYMENT
+
+### ✅ What Was Done
+1. ✅ Diagnosed root cause of future dates in BigQuery
+2. ✅ Fixed `orchestrator.py` - Future date validation for Exa API results  
+3. ✅ Fixed `press_releases/collector.py` - Same future date validation
+4. ✅ Verified RSS ingestion working (61 articles in morning run)
+5. ✅ Verified deep ingestion working with all 8 sources
+
+### 🔍 Root Cause: Future Dates from Exa API
+
+**Discovery**: Articles with future dates (2026-05-13, 2026-09-11, etc.) are coming from Exa's API, NOT from date extraction.
+
+**How it happens**:
+1. Exa returns `published_date` field in search results
+2. For market research pages with projections ("expected to reach $X by 2026"), Exa incorrectly extracts those projection dates as publication dates
+3. Our code was trusting Exa's dates without validation
+
+**Test evidence**:
+```python
+# Exa returned these for market research pages:
+"2026-05-13T19:02:00.000Z"  # US aerospace composites market
+"2026-09-11T00:00:00.000Z"  # Aerospace composites market
+```
+
+### 🔧 Fix Applied
+Added future date validation in two places:
+1. **`backend/app/ingestion/orchestrator.py`** (line ~1490)
+2. **`backend/app/tools/press_releases/collector.py`** (line ~60)
+
+Logic: If parsed date > `utcnow() + 2 days`, reject it and set to `None`
+
+**Test results**:
+- Past dates (2024, Jan 2025) → PASS ✓
+- Today/tomorrow → PASS ✓  
+- Future dates (May 2026, Sep 2026) → REJECTED ✓
+
+### ⏳ Next Steps for New Session
+```powershell
+# 1. Deploy changes
+cd backend
+git add -A
+git commit -m "fix: Validate Exa API dates, reject future projection dates"
+git push origin main
+
+# 2. Wait for Cloud Build to complete (~5 min)
+# Check: https://console.cloud.google.com/cloud-build/builds?project=gen-lang-client-0436975498
+
+# 3. Verify fix is working after next ingestion
+gcloud logging read "resource.type=cloud_run_revision AND resource.labels.service_name=c1-hub AND textPayload:\"Rejecting future date\"" --limit=20 --project=gen-lang-client-0436975498 --format="table(timestamp,textPayload)"
+
+# 4. Check that future-dated articles stop appearing
+# In BigQuery Console:
+SELECT COUNT(*) FROM `gen-lang-client-0436975498.c1_intelligence.digest_items` 
+WHERE published_at > CURRENT_TIMESTAMP()
+```
+
+### 📝 Additional Observations
+User noted some URLs should potentially be excluded entirely:
+- `/glossary/*` pages (e.g., schunk-group.com/en/glossary/fiber-composites)
+- `/about-us` pages
+- Homepage variants (`/homev2-1`)
+
+These are not news articles - consider URL pattern filtering in future enhancement.
+
+---
+
+## 🔄 SESSION 39 HANDOFF (January 6, 2026)
 
 **Status**: All fixes deployed, Cloud Build running, MONITORING REQUIRED
 

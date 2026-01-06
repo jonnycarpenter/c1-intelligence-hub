@@ -268,15 +268,14 @@ Respond with a JSON object:
     
     async def search_external_news(self, query: str) -> Dict[str, List[Dict[str, Any]]]:
         """
-        Search external news sources (Exa, StockNews, FMP).
+        Search external news sources (Exa, StockNews).
         
-        Returns combined results from all available external tools.
+        Returns combined results from available external tools.
         This supplements the corpus search with live/recent sources.
         """
         results = {
             "exa_news": [],
             "stocknews": [],
-            "fmp_news": [],
         }
         
         # Try Exa news search
@@ -291,29 +290,17 @@ Respond with a JSON object:
         except Exception as e:
             logger.warning(f"Exa news search failed: {e}")
         
-        # Try StockNews keyword search
+        # Try StockNews keyword search (more flexible than FMP - supports keyword queries)
         try:
             from app.mcp.tools.stocknews_api import search_news_keyword
-            stocknews_result = search_news_keyword.invoke({"keyword": query, "days": 7, "items": 5})
+            stocknews_result = search_news_keyword.invoke({"keyword": query, "days": 7, "items": 8})
             if stocknews_result and isinstance(stocknews_result, str):
                 data = json.loads(stocknews_result)
                 if data.get("articles"):
-                    results["stocknews"] = data["articles"][:5]
+                    results["stocknews"] = data["articles"][:8]
                     logger.info(f"StockNews returned {len(results['stocknews'])} results")
         except Exception as e:
             logger.warning(f"StockNews search failed: {e}")
-        
-        # Try FMP premium news (general market news)
-        try:
-            from app.mcp.tools.fmp_premium_news import get_fmp_premium_news
-            fmp_result = get_fmp_premium_news.invoke({"limit": 5})
-            if fmp_result and isinstance(fmp_result, str):
-                data = json.loads(fmp_result)
-                if data.get("articles"):
-                    results["fmp_news"] = data["articles"][:5]
-                    logger.info(f"FMP news returned {len(results['fmp_news'])} results")
-        except Exception as e:
-            logger.warning(f"FMP news search failed: {e}")
         
         return results
     
@@ -340,15 +327,6 @@ Respond with a JSON object:
                 text = r.get('text', '')
                 sn_section += f"**Content:** {text[:500] if text else ''}\n\n"
             sections.append(sn_section)
-        
-        if external_results.get("fmp_news"):
-            fmp_section = "## FMP Premium News\n"
-            for r in external_results["fmp_news"]:
-                fmp_section += f"### {r.get('title', 'Untitled')}\n"
-                fmp_section += f"**Publisher:** {r.get('publisher', '')} | **URL:** {r.get('url', '')}\n"
-                text = r.get('text', '')
-                fmp_section += f"**Content:** {text[:500] if text else ''}\n\n"
-            sections.append(fmp_section)
         
         return "\n".join(sections) if sections else ""
     

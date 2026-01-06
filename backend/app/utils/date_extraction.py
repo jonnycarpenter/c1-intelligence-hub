@@ -10,18 +10,67 @@ Supported sources:
 - GlobeNewswire: Date in URL pattern /news-release/YYYY/MM/DD/
 - PRNewswire: Date in content body "CITY, Month DD, YYYY /PRNewswire/" or JSON-LD metadata
 - Generic: Meta tags, structured data, common date patterns
+
+Key features:
+- Avoids extracting future projection dates (e.g., "expected to reach $X by 2028")
+- Prioritizes dates with publication context (Published:, Posted:, bylines)
+- Validates dates are not in the future (with small buffer for timezone differences)
 """
 
 import re
 import json
 import logging
-from datetime import datetime
-from typing import Optional
+from datetime import datetime, timedelta
+from typing import Optional, Tuple, List
 from urllib.parse import urlparse
 
 import httpx
 
 logger = logging.getLogger(__name__)
+
+# Maximum days in the future a publication date can be (for timezone tolerance)
+MAX_FUTURE_DAYS = 2
+
+# Keywords that indicate a date is a future projection, NOT a publication date
+# These appear BEFORE the date in phrases like "by April 2026", "expected in Q2 2025"
+FUTURE_PROJECTION_PREFIXES = [
+    r'\bby\s+',
+    r'\buntil\s+',
+    r'\bthrough\s+',
+    r'\bexpected\s+(?:in|by|to\s+(?:close|complete|reach|launch|begin|start))?\s*',
+    r'\bforecast(?:ed)?\s+(?:for|to|in)?\s*',
+    r'\bprojected\s+(?:for|to|in)?\s*',
+    r'\boutlook\s+(?:for|to|through)?\s*',
+    r'\banticipated\s+(?:in|by|for)?\s*',
+    r'\bscheduled\s+(?:for|to|in)?\s*',
+    r'\bplanned\s+(?:for|to|in)?\s*',
+    r'\bslated\s+(?:for|to|in)?\s*',
+    r'\btargeting\s+',
+    r'\btarget(?:ed)?\s+(?:for|date|completion)?\s*',
+    r'\bset\s+(?:for|to)\s+',
+    r'\bdue\s+(?:in|by)?\s*',
+    r'\bby\s+the\s+end\s+of\s+',
+    r'\bby\s+(?:early|mid|late)\s+',
+    r'\bin\s+(?:early|mid|late)\s+',
+    r'\bfor\s+(?:fiscal\s+)?(?:year|FY)?\s*',
+    r'\bcommencing\s+(?:in)?\s*',
+    r'\beffective\s+',
+    r'\bstarting\s+(?:in|from)?\s*',
+    r'\bbeginning\s+(?:in|from)?\s*',
+    r'\blaunch(?:ing|es)?\s+(?:in|by)?\s*',
+    r'\bwill\s+(?:be\s+)?(?:completed?|closed?|reached?|available|released?)\s+(?:in|by)?\s*',
+    r'\bto\s+(?:be\s+)?(?:completed?|closed?|reached?|available|released?)\s+(?:in|by)?\s*',
+    r'\b(?:Q[1-4]|first|second|third|fourth)\s+(?:quarter|half)\s+(?:of\s+)?\d{4}',
+    r'\b(?:FY|fiscal\s+year)\s*\d{2,4}',
+]
+
+# Keywords that indicate a date IS a publication date (strong positive signals)
+PUBLICATION_CONTEXT_PATTERNS = [
+    r'(?:published|posted|updated|written|authored|created|released|issued)\s*(?:on|:)?\s*',
+    r'(?:date|timestamp)\s*[:=]\s*',
+    r'(?:as\s+of|dated)\s+',
+    r'^\s*',  # Date at very start of content (common in press releases)
+]
 
 # Month name mappings
 MONTH_NAMES = {
@@ -38,6 +87,128 @@ MONTH_NAMES = {
     'november': 11, 'nov': 11,
     'december': 12, 'dec': 12,
 }
+
+
+def _is_future_date(dt: datetime, max_future_days: int = MAX_FUTURE_DAYS) -> bool:
+    """
+    Check if a datetime is too far in the future to be a valid publication date.
+    
+    We allow a small buffer (default 2 days) for timezone differences and 
+    articles posted just before midnight in other timezones.
+    """
+    if dt is None:
+        return False
+    now = datetime.now()
+    return dt > now + timedelta(days=max_future_days)
+
+
+def _is_future_projection_context(content: str, match_start: int) -> bool:
+    """
+    Check if a date match is preceded by future projection keywords.
+    
+    Args:
+        content: The full content string
+        match_start: The start index of the date match in content
+        
+    Returns:
+        True if the date appears to be a future projection, False otherwise
+    """
+    # Look at the 100 characters before the match
+    lookback = 100
+    start_idx = max(0, match_start - lookback)
+    before_text = content[start_idx:match_start].lower()
+    
+    # Check each projection prefix pattern
+    for prefix_pattern in FUTURE_PROJECTION_PREFIXES:
+        # Check if the pattern appears at the END of the before_text (right before the date)
+        full_pattern = prefix_pattern + r'$'
+        if re.search(full_pattern, before_text, re.IGNORECASE):
+            logger.debug(f"Detected future projection context: '...{before_text[-50:]}' matches '{prefix_pattern}'")
+            return True
+    
+    return False
+
+
+def _has_publication_context(content: str, match_start: int) -> bool:
+    """
+    Check if a date match is preceded by publication context keywords.
+    
+    Args:
+        content: The full content string  
+        match_start: The start index of the date match in content
+        
+    Returns:
+        True if the date appears to be in publication context, False otherwise
+    """
+    # Look at the 50 characters before the match
+    lookback = 50
+    start_idx = max(0, match_start - lookback)
+    before_text = content[start_idx:match_start].lower()
+    
+    for pub_pattern in PUBLICATION_CONTEXT_PATTERNS:
+        if re.search(pub_pattern + r'$', before_text, re.IGNORECASE):
+            return True
+    
+    return False
+
+
+def _extract_date_with_validation(
+    content: str,
+    pattern: str,
+    date_extractor: callable,
+    pattern_name: str = "generic",
+    require_publication_context: bool = False,
+    reject_future_projections: bool = True
+) -> Optional[datetime]:
+    """
+    Extract a date using a pattern, with validation for future projections.
+    
+    Args:
+        content: Text to search in
+        pattern: Regex pattern to use
+        date_extractor: Function that takes a match and returns (year, month, day) tuple or None
+        pattern_name: Name for logging
+        require_publication_context: If True, only accept dates with publication context
+        reject_future_projections: If True, reject dates preceded by projection keywords
+        
+    Returns:
+        datetime if a valid date is found, None otherwise
+    """
+    for match in re.finditer(pattern, content, re.IGNORECASE):
+        try:
+            result = date_extractor(match)
+            if result is None:
+                continue
+                
+            year, month, day = result
+            if not (2000 <= year <= 2100 and 1 <= month <= 12 and 1 <= day <= 31):
+                continue
+                
+            candidate_date = datetime(year, month, day)
+            
+            # Check if date is too far in the future
+            if _is_future_date(candidate_date):
+                logger.debug(f"Rejected future date {candidate_date} from {pattern_name} pattern")
+                continue
+            
+            # Check for future projection context
+            if reject_future_projections and _is_future_projection_context(content, match.start()):
+                logger.debug(f"Rejected date {candidate_date} - appears to be future projection")
+                continue
+            
+            # Optionally require publication context
+            if require_publication_context and not _has_publication_context(content, match.start()):
+                logger.debug(f"Skipped date {candidate_date} - no publication context")
+                continue
+            
+            logger.debug(f"Accepted date {candidate_date} from {pattern_name} pattern")
+            return candidate_date
+            
+        except (ValueError, IndexError) as e:
+            logger.debug(f"Error parsing date from {pattern_name} pattern: {e}")
+            continue
+    
+    return None
 
 
 def extract_date_from_url(url: str) -> Optional[datetime]:
@@ -317,36 +488,75 @@ def extract_date_from_content(content: str, source_hint: str = None) -> Optional
             if month and 2000 <= year <= 2100:
                 return datetime(year, month, day)
         
-        # Generic date patterns (most specific first)
-        # Pattern: "Month DD, YYYY"
+        # ========================================================================
+        # GENERIC DATE PATTERNS - Use validation to reject future projections
+        # ========================================================================
+        # These patterns can match ANY date in content, so we need to be careful
+        # to filter out dates that are clearly future projections like
+        # "expected to reach $X billion by April 2026"
+        
+        # Pattern: "Month DD, YYYY" - use validated extraction
         generic_pattern = r'\b(January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\.?\s+(\d{1,2}),?\s+(\d{4})\b'
-        match = re.search(generic_pattern, content_start, re.IGNORECASE)
-        if match:
+        
+        def extract_month_day_year(match):
             month_str = match.group(1).lower()[:3]
             month = MONTH_NAMES.get(month_str)
+            if not month:
+                return None
             day = int(match.group(2))
             year = int(match.group(3))
-            if month and 2000 <= year <= 2100 and 1 <= day <= 31:
-                return datetime(year, month, day)
+            return (year, month, day)
+        
+        result = _extract_date_with_validation(
+            content_start, 
+            generic_pattern, 
+            extract_month_day_year,
+            pattern_name="generic Month DD, YYYY",
+            reject_future_projections=True
+        )
+        if result:
+            return result
         
         # Pattern: "DD Month YYYY" (European style)
         euro_pattern = r'\b(\d{1,2})\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})\b'
-        match = re.search(euro_pattern, content_start, re.IGNORECASE)
-        if match:
+        
+        def extract_day_month_year(match):
             day = int(match.group(1))
             month_str = match.group(2).lower()
             month = MONTH_NAMES.get(month_str)
+            if not month:
+                return None
             year = int(match.group(3))
-            if month and 2000 <= year <= 2100 and 1 <= day <= 31:
-                return datetime(year, month, day)
+            return (year, month, day)
+        
+        result = _extract_date_with_validation(
+            content_start,
+            euro_pattern,
+            extract_day_month_year,
+            pattern_name="generic DD Month YYYY",
+            reject_future_projections=True
+        )
+        if result:
+            return result
                 
         # ISO format: YYYY-MM-DD
         iso_pattern = r'\b(\d{4})-(\d{2})-(\d{2})\b'
-        match = re.search(iso_pattern, content_start)
-        if match:
-            year, month, day = int(match.group(1)), int(match.group(2)), int(match.group(3))
-            if 2000 <= year <= 2100 and 1 <= month <= 12 and 1 <= day <= 31:
-                return datetime(year, month, day)
+        
+        def extract_iso_date(match):
+            year = int(match.group(1))
+            month = int(match.group(2))
+            day = int(match.group(3))
+            return (year, month, day)
+        
+        result = _extract_date_with_validation(
+            content_start,
+            iso_pattern,
+            extract_iso_date,
+            pattern_name="ISO YYYY-MM-DD",
+            reject_future_projections=True
+        )
+        if result:
+            return result
                 
     except (ValueError, IndexError) as e:
         logger.debug(f"Could not extract date from content: {e}")
@@ -387,21 +597,27 @@ def extract_publication_date(
             # Handle various ISO formats
             cleaned = api_date.replace("Z", "+00:00")
             parsed = datetime.fromisoformat(cleaned)
-            # Sanity check: should be within reasonable range
-            if parsed.year >= 2000:
+            # Sanity check: should be within reasonable range and not too far in future
+            if parsed.year >= 2000 and not _is_future_date(parsed):
                 logger.debug(f"Using API-provided date: {parsed}")
                 return parsed
+            elif _is_future_date(parsed):
+                logger.warning(f"API date {parsed} is too far in the future, ignoring")
         except (ValueError, AttributeError):
             pass
     
-    # 2. Try URL extraction
+    # 2. Try URL extraction (URLs are reliable - they were created when article was published)
     if url:
         url_date = extract_date_from_url(url)
         if url_date:
-            logger.debug(f"Extracted date from URL: {url_date}")
-            return url_date
+            # URL dates are generally reliable but still validate future dates
+            if not _is_future_date(url_date):
+                logger.debug(f"Extracted date from URL: {url_date}")
+                return url_date
+            else:
+                logger.warning(f"URL date {url_date} is in the future, ignoring")
     
-    # 3. Try content extraction
+    # 3. Try content extraction (with future projection filtering)
     if content:
         # Determine source hint from URL
         source_hint = None
@@ -415,8 +631,12 @@ def extract_publication_date(
                 
         content_date = extract_date_from_content(content, source_hint)
         if content_date:
-            logger.debug(f"Extracted date from content: {content_date}")
-            return content_date
+            # Double-check for future dates (content extraction already filters these)
+            if not _is_future_date(content_date):
+                logger.debug(f"Extracted date from content: {content_date}")
+                return content_date
+            else:
+                logger.warning(f"Content date {content_date} is in the future, ignoring")
     
     # 4. Try JSON-LD extraction by fetching raw HTML
     # Many news sites include datePublished in JSON-LD structured data
@@ -467,8 +687,12 @@ def extract_publication_date(
             logger.debug(f"Attempting JSON-LD extraction for URL: {url[:80]}")
             jsonld_date = extract_date_from_jsonld(url)
             if jsonld_date:
-                logger.info(f"Extracted datePublished from JSON-LD: {jsonld_date}")
-                return jsonld_date
+                # JSON-LD dates are generally reliable but validate anyway
+                if not _is_future_date(jsonld_date):
+                    logger.info(f"Extracted datePublished from JSON-LD: {jsonld_date}")
+                    return jsonld_date
+                else:
+                    logger.warning(f"JSON-LD date {jsonld_date} is in the future, ignoring")
     
     # 5. Fallback - if no fallback provided, return None to signal extraction failure
     if fallback is None:

@@ -1,7 +1,7 @@
 
 import uuid
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Set
 from app.config.settings import settings
 from app.utils.date_extraction import extract_publication_date
@@ -58,7 +58,11 @@ class PressReleaseCollector:
             
             # Exa provides clean publishedDate - use it directly when available
             # Fall back to extract_publication_date only if Exa date is missing
+            # IMPORTANT: Validate dates are not in the future (Exa sometimes extracts 
+            # future projection dates from content)
             discovered_at = datetime.utcnow()
+            max_future_days = 2  # Allow small buffer for timezone differences
+            
             if result.published_date:
                 # Exa returns ISO format dates - parse them
                 try:
@@ -67,6 +71,21 @@ class PressReleaseCollector:
                         published_at = datetime.fromisoformat(result.published_date.replace('Z', '+00:00'))
                     else:
                         published_at = result.published_date
+                    
+                    # Validate: reject future dates (Exa sometimes returns these incorrectly)
+                    if published_at:
+                        # Make naive for comparison
+                        if hasattr(published_at, 'tzinfo') and published_at.tzinfo is not None:
+                            check_date = published_at.replace(tzinfo=None)
+                        else:
+                            check_date = published_at
+                        max_valid_date = datetime.utcnow() + timedelta(days=max_future_days)
+                        if check_date > max_valid_date:
+                            logger.debug(
+                                f"Rejecting future date {published_at} from Exa for {result.url[:60]}... "
+                                f"(likely a market projection date)"
+                            )
+                            published_at = None
                 except Exception:
                     published_at = extract_publication_date(
                         url=result.url,

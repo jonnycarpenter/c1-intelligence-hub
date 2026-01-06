@@ -27,6 +27,8 @@ If you are building a data collector for the ingestion pipeline, use `app/tools/
 - `pipeline_search.py` - Pipeline prospect search
 - `document_extraction.py` - PDF/document extraction
 - `image_extraction.py` - Visual content search
+- `datasheets.py` - Product spec sheets from BigQuery
+- `fmp_premium_news.py` - Premium financial news (Bloomberg, Benzinga, WSJ)
 
 ### Output Generation
 - `visualization.py` - Chart/graph generation
