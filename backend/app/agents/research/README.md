@@ -253,6 +253,17 @@ emit_progress_sync(ToolProgress(
 ))
 ```
 
+**Real-Time SSE Streaming** (Session 42 Fix):
+- Progress events are collected via `ProgressCollector` async queue
+- API route polls the queue every **100ms** using `asyncio.wait_for` timeout
+- Events stream immediately instead of waiting for LangGraph lifecycle events
+- Parallel agents (Financial + Industry) emit progress without blocking each other
+
+**State Accumulation**:
+- During parallel execution, each node returns partial state
+- The API route maintains `accumulated_state` to merge outputs from all nodes
+- Ensures `final_report` is captured even when parallel branches complete asynchronously
+
 ### Two-Tier Caching (Phase 4)
 
 Reports use a two-tier caching strategy:

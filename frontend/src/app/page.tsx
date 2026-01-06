@@ -24,7 +24,7 @@ import type { Mode, DigestItem, ReportItem, ResearchSection, RecentSearch, Messa
 export default function Home() {
   // Toast notifications
   const { addToast } = useToast()
-  
+
   // Core state
   const [activeMode, setActiveMode] = useState<Mode>('pulse')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -448,8 +448,8 @@ export default function Home() {
             )}
           </div>
 
-          {/* Right panel - Chat (hidden for pulse, pipeline, products, field-sales, and data-preferences) */}
-          {activeMode !== 'pulse' && activeMode !== 'pipeline' && activeMode !== 'products' && activeMode !== 'field-sales' && activeMode !== 'data-preferences' && (
+          {/* Right panel - Chat (hidden for pulse, research, pipeline, products, field-sales, and data-preferences) */}
+          {activeMode !== 'pulse' && activeMode !== 'research' && activeMode !== 'pipeline' && activeMode !== 'products' && activeMode !== 'field-sales' && activeMode !== 'data-preferences' && (
             <div className="w-[400px] shrink-0 border-l border-slate-200 bg-white">
               <ChatInterface
                 mode={activeMode}

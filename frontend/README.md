@@ -27,13 +27,12 @@ src/
 │   │   └── PipelineDashboard.tsx
 │   ├── products/          # Products tab
 │   ├── report/            # Report drawer
-│   └── research/          # Deep Research tab
-│       ├── ResearchDashboard.tsx
-│       ├── ResearchCanvas.tsx
-│       ├── ResearchSidebar.tsx
+│   └── research/          # Deep Research tab (Pipeline-style layout)
+│       ├── ResearchDashboard.tsx  # Main container with integrated chat
+│       ├── ResearchCanvas.tsx     # Legacy section display
 │       ├── ResearchProgress.tsx
 │       ├── SavedReportsPanel.tsx
-│       └── DeepResearchReport.tsx
+│       └── ResearchReport.tsx
 ├── hooks/
 │   ├── useDeepResearch.ts  # Deep research SSE + state
 │   ├── useDigest.ts        # Digest data fetching
@@ -48,13 +47,11 @@ src/
 
 ## Key Components
 
-### Research Tab
-- **ResearchDashboard** - Main container, manages state between sidebar and canvas
-- **ResearchSidebar** - Templates, recent searches, saved reports section
-- **ResearchCanvas** - Displays research sections and deep research results
-- **SavedReportsPanel** - Browse/search saved reports (sidebar section or full view)
+### Research Tab (Session 42 Redesign)
+- **ResearchDashboard** - Pipeline-style layout: 400px emerald chat on left, results on right
+- **SavedReportsPanel** - Accessed via button in results header (upper-right)
 - **ResearchProgress** - Real-time progress visualization during research
-- **DeepResearchReport** - Renders completed research reports
+- **ResearchReport** - Renders completed research reports
 
 ### Pulse Tab
 - **PulseDashboard** - Weekly briefing + ad-hoc briefing layout

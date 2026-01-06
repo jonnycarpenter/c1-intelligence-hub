@@ -18,6 +18,50 @@ Without reliable daily ingestion:
 
 ---
 
+## 🚀 SESSION 42: Deep Research SSE Streaming & Output Fix (January 6, 2026)
+
+**Status**: 🔄 DEPLOYED - Awaiting Cloud Build
+
+### ✅ What Was Done
+1. ✅ **Real-time SSE Progress Streaming** - Fixed batched progress events
+   - Added `asyncio.wait_for` with 100ms timeout for responsive polling
+   - Progress events now stream immediately rather than waiting for LangGraph events
+2. ✅ **Parallel State Merge Fix** - Fixed missing final report
+   - Added `accumulated_state` dict to capture outputs from parallel nodes
+   - Financial and Industry agents run in parallel; their outputs are now properly merged
+3. ✅ **Diagnostic Logging** - Added to synthesizer for debugging parse failures
+
+### 🔧 Root Causes Identified
+- **SSE Batching**: `ProgressCollector.get_pending_events()` only drained on LangGraph events
+- **Missing Report**: With parallel `Send` API, individual node outputs weren't being merged before final emission
+
+### 📁 Files Modified
+- `backend/app/api/routes/deep_research.py` - SSE polling + accumulated_state
+- `backend/app/agents/research/synthesizer.py` - Diagnostic logging
+
+### ⏳ Verification
+After Cloud Build completes (~5 min):
+1. Navigate to Research tab
+2. Query: "give me everything i need to know about hexcel moving into 2026"
+3. Verify: SSE progress events stream in real-time (not batched)
+4. Verify: Final report renders after workflow completes
+
+### ✅ COMPLETE: Research Tab Frontend Redesign
+
+**Goal**: Streamline Research tab layout to match Pipeline tab UX
+
+**Remove "Research Tools" section**:
+- [x] Remove templates (Supplier Comparison, Market Analysis, Company Deep Dive, etc.)
+- [x] Remove Recent Reports/Searches section
+- [x] Free up space for larger chat interface
+
+**Layout changes**:
+- [x] Move Research agent chat interface to **left side** of page (like Pipeline tab)
+- [x] Apply **green aesthetic** to match Pipeline agent chatbox styling
+- [x] Saved Reports button moved to upper-right of results panel
+
+---
+
 ## 🚀 SESSION 41: Ad-Hoc Briefing Enhancement (January 6, 2026)
 
 **Status**: ✅ COMPLETE (including SSE progress events)
