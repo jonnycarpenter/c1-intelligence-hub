@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { 
   Scale, 
   TrendingUp, 
@@ -12,10 +12,22 @@ import {
   ChevronDown,
   ChevronRight,
   BookOpen,
-  ArrowRight
+  ArrowRight,
+  Archive,
+  ExternalLink,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { api } from '@/lib/api'
 import type { ResearchTemplate, RecentSearch } from '@/types'
+
+interface SavedReport {
+  id: string
+  query: string
+  created_at: string
+  title?: string
+  overall_confidence?: string
+  category?: string
+}
 
 // Research templates
 const RESEARCH_TEMPLATES: ResearchTemplate[] = [
@@ -85,6 +97,8 @@ interface ResearchSidebarProps {
   onRecentSearchClick: (search: RecentSearch) => void
   isCollapsed?: boolean
   onToggleCollapse?: () => void
+  onOpenSavedReport?: (reportId: string) => void
+  onViewAllSavedReports?: () => void
 }
 
 export default function ResearchSidebar({
@@ -93,9 +107,31 @@ export default function ResearchSidebar({
   onRecentSearchClick,
   isCollapsed = false,
   onToggleCollapse,
+  onOpenSavedReport,
+  onViewAllSavedReports,
 }: ResearchSidebarProps) {
   const [templatesExpanded, setTemplatesExpanded] = useState(true)
   const [recentExpanded, setRecentExpanded] = useState(true)
+  const [savedReportsExpanded, setSavedReportsExpanded] = useState(false)
+  const [savedReports, setSavedReports] = useState<SavedReport[]>([])
+  const [savedReportsLoading, setSavedReportsLoading] = useState(false)
+
+  // Fetch saved reports when section is expanded
+  useEffect(() => {
+    if (savedReportsExpanded && savedReports.length === 0) {
+      setSavedReportsLoading(true)
+      api.getSavedReports({ limit: 5 })
+        .then(data => {
+          setSavedReports(data.reports || [])
+        })
+        .catch(err => {
+          console.error('Failed to fetch saved reports:', err)
+        })
+        .finally(() => {
+          setSavedReportsLoading(false)
+        })
+    }
+  }, [savedReportsExpanded, savedReports.length])
 
   if (isCollapsed) {
     return (
@@ -119,6 +155,13 @@ export default function ResearchSidebar({
           title="Recent"
         >
           <Clock size={16} />
+        </button>
+        <button
+          className="p-2 rounded-lg hover:bg-slate-100 text-slate-500"
+          title="Saved Reports"
+          onClick={onViewAllSavedReports}
+        >
+          <Archive size={16} />
         </button>
       </div>
     )
@@ -234,6 +277,70 @@ export default function ResearchSidebar({
                     </div>
                   </button>
                 ))
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Divider */}
+        <div className="mx-3 h-px bg-slate-100" />
+
+        {/* Saved Reports Section */}
+        <div className="p-2">
+          <button
+            onClick={() => setSavedReportsExpanded(!savedReportsExpanded)}
+            className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-50 transition-colors"
+          >
+            {savedReportsExpanded ? (
+              <ChevronDown size={14} className="text-slate-400" />
+            ) : (
+              <ChevronRight size={14} className="text-slate-400" />
+            )}
+            <Archive size={14} className="text-slate-500" />
+            <span className="text-sm font-medium text-slate-700">Saved Reports</span>
+          </button>
+          
+          {savedReportsExpanded && (
+            <div className="mt-1 space-y-0.5">
+              {savedReportsLoading ? (
+                <p className="px-2 py-3 text-xs text-slate-400 text-center">
+                  Loading...
+                </p>
+              ) : savedReports.length === 0 ? (
+                <p className="px-2 py-3 text-xs text-slate-400 text-center">
+                  No saved reports yet
+                </p>
+              ) : (
+                <>
+                  {savedReports.map((report) => (
+                    <button
+                      key={report.id}
+                      onClick={() => onOpenSavedReport?.(report.id)}
+                      className="w-full flex items-start gap-2 px-2 py-2 rounded-lg hover:bg-emerald-50 transition-colors text-left group"
+                    >
+                      <div className="w-5 h-5 rounded bg-emerald-100 flex items-center justify-center shrink-0 mt-0.5">
+                        <FileText size={10} className="text-emerald-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-slate-700 group-hover:text-emerald-700 truncate">
+                          {report.query}
+                        </p>
+                        <p className="text-xs text-slate-400 truncate">
+                          {new Date(report.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                  {onViewAllSavedReports && (
+                    <button
+                      onClick={onViewAllSavedReports}
+                      className="w-full flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs text-emerald-600 hover:text-emerald-700"
+                    >
+                      <span>View All Reports</span>
+                      <ExternalLink size={12} />
+                    </button>
+                  )}
+                </>
               )}
             </div>
           )}

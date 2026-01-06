@@ -11,9 +11,12 @@ C1 Intelligence Hub helps composites industry professionals stay informed with A
 | Feature | Description |
 |---------|-------------|
 | **Ad-Hoc Briefings** | On-demand AI briefings on any topic with real-time web search |
+| **Weekly Executive Briefings** | 2-agent pipeline with podcast generation (ElevenLabs TTS) |
 | **[Deep Research](#deep-research)** | 7-node LangGraph pipeline with parallel agents, real-time streaming |
+| **Saved Reports** | Browse and reload past Deep Research reports from sidebar |
 | **Pipeline Dashboard** | Track news from 50+ industry sources via Exa/Tavily |
 | **Long-Term Memory** | Save insights to BigQuery with team-based retrieval |
+| **Preferences** | Manage priority/blocked topics for personalized briefings |
 | **Login Gate** | Team-based access (Sales East/West, Marketing, Product/Supplier) |
 
 ### Data Sources
@@ -105,31 +108,41 @@ docker run -p 8080:8080 --env-file .env c1-intelligence-hub
 
 ```
 c1-intelligence-hub_v2/
-├── frontend/                 # Next.js 14 App Router
+├── frontend/                 # Next.js 16 App Router
 │   ├── src/
 │   │   ├── app/             # App router pages
 │   │   ├── components/      # React components
 │   │   │   ├── chat/       # Chat interface
-│   │   │   ├── layout/     # Header, nav, supply chain bar
-│   │   │   └── tabs/       # Tab-specific components
+│   │   │   ├── dashboard/  # Pulse, briefings, podcast player
+│   │   │   ├── layout/     # Header, sidebar
+│   │   │   ├── memory/     # PreferencesPanel, memory log
+│   │   │   ├── research/   # ResearchCanvas, SavedReportsPanel
+│   │   │   └── ...         # Other feature components
+│   │   ├── hooks/          # useDeepResearch, useDigest, etc.
+│   │   ├── lib/            # API client, utilities
 │   │   └── types/          # TypeScript types
 │   └── package.json
 │
 ├── backend/                  # FastAPI + LangGraph
 │   ├── app/
 │   │   ├── agents/         # Agent implementations
+│   │   │   └── research/   # Deep Research agents (7-node workflow)
 │   │   ├── api/            # REST API routes
 │   │   ├── config/         # Settings and prompts
-│   │   ├── graph/          # LangGraph workflow
+│   │   ├── db/             # BigQuery storage layer
+│   │   ├── graph/          # LangGraph workflows
+│   │   ├── ingestion/      # Data collection + briefing generators
 │   │   ├── mcp/            # MCP tool server
-│   │   │   └── tools/      # Tool implementations
-│   │   └── utils/          # Helpers, logging
-│   ├── data/               # Master data files
+│   │   │   └── tools/      # Tool implementations (48 tools)
+│   │   └── utils/          # Helpers, retry logic, logging
+│   ├── scripts/            # Operations, monitoring, testing
 │   └── requirements.txt
 │
+├── deploy/                   # GCP deployment config (Terraform, scripts)
 ├── docker-compose.yml       # Development config
 ├── Dockerfile              # Production build
-└── BUILD_SPEC.md           # Detailed architecture doc
+├── CLAUDE.md               # AI agent instructions
+└── WORKLOG.md              # Session work log
 ```
 
 ## API Endpoints
@@ -143,11 +156,14 @@ c1-intelligence-hub_v2/
 | `/api/briefing/adhoc/sessions/stats` | GET | Session manager statistics |
 | `/api/research/start` | POST | Start deep research workflow |
 | `/api/research/stream/{id}` | GET | Stream research progress |
+| `/api/research/reports` | GET | List saved research reports |
+| `/api/research/reports/{id}` | GET | Get specific research report |
+| `/api/research/reports/search/related` | GET | Find related past research |
 | `/api/memory/log` | GET/POST | Long-term memory CRUD |
 | `/api/memory/relevant` | GET | Retrieve relevant memories |
 | `/api/memory/{id}/pin` | PATCH | Pin/unpin memory |
 | `/api/verify-access` | POST | Login verification |
-| `/api/data/preferences` | GET/PUT | User/org preferences |
+| `/api/data/preferences` | GET/POST/DELETE | User/org preferences CRUD |
 | `/api/pipeline/articles` | GET | Pipeline article search |
 | `/health` | GET | Health check |
 
@@ -160,6 +176,7 @@ c1-intelligence-hub_v2/
 | `ANTHROPIC_API_KEY` | Yes | Claude API key |
 | `TAVILY_API_KEY` | Yes | Tavily web search API key |
 | `EXA_API_KEY` | Yes | Exa semantic search API key |
+| `ELEVENLABS_API_KEY` | No | ElevenLabs TTS for podcast generation |
 | `GCP_PROJECT_ID` | Yes | Google Cloud project ID |
 | `GCP_DATASET_ID` | Yes | BigQuery dataset (e.g., `c1_intelligence`) |
 | `SITE_ACCESS_PASSWORD` | Yes | Shared password for login gate |

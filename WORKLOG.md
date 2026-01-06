@@ -4,6 +4,118 @@ This file tracks completed work and open items across AI assistant sessions.
 
 ---
 
+## Session 32 (January 6, 2026) - Long-term Memory UI Components ✅
+
+### 📋 Context
+
+Continued work on the long-term memory system from `c1-mvp-longterm_memory.md` spec. Built frontend UI components for managing preferences (priority/blocked topics) and browsing saved Deep Research reports.
+
+### ✅ Completed
+
+1. **PreferencesPanel Component** 🎉
+   - **File**: [PreferencesPanel.tsx](frontend/src/components/memory/PreferencesPanel.tsx) - **NEW**
+   - Manages priority topics and blocked/de-prioritized topics
+   - Support for org-wide vs team-specific scope
+   - Add/remove with visual confirmation badges
+   - Integrated into Data & Preferences tab (replaced old minimal preferences tab)
+
+2. **SavedReportsPanel Component** 🎉
+   - **File**: [SavedReportsPanel.tsx](frontend/src/components/research/SavedReportsPanel.tsx) - **NEW**
+   - Browse and search saved Deep Research reports
+   - Expandable cards showing: confidence, validation status, citations, companies, industries
+   - Actions: "View Full Report" (loads into canvas), "Continue Research" (starts new query)
+   - Two modes: sidebar section (collapsed) and full-page view
+
+3. **ResearchSidebar Integration** 🎉
+   - **File**: [ResearchSidebar.tsx](frontend/src/components/research/ResearchSidebar.tsx)
+   - Added "Saved Reports" collapsible section (shows 5 most recent)
+   - Archive icon in collapsed mode
+   - "View All Reports" button opens full SavedReportsPanel view
+   - Lazy-loads reports when section expands
+
+4. **ResearchDashboard Handlers** 🎉
+   - **File**: [ResearchDashboard.tsx](frontend/src/components/research/ResearchDashboard.tsx)
+   - `handleOpenSavedReport()` - Loads saved report into new ResearchSection
+   - `handleContinueResearch()` - Starts new research with "Continue research on: {query}"
+   - `handleViewAllSavedReports()` - Toggles full-page SavedReportsPanel view
+   - Conditional rendering: SavedReportsPanel or ResearchCanvas
+
+5. **API Methods Added** 🎉
+   - **File**: [api.ts](frontend/src/lib/api.ts)
+   - Preferences: `getPreferences()`, `addPreference()`, `removePreference()`
+   - Saved Reports: `getSavedReports()`, `getSavedReportById()`, `searchRelatedReports()`
+   - Proper TypeScript return types for all methods
+
+### 📁 Files Modified
+- Frontend: `PreferencesPanel.tsx` (new), `SavedReportsPanel.tsx` (new)
+- Frontend: `ResearchSidebar.tsx`, `ResearchDashboard.tsx`, `api.ts`
+- Frontend: `components/memory/index.ts`, `components/research/index.ts`
+- Frontend: `DataPreferencesDashboard.tsx` (integrated PreferencesPanel)
+
+### 🎯 User Flow
+1. **Research Tab** → Sidebar shows "Saved Reports" section
+2. Expand section → See 5 most recent reports
+3. Click "View All Reports" → Full-page view with search
+4. Click report card → Expands to show summary + actions
+5. "View Full Report" → Loads into ResearchCanvas
+6. "Continue Research" → Starts new deep research query
+
+### 🔧 Next Steps (from spec)
+- Memory Log Panel (view past briefings saved to memory_log table)
+- "Related Past Research" integration when starting new research
+- Backend changes for preferences influencing digest generation
+
+---
+
+## Session 31 (January 6, 2026) - Podcast Generation for Weekly Briefings ✅
+
+### 📋 Context
+
+Integrated ElevenLabs text-to-speech to generate audio podcasts for weekly executive briefings, enabling on-the-go listening.
+
+### ✅ Completed
+
+1. **Backend Podcast Generation** 🎉
+   - **File**: [weekly_briefing.py](backend/app/ingestion/generators/weekly_briefing.py)
+   - Added `_format_text_for_speech()` - removes citations, expands currency/percentages
+   - Added `_build_podcast_script()` - natural narration with "net new" vs "continuing" phrasing
+   - Added `_generate_podcast()` - ElevenLabs TTS + GCS upload
+   - Integrated into `generate()` workflow after briefing synthesis
+   - **File**: [gcp_storage.py](backend/app/db/gcp_storage.py)
+   - Updated `save_weekly_briefing()` with `podcast_url`, `podcast_duration_seconds`, `podcast_generated_at`
+   - **File**: [settings.py](backend/app/config/settings.py)
+   - Added voice configuration: `elevenlabs_voice_id`, `elevenlabs_model`, stability/similarity settings
+   - **File**: [requirements.txt](backend/requirements.txt)
+   - Added `elevenlabs>=1.0.0` dependency
+
+2. **Frontend Audio Player** 🎉
+   - **File**: [PodcastPlayer.tsx](frontend/src/components/dashboard/PodcastPlayer.tsx)
+   - Created full audio player with play/pause, seek, volume, download
+   - HTML5 `<audio>` with custom controls and error handling
+   - **File**: [briefing.ts](frontend/src/types/briefing.ts)
+   - Extended `WeeklyBriefing` interface with podcast fields
+   - **File**: [WeeklyBriefingSection.tsx](frontend/src/components/dashboard/WeeklyBriefingSection.tsx)
+   - Integrated podcast player after BLUF section (conditionally rendered)
+
+3. **Deployment Configuration** 🎉
+   - **File**: [cloudbuild.yaml](cloudbuild.yaml)
+   - Added `ELEVENLABS_API_KEY` to `--set-secrets` for Cloud Run
+
+### 📁 Files Modified
+- Backend: `weekly_briefing.py`, `gcp_storage.py`, `settings.py`, `requirements.txt`
+- Frontend: `briefing.ts`, `PodcastPlayer.tsx`, `WeeklyBriefingSection.tsx`
+- Deploy: `cloudbuild.yaml`
+
+### 🎯 Key Features
+- **Natural speech**: "This is a new development" for net new items
+- **Text formatting**: "$2.4B" → "2.4 billion dollars", "40%" → "40 percent"
+- **Voice**: Rachel (professional, clear, female voice from ElevenLabs)
+- **Storage**: GCS bucket `/podcasts/{briefing_id}.mp3` with public URLs
+- **Duration**: ~4-6 minutes for typical 3-section briefing
+- **Error resilience**: 3 retries with exponential backoff, graceful degradation
+
+---
+
 ## Session 30 (January 5, 2026) - Frontend UX Enhancements ✅
 
 ### 📋 Context

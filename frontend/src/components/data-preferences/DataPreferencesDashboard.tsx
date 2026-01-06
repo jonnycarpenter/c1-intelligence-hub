@@ -630,34 +630,8 @@ export default function DataPreferencesDashboard({ onAskAgent }: DataPreferences
         )}
 
         {/* Preferences Tab */}
-        {activeTab === 'preferences' && preferences && (
-          <div className="space-y-6">
-            <div>
-              <h3 className="text-sm font-medium text-slate-700 mb-3">Global Exclusions</h3>
-              <div className="grid gap-2">
-                {preferences.global_exclusions.map((excl) => (
-                  <div
-                    key={excl.id}
-                    className="flex items-center justify-between bg-white rounded-lg px-4 py-3 border border-slate-200"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-2 h-2 rounded-full bg-amber-500" />
-                      <span className="text-slate-700">{excl.value}</span>
-                    </div>
-                    <button
-                      onClick={() => setRemoveModal({ isOpen: true, name: excl.value, type: 'preference' })}
-                      className="text-slate-400 hover:text-red-500 transition-colors"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                ))}
-                {preferences.global_exclusions.length === 0 && (
-                  <EmptyState message="No exclusions configured" />
-                )}
-              </div>
-            </div>
-          </div>
+        {activeTab === 'preferences' && (
+          <PreferencesPanel />
         )}
 
         {/* Memory Tab */}

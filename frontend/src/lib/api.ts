@@ -725,6 +725,111 @@ class ApiClient {
     }
     return response.json()
   }
+
+  // =====================================
+  // Deep Research - Saved Reports
+  // =====================================
+
+  /**
+   * Get saved deep research reports
+   */
+  async getSavedReports(options?: {
+    userId?: string
+    limit?: number
+    offset?: number
+  }): Promise<{
+    total: number
+    limit: number
+    offset: number
+    reports: Array<{
+      id: string
+      query_hash: string
+      query: string
+      title: string
+      executive_summary: string
+      data_completeness: string
+      overall_confidence: string
+      validation_passed: boolean
+      citation_count: number
+      research_time_seconds: number
+      sources_count: number
+      companies: string[]
+      industries: string[]
+      topics: string[]
+      user_id?: string
+      created_at: string
+    }>
+  }> {
+    const params = new URLSearchParams()
+    if (options?.userId) params.set('user_id', options.userId)
+    if (options?.limit) params.set('limit', options.limit.toString())
+    if (options?.offset) params.set('offset', options.offset.toString())
+
+    const response = await fetch(`${this.baseUrl}/api/research/reports?${params}`)
+    if (!response.ok) {
+      throw new Error(`Failed to fetch saved reports: ${response.statusText}`)
+    }
+    return response.json()
+  }
+
+  /**
+   * Get a specific saved report by ID
+   */
+  async getSavedReportById(reportId: string): Promise<{
+    id: string
+    query: string
+    title: string
+    executive_summary: string
+    overall_confidence: string
+    validation_passed: boolean
+    citation_count: number
+    companies: string[]
+    industries: string[]
+    topics: string[]
+    created_at: string
+  } | null> {
+    const response = await fetch(`${this.baseUrl}/api/research/reports/${reportId}`)
+    if (response.status === 404) {
+      return null
+    }
+    if (!response.ok) {
+      throw new Error(`Failed to fetch report: ${response.statusText}`)
+    }
+    return response.json()
+  }
+
+  /**
+   * Search for related past research reports
+   */
+  async searchRelatedReports(options: {
+    query: string
+    companies?: string[]
+    industries?: string[]
+    limit?: number
+  }): Promise<{
+    query: string
+    count: number
+    related_reports: Array<{
+      id: string
+      query: string
+      title: string
+      companies: string[]
+      industries: string[]
+      created_at: string
+    }>
+  }> {
+    const params = new URLSearchParams()
+    params.set('query', options.query)
+    if (options.companies?.length) params.set('companies', options.companies.join(','))
+    if (options.industries?.length) params.set('industries', options.industries.join(','))
+    if (options.limit) params.set('limit', options.limit.toString())
+
+    const response = await fetch(`${this.baseUrl}/api/research/reports/search/related?${params}`)
+    if (!response.ok) {
+      throw new Error(`Failed to search reports: ${response.statusText}`)
+    }
+    return response.json()
+  }
 }
 
 // Export singleton instance

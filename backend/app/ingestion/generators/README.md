@@ -11,21 +11,31 @@ The weekly executive briefing uses a **2-agent pipeline**:
 │                    Weekly Briefing Pipeline                      │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
-│  ┌─────────────────┐          ┌─────────────────────────────┐   │
-│  │   Agent 1       │          │        Agent 2              │   │
-│  │   Pre-Brief     │ ──────►  │   Executive Synthesizer     │   │
-│  │   Generator     │          │                             │   │
-│  │                 │          │   • Historical comparison   │   │
-│  │   claude-sonnet │          │   • Exa peripheral search   │   │
-│  │   (fast, cheap) │          │   • Source article linking  │   │
-│  └─────────────────┘          │   • BLUF generation         │   │
-│         │                     │                             │   │
-│         │                     │   claude-opus-4-5            │   │
-│         ▼                     │   (high quality)            │   │
-│   pre_briefings table         └─────────────────────────────┘   │
-│                                          │                       │
-│                                          ▼                       │
-│                               weekly_briefings table             │
+│  ┌─────────────────┐          ┌────────────────────────┐        │
+│  │   Agent 1       │          │        Agent 2         │        │
+│  │   Pre-Brief     │ ──────►  │ Executive Synthesizer  │ ─────► │
+│  │   Generator     │          │                        │        │
+│  │                 │          │ • Historical context   │◄─┐     │
+│  │   claude-sonnet │          │ • Exa peripheral       │  │     │
+│  │   (fast, cheap) │          │ • Source linking       │  │     │
+│  └─────────────────┘          │ • BLUF generation      │  │     │
+│         │                     │                        │  │     │
+│         │                     │   claude-opus-4-5      │  │     │
+│         ▼                     │   (high quality)       │  │     │
+│   pre_briefings table         └────────────────────────┘  │     │
+│                                          │                │     │
+│                                          ▼                │     │
+│                               ┌──────────────────────┐    │     │
+│                               │ Podcast Generation   │    │     │
+│                               │ • Format for speech  │────┘     │
+│                               │ • ElevenLabs TTS     │          │
+│                               │ • Upload to GCS      │          │
+│                               │                      │          │
+│                               └──────────────────────┘          │
+│                                          │                      │
+│                                          ▼                      │
+│                               weekly_briefings table            │
+│                               + podcast.mp3 in GCS              │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -74,11 +84,22 @@ Agent 2 produces briefings with this structure:
     }
   ],
   "key_topics_this_week": ["Topic 1", "Topic 2"],
-  "overall_trend": "Detailed trend analysis"
+  "overall_trend": "Detailed trend analysis",
+  "podcast_url": "https://storage.googleapis.com/.../podcast.mp3",
+  "podcast_duration_seconds": 245,
+  "podcast_generated_at": "2026-01-06T..."
 }
 ```
 
 ## Key Features
+
+### Podcast Generation
+After Agent 2 completes, briefing text is:
+- Formatted for natural speech (currency/percentages expanded)
+- Narrated with natural "net new" vs "continuing" phrasing
+- Generated via ElevenLabs TTS (Rachel voice)
+- Uploaded to GCS `/podcasts/{briefing_id}.mp3`
+- ~4-6 minutes for typical 3-section briefing
 
 ### Source Article Linking
 Citations like `[1]`, `[2]` in text are linked to actual articles:

@@ -3,6 +3,8 @@
 import { useState, useCallback } from 'react'
 import ResearchCanvas from './ResearchCanvas'
 import ResearchSidebar from './ResearchSidebar'
+import SavedReportsPanel from './SavedReportsPanel'
+import { api } from '@/lib/api'
 import type { 
   ResearchSection, 
   RecentSearch, 
@@ -66,11 +68,48 @@ export default function ResearchDashboard({
   researchError,
 }: ResearchDashboardProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [showSavedReports, setShowSavedReports] = useState(false)
+  const [selectedReportId, setSelectedReportId] = useState<string | null>(null)
 
   // Handle template selection - sends to chat
   const handleTemplateSelect = useCallback((prompt: string) => {
     onStartResearch(prompt)
   }, [onStartResearch])
+
+  // Handle opening a saved report
+  const handleOpenSavedReport = useCallback(async (reportId: string) => {
+    try {
+      const report = await api.getSavedReportById(reportId)
+      if (report) {
+        // Create a new section from the saved report
+        const sectionId = `saved-${reportId}-${Date.now()}`
+        const newSection: ResearchSection = {
+          id: sectionId,
+          title: report.title || report.query,
+          query: report.query,
+          content: report.executive_summary || '',
+          timestamp: report.created_at,
+          isCollapsed: false,
+          isDeepResearch: true,
+        }
+        onSectionsUpdate([...sections, newSection])
+        setShowSavedReports(false)
+      }
+    } catch (err) {
+      console.error('Failed to load saved report:', err)
+    }
+  }, [sections, onSectionsUpdate])
+
+  // Handle continuing research on a saved report
+  const handleContinueResearch = useCallback((reportId: string, query: string) => {
+    setShowSavedReports(false)
+    onStartResearch(`Continue research on: ${query}`)
+  }, [onStartResearch])
+
+  // Handle viewing all saved reports
+  const handleViewAllSavedReports = useCallback(() => {
+    setShowSavedReports(true)
+  }, [])
 
   // Handle recent search click - scroll to section or restart research
   const handleRecentSearchClick = useCallback((search: RecentSearch) => {
@@ -133,33 +172,43 @@ export default function ResearchDashboard({
         onRecentSearchClick={handleRecentSearchClick}
         isCollapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+        onOpenSavedReport={handleOpenSavedReport}
+        onViewAllSavedReports={handleViewAllSavedReports}
       />
 
-      {/* Main Canvas */}
+      {/* Main Canvas or Saved Reports Panel */}
       <div className="flex-1 min-w-0">
-        <ResearchCanvas
-          sections={sections}
-          activeSectionId={activeSectionId}
-          onSectionsReorder={handleSectionsReorder}
-          onSectionCollapse={handleSectionCollapse}
-          onSectionDelete={handleSectionDelete}
-          onSectionAddToReport={handleSectionAddToReport}
-          onAddAllToReport={handleAddAllToReport}
-          onTemplateSelect={handleTemplateSelect}
-          isResearching={isResearching}
-          researchStatus={researchStatus}
-          clarification={clarification}
-          deepResearchReport={deepResearchReport}
-          onStartResearch={onStartResearch}
-          onCancelResearch={onCancelResearch}
-          nodeStatuses={nodeStatuses}
-          toolProgress={toolProgress}
-          activeNode={activeNode}
-          isCacheHit={isCacheHit}
-          categoryOutput={categoryOutput}
-          validationOutput={validationOutput}
-          researchError={researchError}
-        />
+        {showSavedReports ? (
+          <SavedReportsPanel
+            onOpenReport={handleOpenSavedReport}
+            onContinueResearch={handleContinueResearch}
+            onBack={() => setShowSavedReports(false)}
+          />
+        ) : (
+          <ResearchCanvas
+            sections={sections}
+            activeSectionId={activeSectionId}
+            onSectionsReorder={handleSectionsReorder}
+            onSectionCollapse={handleSectionCollapse}
+            onSectionDelete={handleSectionDelete}
+            onSectionAddToReport={handleSectionAddToReport}
+            onAddAllToReport={handleAddAllToReport}
+            onTemplateSelect={handleTemplateSelect}
+            isResearching={isResearching}
+            researchStatus={researchStatus}
+            clarification={clarification}
+            deepResearchReport={deepResearchReport}
+            onStartResearch={onStartResearch}
+            onCancelResearch={onCancelResearch}
+            nodeStatuses={nodeStatuses}
+            toolProgress={toolProgress}
+            activeNode={activeNode}
+            isCacheHit={isCacheHit}
+            categoryOutput={categoryOutput}
+            validationOutput={validationOutput}
+            researchError={researchError}
+          />
+        )}
       </div>
     </div>
   )

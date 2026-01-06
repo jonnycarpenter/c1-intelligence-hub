@@ -99,6 +99,7 @@ When adding a new API key/secret:
 | `backend/app/utils/README.md` | Shared utilities | Adding utility modules |
 | `backend/app/ingestion/generators/README.md` | Briefing generators (2-agent pipeline) | Briefing logic changes |
 | **`backend/app/agents/research/README.md`** | **Deep Research workflow (7-node, parallel)** | **Modifying research pipeline** |
+| `frontend/README.md` | Frontend architecture, components, hooks | Adding/modifying frontend features |
 | `backend/scripts/README.md` | Script directory index | Adding new scripts |
 | `backend/scripts/monitoring/README.md` | Production monitoring scripts | Adding monitoring scripts |
 | `backend/scripts/health/README.md` | Health check scripts | Adding health checks |
@@ -110,24 +111,31 @@ When adding a new API key/secret:
 
 ## Weekly Briefing Pipeline (2-Agent Architecture)
 
-The weekly "Need to Know" executive briefing uses a 2-agent pipeline:
+The weekly "Need to Know" executive briefing uses a 2-agent pipeline with podcast generation:
 
 ```
-Agent 1 (Pre-Brief)              Agent 2 (Synthesis)
-claude-sonnet-4-5                 claude-opus-4-5
-        │                               │
-        ▼                               ▼
-┌─────────────────┐            ┌─────────────────┐
-│ Analyze 50 most │            │ Compare against │
-│ recent articles │ ────────►  │ historical ctx  │
-│ from 14 days    │            │ + Exa search    │
-└─────────────────┘            └─────────────────┘
-        │                               │
-        ▼                               ▼
-  Pre-Brief JSON              Final Briefing JSON
-  (observations,              (sections, BLUF,
+Agent 1 (Pre-Brief)              Agent 2 (Synthesis)           Podcast Generation
+claude-sonnet-4-5                 claude-opus-4-5              ElevenLabs TTS
+        │                               │                            │
+        ▼                               ▼                            ▼
+┌─────────────────┐            ┌─────────────────┐         ┌─────────────────┐
+│ Analyze 50 most │            │ Compare against │         │ Convert to      │
+│ recent articles │ ────────►  │ historical ctx  │ ─────►  │ natural speech  │
+│ from 14 days    │            │ + Exa search    │         │ Upload to GCS   │
+└─────────────────┘            └─────────────────┘         └─────────────────┘
+        │                               │                            │
+        ▼                               ▼                            ▼
+  Pre-Brief JSON              Final Briefing JSON           podcast.mp3
+  (observations,              (sections, BLUF,              (4-6 min audio)
    signal_types)               source_articles)
 ```
+
+**Podcast Features**:
+- Natural "net new" vs "continuing" phrasing
+- Text formatting: "$2.4B" → "2.4 billion dollars"
+- Voice: Rachel (professional, clear)
+- Storage: GCS `/podcasts/{briefing_id}.mp3`
+- Frontend: Audio player with play/pause, seek, volume controls
 
 **Key Features:**
 - **Source Articles**: Each section includes `source_articles[]` with clickable links
@@ -155,7 +163,26 @@ These files have critical bug fixes - be careful editing:
 - `app/db/gcp_storage.py` - feed_eligible logic, dedup methods
 - `app/models/corpus.py` - feed_eligible field
 
-## Recent Changes (January 5, 2026)
+## Recent Changes (January 6, 2026)
+
+### Session 32 - Long-term Memory UI Components ✅
+- **PreferencesPanel**: New component for managing priority/blocked topics (`frontend/src/components/memory/PreferencesPanel.tsx`)
+- **SavedReportsPanel**: Browse saved Deep Research reports with search, expand/collapse, actions (`frontend/src/components/research/SavedReportsPanel.tsx`)
+- **ResearchSidebar**: Added "Saved Reports" section with 5 most recent reports, "View All" opens full panel
+- **API Methods**: Added `getPreferences()`, `addPreference()`, `removePreference()`, `getSavedReports()`, `getSavedReportById()`, `searchRelatedReports()` to `frontend/src/lib/api.ts`
+- **Integration**: PreferencesPanel in Data & Preferences tab, SavedReportsPanel accessible from Research sidebar
+
+### Session 31 - Podcast Generation for Weekly Briefings ✅
+- **ElevenLabs TTS Integration**: Weekly briefings now generate audio podcasts
+- **Backend**: `_format_text_for_speech()`, `_build_podcast_script()`, `_generate_podcast()` in `weekly_briefing.py`
+- **Frontend**: `PodcastPlayer.tsx` with play/pause, seek, volume, download
+- **Storage**: GCS bucket `/podcasts/{briefing_id}.mp3`
+
+### Session 30 - Frontend UX Enhancements ✅
+- Hidden chatbox on Products, Field Intel, Data & Preferences tabs
+- Pipeline tab: Updated seed questions, auto-submit on click
+- Sidebar: Text logo instead of PNG
+- Pulse tab: Removed helper text, adjusted spacing
 
 ### Session 29 - Phase 4: BigQuery Persistence & Memory Integration ✅
 - Added `deep_research_reports` BigQuery table for persistent report storage
