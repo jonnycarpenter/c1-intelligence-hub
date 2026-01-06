@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { ExternalLink, MessageSquare, Plus, Newspaper, ChevronDown, ChevronUp } from 'lucide-react'
-import { Badge, PriorityBadge, CategoryBadge, Button, Modal } from '@/components/ui'
+import { ExternalLink, Newspaper, ChevronDown, ChevronUp } from 'lucide-react'
+import { Badge, PriorityBadge, CategoryBadge, Modal } from '@/components/ui'
 import { cn } from '@/lib/utils'
 import type { DigestItem, Priority } from '@/types'
 
@@ -58,11 +58,9 @@ function highlightEntities(text: string, entities: string[]): React.ReactNode {
 
 interface DigestCardProps {
   item: DigestItem
-  onAskAbout?: (item: DigestItem) => void
-  onAddToReport?: (item: DigestItem) => void
 }
 
-export default function DigestCard({ item, onAskAbout, onAddToReport }: DigestCardProps) {
+export default function DigestCard({ item }: DigestCardProps) {
   const [showSourcesModal, setShowSourcesModal] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
   const sources = item.sources || []
@@ -238,27 +236,7 @@ export default function DigestCard({ item, onAskAbout, onAddToReport }: DigestCa
           </div>
         </Modal>
 
-        {/* Action buttons */}
-        <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="flex-1"
-            onClick={() => onAskAbout?.(item)}
-          >
-            <MessageSquare size={14} />
-            Ask about this
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="flex-1"
-            onClick={() => onAddToReport?.(item)}
-          >
-            <Plus size={14} />
-            Add to Report
-          </Button>
-        </div>
+
       </div>
     </div>
   )

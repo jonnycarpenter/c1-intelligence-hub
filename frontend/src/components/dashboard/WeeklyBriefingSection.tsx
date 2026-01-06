@@ -204,7 +204,7 @@ function SectionCard({ section, isFirst = false }: SectionCardProps) {
     )}>
       {/* Section Header */}
       <div className="p-5">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-4 bg-amber-400/10 p-3 rounded-lg border border-amber-400/5">
           <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
             {section.header}
           </h3>
@@ -364,14 +364,16 @@ export default function WeeklyBriefingSection({
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-extrabold text-slate-900 flex items-center gap-3">
-          <span className="bg-amber-100 text-amber-600 p-2 rounded-lg">
-            <Zap size={24} fill="currentColor" />
-          </span>
-          Need to Know
-        </h2>
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-gradient-to-br from-amber-100 to-amber-50 rounded-xl shadow-sm border border-amber-200/60">
+            <Zap size={24} className="text-amber-600" fill="currentColor" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight leading-none">Need to Know</h2>
+            <p className="text-xs text-amber-600/80 font-bold uppercase tracking-widest mt-1">Executive Briefing</p>
+          </div>
+        </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 text-xs text-slate-400">
             <Clock size={14} />

@@ -8,7 +8,8 @@ import WeeklyBriefingSection from './WeeklyBriefingSection'
 import AdHocBriefing from './AdHocBriefing'
 import BriefingHistoryTimeline from './BriefingHistoryTimeline'
 import { useBriefing, useWeeklyBriefing } from '@/hooks'
-import { Calendar } from 'lucide-react'
+import { Calendar, Activity } from 'lucide-react'
+
 import type { DigestItem } from '@/types'
 import type { AdHocBriefingContext } from '@/types/briefing'
 
@@ -115,8 +116,13 @@ export default function PulseDashboard({
       <div className="flex-1 flex gap-8 overflow-hidden min-h-0">
         {/* Left Column: Drumbeat (Stacked Feed) */}
         <div className="w-1/3 flex flex-col gap-1 overflow-hidden border-r border-slate-100 pr-4">
-          <div className="flex items-center justify-between shrink-0 mb-1">
-            <h2 className="text-sm font-bold text-slate-500 uppercase tracking-widest">Drumbeat Feed</h2>
+          <div className="flex items-center justify-between shrink-0 mb-3 px-1">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 bg-slate-100 rounded-md border border-slate-200">
+                <Activity size={14} className="text-slate-500" />
+              </div>
+              <h2 className="text-xs font-bold text-slate-500 uppercase tracking-widest">Drumbeat Feed</h2>
+            </div>
             {selectedEntities.size > 0 && (
               <span className="text-xs text-slate-400">
                 {(filteredItems || []).length} of {(digestItems || []).length}
@@ -158,8 +164,6 @@ export default function PulseDashboard({
                 <DigestCard
                   key={item.id}
                   item={item}
-                  onAskAbout={onAskAbout}
-                  onAddToReport={onAddToReport}
                 />
               ))
             ) : selectedEntities.size > 0 ? (

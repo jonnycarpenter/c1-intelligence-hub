@@ -4,6 +4,43 @@ This file tracks completed work and open items across AI assistant sessions.
 
 ---
 
+## Session 33 (January 6, 2026) - Pulse Tab Design Polish ✅
+
+### 📋 Context
+
+Refined the visual design of the Pulse tab specifically for the "Drumbeat Feed" and "Need to Know" sections to improve aesthetic appeal and match the premium app feel. Removed unused action buttons from digest cards to clean up the UI.
+
+### ✅ Completed
+
+1. **Digest Card Cleanup** 🧹
+   - **File**: [DigestCard.tsx](frontend/src/components/digest/DigestCard.tsx)
+   - Removed "Ask about this" and "Add to Report" action buttons (will be re-added when report builder features are fully designed).
+   - Removed unused props and imports.
+
+2. **Drumbeat Feed Header Polish** 💅
+   - **File**: [PulseDashboard.tsx](frontend/src/components/dashboard/PulseDashboard.tsx)
+   - Replaced plain text header with a styled component.
+   - Added pulsing activity icon and improved typography (lighter weight, wider tracking) for a more technical/data-centric feel.
+
+3. **Need to Know Header Redesign** ⚡
+   - **File**: [WeeklyBriefingSection.tsx](frontend/src/components/dashboard/WeeklyBriefingSection.tsx)
+   - Implemented a premium two-line header with "Executive Briefing" sublabel.
+   - Added a gradient-backed Zap icon container for visual hierarchy.
+
+4. **Section Header Styling** 🎨
+   - **File**: [WeeklyBriefingSection.tsx](frontend/src/components/dashboard/WeeklyBriefingSection.tsx)
+   - Applied "warm" styling to briefing section headers (amber-tinted background).
+   - Wrapped header content in a cohesive card-like container to separate it from the content.
+
+### 📁 Files Modified
+- [frontend/src/components/digest/DigestCard.tsx](frontend/src/components/digest/DigestCard.tsx)
+- [frontend/src/components/dashboard/PulseDashboard.tsx](frontend/src/components/dashboard/PulseDashboard.tsx)
+- [frontend/src/components/dashboard/WeeklyBriefingSection.tsx](frontend/src/components/dashboard/WeeklyBriefingSection.tsx)
+
+### 🔧 Next Steps
+- Re-evaluate "Add to Report" functionality when report builder is prioritized.
+- Continue refining UI contrast and spacing as needed.
+
 ## Session 32 (January 6, 2026) - Long-term Memory UI Components ✅
 
 ### 📋 Context
