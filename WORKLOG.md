@@ -133,11 +133,35 @@ python -c "from app.agents.research.memory import get_research_memory; from app.
 ```
 
 ### 🔧 Next Steps
-1. **Deploy to Cloud Run** - Push to main to trigger CI/CD
+1. ✅ **Deploy to Cloud Run** - Deployed (build 632e2423)
 2. **Test E2E** - Run full workflow and verify BigQuery persistence
 3. **Frontend integration** - Add "Saved Reports" tab or history view
-4. **Context injection** - Wire `find_related_research()` into groomer prompts for richer context
-5. **Semantic search** - Generate query embeddings for better related research matching
+4. ✅ **Context injection** - Groomer now receives prior research context
+5. ✅ **Conditional earnings API** - External API only called for specific company queries
+6. **Semantic search** - Generate query embeddings for better related research matching
+7. **Tool Health Frontend** - Surface API health in UI:
+   - `useToolHealth` hook polling `/api/tools/health`
+   - Status indicator in nav (🟢/🟡/🔴)
+   - `ToolHealthPanel` with per-tool metrics (success %, latency)
+   - Pre-research health check in Deep Research panel
+   - Data source attribution in reports (which tools contributed)
+
+### 🆕 Session 29 Continuation - Context Injection & Conditional APIs
+
+**Context Injection** (`groomer.py`):
+- Added `_get_prior_research_context()` to fetch related past research
+- Prior context injected into groomer system prompt before LLM call
+- Groomer can now reference prior findings, skip redundant clarifying questions
+
+**Conditional Earnings API** (`financial.py`):
+- Added `_has_specific_company_mention()` helper to detect company names
+- External `get_earnings_transcript_ninja` only called when companies mentioned
+- Corpus query (`query_corpus`) always runs (40+ pre-ingested transcripts)
+- SEC filings always fetched for resolved tickers
+
+**Files Modified**:
+- [groomer.py](backend/app/agents/research/groomer.py) - Context injection
+- [financial.py](backend/app/agents/research/financial.py) - Conditional earnings API
 
 ---
 

@@ -16,6 +16,9 @@ from app.tools.sec_filings.collector import SECFilingCollector
 from app.utils.grounding import load_companies
 import json
 import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _resolve_all_tickers(queries: List[str], companies_df) -> Set[str]:
@@ -38,6 +41,46 @@ def _resolve_all_tickers(queries: List[str], companies_df) -> Set[str]:
                 tickers.add(ticker)
     
     return tickers
+
+
+def _has_specific_company_mention(original_query: str, entities_to_track: Optional[List[str]], companies_df) -> bool:
+    """
+    Determine if the user's query mentions specific companies/suppliers/OEMs.
+    
+    Used to gate external earnings API calls - we only fetch new transcripts
+    if the user is asking about specific companies, not generic industry queries.
+    
+    Returns True if:
+    - entities_to_track contains company names that match our master list
+    - Original query mentions a known company name or ticker
+    
+    Returns False for generic queries like "wind energy trends" or "market outlook"
+    """
+    query_lower = original_query.lower()
+    
+    # Check entities extracted by groomer
+    if entities_to_track:
+        for entity in entities_to_track:
+            entity_lower = entity.lower()
+            # Check if entity matches a known company
+            for _, row in companies_df.iterrows():
+                company_name = row.get('company', '').lower()
+                ticker = row.get('stock_ticker', '').lower()
+                if company_name and (company_name in entity_lower or entity_lower in company_name):
+                    return True
+                if ticker and ticker == entity_lower:
+                    return True
+    
+    # Check original query directly for company/ticker mentions
+    for _, row in companies_df.iterrows():
+        company_name = row.get('company', '').lower()
+        ticker = row.get('stock_ticker', '').lower()
+        if company_name and len(company_name) > 3 and company_name in query_lower:
+            return True
+        if ticker and len(ticker) >= 2 and ticker in query_lower.split():
+            return True
+    
+    return False
 
 
 def _rank_financial_results(raw_results: List[Dict], original_query: str) -> List[Dict]:
@@ -149,6 +192,21 @@ async def financial_research_node(state: DeepResearchState) -> Dict[str, Any]:
     companies_df = load_companies()
     
     # =========================================================================
+    # STEP 0: Check if user mentioned specific companies
+    # Only call external earnings API if specific companies are mentioned
+    # Corpus queries (local) always run; external API calls are conditional
+    # =========================================================================
+    has_company_mention = _has_specific_company_mention(
+        brief.original_query,
+        brief.entities_to_track,
+        companies_df
+    )
+    if has_company_mention:
+        logger.info(f"Financial agent: Specific company mentioned - will fetch external earnings transcripts")
+    else:
+        logger.info(f"Financial agent: Generic query - skipping external earnings API, using corpus only")
+    
+    # =========================================================================
     # STEP 1: Batch Ticker Resolution
     # Resolve all tickers mentioned across all queries upfront for efficient API usage
     # =========================================================================
@@ -171,11 +229,13 @@ async def financial_research_node(state: DeepResearchState) -> Dict[str, Any]:
             pass  # Corpus miss is not critical
     
     # =========================================================================
-    # STEP 3: Batch SEC Filings and Earnings Calls (Per Ticker)
-    # Execute SEC and earnings queries per resolved ticker to avoid duplicates
+    # STEP 3: SEC Filings and External Earnings Calls (Per Ticker)
+    # - SEC filings: Always fetch for resolved tickers
+    # - External Earnings API: Only if user mentioned specific companies
+    #   (Corpus already queried in Step 2 - that's always allowed)
     # =========================================================================
     for ticker in all_tickers:
-        # SEC Filings - official 10-K, 10-Q, 8-K filings
+        # SEC Filings - official 10-K, 10-Q, 8-K filings (always fetch)
         emit_progress_sync(ToolProgress(tool_name="sec_filings", message=f"Fetching SEC filings for {ticker}", ticker=ticker))
         try:
             collector = SECFilingCollector()
@@ -197,19 +257,22 @@ async def financial_research_node(state: DeepResearchState) -> Dict[str, Any]:
         except Exception as e:
             errors.append({"node": "financial_research", "ticker": ticker, "error": f"SEC: {str(e)}"})
         
-        # Earnings Call Transcripts - management commentary and guidance
-        emit_progress_sync(ToolProgress(tool_name="earnings_call", message=f"Retrieving earnings transcript for {ticker}", ticker=ticker))
-        try:
-            result = get_earnings_transcript_ninja.invoke({"ticker": ticker})
-            if result and str(result).strip():
-                raw_results.append({
-                    "query": f"Earnings call for {ticker}",
-                    "source": "earnings_call",
-                    "content": result,
-                    "ticker": ticker
-                })
-        except Exception as e:
-            errors.append({"node": "financial_research", "ticker": ticker, "error": f"Earnings: {str(e)}"})
+        # External Earnings Call Transcripts API - ONLY if user mentioned specific companies
+        # This gates expensive external API calls for generic industry queries
+        # The corpus (Step 2) already provides 40+ pre-ingested transcripts for common companies
+        if has_company_mention:
+            emit_progress_sync(ToolProgress(tool_name="earnings_call", message=f"Retrieving earnings transcript for {ticker}", ticker=ticker))
+            try:
+                result = get_earnings_transcript_ninja.invoke({"ticker": ticker})
+                if result and str(result).strip():
+                    raw_results.append({
+                        "query": f"Earnings call for {ticker}",
+                        "source": "earnings_call",
+                        "content": result,
+                        "ticker": ticker
+                    })
+            except Exception as e:
+                errors.append({"node": "financial_research", "ticker": ticker, "error": f"Earnings: {str(e)}"})
     
     # =========================================================================
     # STEP 4: StockNewsAPI Calls (Batched by Ticker List)

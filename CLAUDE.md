@@ -163,6 +163,8 @@ These files have critical bug fixes - be careful editing:
 - Two-tier cache: in-memory (1h TTL) + BigQuery (24h TTL)
 - New API endpoints: `GET /api/research/reports`, `GET /api/research/reports/{id}`, `GET /api/research/reports/search/related`
 - Automatic persistence of completed reports with SSE event `report_saved`
+- **Context Injection**: Groomer now receives prior related research to avoid redundant clarifying questions
+- **Conditional Earnings API**: External earnings API only called when user mentions specific companies (corpus always runs)
 
 ### Session 28 - API Reliability & Tool Health ✅
 - Added centralized retry utilities with exponential backoff, rate-limit handling, and default skipping for non-critical tools (`app/utils/retry.py`).

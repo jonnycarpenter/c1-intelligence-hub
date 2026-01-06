@@ -79,15 +79,35 @@ def _merge_errors(a, b):
 - Generates targeted sub-queries for Financial and Industry agents
 - Identifies entities to track (companies, products, materials)
 - Sets research timeframe and scope
+- **Context Injection**: Receives prior related research to skip redundant questions
+
+**Context Injection Flow:**
+```python
+# Before LLM call, groomer fetches related prior research
+prior_context = await _get_prior_research_context(user_query)
+# Context injected into system prompt if found
+system_content = f"{GROOMER_SYSTEM_PROMPT}\n\n{prior_context}"
+```
 
 **Model**: `claude-sonnet-4-5` (configurable via `settings.deep_research_groomer_model`)
 
 ### 2. Financial Research (`financial.py`)
 **Purpose**: Financial data and corporate intelligence
 
+**Conditional External API Gating:**
+External earnings API is only called when user mentions specific companies:
+
+| Query Type | Corpus Query | SEC Filings | External Earnings API |
+|------------|--------------|-------------|----------------------|
+| "Wind energy trends" | ✅ | ✅ | ❌ |
+| "Deep dive on Hexcel" | ✅ | ✅ | ✅ |
+| "Who's growing in aerospace?" | ✅ | ✅ | ✅ (if companies found) |
+
+This gating saves API costs on generic industry queries while still providing corpus data (40+ pre-ingested transcripts).
+
 **Tools Used**:
-- `get_earnings_transcript_ninja` - Earnings call transcripts
-- `query_corpus` - Pre-ingested financial articles
+- `get_earnings_transcript_ninja` - Earnings call transcripts (**conditional - only if company mentioned**)
+- `query_corpus` - Pre-ingested financial articles (**always runs**)
 - `get_company_news` - Recent company news by ticker
 - `get_press_releases` - Official announcements
 - `get_analyst_ratings` - Upgrades, downgrades, price targets
@@ -270,8 +290,8 @@ await memory.store_report(report_id, query, state)
 
 | File | Purpose | Key Features |
 |------|---------|--------------|
-| `groomer.py` | Query grooming node | Explicit JSON schema, empty message filtering |
-| `financial.py` | Financial research node | SEC filings, earnings, explicit JSON schema |
+| `groomer.py` | Query grooming node | Explicit JSON schema, empty message filtering, **context injection** |
+| `financial.py` | Financial research node | SEC filings, earnings, explicit JSON schema, **conditional earnings API** |
 | `industry.py` | Industry research node | Exa search, Google Trends, explicit JSON schema |
 | `synthesizer.py` | Report synthesis node | Merges outputs, executive summary, explicit JSON schema |
 | `category.py` | Sales intelligence node | Territory insights, product recommendations |
@@ -366,10 +386,17 @@ validation = result["validator_output"]
 - [x] LangSmith observability integration (trace costs, latency, errors)
 - [x] Empty message filtering in groomer (prevents Anthropic API errors)
 
-### Phase 4 (Planned)
-- [ ] Memory/context integration (avoid redundant fetches)
-- [ ] BigQuery persistence for user-saved reports (table: `research_reports`)
-- [ ] Frontend integration for `tool_progress` SSE events
+### Phase 4 ✅ (Completed - January 5, 2026)
+- [x] Memory/context integration - Groomer receives prior research context
+- [x] BigQuery persistence - `deep_research_reports` table with 24h TTL
+- [x] Saved Reports API - `GET /reports`, `GET /reports/{id}`, `GET /reports/search/related`
+- [x] Context injection - Related research surfaced to groomer prompt
+- [x] Conditional earnings API - Only fetches external transcripts when companies mentioned
+
+### Phase 5 (Planned)
+- [ ] Frontend: Tool Health dashboard (API status, latency, success rates)
+- [ ] Frontend: Saved Reports history view
+- [ ] Semantic search on past reports (query embeddings)
 
 ## Troubleshooting
 

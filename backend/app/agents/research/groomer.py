@@ -1,12 +1,46 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from app.agents.research.state import DeepResearchState, ResearchBrief, QueryStatus
+from app.agents.research.memory import get_research_memory
 from app.config.settings import settings
 import json
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+async def _get_prior_research_context(query: str) -> str:
+    """
+    Fetch related prior research to inject into groomer prompt.
+    
+    This enables the groomer to:
+    - Reference prior findings in the research brief
+    - Avoid asking clarifying questions that were already answered
+    - Generate more targeted queries based on past coverage
+    
+    Returns:
+        Formatted context string, empty if no related research found
+    """
+    try:
+        memory = await get_research_memory()
+        
+        # Find related research (entities not yet known, so just use query text)
+        related = await memory.find_related_research(
+            query=query,
+            companies=None,  # Will be extracted after grooming
+            industries=None,
+        )
+        
+        if related:
+            logger.info(f"Found {len(related)} related prior reports for context injection")
+            return memory.format_context_for_prompt(related)
+        
+        return ""
+        
+    except Exception as e:
+        logger.warning(f"Failed to fetch prior research context: {e}")
+        return ""
 
 # System prompt is derived from query_input_agent.md
 GROOMER_SYSTEM_PROMPT = """
@@ -18,6 +52,15 @@ You are a Query Grooming Agent for a composites industry intelligence platform c
 2. DECIDE if clarification is needed — only ask if the answer would significantly change the research approach
 3. AUGMENT the query — generate optimized searches for the Financial Agent and Industry Agent
 4. ENRICH with context — provide domain knowledge that helps research agents succeed
+5. LEVERAGE prior research — if related research is provided, reference it in domain_context
+
+## Using Prior Research Context
+
+If a "Prior Research Context" section is provided below, use it to:
+- Skip clarifying questions that prior research already answered
+- Note in domain_context what was previously researched and when
+- Generate queries that build on prior findings rather than duplicate them
+- Identify gaps in prior coverage that new research should fill
 
 ## Clarification Rules
 
@@ -110,22 +153,17 @@ CRITICAL REQUIREMENTS:
 async def query_grooming_node(state: DeepResearchState) -> DeepResearchState:
     """
     Main grooming logic. Calls Claude to interpret the query and generate a brief.
+    
+    Includes context injection from prior research to help the groomer:
+    - Reference related past findings
+    - Avoid redundant clarifying questions
+    - Generate more targeted search queries
     """
     llm = ChatAnthropic(
         model=settings.deep_research_groomer_model,
         anthropic_api_key=settings.anthropic_api_key,
         temperature=0,
     )
-    
-    # Build messages from state
-    messages = [SystemMessage(content=GROOMER_SYSTEM_PROMPT)]
-    
-    # Filter conversation history to only include messages with non-empty content
-    # This prevents Anthropic API errors about empty message content
-    history = state.get("conversation_history") or []
-    for msg in history:
-        if msg and hasattr(msg, 'content') and msg.content:
-            messages.append(msg)
     
     # Ensure user query is not empty
     user_query = state.get("user_query", "").strip()
@@ -136,6 +174,28 @@ async def query_grooming_node(state: DeepResearchState) -> DeepResearchState:
             "current_status": "grooming_failed",
             "errors": state.get("errors", []) + [{"node": "groomer", "error": "Empty user query"}],
         }
+    
+    # =========================================================================
+    # Context Injection: Fetch related prior research
+    # This enriches the groomer's understanding of what we've already researched
+    # =========================================================================
+    prior_context = await _get_prior_research_context(user_query)
+    
+    # Build system prompt with optional prior context
+    system_content = GROOMER_SYSTEM_PROMPT
+    if prior_context:
+        system_content = f"{GROOMER_SYSTEM_PROMPT}\n\n{prior_context}"
+        logger.info("Injected prior research context into groomer prompt")
+    
+    # Build messages from state
+    messages = [SystemMessage(content=system_content)]
+    
+    # Filter conversation history to only include messages with non-empty content
+    # This prevents Anthropic API errors about empty message content
+    history = state.get("conversation_history") or []
+    for msg in history:
+        if msg and hasattr(msg, 'content') and msg.content:
+            messages.append(msg)
     
     messages.append(HumanMessage(content=user_query))
     
