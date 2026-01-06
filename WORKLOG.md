@@ -18,6 +18,42 @@ Without reliable daily ingestion:
 
 ---
 
+## 🚀 SESSION 41: Ad-Hoc Briefing Enhancement (January 6, 2026)
+
+**Status**: ✅ COMPLETE (including SSE progress events)
+
+### ✅ What Was Done
+1. ✅ Upgraded model from Haiku → **Claude Sonnet 4.5**
+2. ✅ Added external tool search: **Corpus → Exa → StockNewsAPI** (in order)
+3. ✅ Increased max_tokens: 1500 → **3000** for richer responses
+4. ✅ Added 120-second timeout config
+5. ✅ Removed content truncation for full context
+6. ✅ Added formatted prompts with sections (Overview, Key Findings, Sources)
+7. ✅ Created `fmp_premium_news.py` MCP tool (53 total tools)
+8. ✅ **SSE Progress Events** - Real-time feedback during research phases
+
+### 🎉 SSE Progress Events (Added Session 41b)
+Streaming now shows step-by-step progress with user-friendly labels:
+- **Knowledge Base** → "Searching internal knowledge base..." → "Found N articles"
+- **Advanced Web Search** → "Searching web for recent news..." → "Found N articles"
+- **Stock Market News** → "Found N articles"
+- **Analysis** → "Synthesizing intelligence response..." → "Response complete"
+
+Frontend displays progress with:
+- Step icons (Database, Globe, TrendingUp, Brain)
+- Checkmarks for completed steps
+- Animated spinner for running steps
+- Article counts for each source
+
+### 📁 Files Changed
+- `backend/app/agents/adhoc_briefing/agent.py` - Core enhancements + streaming progress events
+- `backend/app/mcp/tools/fmp_premium_news.py` - New tool
+- `backend/app/mcp/server.py` - Registered FMP tool
+- `frontend/src/hooks/useBriefing.ts` - Added `progressSteps` state
+- `frontend/src/components/dashboard/AdHocBriefing.tsx` - Progress display component
+
+---
+
 ## 🔄 SESSION 40 HANDOFF (January 6, 2026 - Evening)
 
 **Status**: Future date validation fix DEPLOYED (Build `1ddef386-dcb0-497d-b407-34a00d7ce5d4`)

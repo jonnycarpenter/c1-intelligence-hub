@@ -94,6 +94,17 @@ export function useWeeklyBriefing() {
 }
 
 /**
+ * Progress step information from SSE events
+ */
+interface ProgressStep {
+    step: string
+    label: string
+    message: string
+    status: 'running' | 'complete'
+    count?: number
+}
+
+/**
  * Hook for ad hoc quick briefings with session-based conversation tracking.
  * 
  * Session management:
@@ -102,6 +113,10 @@ export function useWeeklyBriefing() {
  * - Max 2 follow-ups before redirect to Deep Research
  * - Session expires after 30 minutes of inactivity
  * - Call reset() to start a new session
+ * 
+ * Progress events:
+ * - progressSteps: Array of research phase progress updates
+ * - Each step has: step, label, message, status, count
  */
 export function useAdHocBriefing() {
     const [response, setResponse] = useState<AdHocBriefing | null>(null)
@@ -113,6 +128,8 @@ export function useAdHocBriefing() {
     const [followUpCount, setFollowUpCount] = useState(0)
     const [sessionId, setSessionId] = useState<string | null>(null)
     const [turnsRemaining, setTurnsRemaining] = useState(2)
+    // Progress tracking for streaming
+    const [progressSteps, setProgressSteps] = useState<ProgressStep[]>([])
 
     const askQuestion = useCallback(async (
         question: string,
@@ -130,7 +147,7 @@ export function useAdHocBriefing() {
                 session_id: sessionId ?? undefined,  // Pass existing session_id if we have one
             })
             setResponse(data)
-            
+
             // Update session state from response
             if (data.session_id) {
                 setSessionId(data.session_id)
@@ -141,7 +158,7 @@ export function useAdHocBriefing() {
             if (data.session?.turns_remaining !== undefined) {
                 setTurnsRemaining(data.session.turns_remaining)
             }
-            
+
             return data
         } catch (err) {
             const error = err instanceof Error ? err : new Error('Failed to create briefing')
@@ -163,6 +180,7 @@ export function useAdHocBriefing() {
         setStreamedText('')
         setError(null)
         setIsTimeout(false)
+        setProgressSteps([])  // Reset progress for new stream
 
         try {
             const stream = await api.streamAdHocBriefing({
@@ -199,6 +217,27 @@ export function useAdHocBriefing() {
                             if (parsed.type === 'content') {
                                 fullText += parsed.text
                                 setStreamedText(fullText)
+                            } else if (parsed.type === 'progress') {
+                                // Update progress steps
+                                setProgressSteps(prev => {
+                                    const existing = prev.findIndex(p => p.step === parsed.step)
+                                    const newStep: ProgressStep = {
+                                        step: parsed.step,
+                                        label: parsed.label || parsed.step,
+                                        message: parsed.message,
+                                        status: parsed.status,
+                                        count: parsed.count,
+                                    }
+                                    if (existing >= 0) {
+                                        // Update existing step
+                                        const updated = [...prev]
+                                        updated[existing] = newStep
+                                        return updated
+                                    } else {
+                                        // Add new step
+                                        return [...prev, newStep]
+                                    }
+                                })
                             } else if (parsed.type === 'session_info') {
                                 // Update session state from streaming response
                                 if (parsed.session_id) {
@@ -255,6 +294,7 @@ export function useAdHocBriefing() {
         setTurnsRemaining(2)
         setError(null)
         setIsTimeout(false)
+        setProgressSteps([])  // Clear progress
     }, [])
 
     return {
@@ -267,6 +307,7 @@ export function useAdHocBriefing() {
         followUpCount,
         sessionId,        // Expose session ID for debugging/display
         turnsRemaining,   // How many follow-ups left before redirect
+        progressSteps,    // Research phase progress
         askQuestion,
         streamQuestion,
         reset,

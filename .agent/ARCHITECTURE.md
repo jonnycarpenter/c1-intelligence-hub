@@ -168,42 +168,40 @@ app/mcp/tools/
 **Impact**: Added `langchain-openai>=0.2.0` and `openai>=1.54.0` to requirements  
 **Env Var**: `OPENAI_API_KEY` (optional, enables fallback)
 
-### ADR-008: Simplified Cloud Scheduler Job Structure
-**Date**: January 6, 2026  
+### ADR-008: Split Cloud Scheduler Jobs for Reliability
+**Date**: January 6, 2026 (Updated)  
 **Status**: Accepted  
-**Context**: Scheduler jobs had become fragmented with redundant jobs and stub implementations:
-- `daily-evening-ingest` duplicated sources already in `ingest-deep-dive`
-- `weekly-corpus-refresh` and `weekly-data-cleanup` were stubs (did nothing)
-- Jobs had malformed JSON bodies causing HTTP 422 errors
-- 30-minute Cloud Scheduler timeout was being exceeded
+**Context**: 
+- Cloud Scheduler max timeout is 30 minutes
+- Single `ingest-deep-dive` job was taking 25-35 minutes and getting killed
+- Liveness probe failures during long-running ingestion caused instance restarts
+- StockNews API alone requires 48 API calls (~15-20 min)
 
-**Decision**: Consolidate to exactly 3 scheduler jobs:
-| Job | Schedule | Sources | Timeout |
-|-----|----------|---------|---------|
-| `ingest-flash-update` | Every 4h | rss, stocknews, freight | 15 min |
-| `ingest-deep-dive` | 2 AM CST daily | ALL 8 sources | 30 min |
-| `weekly-executive-briefing` | Mon 8:30 AM CST | (triggers briefing) | 15 min |
+**Decision**: Split daily ingestion into multiple sequential jobs with buffers:
+
+| Job | Schedule (CST) | Sources | Timeout |
+|-----|----------------|---------|---------|
+| `ingest-flash-update` | Every 4h | rss, freight | 10 min |
+| `ingest-web-search` | 2:00 AM | industry_queries, press_releases | 30 min |
+| `ingest-financial` | 2:45 AM | sec, earnings, fmp_news, stocknews | 30 min |
+| `weekly-executive-briefing` | Mon 8:30 AM | (triggers briefing) | 15 min |
 
 **Rationale**: 
-- Flash loop captures fast-moving news frequently
-- Deep dive runs comprehensive ingestion once daily
-- Removed redundant evening job (subset of deep-dive)
-- Removed stub maintenance jobs (did nothing useful)
+- Each job stays well under 30-minute limit
+- 45-minute buffer between daily jobs prevents overlap
+- Flash updates run frequently for fast-moving RSS/freight
+- All daily ingestion completes by ~3:30 AM CST (before workday)
+- Better error isolation - know exactly which source failed
 
 **Implementation**:
 - [deploy/scheduler/deploy_jobs.ps1](deploy/scheduler/deploy_jobs.ps1) - canonical job definitions
-- Legacy jobs auto-deleted when script runs
+- Legacy `ingest-deep-dive` auto-deleted when script runs
 - JSON bodies use escaped quotes for PowerShell: `'{\"key\": \"value\"}'`
 
-**The 8 Sources for Deep Dive**:
-1. `industry_queries` - Exa + Tavily web search (91 + 145 queries)
-2. `rss` - 14 RSS feeds
-3. `sec` - SEC EDGAR filings
-4. `earnings` - Earnings call transcripts
-5. `stocknews` - StockNews API
-6. `fmp_news` - FMP Premium news
-7. `freight` - Drewry WCI freight rates
-8. `press_releases` - Press releases via Exa
+**Source Distribution**:
+- **Web Search Job**: industry_queries (Exa 91 + Tavily 145 queries), press_releases
+- **Financial Job**: sec, earnings, fmp_news, stocknews (48 API calls)
+- **Flash Job**: rss (14 feeds), freight (Drewry WCI)
 
 **Critical Bug Fixed (Jan 6, 2026)**:
 Anthropic SDK 0.75.0 changed `system` parameter handling - passing `system=None` caused validation error. Fixed in `resilient_llm.py` by conditionally including parameter.

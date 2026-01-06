@@ -11,7 +11,11 @@ import {
   Sparkles,
   X,
   Bookmark,
-  Check
+  Check,
+  Database,
+  Globe,
+  TrendingUp,
+  Brain
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Badge, Button } from '@/components/ui'
@@ -19,6 +23,17 @@ import { MarkdownContent } from '@/components/ui'
 import { useAdHocBriefing } from '@/hooks'
 import { api } from '@/lib/api'
 import type { AdHocBriefing as AdHocBriefingType, AdHocBriefingContext } from '@/types/briefing'
+
+// =============================================================================
+// Step Icons
+// =============================================================================
+
+const STEP_ICONS: Record<string, React.ReactNode> = {
+  corpus_search: <Database size={14} />,
+  exa_search: <Globe size={14} />,
+  stocknews_search: <TrendingUp size={14} />,
+  synthesis: <Brain size={14} />,
+}
 
 // =============================================================================
 // Confidence Badge
@@ -40,6 +55,60 @@ function ConfidenceBadge({ confidence }: ConfidenceBadgeProps) {
     <Badge className={cn(config.bg, config.text, "text-[10px] font-medium")}>
       {config.label}
     </Badge>
+  )
+}
+
+// =============================================================================
+// Progress Step Component
+// =============================================================================
+
+interface ProgressStepDisplayProps {
+  step: string
+  label: string
+  message: string
+  status: 'running' | 'complete'
+  count?: number
+}
+
+function ProgressStepDisplay({ step, label, message, status, count }: ProgressStepDisplayProps) {
+  const icon = STEP_ICONS[step] || <Loader2 size={14} />
+
+  return (
+    <div className={cn(
+      "flex items-center gap-2 py-1 transition-opacity",
+      status === 'complete' ? "opacity-60" : "opacity-100"
+    )}>
+      <div className={cn(
+        "w-5 h-5 rounded-full flex items-center justify-center shrink-0",
+        status === 'complete'
+          ? "bg-emerald-100 text-emerald-600"
+          : "bg-amber-100 text-amber-600"
+      )}>
+        {status === 'complete' ? <Check size={12} /> : (
+          <div className="animate-spin">
+            <Loader2 size={12} />
+          </div>
+        )}
+      </div>
+      <div className="flex items-center gap-1.5 text-sm">
+        <span className={cn(
+          "font-medium",
+          status === 'complete' ? "text-slate-500" : "text-slate-700"
+        )}>
+          {label}
+        </span>
+        {status === 'complete' && count !== undefined && count > 0 && (
+          <span className="text-xs text-slate-400">
+            ({count} found)
+          </span>
+        )}
+        {status === 'running' && (
+          <span className="text-xs text-amber-600 animate-pulse">
+            {message}
+          </span>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -222,20 +291,24 @@ export default function AdHocBriefing({
   const {
     response,
     isLoading,
+    isStreaming,
     error,
     isTimeout,
     followUpCount,
     turnsRemaining,
+    progressSteps,
     askQuestion,
+    streamQuestion,
     reset
   } = useAdHocBriefing()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!question.trim() || isLoading) return
+    if (!question.trim() || isLoading || isStreaming) return
 
     const isFollowUp = response !== null
-    await askQuestion(question.trim(), context, isFollowUp)
+    // Use streaming for progress feedback
+    await streamQuestion(question.trim(), context, isFollowUp)
     setQuestion('')
   }
 
@@ -307,11 +380,29 @@ export default function AdHocBriefing({
         )}
       </div>
 
-      {/* Loading State */}
-      {isLoading && (
-        <div className="bg-white border border-slate-200 rounded-xl p-6 flex items-center justify-center gap-3">
-          <Loader2 size={20} className="animate-spin text-amber-500" />
-          <span className="text-sm text-slate-600">Analyzing relevant articles...</span>
+      {/* Loading State with Progress */}
+      {(isLoading || isStreaming) && (
+        <div className="bg-white border border-slate-200 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Loader2 size={16} className="animate-spin text-amber-500" />
+            <span className="text-sm font-medium text-slate-700">Researching your question...</span>
+          </div>
+          {progressSteps.length > 0 ? (
+            <div className="space-y-1 ml-6">
+              {progressSteps.map((step) => (
+                <ProgressStepDisplay
+                  key={step.step}
+                  step={step.step}
+                  label={step.label}
+                  message={step.message}
+                  status={step.status}
+                  count={step.count}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="ml-6 text-sm text-slate-500">Initializing search...</div>
+          )}
         </div>
       )}
 

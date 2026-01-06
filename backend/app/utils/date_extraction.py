@@ -20,7 +20,7 @@ Key features:
 import re
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Tuple, List
 from urllib.parse import urlparse
 
@@ -98,7 +98,15 @@ def _is_future_date(dt: datetime, max_future_days: int = MAX_FUTURE_DAYS) -> boo
     """
     if dt is None:
         return False
-    now = datetime.now()
+    
+    # Handle timezone-aware vs naive datetime comparison
+    # Make both timezone-aware (UTC) for safe comparison
+    now = datetime.now(timezone.utc)
+    
+    # If dt is naive, assume it's UTC
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    
     return dt > now + timedelta(days=max_future_days)
 
 

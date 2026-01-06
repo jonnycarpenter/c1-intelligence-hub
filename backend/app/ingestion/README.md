@@ -38,13 +38,20 @@ The data ingestion system for C1 Intelligence Hub. Collects, deduplicates, enric
 
 ### Current Jobs (as of January 6, 2026)
 
-| Job | Schedule | Timeout | Sources | Purpose |
-|-----|----------|---------|---------|---------|
-| `ingest-flash-update` | Every 4 hours | 15 min | rss, stocknews, freight | Fast-moving news sources |
-| `ingest-deep-dive` | 2 AM CST daily | 30 min | **ALL 8 sources** | Comprehensive daily collection |
-| `weekly-executive-briefing` | Mon 8:30 AM CST | 15 min | (triggers briefing) | Generates weekly "Need to Know" |
+| Job | Schedule (CST) | Schedule (UTC) | Timeout | Sources | Purpose |
+|-----|----------------|----------------|---------|---------|---------|
+| `ingest-flash-update` | Every 4 hours | Every 4 hours | 10 min | rss, freight | Fast RSS + freight updates |
+| `ingest-web-search` | 2:00 AM | 8:00 AM | 30 min | industry_queries, press_releases | Exa + Tavily web search |
+| `ingest-financial` | 2:45 AM | 8:45 AM | 30 min | sec, earnings, fmp_news, stocknews | Financial data sources |
+| `weekly-executive-briefing` | Mon 8:30 AM | Mon 14:30 | 15 min | (triggers briefing) | Weekly "Need to Know" report |
 
-### The 8 Data Sources for Deep Dive
+**Why Split Into Multiple Jobs?**
+- Cloud Scheduler has a 30-minute maximum timeout
+- Single deep-dive was hitting this limit and getting killed
+- Split gives 45-minute buffer between jobs for reliability
+- All daily ingestion completes by ~3:30 AM CST (plenty of buffer before workday)
+
+### The 8 Data Sources (Split Across Jobs)
 
 | Source Key | Description | API/Method | BQ source_type |
 |------------|-------------|------------|----------------|

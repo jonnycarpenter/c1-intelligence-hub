@@ -6,7 +6,7 @@ On-demand AI briefings using **Claude Sonnet 4.5** with multi-source intelligenc
 
 | File | Purpose |
 |------|---------|
-| `agent.py` | `AdHocBriefingAgent` - generates thorough briefings with external tools |
+| `agent.py` | `AdHocBriefingAgent` + `StreamingAdHocBriefingAgent` |
 | `session_manager.py` | Session state management for follow-up tracking |
 
 ## v2 Enhancements (January 2026)
@@ -19,6 +19,7 @@ On-demand AI briefings using **Claude Sonnet 4.5** with multi-source intelligenc
 | Tools | Corpus only | **Corpus + Exa + StockNews + FMP** |
 | Formatting | Plain text | **Sections, bold, URL citations** |
 | Timeout | ~10 seconds | **120 seconds** |
+| Streaming | Text only | **SSE progress events** |
 
 ## Data Sources
 
@@ -28,6 +29,29 @@ The agent searches in this order:
 3. **StockNewsAPI** - Financial/stock-specific news
 4. **FMP Premium** - Bloomberg, Benzinga, WSJ coverage
 
+## SSE Progress Events
+
+The streaming endpoint emits progress events for real-time feedback:
+
+| Step | Label | Messages |
+|------|-------|----------|
+| `corpus_search` | Knowledge Base | "Searching..." → "Found N articles" |
+| `exa_search` | Advanced Web Search | "Searching..." → "Found N articles" |
+| `stocknews_search` | Stock Market News | "Found N articles" |
+| `synthesis` | Analysis | "Synthesizing..." → "Response complete" |
+
+**Event Format:**
+```json
+{
+  "type": "progress",
+  "step": "corpus_search",
+  "label": "Knowledge Base",
+  "message": "Found 8 relevant articles",
+  "status": "complete",
+  "count": 8
+}
+```
+
 ## Session Management
 
 - **TTL**: 30 minutes of inactivity
@@ -36,7 +60,7 @@ The agent searches in this order:
 
 ## Response Format
 
-Briefings now include structured sections:
+Briefings include structured sections:
 - **Overview**: Executive summary with bold key insights
 - **Key Findings**: Bulleted insights with `[Source](url)` citations
 - **Market Context**: Broader implications (when applicable)
@@ -47,11 +71,6 @@ Briefings now include structured sections:
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/briefing/adhoc` | POST | Generate briefing |
-| `/api/briefing/adhoc/stream` | POST | Streaming variant |
+| `/api/briefing/adhoc/stream` | POST | Streaming with progress events |
 | `/api/briefing/adhoc/session/{id}` | GET/DELETE | Session management |
 
-## Model
-
-Uses `claude-sonnet-4-5` with 120-second timeout for thorough responses.
-
-After 2 follow-ups, redirects to Deep Research for comprehensive analysis.

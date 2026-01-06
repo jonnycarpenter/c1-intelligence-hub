@@ -55,6 +55,8 @@ steps:
       - '80'
       - '--execution-environment'
       - 'gen2'
+      - '--cpu-boost'
+      - '--no-cpu-throttling'
       - '--add-volume'
       - 'name=data-volume,type=cloud-storage,bucket=${_DATA_BUCKET}'
       - '--add-volume-mount'

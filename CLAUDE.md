@@ -216,6 +216,14 @@ response = await client.messages_create(model="claude-sonnet-4-5", ...)
 
 ## Recent Changes (January 6, 2026)
 
+### Session 41 - Ad-Hoc Briefing SSE Progress Events ✅
+- **Streaming Progress Events**: Real-time feedback during research phases
+  - Knowledge Base → Advanced Web Search → Stock Market News → Analysis
+- **Backend**: `StreamingAdHocBriefingAgent.generate_briefing_stream()` emits `progress` SSE events
+- **Frontend Hook**: `progressSteps` state in `useBriefing.ts`
+- **Frontend Display**: `ProgressStepDisplay` component with step icons, checkmarks, article counts
+- **Files Modified**: `agent.py`, `useBriefing.ts`, `AdHocBriefing.tsx`
+
 ### Session 32 - Long-term Memory UI Components ✅
 - **PreferencesPanel**: New component for managing priority/blocked topics (`frontend/src/components/memory/PreferencesPanel.tsx`)
 - **SavedReportsPanel**: Browse saved Deep Research reports with search, expand/collapse, actions (`frontend/src/components/research/SavedReportsPanel.tsx`)

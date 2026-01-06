@@ -27,24 +27,39 @@ if (-not $ServiceUrl) {
 # Jobs Configuration
 # NOTE: Body must use escaped quotes for PowerShell → gcloud compatibility
 # Cloud Scheduler max timeout is 1800s (30 min) - DO NOT EXCEED
+#
+# DAILY INGESTION STRATEGY (split to avoid timeout):
+#   2:00 AM CST (8:00 UTC) - Web search (Exa + Tavily queries, press releases) ~25 min
+#   2:45 AM CST (8:45 UTC) - Financial data (SEC, earnings, FMP, StockNews) ~25 min
+#   Flash updates every 4 hours for fast-moving sources (RSS, freight)
+#
 $Jobs = @(
     @{
         Name        = "ingest-flash-update"
         Schedule    = "0 */4 * * *"
         Uri         = "$ServiceUrl/api/v1/scheduler/ingest"
-        # PowerShell requires escaped quotes for JSON to pass correctly to gcloud
-        Body        = '{\"sources\": [\"rss\", \"stocknews\", \"freight\"]}'
-        Timeout     = "900s"  # 15 min - flash jobs are lighter
-        Description = "Flash Loop: Frequent updates for fast-moving data (RSS, StockNews, Freight)"
+        # Fast sources only - runs every 4 hours
+        Body        = '{\"sources\": [\"rss\", \"freight\"]}'
+        Timeout     = "600s"  # 10 min - these are very fast
+        Description = "Flash Loop: RSS feeds + freight rates every 4 hours"
     },
     @{
-        Name        = "ingest-deep-dive"
-        Schedule    = "0 8 * * *" # 8 AM UTC = 2 AM CST (Standard Time)
+        Name        = "ingest-web-search"
+        Schedule    = "0 8 * * *" # 8:00 AM UTC = 2:00 AM CST
         Uri         = "$ServiceUrl/api/v1/scheduler/ingest"
-        # ALL sources: industry_queries (Exa+Tavily), rss, sec, earnings, stocknews, fmp_news, freight, press_releases (Exa)
-        Body        = '{\"sources\": [\"industry_queries\", \"rss\", \"sec\", \"earnings\", \"stocknews\", \"fmp_news\", \"freight\", \"press_releases\"]}'
-        Timeout     = "1800s"  # 30 min MAX - deep ingestion needs full time
-        Description = "Deep Loop: Comprehensive daily ingestion (ALL sources)"
+        # Web search sources: Exa (91 queries) + Tavily (145 queries) + Press Releases
+        Body        = '{\"sources\": [\"industry_queries\", \"press_releases\"]}'
+        Timeout     = "1800s"  # 30 min MAX - web search can be slow
+        Description = "Web Search: Industry queries (Exa+Tavily) + Press releases at 2 AM CST"
+    },
+    @{
+        Name        = "ingest-financial"
+        Schedule    = "45 8 * * *" # 8:45 AM UTC = 2:45 AM CST (45 min after web-search)
+        Uri         = "$ServiceUrl/api/v1/scheduler/ingest"
+        # Financial/news sources: SEC filings, earnings, FMP premium, StockNews
+        Body        = '{\"sources\": [\"sec\", \"earnings\", \"fmp_news\", \"stocknews\"]}'
+        Timeout     = "1800s"  # 30 min MAX - StockNews can be slow (48 API calls)
+        Description = "Financial Data: SEC, earnings, FMP news, StockNews at 2:45 AM CST"
     },
     @{
         Name        = "weekly-executive-briefing"
@@ -52,7 +67,7 @@ $Jobs = @(
         Uri         = "$ServiceUrl/api/v1/scheduler/briefing"
         Body        = '{}'
         Timeout     = "900s"  # 15 min - briefing generation
-        Description = "Briefing Job: Generates weekly 'Need to Know' report"
+        Description = "Briefing Job: Generates weekly 'Need to Know' report on Monday 8:30 AM CST"
     }
 )
 
@@ -61,7 +76,8 @@ $LegacyJobs = @(
     "daily-morning-ingest",
     "orchestrator-ingestion-morning", 
     "orchestrator-ingestion-evening",
-    "daily-evening-ingest",        # Removed: redundant with ingest-deep-dive
+    "daily-evening-ingest",        # Removed: redundant - sources now split across jobs
+    "ingest-deep-dive",            # Removed: replaced by ingest-web-search + ingest-financial
     "weekly-corpus-refresh",       # Removed: stub implementation (did nothing)
     "weekly-data-cleanup"          # Removed: stub implementation (did nothing)
 )

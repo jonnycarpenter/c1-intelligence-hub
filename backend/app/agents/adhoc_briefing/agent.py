@@ -571,9 +571,17 @@ class StreamingAdHocBriefingAgent(AdHocBriefingAgent):
         session: Optional["BriefingSession"] = None,
     ) -> AsyncIterator[str]:
         """
-        Stream an ad hoc briefing response.
+        Stream an ad hoc briefing response with progress events.
         
-        Yields chunks of the response as they're generated.
+        Yields chunks of the response as they're generated, with progress
+        events for each research phase.
+        
+        SSE Event Types:
+        - progress: Research phase updates (step, message, status, count)
+        - content: Response text chunks
+        - session_info: Session state at end
+        - redirect: Redirect to Deep Research
+        - no_results: No articles found
         
         Args:
             question: User's question
@@ -604,8 +612,27 @@ class StreamingAdHocBriefingAgent(AdHocBriefingAgent):
             })
             return
         
-        # Search for context
+        # =========================================================================
+        # Phase 1: Corpus Search (Knowledge Base)
+        # =========================================================================
+        yield json.dumps({
+            "type": "progress",
+            "step": "corpus_search",
+            "label": "Knowledge Base",
+            "message": "Searching internal knowledge base...",
+            "status": "running",
+        })
+        
         search_results = await self.search_articles(question, limit=8)
+        
+        yield json.dumps({
+            "type": "progress",
+            "step": "corpus_search",
+            "label": "Knowledge Base",
+            "message": f"Found {len(search_results)} relevant articles" if search_results else "No articles found",
+            "status": "complete",
+            "count": len(search_results),
+        })
         
         if not search_results:
             yield json.dumps({
@@ -615,12 +642,63 @@ class StreamingAdHocBriefingAgent(AdHocBriefingAgent):
             })
             return
         
+        # =========================================================================
+        # Phase 2: External News Search (Exa + StockNews)
+        # =========================================================================
+        yield json.dumps({
+            "type": "progress",
+            "step": "exa_search",
+            "label": "Advanced Web Search",
+            "message": "Searching web for recent news...",
+            "status": "running",
+        })
+        
+        external_results = await self.search_external_news(question)
+        exa_count = len(external_results.get("exa_news", []))
+        stocknews_count = len(external_results.get("stocknews", []))
+        
+        yield json.dumps({
+            "type": "progress",
+            "step": "exa_search",
+            "label": "Advanced Web Search",
+            "message": f"Found {exa_count} articles" if exa_count else "No results",
+            "status": "complete",
+            "count": exa_count,
+        })
+        
+        yield json.dumps({
+            "type": "progress",
+            "step": "stocknews_search",
+            "label": "Stock Market News",
+            "message": f"Found {stocknews_count} articles" if stocknews_count else "No results",
+            "status": "complete",
+            "count": stocknews_count,
+        })
+        
+        # =========================================================================
+        # Phase 3: Synthesis
+        # =========================================================================
+        yield json.dumps({
+            "type": "progress",
+            "step": "synthesis",
+            "label": "Analysis",
+            "message": "Synthesizing intelligence response...",
+            "status": "running",
+        })
+        
         # Build context
         context_string = context.to_context_string()
-        search_context = "Relevant Articles Found:\n" + "\n".join([
-            f"- {r['title']} ({r['source']}): {r['summary'][:200]}"
-            for r in search_results[:5]
+        
+        # Format internal corpus results
+        search_context = "## Internal Corpus Results\n" + "\n".join([
+            f"### {r['title']}\n**Source:** {r['source']} | **Date:** {r['date']}\n**URL:** {r['url']}\n**Content:** {r['summary']}\n"
+            for r in search_results[:8]
         ])
+        
+        # Add external results
+        external_context = self._format_external_results(external_results)
+        if external_context:
+            search_context += "\n\n" + external_context
         
         # Include conversation history if session exists
         conversation_context = ""
@@ -633,14 +711,16 @@ class StreamingAdHocBriefingAgent(AdHocBriefingAgent):
 
 User Question: {question}
 
-Provide a focused briefing response. Be concise and cite sources."""
+Using the internal corpus results above, provide a thorough briefing response.
+Follow the response format from your instructions (Overview, Key Findings, Sources).
+Use **bold** for key insights and include clickable [Title](url) citations."""
 
         # Stream response and collect full text for history
         # Note: Streaming uses raw Anthropic client (no OpenAI fallback for streaming)
         full_response = ""
         async with self._streaming_client.messages.stream(
             model=self.model,
-            max_tokens=1500,
+            max_tokens=3000,  # Match non-streaming version
             temperature=0,
             system=self.SYSTEM_PROMPT,
             messages=[{"role": "user", "content": full_prompt}]
@@ -648,6 +728,15 @@ Provide a focused briefing response. Be concise and cite sources."""
             async for text in stream.text_stream:
                 full_response += text
                 yield json.dumps({"type": "content", "text": text})
+        
+        # Mark synthesis complete
+        yield json.dumps({
+            "type": "progress",
+            "step": "synthesis",
+            "label": "Analysis",
+            "message": "Response complete",
+            "status": "complete",
+        })
         
         # Save response to conversation history
         if session and full_response:

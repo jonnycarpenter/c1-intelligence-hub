@@ -286,7 +286,7 @@ async def run_deep_research(request: DeepResearchRequest):
         
         Uses two mechanisms:
         1. LangGraph astream_events for node lifecycle events
-        2. ProgressCollector callback for granular tool progress
+        2. ProgressCollector callback for granular tool progress (polled every 100ms)
         """
         # Set up progress collector
         loop = asyncio.get_event_loop()
@@ -303,7 +303,7 @@ async def run_deep_research(request: DeepResearchRequest):
             active_nodes = set()
             completed_nodes = set()
             final_state = None
-            last_progress_check = 0
+            accumulated_state = {}  # Track state across all node completions
             
             # Generate unique run ID and query hash for tracing
             run_id = str(uuid.uuid4())
@@ -338,12 +338,15 @@ async def run_deep_research(request: DeepResearchRequest):
                 "message": f"Research will timeout after {workflow_timeout // 60} minutes if not complete"
             })
             
-            # Stream events from workflow execution with timeout monitoring
-            async for event in research_workflow.astream_events(
+            # Create an async iterator for the workflow events
+            event_iterator = research_workflow.astream_events(
                 initial_state,
                 config=langsmith_config,
                 version="v2",  # Use v2 event schema
-            ):
+            ).__aiter__()
+            
+            # Poll for events with short timeout to enable real-time progress streaming
+            while True:
                 # Check workflow-level timeout
                 elapsed = asyncio.get_event_loop().time() - workflow_start_time
                 if elapsed > workflow_timeout:
@@ -358,7 +361,7 @@ async def run_deep_research(request: DeepResearchRequest):
                     yield "data: [DONE]\n\n"
                     return
                 
-                # Check for any pending tool progress events
+                # Check for any pending tool progress events (real-time polling)
                 progress_events = await progress_collector.get_pending_events()
                 for progress in progress_events:
                     yield _emit_event("tool_progress", {
@@ -366,6 +369,16 @@ async def run_deep_research(request: DeepResearchRequest):
                         "message": progress["message"],
                         "ticker": progress.get("ticker"),
                     })
+                
+                # Try to get next LangGraph event with short timeout for responsive polling
+                try:
+                    event = await asyncio.wait_for(event_iterator.__anext__(), timeout=0.1)
+                except asyncio.TimeoutError:
+                    # No LangGraph event ready - continue polling for progress events
+                    continue
+                except StopAsyncIteration:
+                    # Workflow complete
+                    break
                 
                 event_type = event.get("event")
                 event_name = event.get("name", "")
@@ -397,6 +410,12 @@ async def run_deep_research(request: DeepResearchRequest):
                     # Extract output for specific nodes
                     output = event_data.get("output", {})
                     
+                    # Accumulate state from each node (for parallel merge)
+                    if output and isinstance(output, dict):
+                        for key, value in output.items():
+                            if value is not None:
+                                accumulated_state[key] = value
+                    
                     # Check for clarification needed (from groom node)
                     if node_name == "groom" and output:
                         brief = output.get("research_brief")
@@ -420,7 +439,7 @@ async def run_deep_research(request: DeepResearchRequest):
                         "duration_hint": "complete",
                     })
                     
-                    # Capture final state from last node
+                    # Use accumulated state OR the last node's output (validator has full state)
                     if output:
                         final_state = output
             
@@ -433,23 +452,36 @@ async def run_deep_research(request: DeepResearchRequest):
                     "ticker": progress.get("ticker"),
                 })
             
-            # Emit final outputs
+            # Emit final outputs - use accumulated_state if final_state lacks the report
+            # (parallel execution can cause final_state to only have last node's partial output)
+            if not final_state or not final_state.get("final_report"):
+                if accumulated_state.get("final_report"):
+                    logger.info("Using accumulated_state for final report (parallel state merge)")
+                    final_state = accumulated_state
+            
             if final_state:
                 # Final report
                 if final_state.get("final_report"):
-                    yield _emit_event("report", final_state["final_report"].model_dump())
+                    report = final_state["final_report"]
+                    yield _emit_event("report", report.model_dump() if hasattr(report, 'model_dump') else report)
+                else:
+                    logger.error(f"Workflow completed but no final_report in state. Keys: {list(final_state.keys())}")
+                    yield _emit_event("error", {"message": "Research completed but no report was generated", "type": "missing_report"})
                 
                 # Category/sales intelligence (Phase 2)
                 if final_state.get("category_output"):
-                    yield _emit_event("category", final_state["category_output"].model_dump())
+                    cat = final_state["category_output"]
+                    yield _emit_event("category", cat.model_dump() if hasattr(cat, 'model_dump') else cat)
                 
                 # Validation results (Phase 2)
                 if final_state.get("validator_output"):
-                    yield _emit_event("validation", final_state["validator_output"].model_dump())
+                    val = final_state["validator_output"]
+                    yield _emit_event("validation", val.model_dump() if hasattr(val, 'model_dump') else val)
                 
                 # Any errors accumulated
-                if final_state.get("errors"):
-                    yield _emit_event("warnings", final_state["errors"])
+                errors = final_state.get("errors") or accumulated_state.get("errors")
+                if errors:
+                    yield _emit_event("warnings", errors)
                 
                 # Cache the successful result for future queries
                 if final_state.get("final_report"):
