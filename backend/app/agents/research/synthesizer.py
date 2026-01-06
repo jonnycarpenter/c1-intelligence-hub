@@ -91,7 +91,7 @@ async def synthesis_node(state: DeepResearchState) -> DeepResearchState:
     """
     start_time = time.time()
     llm = ChatAnthropic(
-        model="claude-opus-4-5",
+        model=settings.deep_research_synthesizer_model,
         anthropic_api_key=settings.anthropic_api_key,
         temperature=0,
     )
@@ -117,7 +117,102 @@ async def synthesis_node(state: DeepResearchState) -> DeepResearchState:
     RESEARCH DATA:
     {json.dumps(input_data, indent=2)}
     
-    Respond ONLY with a JSON object matching the SynthesisAgentOutput schema.
+    Respond ONLY with a JSON object matching this EXACT schema:
+
+    {{
+      "report_id": "REP-{int(time.time())}",
+      "generated_at": "{datetime.now().isoformat()}",
+      "query": "{state["user_query"]}",
+      "data_completeness": "complete" | "partial" | "limited",
+      "overall_confidence": "high" | "medium" | "low",
+      "executive_summary": {{
+        "headline": "Single sentence capturing key takeaway",
+        "key_points": ["Point 1", "Point 2", "Point 3"],
+        "key_metrics": [
+          {{
+            "metric_name": "Name of metric",
+            "value": "$X.XB or X.X%",
+            "context": "Brief context for this metric",
+            "source": "Source of this metric (required!)",
+            "confidence": "high" | "medium" | "low"
+          }}
+        ],
+        "data_caveat": "Data caveat if incomplete, or null"
+      }},
+      "sections": [
+        {{
+          "section_id": "sec_001",
+          "section_title": "Section Title",
+          "content": "2-4 paragraphs of synthesized prose",
+          "tables": [
+            {{
+              "table_id": "tbl_001",
+              "title": "Table Title",
+              "columns": ["Column1", "Column2", "Column3"],
+              "rows": [{{"Column1": "val1", "Column2": "val2", "Column3": "val3"}}],
+              "source": "Source of table data",
+              "notes": "Optional notes or null"
+            }}
+          ],
+          "citations": [
+            {{
+              "source_type": "sec_10k|earnings_call|trade_publication|etc",
+              "source_title": "Title",
+              "source_url": "URL or null",
+              "source_date": "YYYY-MM-DD or null",
+              "page_or_section": "Section ref or null",
+              "direct_quote": "Quote or null"
+            }}
+          ],
+          "confidence": "high" | "medium" | "low",
+          "supporting_visuals": []
+        }}
+      ],
+      "field_sales": {{
+        "offensive_angles": [
+          {{
+            "angle": "Opportunity angle",
+            "rationale": "Why this is an opportunity",
+            "grounding": "Data/evidence supporting this",
+            "suggested_validation": "How to validate with customer"
+          }}
+        ],
+        "defensive_angles": [
+          {{
+            "angle": "Defensive angle",
+            "rationale": "Why this matters",
+            "grounding": "Data/evidence",
+            "suggested_validation": "How to address"
+          }}
+        ],
+        "questions_to_explore": ["Question 1", "Question 2"],
+        "caution_note": "Standard disclaimer about validating against account knowledge"
+      }},
+      "all_visuals": [],
+      "sources_used": [
+        {{
+          "source_type": "sec_10k|earnings_call|trade_publication|etc",
+          "source_title": "Title",
+          "source_url": "URL or null",
+          "source_date": "YYYY-MM-DD or null",
+          "page_or_section": "Section ref or null",
+          "direct_quote": null
+        }}
+      ],
+      "source_breakdown": {{"sec_filings": 3, "earnings_call": 2, "trade_publication": 5}},
+      "data_gaps": ["Gap 1", "Gap 2"],
+      "warnings": ["Warning 1"],
+      "research_time_seconds": 0.0
+    }}
+
+    CRITICAL REQUIREMENTS:
+    - "query" field MUST be included and match the user's query
+    - "data_completeness" MUST be lowercase: "complete", "partial", or "limited"
+    - "overall_confidence" MUST be lowercase: "high", "medium", or "low"
+    - ALL KeyMetric objects MUST have "source" and "confidence" fields
+    - ALL FieldSalesAngle objects MUST have "angle", "rationale", and "grounding" fields
+    - ALL lists (sections, all_visuals, sources_used, data_gaps, warnings) MUST be arrays, even if empty []
+    - "research_time_seconds" MUST be a number (will be updated programmatically)
     """
     
     messages = [

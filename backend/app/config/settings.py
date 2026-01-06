@@ -97,7 +97,13 @@ class Settings(BaseSettings):
     sec_filing_types: list = ["10-K", "10-Q", "8-K"]
     sec_extract_sections: list = ["1", "1A", "7", "7A"]
     
-    # Deep Research Workflow models will be added here
+    # Deep Research Workflow models
+    deep_research_groomer_model: str = "claude-sonnet-4-5"
+    deep_research_financial_model: str = "claude-sonnet-4-5"
+    deep_research_industry_model: str = "claude-sonnet-4-5"
+    deep_research_synthesizer_model: str = "claude-sonnet-4-5"
+    deep_research_category_model: str = "claude-sonnet-4-5"  # Phase 2: Sales intelligence
+    deep_research_validator_model: str = "claude-sonnet-4-5"  # Phase 2: Citation verification
     
     # Groq model for X/Twitter analysis (fast inference)
     model_groq_x_analyzer: str = "llama-3.3-70b-versatile"

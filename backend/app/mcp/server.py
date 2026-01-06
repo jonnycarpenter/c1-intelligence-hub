@@ -100,6 +100,14 @@ from app.mcp.tools.document_extraction import (
     extract_pdf_content,
 )
 
+# Datasheet tools - product spec sheets from BigQuery (Phase 2)
+from app.mcp.tools.datasheets import (
+    query_datasheets,
+    get_datasheet_detail,
+    get_datasheet_stats,
+    get_products_by_industry,
+)
+
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -110,7 +118,7 @@ def get_all_mcp_tools() -> List[BaseTool]:
     Get ALL available MCP tools as a flat list.
     
     The unified agent has access to all tools - no persona-based filtering.
-    Total: 43 tools across 8 categories.
+    Total: 52 tools across 9 categories.
     
     Categories:
         - Data Management (11): Company/material/industry tracker CRUD
@@ -120,10 +128,12 @@ def get_all_mcp_tools() -> List[BaseTool]:
         - Time-series (3): Historical data from ingestion pipeline
         - Google Trends (3): Search interest analysis
         - Product Intelligence (6): Catalog and competitive analysis
+        - Datasheets (4): Product spec sheets from BigQuery (Phase 2)
         - Specialized (5): Earnings, visualization, images, documents
+        - Document Extraction (2): PDF and document crawling
     
     Returns:
-        List of all 43 available MCP tools
+        List of all 52 available MCP tools
     """
     logger.info("Loading all MCP tools (unified agent)")
     
@@ -211,6 +221,14 @@ def get_all_mcp_tools() -> List[BaseTool]:
         extract_pdf_content,
     ]
     
+    # Datasheet tools (4) - Product spec sheets from BigQuery (Phase 2)
+    datasheet_tools = [
+        query_datasheets,
+        get_datasheet_detail,
+        get_datasheet_stats,
+        get_products_by_industry,
+    ]
+    
     all_tools = (
         data_management_tools +
         corpus_tools +
@@ -220,7 +238,8 @@ def get_all_mcp_tools() -> List[BaseTool]:
         google_trends_tools +
         product_tools +
         specialized_tools +
-        document_tools
+        document_tools +
+        datasheet_tools
     )
     
     logger.info(f"Loaded {len(all_tools)} MCP tools")

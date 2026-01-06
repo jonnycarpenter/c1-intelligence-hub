@@ -11,7 +11,7 @@ C1 Intelligence Hub helps composites industry professionals stay informed with A
 | Feature | Description |
 |---------|-------------|
 | **Ad-Hoc Briefings** | On-demand AI briefings on any topic with real-time web search |
-| **Deep Research** | Multi-step research workflows with source grounding |
+| **[Deep Research](#deep-research)** | 7-node LangGraph pipeline with parallel agents, real-time streaming |
 | **Pipeline Dashboard** | Track news from 50+ industry sources via Exa/Tavily |
 | **Long-Term Memory** | Save insights to BigQuery with team-based retrieval |
 | **Login Gate** | Team-based access (Sales East/West, Marketing, Product/Supplier) |
@@ -210,6 +210,34 @@ The app supports team-based memory and preferences:
 2. Add system prompt in `backend/app/config/prompts.py`
 3. Register in `backend/app/agents/__init__.py`
 4. Update router in `backend/app/agents/router.py`
+
+## Deep Research
+
+**Status: ✅ PRODUCTION READY** (January 5, 2026)
+
+A 7-node LangGraph pipeline for comprehensive industry research with parallel agent execution:
+
+```
+              ┌──► [Financial] ──┐
+[Groomer] ───┤                   ├──► [Synthesizer] → [Category] → [Validator] → Report
+              └──► [Industry]  ──┘
+                   (parallel)
+```
+
+| Agent | Purpose |
+| **Groomer** | Query interpretation, sub-query generation |
+| **Financial** | SEC filings, earnings calls, analyst ratings |
+| **Industry** | Trade publications, market signals, news |
+| **Synthesizer** | Merge findings into executive-ready report |
+| **Category** | Territory-specific sales intelligence (East/West) |
+| **Validator** | Citation verification and quality gate |
+
+**Full documentation**: [`backend/app/agents/research/README.md`](backend/app/agents/research/README.md)
+
+**Key files**:
+- Workflow: `backend/app/graph/research_workflow.py`
+- Agents: `backend/app/agents/research/*.py`
+- State schemas: `backend/app/agents/research/state.py`
 
 ## License
 

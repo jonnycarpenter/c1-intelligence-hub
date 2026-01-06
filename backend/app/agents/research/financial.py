@@ -2,6 +2,7 @@ from typing import Dict, Any, List, Optional, Set
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import SystemMessage, HumanMessage
 from app.agents.research.state import DeepResearchState, FinancialAgentOutput, FinancialFinding, ConfidenceLevel, SourceType, Citation
+from app.agents.research.progress import emit_progress_sync, ToolProgress, get_tool_description
 from app.config.settings import settings
 from app.mcp.tools.api_ninja_earnings import get_earnings_transcript_ninja
 from app.mcp.tools.corpus_query import query_corpus
@@ -113,10 +114,13 @@ You are a Financial Research Agent specializing in the composites industry. Your
 Always respond with valid JSON matching the FinancialAgentOutput schema.
 """
 
-async def financial_research_node(state: DeepResearchState) -> DeepResearchState:
+async def financial_research_node(state: DeepResearchState) -> Dict[str, Any]:
     """
     Financial research node. Executes queries against SEC filings, earnings calls,
     and StockNewsAPI tools for comprehensive financial intelligence.
+    
+    Returns PARTIAL STATE dict with only the fields this node updates.
+    This is required for LangGraph's Send API parallel execution.
     
     Improvements:
     - Batch ticker resolution from all queries upfront
@@ -125,18 +129,21 @@ async def financial_research_node(state: DeepResearchState) -> DeepResearchState
     """
     start_time = time.time()
     llm = ChatAnthropic(
-        model="claude-opus-4-5",
+        model=settings.deep_research_financial_model,
         anthropic_api_key=settings.anthropic_api_key,
         temperature=0,
     )
     
     brief = state["research_brief"]
     if not brief or not brief.financial_agent_queries:
-        state["current_status"] = "financial_research_skipped"
-        return state
+        return {
+            "current_status": "financial_research_skipped",
+            "errors": [],
+        }
         
     queries_executed = []
     raw_results = []
+    errors = []  # Local errors list for partial state return
     
     # Load companies for ticker resolution
     companies_df = load_companies()
@@ -151,6 +158,7 @@ async def financial_research_node(state: DeepResearchState) -> DeepResearchState
     # STEP 2: Execute Corpus Queries (Query-Specific)
     # Check internal corpus first for pre-ingested earnings and financial data
     # =========================================================================
+    emit_progress_sync(ToolProgress(tool_name="corpus_earnings", message="Searching internal earnings data..."))
     for q in brief.financial_agent_queries:
         queries_executed.append(q)
         
@@ -168,6 +176,7 @@ async def financial_research_node(state: DeepResearchState) -> DeepResearchState
     # =========================================================================
     for ticker in all_tickers:
         # SEC Filings - official 10-K, 10-Q, 8-K filings
+        emit_progress_sync(ToolProgress(tool_name="sec_filings", message=f"Fetching SEC filings for {ticker}", ticker=ticker))
         try:
             collector = SECFilingCollector()
             sec_results = collector.collect_for_company(company_id=ticker, ticker=ticker)
@@ -186,9 +195,10 @@ async def financial_research_node(state: DeepResearchState) -> DeepResearchState
                     "ticker": ticker
                 })
         except Exception as e:
-            state["errors"].append({"node": "financial_research", "ticker": ticker, "error": f"SEC: {str(e)}"})
+            errors.append({"node": "financial_research", "ticker": ticker, "error": f"SEC: {str(e)}"})
         
         # Earnings Call Transcripts - management commentary and guidance
+        emit_progress_sync(ToolProgress(tool_name="earnings_call", message=f"Retrieving earnings transcript for {ticker}", ticker=ticker))
         try:
             result = get_earnings_transcript_ninja.invoke({"ticker": ticker})
             if result and str(result).strip():
@@ -199,7 +209,7 @@ async def financial_research_node(state: DeepResearchState) -> DeepResearchState
                     "ticker": ticker
                 })
         except Exception as e:
-            state["errors"].append({"node": "financial_research", "ticker": ticker, "error": f"Earnings: {str(e)}"})
+            errors.append({"node": "financial_research", "ticker": ticker, "error": f"Earnings: {str(e)}"})
     
     # =========================================================================
     # STEP 4: StockNewsAPI Calls (Batched by Ticker List)
@@ -208,28 +218,31 @@ async def financial_research_node(state: DeepResearchState) -> DeepResearchState
     ticker_list = list(all_tickers)
     if ticker_list:
         # Company news - recent headlines and developments
+        emit_progress_sync(ToolProgress(tool_name="company_news", message=f"Fetching company news for {', '.join(ticker_list[:3])}{'...' if len(ticker_list) > 3 else ''}"))
         try:
             news_result = get_company_news.invoke({"tickers": ticker_list, "days": 30, "items": 20})
             if news_result:
                 raw_results.append({"query": "Company news", "source": "stocknews_company", "content": news_result})
         except Exception as e:
-            state["errors"].append({"node": "financial_research", "error": f"StockNews company: {str(e)}"})
+            errors.append({"node": "financial_research", "error": f"StockNews company: {str(e)}"})
         
         # Press releases - official company announcements
+        emit_progress_sync(ToolProgress(tool_name="press_releases", message="Fetching press releases"))
         try:
             pr_result = get_press_releases.invoke({"tickers": ticker_list, "days": 60, "items": 15})
             if pr_result:
                 raw_results.append({"query": "Press releases", "source": "stocknews_press_releases", "content": pr_result})
         except Exception as e:
-            state["errors"].append({"node": "financial_research", "error": f"StockNews PR: {str(e)}"})
+            errors.append({"node": "financial_research", "error": f"StockNews PR: {str(e)}"})
         
         # Analyst ratings - upgrades, downgrades, price targets
+        emit_progress_sync(ToolProgress(tool_name="analyst_ratings", message="Getting analyst ratings"))
         try:
             ratings_result = get_analyst_ratings.invoke({"tickers": ticker_list, "items": 15})
             if ratings_result:
                 raw_results.append({"query": "Analyst ratings", "source": "stocknews_analyst_ratings", "content": ratings_result})
         except Exception as e:
-            state["errors"].append({"node": "financial_research", "error": f"StockNews ratings: {str(e)}"})
+            errors.append({"node": "financial_research", "error": f"StockNews ratings: {str(e)}"})
         
         # Sentiment summary - per ticker (must be called individually)
         for ticker in ticker_list[:5]:  # Limit to top 5 to avoid rate limits
@@ -258,10 +271,10 @@ async def financial_research_node(state: DeepResearchState) -> DeepResearchState
     research_context = f"""
 ## Research Context
 - **Original Query**: {brief.original_query}
-- **Research Intent**: {brief.research_intent or 'Financial intelligence gathering'}
-- **Key Entities**: {', '.join(brief.key_entities) if brief.key_entities else 'Not specified'}
+- **Research Intent**: {brief.clarified_intent or 'Financial intelligence gathering'}
+- **Key Entities**: {', '.join(brief.entities_to_track) if brief.entities_to_track else 'Not specified'}
 - **Resolved Tickers**: {', '.join(all_tickers) if all_tickers else 'No tickers resolved'}
-- **Time Period**: {brief.time_period or 'Recent'}
+- **Time Period**: {brief.timeframe or 'Recent'}
 
 ## Financial Queries Being Addressed:
 {chr(10).join(f'- {q}' for q in brief.financial_agent_queries)}
@@ -284,8 +297,45 @@ Analyst ratings and news should be MEDIUM confidence unless corroborated.
 RAW RESULTS (ranked by source priority):
 {json.dumps(top_results, indent=2, default=str)[:50000]}
 
-Respond ONLY with a JSON object matching the FinancialAgentOutput schema.
-Include specific citations with URLs where available.
+Respond ONLY with a JSON object matching this EXACT schema:
+
+{{
+  "status": "complete" | "partial" | "failed",
+  "queries_executed": ["list of query strings executed"],
+  "sources_searched": 0,
+  "sources_with_results": 0,
+  "execution_time_seconds": 0.0,
+  "findings": [
+    {{
+      "finding_id": "fin_001",
+      "finding": "Specific finding statement with details",
+      "finding_type": "revenue|margin|growth|capex|guidance|risk|contract|m_and_a|expansion|analyst_rating",
+      "confidence": "high" | "medium" | "low",
+      "relevance_score": 0.0 to 1.0,
+      "citation": {{
+        "source_type": "sec_10k|sec_10q|sec_8k|earnings_call|investor_presentation|financial_news|press_release",
+        "source_title": "Document or article title",
+        "source_url": "URL if available or null",
+        "source_date": "YYYY-MM-DD or null",
+        "page_or_section": "Section reference or null",
+        "direct_quote": "Exact quote if available or null"
+      }},
+      "entities_mentioned": ["Company", "Person", "Product"],
+      "metrics": {{"metric_name": "value"}} or null
+    }}
+  ],
+  "key_metrics_summary": {{"revenue": "value", "margin": "value"}} or null,
+  "failed_sources": [{{"source": "name", "error": "reason"}}],
+  "data_gaps": ["List of information that could not be found"],
+  "warnings": ["List of any data quality or reliability concerns"]
+}}
+
+IMPORTANT:
+- Each finding MUST have finding_id (e.g., "fin_001", "fin_002")
+- confidence MUST be lowercase: "high", "medium", or "low"
+- relevance_score MUST be a decimal between 0.0 and 1.0
+- All lists (findings, failed_sources, data_gaps, warnings) MUST be arrays, even if empty []
+- Include specific citations with URLs where available
 """
     
     messages = [
@@ -309,11 +359,18 @@ Include specific citations with URLs where available.
         financial_output.execution_time_seconds = time.time() - start_time
         financial_output.queries_executed = queries_executed
         
-        state["financial_output"] = financial_output
-        state["current_status"] = "financial_research_complete"
+        # Return PARTIAL STATE - only fields this node updates
+        # This is required for LangGraph's Send API parallel merge
+        return {
+            "financial_output": financial_output,
+            "current_status": "financial_research_complete",
+            "errors": errors,
+        }
         
     except Exception as e:
-        state["errors"].append({"node": "financial_research_synthesis", "error": str(e)})
-        state["current_status"] = "financial_research_failed"
-        
-    return state
+        errors.append({"node": "financial_research_synthesis", "error": str(e)})
+        # Return PARTIAL STATE on failure
+        return {
+            "current_status": "financial_research_failed",
+            "errors": errors,
+        }

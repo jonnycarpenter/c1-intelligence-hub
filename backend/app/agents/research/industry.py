@@ -2,6 +2,7 @@ from typing import Dict, Any, List, Optional
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import SystemMessage, HumanMessage
 from app.agents.research.state import DeepResearchState, IndustryAgentOutput, IndustryFinding, Sentiment, Citation
+from app.agents.research.progress import emit_progress_sync, ToolProgress
 from app.config.settings import settings
 from app.mcp.tools.exa_search import news_search, web_search, find_similar  # Exa for semantic search
 from app.mcp.tools.corpus_query import query_corpus, get_market_signals
@@ -157,9 +158,12 @@ def _rank_results_by_relevance(raw_results: List[Dict], original_query: str) -> 
     return ranked
 
 
-async def industry_research_node(state: DeepResearchState) -> DeepResearchState:
+async def industry_research_node(state: DeepResearchState) -> Dict[str, Any]:
     """
     Industry research node. Executes queries against news and market signal tools.
+    
+    Returns PARTIAL STATE dict with only the fields this node updates.
+    This is required for LangGraph's Send API parallel execution.
     
     Tool execution order:
     1. Internal corpus (fastest, pre-classified)
@@ -170,21 +174,24 @@ async def industry_research_node(state: DeepResearchState) -> DeepResearchState:
     """
     start_time = time.time()
     llm = ChatAnthropic(
-        model="claude-opus-4-5",
+        model=settings.deep_research_industry_model,
         anthropic_api_key=settings.anthropic_api_key,
         temperature=0,
     )
     
     brief = state["research_brief"]
     if not brief or not brief.industry_agent_queries:
-        state["current_status"] = "industry_research_skipped"
-        return state
+        return {
+            "current_status": "industry_research_skipped",
+            "errors": [],
+        }
     
     # Load companies for ticker resolution
     companies_df = load_companies()
     
     queries_executed = []
     raw_results = []
+    errors = []  # Local errors list for partial state return
     
     # Collect all tickers mentioned across queries for batch processing
     all_resolved_tickers = set()
@@ -197,13 +204,15 @@ async def industry_research_node(state: DeepResearchState) -> DeepResearchState:
         all_resolved_tickers.update(resolved_tickers)
         
         # 1. CORPUS QUERY (Priority - check internal intelligence first)
+        emit_progress_sync(ToolProgress(tool_name="corpus", message="Searching internal intelligence", query=q[:50]))
         try:
             results = query_corpus.invoke({"query": q, "limit": 15, "hours": 8760})
             raw_results.append({"query": q, "source": "corpus", "content": results})
         except Exception as e:
-            state["errors"].append({"node": "industry_research", "query": q, "error": f"Corpus query: {str(e)}"})
+            errors.append({"node": "industry_research", "query": q, "error": f"Corpus query: {str(e)}"})
         
         # 2. EXA WEB SEARCH - Trade publications (domain-filtered for high-quality industry content)
+        emit_progress_sync(ToolProgress(tool_name="exa_trade_pubs", message="Searching trade publications"))
         try:
             trade_pub_results = web_search.invoke({
                 "query": q,
@@ -214,16 +223,18 @@ async def industry_research_node(state: DeepResearchState) -> DeepResearchState:
             })
             raw_results.append({"query": q, "source": "exa_trade_pubs", "content": trade_pub_results})
         except Exception as e:
-            state["errors"].append({"node": "industry_research", "query": q, "error": f"Exa trade pubs: {str(e)}"})
+            errors.append({"node": "industry_research", "query": q, "error": f"Exa trade pubs: {str(e)}"})
         
         # 3. EXA NEWS SEARCH (general news with reliable dates)
+        emit_progress_sync(ToolProgress(tool_name="exa_news", message="Searching recent news"))
         try:
             news_results = news_search.invoke({"query": q, "max_results": 10, "time_range": "week"})
             raw_results.append({"query": q, "source": "exa_news", "content": news_results})
         except Exception as e:
-            state["errors"].append({"node": "industry_research", "query": q, "error": f"Exa news: {str(e)}"})
+            errors.append({"node": "industry_research", "query": q, "error": f"Exa news: {str(e)}"})
         
         # 4. MARKET SIGNALS (aggregated signals from corpus)
+        emit_progress_sync(ToolProgress(tool_name="market_signals", message="Analyzing market signals"))
         try:
             industry_filter = None
             for ind in ["aerospace", "automotive", "wind", "marine", "defense"]:
@@ -236,28 +247,32 @@ async def industry_research_node(state: DeepResearchState) -> DeepResearchState:
             pass  # Non-critical
         
         # 5. STOCKNEWS KEYWORD SEARCH (for industry terms, private companies)
+        emit_progress_sync(ToolProgress(tool_name="stocknews_keyword", message="Searching news by keyword"))
         try:
             keyword_result = search_news_keyword.invoke({"keyword": q, "days": 60, "items": 15})
             raw_results.append({"query": q, "source": "stocknews_keyword", "content": keyword_result})
         except Exception as e:
-            state["errors"].append({"node": "industry_research", "query": q, "error": f"StockNews keyword: {str(e)}"})
+            errors.append({"node": "industry_research", "query": q, "error": f"StockNews keyword: {str(e)}"})
     
     # 6. STOCKNEWS COMPANY NEWS (batch for all resolved tickers)
     all_tickers = list(all_resolved_tickers)
     if all_tickers:
+        emit_progress_sync(ToolProgress(tool_name="stocknews_company", message=f"Fetching company news for {', '.join(all_tickers[:3])}{'...' if len(all_tickers) > 3 else ''}"))
         try:
             company_news = get_company_news.invoke({"tickers": all_tickers[:10], "days": 30, "items": 20})
             raw_results.append({"query": "resolved_tickers", "source": "stocknews_company", "content": company_news, "tickers": all_tickers[:10]})
         except Exception as e:
-            state["errors"].append({"node": "industry_research", "error": f"StockNews company news: {str(e)}"})
+            errors.append({"node": "industry_research", "error": f"StockNews company news: {str(e)}"})
         
+        emit_progress_sync(ToolProgress(tool_name="stocknews_press_releases", message="Fetching press releases"))
         try:
             pr_result = get_press_releases.invoke({"tickers": all_tickers[:10], "days": 60, "items": 15})
             raw_results.append({"query": "resolved_tickers", "source": "stocknews_press_releases", "content": pr_result, "tickers": all_tickers[:10]})
         except Exception as e:
-            state["errors"].append({"node": "industry_research", "error": f"StockNews press releases: {str(e)}"})
+            errors.append({"node": "industry_research", "error": f"StockNews press releases: {str(e)}"})
     
     # 7. GOOGLE TRENDS (demand signal validation)
+    emit_progress_sync(ToolProgress(tool_name="google_trends", message="Checking Google Trends for demand signals"))
     try:
         trends_keywords = _extract_keywords_for_trends(brief.original_query, brief)
         if trends_keywords:
@@ -268,7 +283,7 @@ async def industry_research_node(state: DeepResearchState) -> DeepResearchState:
             })
             raw_results.append({"query": brief.original_query, "source": "google_trends", "content": trends_result, "keywords": trends_keywords})
     except Exception as e:
-        state["errors"].append({"node": "industry_research", "error": f"Google Trends: {str(e)}"})
+        errors.append({"node": "industry_research", "error": f"Google Trends: {str(e)}"})
     
     # 8. TRENDING HEADLINES (once, not per query)
     try:
@@ -318,7 +333,47 @@ INSTRUCTIONS:
 3. Note any conflicting information in the warnings field
 4. Include tickers resolved: {list(all_resolved_tickers) if all_resolved_tickers else 'None'}
 
-Respond ONLY with a JSON object matching the IndustryAgentOutput schema.
+Respond ONLY with a JSON object matching this EXACT schema:
+
+{{
+  "status": "complete" | "partial" | "failed",
+  "queries_executed": ["list of query strings executed"],
+  "findings": [
+    {{
+      "finding_id": "ind_001",
+      "finding": "Specific finding statement with details",
+      "event_type": "market_expansion|new_product|partnership|regulatory|contract|supply_chain|demand_signal|competitive_move|technology_trend",
+      "sentiment": "positive" | "neutral" | "negative",
+      "confidence": "high" | "medium" | "low",
+      "relevance_score": 0.0 to 1.0,
+      "citation": {{
+        "source_type": "trade_publication|industry_news|press_release|earnings_call|sec_10k|sec_10q|financial_news",
+        "source_title": "Article or document title",
+        "source_url": "URL if available or null",
+        "source_date": "YYYY-MM-DD or null",
+        "page_or_section": "Section reference or null",
+        "direct_quote": "Exact quote if available or null"
+      }},
+      "entities_mentioned": ["Company", "Product", "Technology"],
+      "is_historical": false,
+      "importance": "high" | "medium" | "low"
+    }}
+  ],
+  "demand_signals": {{
+    "signal_name": "description of signal and evidence"
+  }} or null,
+  "competitive_landscape_shifts": ["List of competitive changes observed"],
+  "data_gaps": ["List of information that could not be found"],
+  "warnings": ["List of any data quality or reliability concerns"]
+}}
+
+IMPORTANT:
+- Each finding MUST have finding_id (e.g., "ind_001", "ind_002")
+- sentiment MUST be lowercase: "positive", "neutral", or "negative"
+- confidence and importance MUST be lowercase: "high", "medium", or "low"
+- relevance_score MUST be a decimal between 0.0 and 1.0
+- is_historical MUST be a boolean (true/false)
+- All lists MUST be arrays, even if empty []
 """
     
     messages = [
@@ -340,11 +395,18 @@ Respond ONLY with a JSON object matching the IndustryAgentOutput schema.
         
         industry_output.queries_executed = queries_executed
         
-        state["industry_output"] = industry_output
-        state["current_status"] = "industry_research_complete"
+        # Return PARTIAL STATE - only fields this node updates
+        # This is required for LangGraph's Send API parallel merge
+        return {
+            "industry_output": industry_output,
+            "current_status": "industry_research_complete",
+            "errors": errors,
+        }
         
     except Exception as e:
-        state["errors"].append({"node": "industry_research_synthesis", "error": str(e)})
-        state["current_status"] = "industry_research_failed"
-        
-    return state
+        errors.append({"node": "industry_research_synthesis", "error": str(e)})
+        # Return PARTIAL STATE on failure
+        return {
+            "current_status": "industry_research_failed",
+            "errors": errors,
+        }

@@ -156,6 +156,80 @@ class FieldSalesSection(BaseModel):
     questions_to_explore: List[str]
     caution_note: str
 
+
+# --- Category Agent Schemas (Phase 2) ---
+
+class TerritoryInsight(BaseModel):
+    """Territory-specific insights for sales teams."""
+    territory: str  # "east" | "west"
+    relevance_score: float = Field(ge=0, le=1, description="How relevant to this territory (0-1)")
+    key_takeaways: List[str]
+    action_items: List[str]
+    priority_industries: List[str] = Field(default_factory=list, description="Top industries for this territory")
+
+
+class ProductRecommendation(BaseModel):
+    """Product recommendation for sales context."""
+    product_name: str
+    supplier: str
+    material_category: str
+    why_relevant: str
+    datasheet_url: Optional[str] = None
+    competitive_positioning: Optional[str] = None
+
+
+class SalesPlay(BaseModel):
+    """Structured sales play for field reps."""
+    play_name: str
+    target_industry: str
+    target_territory: Optional[str] = None  # "east", "west", or None for both
+    opening_hook: str  # Conversation starter based on research
+    key_data_points: List[str]  # Facts to cite from research
+    objection_handlers: List[str]  # Anticipated objections and responses
+    next_steps: List[str]  # Recommended follow-up actions
+
+
+class CategoryAgentOutput(BaseModel):
+    """Output from Category Agent - sales intelligence layer."""
+    status: str = "success"
+    territory_insights: Dict[str, TerritoryInsight] = Field(
+        default_factory=dict,
+        description="Territory-specific insights keyed by 'east' or 'west'"
+    )
+    product_recommendations: List[ProductRecommendation] = Field(default_factory=list)
+    sales_plays: List[SalesPlay] = Field(default_factory=list)
+    industry_talking_points: Dict[str, List[str]] = Field(
+        default_factory=dict,
+        description="Industry-specific talking points keyed by industry name"
+    )
+    data_gaps: List[str] = Field(default_factory=list)
+    warnings: List[str] = Field(default_factory=list)
+
+
+# --- Validator Agent Schemas (Phase 2) ---
+
+class CitationIssue(BaseModel):
+    """Issue found during citation validation."""
+    finding_id: str
+    issue_type: str  # "missing_url", "date_mismatch", "source_not_found", "broken_link"
+    description: str
+    suggested_fix: Optional[str] = None
+    severity: str = "warning"  # "warning" | "error"
+
+
+class ValidatorOutput(BaseModel):
+    """Output from Validator Agent - citation verification."""
+    validation_passed: bool
+    total_citations_checked: int = 0
+    valid_citations: int = 0
+    citation_issues: List[CitationIssue] = Field(default_factory=list)
+    unsubstantiated_claims: List[str] = Field(default_factory=list)
+    confidence_adjustments: Dict[str, str] = Field(
+        default_factory=dict,
+        description="finding_id -> adjusted confidence level"
+    )
+    warnings: List[str] = Field(default_factory=list)
+
 class SynthesisAgentOutput(BaseModel):
     report_id: str
     generated_at: str
@@ -174,24 +248,78 @@ class SynthesisAgentOutput(BaseModel):
 
 # --- LangGraph State Definition ---
 
-class DeepResearchState(TypedDict):
-    """The state object for the Deep Research Workflow."""
+# --- Reducer Functions for Parallel State Merge ---
+
+def _keep_first(a, b):
+    """Keep the first (original) value - for immutable fields set early in the workflow.
     
-    # Input/Initial query
-    user_query: str
+    Handles both None and empty string cases - prefers non-empty values.
+    """
+    # If a has a truthy value (not None, not empty string, not 0 for strings), keep it
+    if a is not None and a != "":
+        return a
+    return b
+
+
+def _keep_last(a, b):
+    """Keep the last (most recent) value - for fields updated sequentially.
+    
+    Handles both None and empty values - prefers the newer non-empty value.
+    """
+    if b is not None and b != "":
+        return b
+    return a
+
+
+def _merge_errors(left: List[Dict[str, Any]], right: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Merge errors from parallel branches, avoiding duplicates."""
+    # Use set-like deduplication based on error content
+    seen = set()
+    merged = []
+    for err in left + right:
+        key = (err.get("node", ""), str(err.get("error", "")))
+        if key not in seen:
+            seen.add(key)
+            merged.append(err)
+    return merged
+
+
+class DeepResearchState(TypedDict):
+    """
+    The state object for the Deep Research Workflow.
+    
+    IMPORTANT: All fields need reducer annotations for LangGraph's Send API parallel execution.
+    When Financial + Industry agents run in parallel, both receive copies of state. On merge,
+    LangGraph needs reducers to know how to combine values.
+    
+    Reducer strategy:
+    - _keep_first: Immutable fields set early (user_query, research_brief, clarification_count)
+    - _keep_last: Fields written by specific nodes (financial_output, industry_output, etc.)
+    - operator.add: Lists that should concatenate (conversation_history)
+    - _merge_errors: Custom deduplication for errors
+    """
+    
+    # Input/Initial query - IMMUTABLE after initial set
+    user_query: Annotated[str, _keep_first]
     conversation_history: Annotated[List[BaseMessage], operator.add]
     
-    # Grooming results
-    research_brief: Optional[ResearchBrief]
-    clarification_count: int
+    # Grooming results - IMMUTABLE after groomer sets them
+    research_brief: Annotated[Optional[ResearchBrief], _keep_first]
+    clarification_count: Annotated[int, _keep_first]
     
-    # Research outputs
-    financial_output: Optional[FinancialAgentOutput]
-    industry_output: Optional[IndustryAgentOutput]
+    # Research outputs - Each written by ONE specific branch, keep latest
+    financial_output: Annotated[Optional[FinancialAgentOutput], _keep_last]
+    industry_output: Annotated[Optional[IndustryAgentOutput], _keep_last]
     
-    # Synthesis results
-    final_report: Optional[SynthesisAgentOutput]
+    # Synthesis results - Written sequentially post-merge
+    final_report: Annotated[Optional[SynthesisAgentOutput], _keep_last]
+    
+    # Category Agent outputs (Phase 2) - Written sequentially
+    category_output: Annotated[Optional[CategoryAgentOutput], _keep_last]
+    
+    # Validator outputs (Phase 2) - Written sequentially
+    validator_output: Annotated[Optional[ValidatorOutput], _keep_last]
     
     # Metadata and progress tracking
-    current_status: str # e.g., "grooming", "researching", "synthesizing"
-    errors: List[Dict[str, Any]]
+    current_status: Annotated[str, _keep_last]  # Last writer wins for status
+    errors: Annotated[List[Dict[str, Any]], _merge_errors]  # Merged from parallel branches

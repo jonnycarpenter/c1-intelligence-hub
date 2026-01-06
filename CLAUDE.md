@@ -77,6 +77,11 @@ When adding a new API key/secret:
 | **Ad-hoc briefing session manager** | `app/agents/adhoc_briefing/session_manager.py` |
 | **Pre-Brief Generator (Agent 1)** | `app/ingestion/generators/pre_briefing.py` |
 | **Weekly Briefing Generator (Agent 2)** | `app/ingestion/generators/weekly_briefing.py` |
+| **Deep Research workflow** | `app/graph/research_workflow.py` |
+| **Deep Research agents** | `app/agents/research/*.py` |
+| **Deep Research state schemas** | `app/agents/research/state.py` |
+| **Deep Research progress** | `app/agents/research/progress.py` |
+| **Deep Research API route** | `app/api/routes/deep_research.py` |
 
 ## README Documentation Index
 
@@ -92,6 +97,7 @@ When adding a new API key/secret:
 | `backend/app/tools/README.md` | Ingestion data collectors | Adding/modifying data sources |
 | `backend/app/utils/README.md` | Shared utilities | Adding utility modules |
 | `backend/app/ingestion/generators/README.md` | Briefing generators (2-agent pipeline) | Briefing logic changes |
+| **`backend/app/agents/research/README.md`** | **Deep Research workflow (7-node, parallel)** | **Modifying research pipeline** |
 | `backend/scripts/README.md` | Script directory index | Adding new scripts |
 | `backend/scripts/monitoring/README.md` | Production monitoring scripts | Adding monitoring scripts |
 | `backend/scripts/health/README.md` | Health check scripts | Adding health checks |
@@ -148,6 +154,32 @@ These files have critical bug fixes - be careful editing:
 - `app/models/corpus.py` - feed_eligible field
 
 ## Recent Changes (January 5, 2026)
+
+### Session 25 - Deep Research Workflow Fixed! 🎉
+- **Parallel Execution Working**: Fixed `InvalidUpdateError` by adding reducer annotations to ALL `DeepResearchState` fields
+- **Reducers Added**: `_keep_first()` for immutable fields, `_keep_last()` for outputs, `_merge_errors()` for error lists
+- **JSON Schemas Fixed**: Added explicit schemas to Financial, Industry, and Synthesizer extraction prompts
+- **Empty Message Bug Fixed**: Groomer now filters empty messages before Anthropic API call
+- **Files Modified**: `state.py`, `groomer.py`, `financial.py`, `industry.py`, `synthesizer.py`
+- **Result**: Full workflow runs end-to-end (Groomer → Financial/Industry parallel → Synthesizer → Category → Validator)
+
+### Session 24 - LangSmith Testing & Parallel Bug Discovery
+- **LangSmith Verified**: Traces sending to `c1-intelligence-hub-prod` project
+- **Groomer Infinite Loop Fixed**: Removed `"groom"` loop-back from routing
+- **Groomer JSON Schema Added**: Explicit `ResearchBrief` schema in prompt
+- **Bug Identified**: `InvalidUpdateError` in parallel state merge (fixed in Session 25)
+
+### Session 23 - LangSmith Observability Integration ✅
+- **LangSmith Config**: Added `RunnableConfig` with metadata to workflow invocation
+- **Run Metadata**: `run_id`, `query_hash`, `timestamp`, tags for filtering
+- **Observability Endpoint**: `GET /api/deep-research/observability/status`
+
+### Session 20 - Ingestion Throughput Tuning ✅
+- **Lookback Reduced**: 3 days → 2 days for daily scheduled runs (orchestrator.py)
+- **Classifier Concurrency**: 3 → 10 concurrent Claude calls (classifier.py)
+- **Classifier Sleep**: 0.5s → 0.2s between calls
+- **Expected Impact**: ~30% fewer articles collected, classification ~3x faster
+- **Rationale**: System designed for daily runs now; 2-day window provides 1-day overlap buffer
 
 ### Session 17 - Ad-Hoc Briefing Session Management ✅
 - **Fixed Stateless Issue**: Ad-hoc briefing `follow_up_count` now persists across requests
