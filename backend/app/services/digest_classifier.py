@@ -322,7 +322,8 @@ Content: {article.summary or 'No summary available'}"""
         )
         
         try:
-            response = await self.client.messages.create(
+            # Use messages_create wrapper (handles Anthropic SDK system param bug)
+            response = await self.client.messages_create(
                 model=self.model,
                 max_tokens=4096,
                 temperature=self.temperature,

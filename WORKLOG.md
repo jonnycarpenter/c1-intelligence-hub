@@ -18,7 +18,52 @@ Without reliable daily ingestion:
 
 ---
 
-## Session 39 (January 6, 2026) - Scheduler Job Investigation & Fixes ✅ COMPLETED
+## 🚨 IMMEDIATE ACTION REQUIRED (Session 39 Handoff)
+
+**Status**: Partial fix deployed, NEW BUG DISCOVERED, fix ready but NOT YET DEPLOYED
+
+### What Was Done
+1. ✅ Fixed `resilient_llm.py` - SDK system param bug (DEPLOYED)
+2. ✅ Added OpenAI fallback key to Cloud Run (DEPLOYED)
+3. ✅ Fixed scheduler job JSON bodies and timeouts (DEPLOYED)
+4. ✅ Consolidated to 3 scheduler jobs (deleted redundant ones)
+5. ✅ Resumed scheduler jobs (`ingest-flash-update`, `ingest-deep-dive`)
+6. ✅ Triggered test ingestion - RSS worked (61 articles)
+7. ✅ Triggered full deep dive with all 8 sources
+8. ✅ Updated all documentation
+
+### What Still Needs Deployment
+**BUG FOUND**: `digest_classifier.py` was bypassing the SDK fix!
+- Line 325 used `self.client.messages.create()` (direct SDK - broken)
+- Fixed to use `self.client.messages_create()` (our wrapper with fix)
+- **FIX IS LOCAL ONLY** - needs `git push` to deploy
+
+### Next Steps for New Session
+```powershell
+# 1. Commit and push the digest_classifier fix
+cd "c:\Users\Jonny Carpenter\code\ket-zero-agents\intel-hub\c1-intelligence-hub_v2"
+git add -A
+git commit -m "fix: digest_classifier was bypassing SDK system param fix"
+git push
+
+# 2. Wait for Cloud Build (~5 min)
+# Check: https://console.cloud.google.com/cloud-build/builds?project=gen-lang-client-0436975498
+
+# 3. Verify the fix worked
+$body = '{"sources": ["rss"]}'
+Invoke-RestMethod -Uri "https://c1-hub-4iz75bvpyq-uc.a.run.app/api/v1/scheduler/ingest" `
+  -Method Post -Body $body -ContentType "application/json" -TimeoutSec 300
+
+# 4. Monitor logs for any remaining "system: Input should be a valid list" errors
+gcloud logging read "resource.type=cloud_run_revision AND resource.labels.service_name=c1-hub AND textPayload:\"system: Input should be a valid list\"" --limit=20 --project=gen-lang-client-0436975498
+```
+
+### Files Modified (Not Yet Pushed)
+- `backend/app/services/digest_classifier.py` - Changed `messages.create` → `messages_create`
+
+---
+
+## Session 39 (January 6, 2026) - Scheduler Job Investigation & Fixes 🔄 IN PROGRESS
 
 ### 📋 Context
 
@@ -26,25 +71,30 @@ Investigated why Cloud Scheduler daily ingestion jobs weren't running. Discovere
 
 ### 🔍 Root Cause Analysis
 
-**Issue 1: Malformed JSON Bodies**
+**Issue 1: Malformed JSON Bodies** ✅ FIXED
 - Cloud Scheduler jobs had invalid JSON in message bodies
 - PowerShell escaping issues when using `gcloud scheduler jobs update`
 - Bodies looked like `{sources: [rss, sec]}` instead of `{"sources": ["rss", "sec"]}`
 - Result: HTTP 422 (Unprocessable Entity) from FastAPI validation
 
-**Issue 2: Timeout Configuration**
+**Issue 2: Timeout Configuration** ✅ FIXED
 - Some jobs had 180s (3 min) timeout
 - Ingestion routinely takes 5-15+ minutes
 - Result: DEADLINE_EXCEEDED errors
 
-**Issue 3: 🚨 CRITICAL - Anthropic SDK `system` Parameter Bug**
+**Issue 3: 🚨 CRITICAL - Anthropic SDK `system` Parameter Bug** ⚠️ PARTIAL FIX
 - **File**: `backend/app/utils/resilient_llm.py` line ~413
 - Anthropic SDK 0.75.0 changed how `system` parameter works
 - Error: `'system: Input should be a valid list'`
 - **Impact**: ALL classification calls failing - articles stored without classification
-- **Cause**: `messages_create()` passes `system=system` even when `system=None`
+- **Cause**: Code passing `system=system` even when `system=None`
 
-**Issue 4: Missing OpenAI Fallback Key**
+**ADDITIONAL DISCOVERY**: `digest_classifier.py` was bypassing the fix!
+- Line 325 used `self.client.messages.create()` (direct SDK call)
+- Should use `self.client.messages_create()` (our wrapper with the fix)
+- **FIX APPLIED**: Changed to use wrapper method
+
+**Issue 4: Missing OpenAI Fallback Key** ✅ FIXED
 - `OPENAI_API_KEY` was in Secret Manager but not mounted in Cloud Run
 - Logs showed "No OpenAI API key configured for fallback"
 
