@@ -10,7 +10,6 @@ This agent validates the final research report to ensure:
 import json
 import time
 from typing import Dict, Any, List, Optional
-from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import SystemMessage, HumanMessage
 
 from app.agents.research.state import (
@@ -18,6 +17,7 @@ from app.agents.research.state import (
     ValidatorOutput,
     CitationIssue,
 )
+from app.utils.resilient_llm import create_resilient_llm_with_openai_fallback
 from app.config.settings import settings
 from app.utils.logger import get_logger
 
@@ -181,9 +181,10 @@ async def validator_node(state: DeepResearchState) -> DeepResearchState:
     
     state["current_status"] = "validating"
     
-    llm = ChatAnthropic(
-        model=settings.deep_research_validator_model,
+    llm = create_resilient_llm_with_openai_fallback(
+        primary_model=settings.deep_research_validator_model,
         anthropic_api_key=settings.anthropic_api_key,
+        openai_api_key=settings.openai_api_key,
         temperature=0,  # Zero temp for consistent validation
     )
     

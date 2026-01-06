@@ -52,6 +52,7 @@ python scripts/monitoring/production_dashboard.py --detailed
 - `backfill_industry_queries.py` - **Backfill industry queries** (91 Exa + 145 Tavily)
 - `backfill_sec_filings.py` - **Backfill SEC filings** (10-K, 10-Q, 8-K)
 - `backfill_press_releases.py` - **Backfill press releases** via Exa.ai
+- `backfill_digest_items.py` - **Backfill digest items**
 - `backfill_bq_dates.py` - Backfill missing dates in BigQuery
 - `backfill_bq_embeddings.py` - Regenerate embeddings
 - `backfill_dates.py` - Backfill article dates
@@ -76,9 +77,12 @@ python scripts/operations/backfill/backfill_premium_news.py --days 30
 - `fix_bad_timestamps.py` - Fix malformed timestamps
 - `purge_data.py` - Clean up old/bad data
 - `seed_bigquery.py` - Initialize BigQuery tables
+- `migrate_sqlite_to_bq.py` - Migrate SQLite data to BigQuery (legacy)
 
 ### Triggers (`operations/triggers/`)
 - `manual_trigger_ingest.py` - Manually trigger ingestion
+- `trigger_ingest.py` - Trigger ingestion pipeline
+- `ingestion_pipeline.py` - Main ingestion pipeline orchestrator
 - `trigger_backfill.py` - Trigger backfill job
 - `trigger_synthesis.py` - Trigger briefing synthesis
 - `load_companies.py` - Load company data
@@ -90,18 +94,76 @@ python scripts/operations/backfill/backfill_premium_news.py --days 30
 **Location**: `testing/`
 
 Ad-hoc test scripts for development:
-- `test_briefing.py` - Test briefing generation
-- `test_earnings.py` - Test earnings collection
-- `test_ingestion_new_tools.py` - Test new ingestion sources
-- `test_pulse_api.py` - Test Pulse API endpoints
-- `test_tools.py` - Test MCP tools
-- `check_lowium_bug.py` - **Check digest priority distribution** (data quality)
 
-**Digest Data Quality**:
+### General Tests
+- `test_agent_direct.py` - Test agent behavior directly
+- `test_deep_research.py` - Test deep research workflow
+- `test_endpoints.py` - Test API endpoints
+- `test_general.py` - General system tests
+- `test_stream.py` - Test streaming functionality
+- `test_sse_frontend.py` - Test server-sent events
+- `test_trace.py` - Test LangSmith tracing
+- `test_workflow.py` - Test workflow orchestration
+
+### Ingestion & Data Tests
+- `test_enrichment.py` - Test data enrichment
+- `test_ingest.py` - Test ingestion pipeline
+- `test_ingestion_new_tools.py` - Test new ingestion sources
+- `test_bigquery_migration.py` - Test BigQuery migrations
+- `test_parallel_fix.py` - Test parallel processing fixes
+
+### Data Source Tests
+- `test_api_ninja_tickers.py` - Test API Ninja integration
+- `test_compositesworld.py` - Test CompositesWorld scraping
+- `test_datasheets_api.py` - Test datasheets API
+- `test_earnings.py` - Test earnings collection
+- `test_fmp_endpoints.py` - Test Financial Modeling Prep endpoints
+- `test_fmp_v4.py` - Test FMP v4 API
+- `test_press.py` - Test press release collection
+- `test_sec_only.py` - Test SEC filing collection
+- `test_tavily_dates.py` - Test Tavily date extraction
+
+### Briefing & Digest Tests
+- `test_briefing_sessions.py` - Test briefing session management
+- `test_podcast_init.py` - Test podcast initialization
+- `test_prebriefing_bq.py` - Test pre-briefing generation
+- `test_weekly_briefing.py` - Test weekly briefing generation
+
+### MCP Tools Tests
+- `test_tools.py` - Test MCP agent tools
+- `all_tools_reference.py` - Reference of all available tools
+
+### Health/Check Scripts
+- `check_bq_status.py` - Check BigQuery status
+- `check_db.py` - Check database connectivity
+- `check_digest_data.py` - Check digest data
+- `check_digest_items.py` - Check digest items
+- `check_digest_service.py` - Check digest service
+- `check_earnings_urls.py` - Check earnings URLs
+- `check_lowium_bug.py` - **Check digest priority distribution** (data quality)
+- `check_rss.py` - Check RSS feed health
+- `check_sqlite.py` - Check SQLite (legacy)
+- `check_sqlite_counts.py` - Check SQLite counts (legacy)
+
+### Debug & Utility Scripts
+- `debug_import.py` - Debug import issues
+- `industry_queries_expanded_v2.py` - Industry query definitions
+- `query_bq_temp.py` - Ad-hoc BigQuery queries
+
+**Quick Commands**:
 ```bash
+# Digest data quality check
 python scripts/testing/check_lowium_bug.py
+
+# Test briefing generation
+python scripts/testing/test_briefing_sessions.py
+
+# Test ingestion
+python scripts/testing/test_ingest.py
+
+# Check database health
+python scripts/testing/check_db.py
 ```
-Shows priority value distribution and identifies malformed values.
 
 ---
 

@@ -6,6 +6,7 @@ from app.graph.research_workflow import research_workflow
 from app.agents.research.state import DeepResearchState, QueryStatus
 from app.agents.research.progress import set_progress_callback, ToolProgress
 from app.agents.research.memory import get_research_memory, ResearchMemory
+from app.config.settings import settings
 from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
 from app.utils.retry import tool_metrics
@@ -328,12 +329,35 @@ async def run_deep_research(request: DeepResearchRequest):
             
             logger.info(f"Starting DeepResearch run_id={run_id} query_hash={query_hash}")
             
-            # Stream events from workflow execution
+            # Track workflow start time for timeout monitoring
+            workflow_start_time = asyncio.get_event_loop().time()
+            workflow_timeout = settings.deep_research_workflow_timeout  # Default 300s (5 min)
+            
+            yield _emit_event("timeout_info", {
+                "workflow_timeout_seconds": workflow_timeout,
+                "message": f"Research will timeout after {workflow_timeout // 60} minutes if not complete"
+            })
+            
+            # Stream events from workflow execution with timeout monitoring
             async for event in research_workflow.astream_events(
                 initial_state,
                 config=langsmith_config,
                 version="v2",  # Use v2 event schema
             ):
+                # Check workflow-level timeout
+                elapsed = asyncio.get_event_loop().time() - workflow_start_time
+                if elapsed > workflow_timeout:
+                    logger.warning(f"Deep research workflow timeout after {elapsed:.1f}s (limit: {workflow_timeout}s)")
+                    yield _emit_event("timeout", {
+                        "message": f"Research timed out after {int(elapsed)} seconds",
+                        "elapsed_seconds": int(elapsed),
+                        "timeout_seconds": workflow_timeout,
+                        "completed_nodes": list(completed_nodes),
+                        "active_nodes": list(active_nodes),
+                    })
+                    yield "data: [DONE]\n\n"
+                    return
+                
                 # Check for any pending tool progress events
                 progress_events = await progress_collector.get_pending_events()
                 for progress in progress_events:
@@ -451,6 +475,14 @@ async def run_deep_research(request: DeepResearchRequest):
                         # Non-fatal - in-memory cache still works
             
             yield _emit_event("status", "Research complete.")
+            yield "data: [DONE]\n\n"
+            
+        except asyncio.TimeoutError:
+            logger.error(f"Deep research workflow asyncio timeout for query: {request.query[:50]}...")
+            yield _emit_event("timeout", {
+                "message": "Research workflow timed out",
+                "type": "asyncio_timeout",
+            })
             yield "data: [DONE]\n\n"
             
         except Exception as e:

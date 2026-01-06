@@ -95,10 +95,12 @@ app/mcp/tools/
 
 | Directory | Purpose | Example Scripts |
 |-----------|---------|-----------------|
-| `scripts/monitoring/` | Production health | `scheduler_report.py`, `production_dashboard.py` |
+| `scripts/monitoring/` | Production health | `production_dashboard.py`, `scheduler_report.py` |
 | `scripts/health/` | Diagnostics | `ingestion_health_check.py`, `check_config.py` |
-| `scripts/operations/` | Data operations | `backfill/`, `maintenance/`, `triggers/` |
-| `scripts/testing/` | Development tests | `test_briefing.py`, `test_tools.py` |
+| `scripts/operations/backfill/` | Data backfill | `backfill_industry_queries.py`, `backfill_sec_filings.py` |
+| `scripts/operations/maintenance/` | Maintenance tasks | `fix_bad_timestamps.py`, `migrate_sqlite_to_bq.py` |
+| `scripts/operations/triggers/` | Pipeline triggers | `manual_trigger_ingest.py`, `ingestion_pipeline.py` |
+| `scripts/testing/` | Development tests | All `test_*.py` and `check_*.py` files |
 | `scripts/verification/` | Post-deploy checks | `verify_backfill_results.py` |
 
 ### Deprecated (DO NOT USE)
@@ -144,6 +146,28 @@ app/mcp/tools/
 **Rationale**: Prevents silent fallback to SQLite; system always uses BigQuery even if env vars missing  
 **Values**: `project_id=gen-lang-client-0436975498`, `bucket=gen-lang-client-0436975498-c1-hub-data`  
 
+### ADR-006: Consolidated Script Organization
+**Date**: January 6, 2026  
+**Status**: Accepted  
+**Context**: Test and check scripts scattered across root and backend directories  
+**Decision**: Move all test/check scripts to `backend/scripts/testing/`, organize operations into subdirectories  
+**Rationale**: Cleaner root directory, easier discoverability, follows established script structure  
+**Impact**: 40+ scripts moved, `backend/scripts/README.md` updated with comprehensive index  
+
+### ADR-007: OpenAI as Fallback LLM Provider
+**Date**: January 6, 2026  
+**Status**: Accepted  
+**Context**: System relies entirely on Anthropic (Claude) for LLM calls. Credit exhaustion causes complete failure.  
+**Decision**: Add OpenAI as a fallback provider that automatically activates when Anthropic fails  
+**Rationale**: Provides resilience against credit outages without changing primary models  
+**Implementation**:
+- `app/utils/resilient_llm.py` - Cross-provider wrapper with automatic fallback
+- `ResilientChatAnthropic` for LangChain code, `ResilientAsyncClient` for raw SDK
+- Model mapping: claude-sonnet-4-5 → gpt-4o, claude-opus-4-5 → gpt-4o, haiku → gpt-4o-mini
+- OpenAI is ONLY used as fallback - never primary
+**Impact**: Added `langchain-openai>=0.2.0` and `openai>=1.54.0` to requirements  
+**Env Var**: `OPENAI_API_KEY` (optional, enables fallback)
+
 ---
 
 ## Adding New Components
@@ -181,4 +205,5 @@ app/mcp/tools/
 | `app/db/bq_vector_store.py` | Vector store with Vertex AI embeddings |
 | `app/db/vector_store.py` | Thin wrapper → always returns BigQuery |
 | `app/models/corpus.py` | Article model with feed_eligible field |
-| `migrate_sqlite_to_bq.py` | Migration script for legacy SQLite data |
+| `scripts/operations/maintenance/migrate_sqlite_to_bq.py` | Migration script for legacy SQLite data |
+| `scripts/operations/triggers/ingestion_pipeline.py` | Main ingestion pipeline orchestrator |

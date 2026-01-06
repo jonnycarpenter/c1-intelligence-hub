@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     
     # API Keys
     anthropic_api_key: str = ""
+    openai_api_key: str = ""  # Fallback provider when Anthropic credits run out
     tavily_api_key: str = ""
     exa_api_key: str = Field(validation_alias=AliasChoices("EXA_API_KEY", "EXA_AI_API_KEY"), default="")
     groq_api_key: str = ""
@@ -108,6 +109,11 @@ class Settings(BaseSettings):
     deep_research_synthesizer_model: str = "claude-sonnet-4-5"
     deep_research_category_model: str = "claude-sonnet-4-5"  # Phase 2: Sales intelligence
     deep_research_validator_model: str = "claude-sonnet-4-5"  # Phase 2: Citation verification
+    
+    # Deep Research Timeout Configuration (in seconds)
+    deep_research_workflow_timeout: int = 300  # 5 minutes total workflow timeout
+    deep_research_tool_timeout: int = 60  # 60 seconds per external tool call
+    deep_research_llm_timeout: int = 120  # 120 seconds for LLM extraction calls
     
     # Groq model for X/Twitter analysis (fast inference)
     model_groq_x_analyzer: str = "llama-3.3-70b-versatile"

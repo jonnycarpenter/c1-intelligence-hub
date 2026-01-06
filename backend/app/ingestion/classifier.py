@@ -10,7 +10,7 @@ import json
 import asyncio
 from typing import List, Tuple
 
-from anthropic import AsyncAnthropic
+from app.utils.resilient_llm import get_resilient_async_client
 
 from app.models.corpus import (
     RawArticle,
@@ -148,7 +148,10 @@ Relevance Score Guidelines:
 
     def __init__(self, config: IngestionConfig):
         self.config = config
-        self.client = AsyncAnthropic(api_key=config.anthropic_api_key)
+        self.client = get_resilient_async_client(
+            anthropic_api_key=config.anthropic_api_key,
+            openai_api_key=getattr(config, 'openai_api_key', None),
+        )
         self.model = config.classifier_model
         self.temperature = config.classifier_temperature
         
@@ -213,7 +216,7 @@ Relevance Score Guidelines:
         )
         
         try:
-            response = await self.client.messages.create(
+            response = await self.client.messages_create(
                 model=self.model,
                 max_tokens=1000,
                 temperature=self.temperature,

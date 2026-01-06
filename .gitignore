@@ -47,9 +47,15 @@ logs/
 
 # Downloads
 downloads/
+backend/downloads/
+backend/audio_cache/
+backend/exports/
 *.pdf
 *.pptx
 *.xlsx
+
+# Archive
+archive/
 
 # OS
 .DS_Store

@@ -45,6 +45,14 @@ interface DeepResearchState {
     isCacheHit: boolean
     queryHash: string | null
     warnings: any[]
+    // Timeout handling
+    isTimeout: boolean
+    timeoutInfo: {
+        elapsed_seconds?: number
+        timeout_seconds?: number
+        completed_nodes?: string[]
+        active_nodes?: string[]
+    } | null
 }
 
 const initialState: DeepResearchState = {
@@ -65,6 +73,8 @@ const initialState: DeepResearchState = {
     isCacheHit: false,
     queryHash: null,
     warnings: [],
+    isTimeout: false,
+    timeoutInfo: null,
 }
 
 export function useDeepResearch() {
@@ -156,6 +166,9 @@ export function useDeepResearch() {
         resetResearch,
     }
 }
+
+// Re-export state type for consumers
+export type { DeepResearchState }
 
 /**
  * Handle incoming SSE events from the deep research workflow
@@ -271,6 +284,34 @@ function handleSSEEvent(
             setState(prev => ({
                 ...prev,
                 warnings: data.content,
+            }))
+            break
+
+        case 'timeout':
+            setState(prev => ({
+                ...prev,
+                isResearching: false,
+                isTimeout: true,
+                error: data.content?.message || 'Research timed out',
+                timeoutInfo: {
+                    elapsed_seconds: data.content?.elapsed_seconds,
+                    timeout_seconds: data.content?.timeout_seconds,
+                    completed_nodes: data.content?.completed_nodes,
+                    active_nodes: data.content?.active_nodes,
+                },
+                nodeStatuses: prev.nodeStatuses.map(ns =>
+                    ns.status === 'running'
+                        ? { ...ns, status: 'timeout' as any }
+                        : ns
+                ),
+            }))
+            break
+
+        case 'timeout_info':
+            // Initial timeout configuration info (informational)
+            setState(prev => ({
+                ...prev,
+                status: prev.status, // Keep current status
             }))
             break
 

@@ -6,12 +6,98 @@ exponential backoff, particularly useful for rate-limited or flaky APIs.
 """
 
 import time
+import asyncio
 import logging
 from functools import wraps
-from typing import Callable, Type, Tuple, Optional, Any
+from typing import Callable, Type, Tuple, Optional, Any, TypeVar
 import random
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar('T')
+
+
+async def with_timeout(
+    coro,
+    timeout_seconds: float,
+    operation_name: str = "operation",
+    default_on_timeout: Any = None,
+) -> Any:
+    """
+    Wrap an async coroutine with a timeout.
+    
+    Args:
+        coro: The coroutine to execute
+        timeout_seconds: Maximum seconds to wait
+        operation_name: Name for logging purposes
+        default_on_timeout: Value to return if timeout occurs (if None, raises TimeoutError)
+    
+    Returns:
+        The coroutine result, or default_on_timeout if timeout and default provided
+        
+    Raises:
+        asyncio.TimeoutError: If timeout occurs and default_on_timeout is None
+    
+    Example:
+        ```python
+        result = await with_timeout(
+            fetch_data_async(),
+            timeout_seconds=30,
+            operation_name="fetch_data",
+            default_on_timeout=[]
+        )
+        ```
+    """
+    try:
+        return await asyncio.wait_for(coro, timeout=timeout_seconds)
+    except asyncio.TimeoutError:
+        logger.warning(f"{operation_name} timed out after {timeout_seconds}s")
+        if default_on_timeout is not None:
+            return default_on_timeout
+        raise
+
+
+def sync_tool_with_timeout(
+    timeout_seconds: float = 60.0,
+    default_on_timeout: Any = None,
+):
+    """
+    Decorator that wraps a synchronous tool call and enforces a timeout.
+    
+    Uses threading to enforce timeout on sync functions. For deep research tools
+    that make external API calls, this prevents any single tool from hanging
+    the entire workflow.
+    
+    Args:
+        timeout_seconds: Maximum seconds to wait (default: 60)
+        default_on_timeout: Value to return on timeout (default: None)
+    
+    Example:
+        ```python
+        @sync_tool_with_timeout(timeout_seconds=30, default_on_timeout="")
+        def get_company_news(ticker: str) -> str:
+            return external_api.fetch_news(ticker)
+        ```
+    """
+    import concurrent.futures
+    
+    def decorator(func: Callable) -> Callable:
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(func, *args, **kwargs)
+                try:
+                    return future.result(timeout=timeout_seconds)
+                except concurrent.futures.TimeoutError:
+                    logger.warning(f"{func.__name__} timed out after {timeout_seconds}s")
+                    # Record timeout in metrics
+                    tool_metrics.record_failure(func.__name__, f"Timeout after {timeout_seconds}s")
+                    if default_on_timeout is not None:
+                        return default_on_timeout
+                    raise TimeoutError(f"{func.__name__} timed out after {timeout_seconds}s")
+        
+        return wrapper
+    return decorator
 
 
 def retry_with_backoff(

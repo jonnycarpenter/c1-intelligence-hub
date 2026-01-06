@@ -1,8 +1,8 @@
 from typing import Dict, Any, List, Optional, Set
-from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import SystemMessage, HumanMessage
 from app.agents.research.state import DeepResearchState, FinancialAgentOutput, FinancialFinding, ConfidenceLevel, SourceType, Citation
 from app.agents.research.progress import emit_progress_sync, ToolProgress, get_tool_description
+from app.utils.resilient_llm import create_resilient_llm_with_openai_fallback
 from app.config.settings import settings
 from app.mcp.tools.api_ninja_earnings import get_earnings_transcript_ninja
 from app.mcp.tools.corpus_query import query_corpus
@@ -171,9 +171,10 @@ async def financial_research_node(state: DeepResearchState) -> Dict[str, Any]:
     - Enhanced extraction prompt with research context
     """
     start_time = time.time()
-    llm = ChatAnthropic(
-        model=settings.deep_research_financial_model,
+    llm = create_resilient_llm_with_openai_fallback(
+        primary_model=settings.deep_research_financial_model,
         anthropic_api_key=settings.anthropic_api_key,
+        openai_api_key=settings.openai_api_key,
         temperature=0,
     )
     

@@ -32,8 +32,9 @@ from typing import List, Dict, Any, Optional, Literal
 from urllib.parse import urlparse
 
 import httpx
-from anthropic import AsyncAnthropic
+from anthropic import AsyncAnthropic  # Keep for vision API (complex multimodal)
 
+from app.utils.resilient_llm import get_resilient_async_client
 from app.config.settings import settings
 
 logger = logging.getLogger(__name__)

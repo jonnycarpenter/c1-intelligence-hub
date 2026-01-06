@@ -74,6 +74,7 @@ When adding a new API key/secret:
 | **Vector store (semantic search)** | `app/db/bq_vector_store.py` |
 | Deduplication service | `app/ingestion/processing/deduplication.py` |
 | Environment config | `app/config/settings.py` |
+| **Resilient LLM wrapper** | `app/utils/resilient_llm.py` |
 | **Ad-hoc briefing session manager** | `app/agents/adhoc_briefing/session_manager.py` |
 | **Pre-Brief Generator (Agent 1)** | `app/ingestion/generators/pre_briefing.py` |
 | **Weekly Briefing Generator (Agent 2)** | `app/ingestion/generators/weekly_briefing.py` |
@@ -162,6 +163,56 @@ claude-sonnet-4-5                 claude-opus-4-5              ElevenLabs TTS
 These files have critical bug fixes - be careful editing:
 - `app/db/gcp_storage.py` - feed_eligible logic, dedup methods
 - `app/models/corpus.py` - feed_eligible field
+
+## LLM Models & Resilience
+
+### Primary Models (Anthropic)
+| Use Case | Model | Location |
+|----------|-------|----------|
+| Deep Research agents | `claude-sonnet-4-5` | `app/agents/research/*.py` |
+| Weekly Briefing synthesis | `claude-opus-4-5` | `app/ingestion/generators/weekly_briefing.py` |
+| Ad-hoc briefing (fast) | `claude-3-5-haiku-20241022` | `app/agents/adhoc_briefing/agent.py` |
+| Vision/Image extraction | `claude-sonnet-4-20250514` | `app/mcp/tools/image_extraction.py` |
+| Pre-briefing generation | `claude-sonnet-4-5` | `app/ingestion/generators/pre_briefing.py` |
+| Digest generation | `claude-sonnet-4-5` | `app/ingestion/generators/digest.py` |
+| Classification | `claude-sonnet-4-5` | `app/ingestion/classifier.py` |
+
+### Fallback Models (OpenAI) - Credit Safety Net
+OpenAI is ONLY used as a fallback when Anthropic fails (e.g., credit exhaustion):
+
+| Anthropic Model | OpenAI Fallback |
+|-----------------|-----------------|
+| `claude-sonnet-4-5` | `gpt-4o` |
+| `claude-opus-4-5` | `gpt-4o` |
+| `claude-3-5-haiku-20241022` | `gpt-4o-mini` |
+
+### Using Resilient LLM Wrappers
+
+**For LangChain code:**
+```python
+from app.utils.resilient_llm import create_resilient_llm_with_openai_fallback
+from app.config.settings import settings
+
+llm = create_resilient_llm_with_openai_fallback(
+    primary_model="claude-sonnet-4-5",
+    anthropic_api_key=settings.anthropic_api_key,
+    openai_api_key=settings.openai_api_key,
+)
+```
+
+**For raw SDK async code:**
+```python
+from app.utils.resilient_llm import get_resilient_async_client
+
+client = get_resilient_async_client(
+    anthropic_api_key=settings.anthropic_api_key,
+    openai_api_key=settings.openai_api_key,
+)
+response = await client.messages_create(model="claude-sonnet-4-5", ...)
+```
+
+> **Note**: The `OPENAI_API_KEY` environment variable must be set for fallback to work.
+> See `app/utils/resilient_llm.py` for implementation details.
 
 ## Recent Changes (January 6, 2026)
 

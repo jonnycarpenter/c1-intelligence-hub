@@ -44,6 +44,15 @@ interface ResearchDashboardProps {
   categoryOutput?: CategoryOutput | null
   validationOutput?: ValidationOutput | null
   researchError?: string | null
+  
+  // Timeout handling
+  isTimeout?: boolean
+  timeoutInfo?: {
+    elapsed_seconds?: number
+    timeout_seconds?: number
+    completed_nodes?: string[]
+    active_nodes?: string[]
+  } | null
 }
 
 export default function ResearchDashboard({
@@ -66,6 +75,8 @@ export default function ResearchDashboard({
   categoryOutput,
   validationOutput,
   researchError,
+  isTimeout,
+  timeoutInfo,
 }: ResearchDashboardProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [showSavedReports, setShowSavedReports] = useState(false)
@@ -207,6 +218,8 @@ export default function ResearchDashboard({
             categoryOutput={categoryOutput}
             validationOutput={validationOutput}
             researchError={researchError}
+            isTimeout={isTimeout}
+            timeoutInfo={timeoutInfo}
           />
         )}
       </div>

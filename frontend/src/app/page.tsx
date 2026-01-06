@@ -85,6 +85,9 @@ export default function Home() {
     categoryOutput,
     validationOutput,
     error: researchError,
+    // Timeout handling
+    isTimeout: isResearchTimeout,
+    timeoutInfo,
   } = useDeepResearch()
 
   // Report state
@@ -367,6 +370,9 @@ export default function Home() {
                 categoryOutput={categoryOutput}
                 validationOutput={validationOutput}
                 researchError={researchError}
+                // Timeout handling
+                isTimeout={isResearchTimeout}
+                timeoutInfo={timeoutInfo}
               />
             )}
             {activeMode === 'products' && (

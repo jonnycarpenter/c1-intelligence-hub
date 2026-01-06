@@ -21,7 +21,7 @@ from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 from collections import defaultdict
 
-from anthropic import AsyncAnthropic
+from app.utils.resilient_llm import get_resilient_async_client
 
 from app.api.schemas import (
     Digest,
@@ -87,9 +87,12 @@ class DigestService:
         self._use_llm_summaries = use_llm_summaries
         self._initialized = False
         
-        # Anthropic client for summaries
+        # Resilient client for summaries (Anthropic primary, OpenAI fallback)
         if use_llm_summaries and settings.anthropic_api_key:
-            self._anthropic = AsyncAnthropic(api_key=settings.anthropic_api_key)
+            self._anthropic = get_resilient_async_client(
+                anthropic_api_key=settings.anthropic_api_key,
+                openai_api_key=settings.openai_api_key,
+            )
         else:
             self._anthropic = None
     
@@ -340,7 +343,7 @@ class DigestService:
         )
         
         try:
-            response = await self._anthropic.messages.create(
+            response = await self._anthropic.messages_create(
                 model="claude-sonnet-4-5",
                 max_tokens=500,
                 temperature=0.3,

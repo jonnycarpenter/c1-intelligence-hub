@@ -4,6 +4,245 @@ This file tracks completed work and open items across AI assistant sessions.
 
 ---
 
+## Session 36 (January 6, 2026) - Deep Research Timeout Handling ✅
+
+### 📋 Context
+
+Implemented comprehensive timeout handling for the Deep Research workflow to prevent indefinite hangs during production queries. This addresses the issue where queries like "What is the outlook for carbon fiber in aerospace?" could hang indefinitely.
+
+### ✅ Completed
+
+1. **Timeout Configuration Settings** ⚙️
+   - **File**: [backend/app/config/settings.py](backend/app/config/settings.py)
+   - Added `deep_research_workflow_timeout: int = 300` (5 minutes total)
+   - Added `deep_research_tool_timeout: int = 60` (per-tool timeout)
+   - Added `deep_research_llm_timeout: int = 120` (LLM extraction timeout)
+
+2. **Backend Workflow Timeout Wrapper** 🕐
+   - **File**: [backend/app/api/routes/deep_research.py](backend/app/api/routes/deep_research.py)
+   - Added workflow start time tracking
+   - Added elapsed time check during event streaming loop
+   - Emits `timeout_info` SSE event at start (informational)
+   - Emits `timeout` SSE event when exceeded with:
+     - `elapsed_seconds`, `timeout_seconds`
+     - `completed_nodes` (what finished)
+     - `active_nodes` (where it got stuck)
+   - Handles `asyncio.TimeoutError` in exception handler
+
+3. **Per-Tool Timeout Utility** 🔧
+   - **File**: [backend/app/utils/retry.py](backend/app/utils/retry.py)
+   - Added `with_timeout()` async function for awaitable timeouts
+   - Added `sync_tool_with_timeout()` decorator for sync tool calls
+   - Uses ThreadPoolExecutor for sync timeout enforcement
+   - Records timeout failures to `tool_metrics`
+
+4. **Frontend Timeout State** 📊
+   - **File**: [frontend/src/hooks/useDeepResearch.ts](frontend/src/hooks/useDeepResearch.ts)
+   - Added `isTimeout: boolean` state
+   - Added `timeoutInfo` object with details
+   - Added `timeout` and `timeout_info` SSE event handlers
+   - Marks running nodes as 'timeout' status
+
+5. **Frontend Timeout UI** 🎨
+   - **File**: [frontend/src/components/research/ResearchCanvas.tsx](frontend/src/components/research/ResearchCanvas.tsx)
+   - Added amber-themed timeout card (distinct from red error card)
+   - Shows elapsed time and which stages completed/stuck
+   - "Try Again" button with refresh icon
+   - Propagated `isTimeout` and `timeoutInfo` through:
+     - `page.tsx` → `ResearchDashboard` → `ResearchCanvas`
+
+6. **Documentation Updated** 📚
+   - **File**: [backend/app/agents/research/README.md](backend/app/agents/research/README.md)
+   - Added Timeout Configuration section with code examples
+   - Updated Phase 5 as completed
+   - Added troubleshooting entry for timeout issues
+
+### 📁 Files Modified
+- [backend/app/config/settings.py](backend/app/config/settings.py) - Timeout settings
+- [backend/app/api/routes/deep_research.py](backend/app/api/routes/deep_research.py) - Workflow timeout
+- [backend/app/utils/retry.py](backend/app/utils/retry.py) - Timeout utilities
+- [frontend/src/hooks/useDeepResearch.ts](frontend/src/hooks/useDeepResearch.ts) - Timeout state
+- [frontend/src/components/research/ResearchCanvas.tsx](frontend/src/components/research/ResearchCanvas.tsx) - Timeout UI
+- [frontend/src/components/research/ResearchDashboard.tsx](frontend/src/components/research/ResearchDashboard.tsx) - Props
+- [frontend/src/app/page.tsx](frontend/src/app/page.tsx) - Props
+- [backend/app/agents/research/README.md](backend/app/agents/research/README.md) - Documentation
+
+### ✅ Testing
+
+```bash
+# Backend verification
+cd backend
+python -c "from app.config.settings import settings; print(f'Timeout: {settings.deep_research_workflow_timeout}s')"
+# Output: Timeout: 300s
+
+# Frontend verification
+cd frontend && npm run build
+# Output: ✔ Compiled successfully
+```
+
+### 🔧 How It Works
+
+1. **Workflow starts** → `timeout_info` event sent with timeout config
+2. **Every event iteration** → Check if `elapsed > workflow_timeout`
+3. **If exceeded** → Emit `timeout` event with completed/stuck nodes
+4. **Frontend receives** → Shows amber timeout card with retry option
+5. **User clicks retry** → Can try again with same or modified query
+
+### 🚧 Future Enhancements
+- Apply `sync_tool_with_timeout` decorator to specific slow tools (SEC, Exa)
+- Add per-node timeout tracking in LangSmith
+- Consider adaptive timeout based on query complexity
+
+---
+
+## Session 35 (January 6, 2026) - OpenAI Fallback Provider Implementation ✅
+
+### 📋 Context
+
+Added OpenAI as a fallback LLM provider to protect against Anthropic credit outages. When Claude models fail (e.g., due to exhausted credits), the system automatically falls back to OpenAI GPT-4o models.
+
+**User Requirement**: "If a claude model goes out somewhere, and it's because I need to add credits to my account, I want another 'makeshift' model that's not from my anthropic api key to hold the line."
+
+**Constraint**: OpenAI is ONLY used as a fallback. Primary models remain Claude (Anthropic).
+
+### ✅ Completed
+
+1. **Resilient LLM Module Expansion** 🛡️
+   - **File**: [backend/app/utils/resilient_llm.py](backend/app/utils/resilient_llm.py)
+   - Extended `ResilientChatAnthropic` class with cross-provider fallback support
+   - Added `fallback_provider` parameter ("anthropic" or "openai")
+   - Added `fallback_api_key` parameter for OpenAI key
+   - Created `create_resilient_llm_with_openai_fallback()` helper function
+   - Created `ResilientAsyncClient` class for raw SDK async code (ingestion, services)
+   - Created `OpenAIResponseAdapter` to make OpenAI responses look like Anthropic
+   - Added model mapping: `ANTHROPIC_TO_OPENAI_MODEL_MAP`
+
+2. **Model Mapping** 🔄
+   | Anthropic Model | OpenAI Fallback |
+   |-----------------|-----------------|
+   | claude-sonnet-4-5 | gpt-4o |
+   | claude-opus-4-5 | gpt-4o |
+   | claude-3-5-haiku-20241022 | gpt-4o-mini |
+   | claude-sonnet-4-20250514 | gpt-4o |
+
+3. **Dependencies Added** 📦
+   - **File**: [backend/requirements.txt](backend/requirements.txt)
+   - Added `langchain-openai>=0.2.0` (LangChain OpenAI integration)
+   - Added `openai>=1.54.0` (OpenAI SDK)
+
+4. **Settings Updated** ⚙️
+   - **File**: [backend/app/config/settings.py](backend/app/config/settings.py)
+   - Added `openai_api_key: str = ""` field
+
+5. **Environment Variable** 🔑
+   - Added `OPENAI_API_KEY` to `.env` file
+   - Comment: "Fallback provider when Anthropic credits run out"
+
+### 📁 Files Modified
+- [backend/app/utils/resilient_llm.py](backend/app/utils/resilient_llm.py) - Major expansion
+- [backend/requirements.txt](backend/requirements.txt) - New dependencies
+- [backend/app/config/settings.py](backend/app/config/settings.py) - New setting
+- `.env` - New API key
+
+### 🎯 Usage Patterns
+
+**For LangChain code (agents, workflows):**
+```python
+from app.utils.resilient_llm import create_resilient_llm_with_openai_fallback
+from app.config.settings import settings
+
+llm = create_resilient_llm_with_openai_fallback(
+    primary_model="claude-sonnet-4-5",
+    anthropic_api_key=settings.anthropic_api_key,
+    openai_api_key=settings.openai_api_key,
+    fallback_model="gpt-4o",
+)
+```
+
+**For raw SDK code (ingestion, services):**
+```python
+from app.utils.resilient_llm import get_resilient_async_client
+from app.config.settings import settings
+
+client = get_resilient_async_client(
+    anthropic_api_key=settings.anthropic_api_key,
+    openai_api_key=settings.openai_api_key,
+)
+
+response = await client.messages_create(
+    model="claude-sonnet-4-5",
+    max_tokens=4096,
+    messages=[{"role": "user", "content": "Hello"}],
+)
+```
+
+### 🚧 Not Yet Updated (Future Work)
+These files still use raw Anthropic clients and can be migrated later if needed:
+- Vision/Image APIs (complex multimodal content)
+- Streaming endpoints (OpenAI streaming has different format)
+
+### 🔧 Next Steps
+- Test fallback in production by temporarily invalidating Anthropic key
+- Consider adding metrics/alerting when fallback is triggered
+- Update deep research agents to use resilient wrapper (if desired)
+
+---
+
+## Session 34 (January 6, 2026) - Repository Cleanup & Script Reorganization ✅
+
+### 📋 Context
+
+Major repository cleanup to improve organization and follow our own coding rules in `.agent/CODING_RULES.md` and `.agent/ARCHITECTURE.md`.
+
+### ✅ Completed
+
+1. **Script Reorganization** 🗂️
+   - Moved 40+ test and check scripts from root/backend to [backend/scripts/testing/](backend/scripts/testing/)
+   - Organized operations scripts into subdirectories:
+     - [backend/scripts/operations/backfill/](backend/scripts/operations/backfill/)
+     - [backend/scripts/operations/maintenance/](backend/scripts/operations/maintenance/)
+     - [backend/scripts/operations/triggers/](backend/scripts/operations/triggers/)
+   - Updated [backend/scripts/README.md](backend/scripts/README.md) with comprehensive script index
+
+2. **Root Directory Cleanup** 🧹
+   - Removed legacy `chroma_db/` folder (unused since BigQuery migration)
+   - Removed `logo-api-main/` folder (separate project)
+   - Moved documentation to [docs/](docs/):
+     - `c1-mvp-longterm_memory.md`
+     - `c1-simple-login.md`
+   - Archived old logs to [archive/](archive/)
+   - Moved CSV data files to [backend/data/](backend/data/)
+
+3. **Updated Documentation** 📚
+   - Updated [.agent/CODING_RULES.md](.agent/CODING_RULES.md) with correct script paths
+   - Updated [.agent/ARCHITECTURE.md](.agent/ARCHITECTURE.md) with ADR-006 documenting the cleanup
+   - Created [CLEANUP_SUMMARY.md](CLEANUP_SUMMARY.md) as a record of all changes
+   - Updated [.gitignore](.gitignore) with:
+     - `archive/`
+     - `backend/downloads/`
+     - `backend/audio_cache/`
+     - `backend/exports/`
+
+### 📁 Files Modified
+- [backend/scripts/README.md](backend/scripts/README.md)
+- [.agent/CODING_RULES.md](.agent/CODING_RULES.md)
+- [.agent/ARCHITECTURE.md](.agent/ARCHITECTURE.md)
+- [.gitignore](.gitignore)
+- [CLEANUP_SUMMARY.md](CLEANUP_SUMMARY.md) (new)
+
+### ✅ Resolved Items
+
+1. **Deep Research Timeout Handling** ⏱️ → **Resolved in Session 36**
+   - Added workflow-level timeout (5 minutes default)
+   - Added frontend timeout UI with retry option
+   - Added per-tool timeout utilities
+
+### 🔧 Next Steps
+- Test all script paths after reorganization
+- Consider additional gitignore entries if needed
+
+---
+
 ## Session 33 (January 6, 2026) - Pulse Tab Design Polish ✅
 
 ### 📋 Context

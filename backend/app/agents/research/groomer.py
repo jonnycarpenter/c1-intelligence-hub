@@ -1,9 +1,9 @@
 from typing import Dict, Any, List, Optional
-from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from app.agents.research.state import DeepResearchState, ResearchBrief, QueryStatus
 from app.agents.research.memory import get_research_memory
 from app.config.settings import settings
+from app.utils.resilient_llm import create_resilient_llm_with_openai_fallback
 import json
 import logging
 
@@ -159,9 +159,10 @@ async def query_grooming_node(state: DeepResearchState) -> DeepResearchState:
     - Avoid redundant clarifying questions
     - Generate more targeted search queries
     """
-    llm = ChatAnthropic(
-        model=settings.deep_research_groomer_model,
+    llm = create_resilient_llm_with_openai_fallback(
+        primary_model=settings.deep_research_groomer_model,
         anthropic_api_key=settings.anthropic_api_key,
+        openai_api_key=settings.openai_api_key,
         temperature=0,
     )
     

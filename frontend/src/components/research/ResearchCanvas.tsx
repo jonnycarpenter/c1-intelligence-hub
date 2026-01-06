@@ -15,6 +15,8 @@ import {
   BarChart3,
   Loader2,
   XCircle,
+  Clock,
+  RefreshCw,
 } from 'lucide-react'
 import { Button } from '@/components/ui'
 import ResearchSection from './ResearchSection'
@@ -124,6 +126,15 @@ interface ResearchCanvasProps {
   categoryOutput?: CategoryOutput | null
   validationOutput?: ValidationOutput | null
   researchError?: string | null
+  
+  // Timeout handling
+  isTimeout?: boolean
+  timeoutInfo?: {
+    elapsed_seconds?: number
+    timeout_seconds?: number
+    completed_nodes?: string[]
+    active_nodes?: string[]
+  } | null
 }
 
 export default function ResearchCanvas({
@@ -148,6 +159,8 @@ export default function ResearchCanvas({
   categoryOutput,
   validationOutput,
   researchError,
+  isTimeout,
+  timeoutInfo,
 }: ResearchCanvasProps) {
   const [draggedId, setDraggedId] = useState<string | null>(null)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
@@ -339,8 +352,47 @@ export default function ResearchCanvas({
             </div>
           )}
 
-          {/* Research Error */}
-          {researchError && (
+          {/* Research Timeout */}
+          {isTimeout && (
+            <div className="bg-amber-50 rounded-xl border border-amber-200 p-6 shadow-sm">
+              <div className="flex items-start gap-3">
+                <Clock className="text-amber-500 shrink-0 mt-0.5" size={20} />
+                <div className="flex-1">
+                  <h3 className="font-semibold text-amber-800 mb-1">Research Timed Out</h3>
+                  <p className="text-sm text-amber-600 mb-3">
+                    The research took longer than expected ({timeoutInfo?.elapsed_seconds || 300}s). 
+                    This can happen with complex queries or when external data sources are slow.
+                  </p>
+                  {timeoutInfo?.completed_nodes && timeoutInfo.completed_nodes.length > 0 && (
+                    <div className="text-xs text-amber-700 mb-3">
+                      <span className="font-medium">Completed stages: </span>
+                      {timeoutInfo.completed_nodes.join(', ')}
+                    </div>
+                  )}
+                  {timeoutInfo?.active_nodes && timeoutInfo.active_nodes.length > 0 && (
+                    <div className="text-xs text-amber-700 mb-3">
+                      <span className="font-medium">Stuck at: </span>
+                      {timeoutInfo.active_nodes.join(', ')}
+                    </div>
+                  )}
+                  {onStartResearch && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={() => onStartResearch('')}
+                    >
+                      <RefreshCw size={14} />
+                      Try Again
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Research Error (non-timeout) */}
+          {researchError && !isTimeout && (
             <div className="bg-red-50 rounded-xl border border-red-200 p-6 shadow-sm">
               <div className="flex items-start gap-3">
                 <XCircle className="text-red-500 shrink-0 mt-0.5" size={20} />

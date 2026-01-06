@@ -17,8 +17,8 @@ import uuid
 import json
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
-from anthropic import AsyncAnthropic
 
+from app.utils.resilient_llm import get_resilient_async_client
 from app.config.settings import settings
 from app.utils.logger import get_logger
 
@@ -65,7 +65,10 @@ You must respond with a single, valid JSON object. Do not include any text befor
 
     def __init__(self, config=None):
         self.config = config or settings
-        self.client = AsyncAnthropic(api_key=self.config.anthropic_api_key)
+        self.client = get_resilient_async_client(
+            anthropic_api_key=self.config.anthropic_api_key,
+            openai_api_key=getattr(self.config, 'openai_api_key', None),
+        )
         self.model = "claude-sonnet-4-5"
         self._bq_storage = None
 
@@ -186,7 +189,7 @@ You must respond with a single, valid JSON object. Do not include any text befor
         )
 
         try:
-            response = await self.client.messages.create(
+            response = await self.client.messages_create(
                 model=self.model,
                 max_tokens=8000,
                 temperature=0.0,

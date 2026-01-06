@@ -1,8 +1,8 @@
 from typing import Dict, Any, List
-from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import SystemMessage, HumanMessage
 from app.agents.research.state import DeepResearchState, SynthesisAgentOutput, FindingSection, FieldSalesSection, SupportingVisual
 from app.config.settings import settings
+from app.utils.resilient_llm import create_resilient_llm_with_openai_fallback
 import json
 import time
 from datetime import datetime
@@ -90,9 +90,10 @@ async def synthesis_node(state: DeepResearchState) -> DeepResearchState:
     Synthesis node. Merges financial and industry outputs into a final report.
     """
     start_time = time.time()
-    llm = ChatAnthropic(
-        model=settings.deep_research_synthesizer_model,
+    llm = create_resilient_llm_with_openai_fallback(
+        primary_model=settings.deep_research_synthesizer_model,
         anthropic_api_key=settings.anthropic_api_key,
+        openai_api_key=settings.openai_api_key,
         temperature=0,
     )
     

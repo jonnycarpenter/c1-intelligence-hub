@@ -21,9 +21,10 @@ import uuid
 import json
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional, AsyncIterator, TYPE_CHECKING
-from anthropic import AsyncAnthropic
+from anthropic import AsyncAnthropic  # Keep for streaming support
 
 from app.config.settings import settings
+from app.utils.resilient_llm import get_resilient_async_client
 from app.utils.logger import get_logger
 
 if TYPE_CHECKING:
@@ -148,7 +149,13 @@ Respond with a JSON object:
 
     def __init__(self, config=None):
         self.config = config or settings
-        self.client = AsyncAnthropic(api_key=self.config.anthropic_api_key)
+        # Resilient client for non-streaming calls
+        self.client = get_resilient_async_client(
+            anthropic_api_key=self.config.anthropic_api_key,
+            openai_api_key=getattr(self.config, 'openai_api_key', None),
+        )
+        # Raw client for streaming (fallback to Anthropic-only for streaming)
+        self._streaming_client = AsyncAnthropic(api_key=self.config.anthropic_api_key)
         self.model = "claude-3-5-haiku-20241022"  # Fast model for quick responses
         self._vector_store = None
         self._bq_storage = None
@@ -359,7 +366,7 @@ Respond with JSON:
 }}"""
 
         try:
-            response = await self.client.messages.create(
+            response = await self.client.messages_create(
                 model=self.model,
                 max_tokens=1500,
                 temperature=0,
@@ -534,8 +541,9 @@ User Question: {question}
 Provide a focused briefing response. Be concise and cite sources."""
 
         # Stream response and collect full text for history
+        # Note: Streaming uses raw Anthropic client (no OpenAI fallback for streaming)
         full_response = ""
-        async with self.client.messages.stream(
+        async with self._streaming_client.messages.stream(
             model=self.model,
             max_tokens=1500,
             temperature=0,

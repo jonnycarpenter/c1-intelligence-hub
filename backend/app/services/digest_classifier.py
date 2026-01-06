@@ -21,7 +21,7 @@ from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 
-from anthropic import AsyncAnthropic
+from app.utils.resilient_llm import get_resilient_async_client
 
 from app.api.schemas import DigestCategory, Priority
 from app.db.gcp_storage import ArticleRecord
@@ -188,7 +188,10 @@ class DigestClassifier:
         self.model = model
         self.temperature = temperature
         self.max_concurrent = max_concurrent
-        self.client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+        self.client = get_resilient_async_client(
+            anthropic_api_key=settings.anthropic_api_key,
+            openai_api_key=settings.openai_api_key,
+        )
         self._semaphore = asyncio.Semaphore(max_concurrent)
     
     async def classify_article(
@@ -214,7 +217,7 @@ Content: {article.summary or 'No summary available'}"""
 
             for attempt in range(retry_count + 1):
                 try:
-                    response = await self.client.messages.create(
+                    response = await self.client.messages_create(
                         model=self.model,
                         max_tokens=1024,
                         temperature=self.temperature,

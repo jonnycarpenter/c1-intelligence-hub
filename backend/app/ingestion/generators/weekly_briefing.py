@@ -21,8 +21,9 @@ import time
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional, Set
 from collections import Counter
-from anthropic import AsyncAnthropic
 from exa_py import Exa
+
+from app.utils.resilient_llm import get_resilient_async_client
 from elevenlabs import ElevenLabs
 from elevenlabs.types import VoiceSettings
 
@@ -148,7 +149,10 @@ Otherwise, respond with the final briefing JSON:
     def __init__(self, config=None):
         """Initialize the executive synthesizer (Agent 2)."""
         self.config = config or settings
-        self.client = AsyncAnthropic(api_key=self.config.anthropic_api_key)
+        self.client = get_resilient_async_client(
+            anthropic_api_key=self.config.anthropic_api_key,
+            openai_api_key=getattr(self.config, 'openai_api_key', None),
+        )
         # Agent 2 uses the premium Opus model for strategic synthesis
         self.model = "claude-opus-4-5" 
         self._bq_storage = None
@@ -748,7 +752,7 @@ Otherwise, respond with the final briefing JSON:
             )
             
             try:
-                response = await self.client.messages.create(
+                response = await self.client.messages_create(
                     model=self.model,
                     max_tokens=4000,
                     temperature=0.0,

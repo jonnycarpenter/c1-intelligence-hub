@@ -2,8 +2,8 @@ import uuid
 import logging
 from datetime import datetime, timedelta
 from typing import List, Dict, Any
-from anthropic import AsyncAnthropic
 
+from app.utils.resilient_llm import get_resilient_async_client
 from app.models.corpus import Digest, DigestItem, DigestStats, Priority
 
 logger = logging.getLogger(__name__)
@@ -39,7 +39,10 @@ Do not use bullet points - write in flowing paragraphs."""
         """
         self.config = config
         self.storage = storage  # BigQuery storage
-        self.client = AsyncAnthropic(api_key=config.anthropic_api_key)
+        self.client = get_resilient_async_client(
+            anthropic_api_key=config.anthropic_api_key,
+            openai_api_key=getattr(config, 'openai_api_key', None),
+        )
         self.max_items = getattr(config, 'digest_max_items', 50)
         self.model = getattr(config, 'digest_model', "claude-sonnet-4-5")
     
@@ -125,7 +128,7 @@ Do not use bullet points - write in flowing paragraphs."""
         prompt = self.SUMMARY_PROMPT.format(hours=hours, items=items_text)
         
         try:
-            response = await self.client.messages.create(
+            response = await self.client.messages_create(
                 model=self.model,
                 max_tokens=500,
                 temperature=0.3,

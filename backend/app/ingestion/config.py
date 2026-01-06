@@ -17,6 +17,7 @@ class IngestionConfig:
     
     # API Keys (from environment)
     anthropic_api_key: str = field(default_factory=lambda: os.getenv("ANTHROPIC_API_KEY", ""))
+    openai_api_key: str = field(default_factory=lambda: os.getenv("OPENAI_API_KEY", ""))  # Fallback provider
     
     # Ingestion Settings
     rss_poll_interval_hours: int = 2

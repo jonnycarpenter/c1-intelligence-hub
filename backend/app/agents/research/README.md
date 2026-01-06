@@ -220,6 +220,21 @@ deep_research_category_model = "claude-sonnet-4-5"
 deep_research_validator_model = "claude-sonnet-4-5"
 ```
 
+### Timeout Configuration
+
+```python
+# Timeout settings (in seconds)
+deep_research_workflow_timeout = 300  # 5 minutes total workflow timeout
+deep_research_tool_timeout = 60       # 60 seconds per external tool call
+deep_research_llm_timeout = 120       # 120 seconds for LLM extraction calls
+```
+
+**Timeout Behavior:**
+- Workflow timeout is monitored during event streaming
+- If exceeded, a `timeout` SSE event is emitted with details about completed/active nodes
+- Frontend displays a user-friendly timeout message with retry option
+- Individual tool timeouts can be applied using the `sync_tool_with_timeout` decorator from `app/utils/retry.py`
+
 ## Streaming & Caching
 
 ### Progress Emissions
@@ -393,7 +408,14 @@ validation = result["validator_output"]
 - [x] Context injection - Related research surfaced to groomer prompt
 - [x] Conditional earnings API - Only fetches external transcripts when companies mentioned
 
-### Phase 5 (Planned)
+### Phase 5 ✅ (Completed - January 6, 2026)
+- [x] Workflow-level timeout handling (5 minute default)
+- [x] Timeout configuration in settings.py
+- [x] SSE `timeout` event with completed/active node details
+- [x] Frontend timeout UI with retry option
+- [x] Per-tool timeout utility (`sync_tool_with_timeout` decorator)
+
+### Phase 6 (Planned)
 - [ ] Frontend: Tool Health dashboard (API status, latency, success rates)
 - [ ] Frontend: Saved Reports history view
 - [ ] Semantic search on past reports (query embeddings)
@@ -413,6 +435,15 @@ validation = result["validator_output"]
 **Anthropic API error: empty message content**
 - **Cause**: Empty messages in conversation history
 - **Fix**: Filter messages before LLM call (see `groomer.py`)
+
+**Research hangs/times out**
+- **Cause**: External API (SEC, StockNews, Exa) is slow or unresponsive
+- **Symptoms**: Frontend shows "Research timed out" after 5 minutes
+- **Fix**: 
+  1. Check `timeoutInfo.active_nodes` to identify stuck stage
+  2. Use `sync_tool_with_timeout` decorator for problematic tools
+  3. Adjust `deep_research_workflow_timeout` in settings if needed
+- **Monitoring**: View LangSmith traces to identify slow tool calls
 
 ## Observability (LangSmith)
 

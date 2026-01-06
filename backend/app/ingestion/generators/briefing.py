@@ -5,8 +5,8 @@ import re
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 from collections import Counter
-from anthropic import AsyncAnthropic
 
+from app.utils.resilient_llm import get_resilient_async_client
 from app.models.corpus import ContentCategory, Priority
 from app.config.settings import settings
 
@@ -84,7 +84,10 @@ Respond with JSON only:
             scheduler_run: "morning" (8 AM CST) or "evening" (8 PM CST) - for tracking
         """
         self.config = config
-        self.client = AsyncAnthropic(api_key=config.anthropic_api_key)
+        self.client = get_resilient_async_client(
+            anthropic_api_key=config.anthropic_api_key,
+            openai_api_key=getattr(config, 'openai_api_key', None),
+        )
         self.model = getattr(config, 'briefing_model', "claude-opus-4-5")
         self.scheduler_run = scheduler_run or self._detect_scheduler_run()
         
@@ -214,7 +217,7 @@ Respond with JSON only:
         )
         
         try:
-            response = await self.client.messages.create(
+            response = await self.client.messages_create(
                 model=self.model,
                 max_tokens=1500,  # Increased for citations
                 temperature=0,

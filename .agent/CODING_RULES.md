@@ -71,10 +71,13 @@ cat backend/scripts/README.md          # Scripts
 
 ```bash
 # Daily health check
-python backend/scripts/monitoring/scheduler_report.py
+python scripts/monitoring/production_dashboard.py
+
+# Detailed health check with logs
+python scripts/monitoring/production_dashboard.py --detailed
 
 # Ingestion diagnostics
-python backend/scripts/health/ingestion_health_check.py
+python scripts/health/ingestion_health_check.py
 
 # Don't create new health check scripts - use these!
 ```
@@ -136,11 +139,13 @@ Steps:
 Location: scripts/{category}/
 
 Categories:
-- monitoring/    → Production health checks
-- health/        → Diagnostics
-- operations/    → Data operations (backfill, maintenance)
-- testing/       → Development tests
-- verification/  → Post-deploy checks
+- monitoring/              → Production health checks
+- health/                  → Diagnostics
+- operations/backfill/     → Data backfill operations
+- operations/maintenance/  → Maintenance tasks
+- operations/triggers/     → Pipeline triggers & orchestrators
+- testing/                 → Development tests (test_*.py, check_*.py)
+- verification/            → Post-deploy checks
 
 Steps:
 1. Create script in appropriate category
@@ -226,7 +231,7 @@ cd backend
 python -c "from app.mcp.server import get_all_mcp_tools; print(f'Loaded {len(get_all_mcp_tools())} tools')"
 
 # 2. Run health check
-python scripts/monitoring/scheduler_report.py
+python scripts/monitoring/production_dashboard.py
 
 # 3. Run ingestion health check
 python scripts/health/ingestion_health_check.py
@@ -260,11 +265,14 @@ pytest backend/test_workflow.py
 | Add agent tool | `app/mcp/tools/` |
 | Add data collector | `app/tools/` |
 | Query BigQuery | `app/db/bigquery_client.py` |
-| Check health | `scripts/monitoring/` |
+| Check prod health | `scripts/monitoring/` |
 | Debug ingestion | `scripts/health/` |
 | Run backfill | `scripts/operations/backfill/` |
-| Test features | `scripts/testing/` |
+| Maintenance tasks | `scripts/operations/maintenance/` |
+| Trigger ingestion | `scripts/operations/triggers/` |
+| Test features | `scripts/testing/` (all test_*.py and check_*.py files) |
+| Verify deploys | `scripts/verification/` |
 
 ---
 
-*Last updated: January 2026 (Phase 3 Consolidation)*
+*Last updated: January 6, 2026 (Script Reorganization - See ADR-006 in ARCHITECTURE.md)*

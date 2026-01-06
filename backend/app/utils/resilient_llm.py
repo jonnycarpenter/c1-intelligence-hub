@@ -1,34 +1,74 @@
-"""Resilient LLM wrapper with automatic fallback support."""
+"""Resilient LLM wrapper with automatic fallback support.
 
+This module provides two resilient wrapper patterns:
+1. ResilientChatAnthropic - For LangChain-based code (agents, workflows)
+2. ResilientAsyncClient - For raw SDK code (ingestion, services)
+
+Both support cross-provider fallback: Anthropic (primary) -> OpenAI (fallback)
+to protect against credit outages.
+"""
+
+import os
 import time
-from typing import Any, List, Optional, Sequence
+from typing import Any, List, Optional, Sequence, Literal, Dict
 from langchain_anthropic import ChatAnthropic
+from langchain_openai import ChatOpenAI
 from langchain_core.messages import BaseMessage
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.outputs import ChatResult
 from langchain_core.runnables import RunnableConfig
+
+# Raw SDK imports for async resilient client
+from anthropic import AsyncAnthropic
+from openai import AsyncOpenAI
 
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 
+# =============================================================================
+# Model Mapping: Anthropic -> OpenAI equivalents
+# =============================================================================
+
+ANTHROPIC_TO_OPENAI_MODEL_MAP = {
+    "claude-sonnet-4-5": "gpt-4o",
+    "claude-3-5-sonnet-20241022": "gpt-4o",
+    "claude-opus-4-5": "gpt-4o",  # Opus -> GPT-4o (best available)
+    "claude-3-5-haiku-20241022": "gpt-4o-mini",
+    "claude-sonnet-4-20250514": "gpt-4o",  # Vision model
+}
+
+
 class ResilientChatAnthropic(BaseChatModel):
     """
-    A resilient ChatAnthropic wrapper that automatically falls back to
-    a secondary model if the primary model fails.
+    A resilient LLM wrapper that automatically falls back to a secondary model if primary fails.
+    
+    Supports both Anthropic and OpenAI models for cross-provider failover.
     
     Usage:
+        # Anthropic primary -> OpenAI fallback (recommended for credit safety)
         llm = ResilientChatAnthropic(
             primary_model="claude-sonnet-4-5",
-            fallback_model="claude-sonnet-4-5",
+            fallback_model="gpt-4o",
+            fallback_provider="openai",
+            api_key=settings.anthropic_api_key,
+            fallback_api_key=settings.openai_api_key,
+        )
+        
+        # Anthropic primary -> Anthropic fallback (same provider)
+        llm = ResilientChatAnthropic(
+            primary_model="claude-sonnet-4-5",
+            fallback_model="claude-3-5-haiku-20241022",
             api_key=settings.anthropic_api_key,
         )
     """
     
     primary_model: str
     fallback_model: Optional[str] = None
+    fallback_provider: Literal["anthropic", "openai"] = "anthropic"
     api_key: str
+    fallback_api_key: Optional[str] = None
     temperature: float = 0.3
     max_tokens: int = 4096
     timeout: float = 120.0
@@ -36,7 +76,7 @@ class ResilientChatAnthropic(BaseChatModel):
     
     # Internal clients (not part of pydantic model)
     _primary_client: Optional[ChatAnthropic] = None
-    _fallback_client: Optional[ChatAnthropic] = None
+    _fallback_client: Optional[Any] = None  # Can be ChatAnthropic or ChatOpenAI
     _tools: List[Any] = []
     
     class Config:
@@ -49,6 +89,7 @@ class ResilientChatAnthropic(BaseChatModel):
     
     def _initialize_clients(self):
         """Initialize primary and fallback clients."""
+        # Primary is always Anthropic
         self._primary_client = ChatAnthropic(
             model=self.primary_model,
             api_key=self.api_key,
@@ -59,15 +100,33 @@ class ResilientChatAnthropic(BaseChatModel):
         )
         
         if self.fallback_model:
-            self._fallback_client = ChatAnthropic(
-                model=self.fallback_model,
-                api_key=self.api_key,
-                temperature=self.temperature,
-                max_tokens=self.max_tokens,
-                timeout=self.timeout,
-                max_retries=self.max_retries,
-            )
-            logger.info(f"Initialized resilient LLM: {self.primary_model} -> {self.fallback_model}")
+            if self.fallback_provider == "openai":
+                # OpenAI fallback - use fallback_api_key or environment variable
+                openai_key = self.fallback_api_key or os.getenv("OPENAI_API_KEY")
+                if not openai_key:
+                    logger.warning("OpenAI fallback model specified but no API key available. Skipping fallback.")
+                    return
+                    
+                self._fallback_client = ChatOpenAI(
+                    model=self.fallback_model,
+                    api_key=openai_key,
+                    temperature=self.temperature,
+                    max_tokens=self.max_tokens,
+                    timeout=self.timeout,
+                    max_retries=self.max_retries,
+                )
+                logger.info(f"Initialized resilient LLM: {self.primary_model} (Anthropic) -> {self.fallback_model} (OpenAI)")
+            else:
+                # Anthropic fallback
+                self._fallback_client = ChatAnthropic(
+                    model=self.fallback_model,
+                    api_key=self.api_key,
+                    temperature=self.temperature,
+                    max_tokens=self.max_tokens,
+                    timeout=self.timeout,
+                    max_retries=self.max_retries,
+                )
+                logger.info(f"Initialized resilient LLM: {self.primary_model} -> {self.fallback_model} (both Anthropic)")
         else:
             logger.info(f"Initialized LLM (no fallback): {self.primary_model}")
     
@@ -212,3 +271,249 @@ class ResilientChatAnthropic(BaseChatModel):
             except Exception as fallback_error:
                 logger.error(f"Fallback model ({self.fallback_model}) also failed: {fallback_error}")
                 raise primary_error from fallback_error
+
+
+# =============================================================================
+# Helper Functions for LangChain Usage
+# =============================================================================
+
+def create_resilient_llm_with_openai_fallback(
+    primary_model: str,
+    anthropic_api_key: str,
+    openai_api_key: str,
+    fallback_model: str = "gpt-4o",
+    **kwargs
+) -> ResilientChatAnthropic:
+    """
+    Create a resilient LLM with OpenAI as fallback provider.
+    
+    This is the recommended pattern to protect against Anthropic credit outages.
+    
+    Args:
+        primary_model: Anthropic model name (e.g., "claude-sonnet-4-5")
+        anthropic_api_key: Your Anthropic API key
+        openai_api_key: Your OpenAI API key (fallback)
+        fallback_model: OpenAI model to use as fallback (default: "gpt-4o")
+        **kwargs: Additional parameters (temperature, max_tokens, etc.)
+    
+    Returns:
+        ResilientChatAnthropic instance with OpenAI fallback
+        
+    Example:
+        from app.config.settings import settings
+        
+        llm = create_resilient_llm_with_openai_fallback(
+            primary_model="claude-sonnet-4-5",
+            anthropic_api_key=settings.anthropic_api_key,
+            openai_api_key=settings.openai_api_key,
+            fallback_model="gpt-4o",
+            temperature=0.3,
+        )
+    """
+    return ResilientChatAnthropic(
+        primary_model=primary_model,
+        fallback_model=fallback_model,
+        fallback_provider="openai",
+        api_key=anthropic_api_key,
+        fallback_api_key=openai_api_key,
+        **kwargs
+    )
+
+
+# =============================================================================
+# Resilient Async Client (for raw SDK usage in ingestion/services)
+# =============================================================================
+
+class ResilientAsyncClient:
+    """
+    Resilient async client that wraps Anthropic SDK with OpenAI fallback.
+    
+    For use in ingestion pipelines, services, and other async code that 
+    uses the raw Anthropic SDK (not LangChain).
+    
+    Usage:
+        client = ResilientAsyncClient(
+            anthropic_api_key=settings.anthropic_api_key,
+            openai_api_key=settings.openai_api_key,
+        )
+        
+        response = await client.messages_create(
+            model="claude-sonnet-4-5",
+            max_tokens=4096,
+            messages=[{"role": "user", "content": "Hello"}],
+        )
+    """
+    
+    def __init__(
+        self,
+        anthropic_api_key: str,
+        openai_api_key: Optional[str] = None,
+    ):
+        self.anthropic_client = AsyncAnthropic(api_key=anthropic_api_key)
+        self.openai_api_key = openai_api_key or os.getenv("OPENAI_API_KEY")
+        self._openai_client: Optional[AsyncOpenAI] = None
+        
+    @property
+    def openai_client(self) -> Optional[AsyncOpenAI]:
+        """Lazy init OpenAI client only when needed."""
+        if self._openai_client is None and self.openai_api_key:
+            self._openai_client = AsyncOpenAI(api_key=self.openai_api_key)
+        return self._openai_client
+    
+    def _get_openai_model(self, anthropic_model: str) -> str:
+        """Map Anthropic model to equivalent OpenAI model."""
+        return ANTHROPIC_TO_OPENAI_MODEL_MAP.get(anthropic_model, "gpt-4o")
+    
+    def _convert_messages_for_openai(
+        self, 
+        messages: List[Dict[str, Any]],
+        system: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Convert Anthropic message format to OpenAI format."""
+        openai_messages = []
+        
+        # Add system message if provided
+        if system:
+            openai_messages.append({"role": "system", "content": system})
+        
+        for msg in messages:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            
+            # Handle complex content (e.g., with images)
+            if isinstance(content, list):
+                # For now, extract text only (OpenAI has different image format)
+                text_parts = [
+                    part.get("text", "") 
+                    for part in content 
+                    if part.get("type") == "text"
+                ]
+                content = "\n".join(text_parts) if text_parts else str(content)
+            
+            openai_messages.append({"role": role, "content": content})
+        
+        return openai_messages
+    
+    async def messages_create(
+        self,
+        model: str,
+        max_tokens: int,
+        messages: List[Dict[str, Any]],
+        system: Optional[str] = None,
+        temperature: float = 0.3,
+        **kwargs,
+    ) -> Any:
+        """
+        Create a message with automatic OpenAI fallback.
+        
+        Returns an Anthropic-style response object (or OpenAI response adapted).
+        """
+        # Try Anthropic first
+        try:
+            start = time.time()
+            response = await self.anthropic_client.messages.create(
+                model=model,
+                max_tokens=max_tokens,
+                messages=messages,
+                system=system,
+                temperature=temperature,
+                **kwargs,
+            )
+            elapsed = time.time() - start
+            logger.debug(f"Anthropic ({model}) succeeded in {elapsed:.2f}s")
+            return response
+            
+        except Exception as anthropic_error:
+            logger.warning(f"Anthropic ({model}) failed: {anthropic_error}")
+            
+            # Try OpenAI fallback
+            if not self.openai_client:
+                logger.error("No OpenAI API key configured for fallback")
+                raise anthropic_error
+            
+            try:
+                openai_model = self._get_openai_model(model)
+                openai_messages = self._convert_messages_for_openai(messages, system)
+                
+                logger.info(f"Falling back to OpenAI ({openai_model})")
+                start = time.time()
+                
+                openai_response = await self.openai_client.chat.completions.create(
+                    model=openai_model,
+                    max_tokens=max_tokens,
+                    messages=openai_messages,
+                    temperature=temperature,
+                )
+                elapsed = time.time() - start
+                logger.info(f"OpenAI fallback ({openai_model}) succeeded in {elapsed:.2f}s")
+                
+                # Wrap OpenAI response in Anthropic-like structure
+                return OpenAIResponseAdapter(openai_response)
+                
+            except Exception as openai_error:
+                logger.error(f"OpenAI fallback also failed: {openai_error}")
+                raise anthropic_error from openai_error
+
+
+class OpenAIResponseAdapter:
+    """
+    Adapter to make OpenAI responses look like Anthropic responses.
+    
+    This allows existing code using Anthropic response structure to work
+    with OpenAI fallback responses without modification.
+    """
+    
+    def __init__(self, openai_response):
+        self._openai_response = openai_response
+        
+        # Create content list like Anthropic
+        choice = openai_response.choices[0] if openai_response.choices else None
+        text = choice.message.content if choice else ""
+        
+        self.content = [ContentBlock(text=text)]
+        self.stop_reason = choice.finish_reason if choice else "end_turn"
+        self.model = openai_response.model
+        self.usage = UsageAdapter(openai_response.usage)
+
+
+class ContentBlock:
+    """Mimics Anthropic's ContentBlock."""
+    def __init__(self, text: str, type: str = "text"):
+        self.text = text
+        self.type = type
+
+
+class UsageAdapter:
+    """Mimics Anthropic's Usage object."""
+    def __init__(self, openai_usage):
+        self.input_tokens = openai_usage.prompt_tokens if openai_usage else 0
+        self.output_tokens = openai_usage.completion_tokens if openai_usage else 0
+
+
+def get_resilient_async_client(
+    anthropic_api_key: str,
+    openai_api_key: Optional[str] = None,
+) -> ResilientAsyncClient:
+    """
+    Get a resilient async client with OpenAI fallback.
+    
+    Example:
+        from app.config.settings import settings
+        from app.utils.resilient_llm import get_resilient_async_client
+        
+        client = get_resilient_async_client(
+            anthropic_api_key=settings.anthropic_api_key,
+            openai_api_key=settings.openai_api_key,
+        )
+        
+        response = await client.messages_create(
+            model="claude-sonnet-4-5",
+            max_tokens=4096,
+            messages=[{"role": "user", "content": "Hello"}],
+        )
+        print(response.content[0].text)
+    """
+    return ResilientAsyncClient(
+        anthropic_api_key=anthropic_api_key,
+        openai_api_key=openai_api_key,
+    )
