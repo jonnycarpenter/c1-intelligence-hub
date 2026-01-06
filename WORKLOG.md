@@ -4,6 +4,67 @@ This file tracks completed work and open items across AI assistant sessions.
 
 ---
 
+## Session 30 (January 5, 2026) - Frontend UX Enhancements ✅
+
+### 📋 Context
+
+Implemented multiple frontend UX improvements across the Intelligence Hub to improve user experience and interface consistency.
+
+### ✅ Completed
+
+1. **Chatbox Visibility Management** 🎉
+   - **File**: [page.tsx](frontend/src/app/page.tsx)
+   - Hidden right-panel chatbox on Products, Field Intel, and Data & Preferences tabs
+   - These tabs are self-contained and don't require the chat interface
+   - Pipeline and Pulse tabs retain their built-in chat interfaces
+
+2. **Pipeline Tab Enhancements** 🎉
+   - **File**: [PipelineDashboard.tsx](frontend/src/components/pipeline/PipelineDashboard.tsx)
+   - Updated seed questions to:
+     - "Find me all wind energy companies in florida"
+     - "Find me similar companies to Brunswick boating company"
+     - "Find me supplier sourcing leads in the aerospace industry"
+   - Added auto-submit functionality (100ms delay) when clicking seed questions
+   - **File**: [AppHeader.tsx](frontend/src/components/layout/AppHeader.tsx)
+   - Changed subheader from "Contacts & prospects" to "Companies, Prospects, and Decision Makers"
+
+3. **Sidebar Logo Replacement** 🎉
+   - **File**: [Sidebar.tsx](frontend/src/components/layout/Sidebar.tsx)
+   - Replaced PNG logo image with styled text
+   - Expanded view: "Composites One" + "Intelligence Hub" (two lines)
+   - Collapsed view: "C1" abbreviation
+   - Removed unused `Image` import from next/image
+
+4. **Pulse Tab Improvements** 🎉
+   - **File**: [AdHocBriefing.tsx](frontend/src/components/dashboard/AdHocBriefing.tsx)
+   - Removed helper text: "Try asking about topics in this week's briefing, or any industry news"
+   - Removed examples: "What's the latest on Hexcel's expansion?" etc.
+   - **File**: [PulseDashboard.tsx](frontend/src/components/dashboard/PulseDashboard.tsx)
+   - Reduced spacing from `space-y-6` to `space-y-4` to bring Need to Know section higher
+   - Changed background color from default to `bg-slate-200` for better visual depth
+
+### 📁 Files Modified
+- [frontend/src/app/page.tsx](frontend/src/app/page.tsx) - Chatbox visibility logic
+- [frontend/src/components/pipeline/PipelineDashboard.tsx](frontend/src/components/pipeline/PipelineDashboard.tsx) - Seed questions + auto-submit
+- [frontend/src/components/layout/AppHeader.tsx](frontend/src/components/layout/AppHeader.tsx) - Pipeline subtitle
+- [frontend/src/components/layout/Sidebar.tsx](frontend/src/components/layout/Sidebar.tsx) - Logo text replacement
+- [frontend/src/components/dashboard/AdHocBriefing.tsx](frontend/src/components/dashboard/AdHocBriefing.tsx) - Removed helper text
+- [frontend/src/components/dashboard/PulseDashboard.tsx](frontend/src/components/dashboard/PulseDashboard.tsx) - Spacing + background
+
+### ✅ Testing
+
+All changes are frontend-only. Test with:
+```bash
+cd frontend
+npm run dev
+```
+
+### 🔧 Next Steps
+- Manual UI testing to verify all changes display correctly
+- No backend deployment required (frontend-only changes)
+
+---
+
 ## Session 29 (January 5, 2026) - Phase 4: BigQuery Persistence & Memory Integration ✅
 
 ### 📋 Context

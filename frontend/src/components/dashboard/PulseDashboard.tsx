@@ -110,7 +110,7 @@ export default function PulseDashboard({
   }, [weeklyBriefing, digestItems])
 
   return (
-    <div className="h-full flex flex-col overflow-hidden p-6 pt-4">
+    <div className="h-full flex flex-col overflow-hidden p-6 pt-4 bg-slate-200">
       {/* Main 2-Column Layout */}
       <div className="flex-1 flex gap-8 overflow-hidden min-h-0">
         {/* Left Column: Drumbeat (Stacked Feed) */}
