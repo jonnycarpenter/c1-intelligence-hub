@@ -133,8 +133,8 @@ python -c "from app.agents.research.memory import get_research_memory; from app.
 ```
 
 ### 🔧 Next Steps
-1. ✅ **Deploy to Cloud Run** - Deployed (build 632e2423)
-2. **Test E2E** - Run full workflow and verify BigQuery persistence
+1. ✅ **Deploy to Cloud Run** - Deployed (builds 632e2423, 2e55dab, a49aca6)
+2. ✅ **Test E2E** - Full workflow verified with BigQuery persistence (see below)
 3. **Frontend integration** - Add "Saved Reports" tab or history view
 4. ✅ **Context injection** - Groomer now receives prior research context
 5. ✅ **Conditional earnings API** - External API only called for specific company queries
@@ -145,6 +145,32 @@ python -c "from app.agents.research.memory import get_research_memory; from app.
    - `ToolHealthPanel` with per-tool metrics (success %, latency)
    - Pre-research health check in Deep Research panel
    - Data source attribution in reports (which tools contributed)
+
+### ✅ E2E Test Results (January 6, 2026)
+
+**Query**: "What is the outlook for carbon fiber in aerospace?"
+
+| Metric | Result |
+|--------|--------|
+| Report Generated | ✅ |
+| BigQuery Persistence | ✅ (ID: `c7cdf40f-...`) |
+| Research Time | 217 seconds |
+| Citations | 47 |
+| Sources | 17 |
+| Companies Identified | Hexcel, SGL Carbon, CFRP |
+| Industries | aerospace, defense, marine |
+
+**API Endpoints Verified**:
+- `GET /api/research/deep/reports` - Listed 1 saved report
+- BigQuery table `deep_research_reports` populated correctly
+
+### 🔧 cloudbuild.yaml Fixes (Build a49aca6)
+
+Fixed missing/incorrect secrets in `cloudbuild.yaml` `--set-secrets`:
+- **Added**: `STOCKNEWS_API_KEY=STOCKNEWS_API_KEY:latest` (was missing entirely)
+- **Fixed**: `APOLLO_API_KEY=APOLLO_API_KEY:latest` (was lowercase `apollo-api-key`)
+
+These secrets now persist across all Cloud Build deployments.
 
 ### 🆕 Session 29 Continuation - Context Injection & Conditional APIs
 
