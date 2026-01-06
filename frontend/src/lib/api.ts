@@ -666,6 +666,65 @@ class ApiClient {
     }
     return response.json()
   }
+
+  // =====================================
+  // Preferences (Priority/Block Topics)
+  // =====================================
+
+  /**
+   * Get organization preferences (priorities and blocks)
+   */
+  async getPreferences(): Promise<{
+    priorities: Array<{ id: string; target: string; description?: string; team?: string | null }>
+    blocks: Array<{ id: string; target: string; description?: string; team?: string | null }>
+  }> {
+    const response = await fetch(`${this.baseUrl}/api/memory/preferences`, {
+      headers: {
+        'X-User-Team': localStorage.getItem('userTeam') || 'All Others',
+      },
+    })
+    if (!response.ok) {
+      throw new Error(`Failed to fetch preferences: ${response.statusText}`)
+    }
+    return response.json()
+  }
+
+  /**
+   * Add a new preference (priority or block)
+   */
+  async addPreference(data: {
+    type: 'prioritize' | 'block'
+    target: string
+    description?: string
+    team?: string
+  }): Promise<{ success: boolean; preference_id?: string }> {
+    const response = await fetch(`${this.baseUrl}/api/memory/preferences`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-User-Name': localStorage.getItem('userName') || 'Anonymous',
+        'X-User-Team': localStorage.getItem('userTeam') || 'All Others',
+      },
+      body: JSON.stringify(data),
+    })
+    if (!response.ok) {
+      throw new Error(`Failed to add preference: ${response.statusText}`)
+    }
+    return response.json()
+  }
+
+  /**
+   * Remove a preference
+   */
+  async removePreference(preferenceId: string): Promise<{ success: boolean }> {
+    const response = await fetch(`${this.baseUrl}/api/memory/preferences/${preferenceId}`, {
+      method: 'DELETE',
+    })
+    if (!response.ok) {
+      throw new Error(`Failed to remove preference: ${response.statusText}`)
+    }
+    return response.json()
+  }
 }
 
 // Export singleton instance

@@ -1801,6 +1801,10 @@ class BigQueryDataStorage(DataStorageInterface):
             "article_ids": json.dumps(briefing_data.get('article_ids', [])),
             "quarter": quarter,
             "week_of_year": week_of_year,
+            # Podcast metadata
+            "podcast_url": briefing_data.get('podcast_url'),
+            "podcast_duration_seconds": briefing_data.get('podcast_duration_seconds'),
+            "podcast_generated_at": to_timestamp(briefing_data.get('podcast_generated_at')),
         }
         
         try:

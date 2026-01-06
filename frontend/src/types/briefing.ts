@@ -65,6 +65,10 @@ export interface WeeklyBriefing {
   model: string
   article_count: number
   article_ids: string[]
+  /** Podcast audio fields */
+  podcast_url?: string
+  podcast_duration_seconds?: number
+  podcast_generated_at?: string
 }
 
 // =============================================================================

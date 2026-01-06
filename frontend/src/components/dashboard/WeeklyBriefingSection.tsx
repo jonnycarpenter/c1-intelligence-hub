@@ -13,6 +13,7 @@ import {
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui'
 import { API_BASE } from '@/lib/config'
+import PodcastPlayer from './PodcastPlayer'
 import type {
   WeeklyBriefing,
   BriefingSection,
@@ -407,6 +408,15 @@ export default function WeeklyBriefingSection({
           <span>{briefing.sections.length} key areas</span>
         </div>
       </div>
+
+      {/* Podcast Player */}
+      {briefing.podcast_url && (
+        <PodcastPlayer
+          audioUrl={briefing.podcast_url}
+          duration={briefing.podcast_duration_seconds}
+          title={briefing.briefing_title}
+        />
+      )}
 
       {/* Sections */}
       <div className="space-y-4">

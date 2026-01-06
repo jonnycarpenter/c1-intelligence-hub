@@ -20,9 +20,11 @@ aiohttp==3.11.10
 requests==2.32.3
 
 # Exa.ai for semantic search and prospect discovery
-# Exa.ai for semantic search and prospect discovery
 exa_py>=2.0.0
 pytrends>=4.9.0
+
+# ElevenLabs for podcast generation
+elevenlabs>=1.0.0
 
 
 # RSS and web scraping

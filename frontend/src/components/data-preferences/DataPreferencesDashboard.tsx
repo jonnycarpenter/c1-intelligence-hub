@@ -22,7 +22,7 @@ import {
   Bookmark
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { MemoryLog } from '@/components/memory'
+import { MemoryLog, PreferencesPanel } from '@/components/memory'
 import {
   useDataSummary,
   useTrackedCompanies,

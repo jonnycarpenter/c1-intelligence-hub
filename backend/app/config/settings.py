@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     
     # ElevenLabs API (for podcast generation)
     elevenlabs_api_key: str = ""
+    elevenlabs_voice_id: str = "21m00Tcm4TlvDq8ikWAM"  # Rachel - professional, clear voice
+    elevenlabs_model: str = "eleven_mon olingual_v1"
+    elevenlabs_voice_stability: float = 0.5
+    elevenlabs_voice_similarity_boost: float = 0.75
     
     # Logo.dev API (for company logos)
     logo_dev_token: str = ""

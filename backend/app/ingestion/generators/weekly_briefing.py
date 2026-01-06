@@ -17,11 +17,14 @@ Cadence: Monday 8:30 AM CST (14:30 UTC)
 import uuid
 import json
 import re
+import time
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional, Set
 from collections import Counter
 from anthropic import AsyncAnthropic
 from exa_py import Exa
+from elevenlabs import ElevenLabs
+from elevenlabs.types import VoiceSettings
 
 from app.db.vector_store import get_production_vector_store
 from app.config.settings import settings
@@ -155,6 +158,25 @@ Otherwise, respond with the final briefing JSON:
         self.exa_client = Exa(exa_api_key) if exa_api_key else None
         if not self.exa_client:
             logger.warning("Exa API key not configured - peripheral search disabled")
+        
+        # Initialize ElevenLabs client for podcast generation
+        elevenlabs_api_key = getattr(self.config, 'elevenlabs_api_key', None)
+        if elevenlabs_api_key:
+            self.elevenlabs_client = ElevenLabs(api_key=elevenlabs_api_key)
+            self.voice_id = getattr(self.config, 'elevenlabs_voice_id', '21m00Tcm4TlvDq8ikWAM')  # Rachel
+            self.voice_settings = VoiceSettings(
+                stability=getattr(self.config, 'elevenlabs_voice_stability', 0.5),
+                similarity_boost=getattr(self.config, 'elevenlabs_voice_similarity_boost', 0.75),
+                style=0.0,
+                use_speaker_boost=True
+            )
+        else:
+            self.elevenlabs_client = None
+            logger.warning("ElevenLabs API key not configured - podcast generation disabled")
+        
+        # GCS client for podcast upload (lazy-loaded)
+        self._gcs_client = None
+        self._gcs_bucket = None
     
     async def _get_bq_storage(self):
         """Lazy-load BigQuery storage."""
@@ -465,6 +487,200 @@ Otherwise, respond with the final briefing JSON:
             logger.error(f"Error in peripheral intelligence search: {e}", exc_info=True)
             return []
     
+    def _format_text_for_speech(self, text: str) -> str:
+        """
+        Format text for natural speech synthesis.
+        
+        Removes citations and formatting, expands abbreviations for clarity.
+        """
+        # Remove citation markers [1], [2], [Exa:1]
+        text = re.sub(r'\[(?:Exa:)?\d+\]', '', text)
+        
+        # Remove company logo tags [[Company Name]] but keep the name
+        text = re.sub(r'\[\[([^\]]+)\]\]', r'\1', text)
+        
+        # Expand currency: $2.4B -> 2.4 billion dollars
+        text = re.sub(r'\$(\d+\.?\d*)B\b', r'\1 billion dollars', text, flags=re.IGNORECASE)
+        text = re.sub(r'\$(\d+\.?\d*)M\b', r'\1 million dollars', text, flags=re.IGNORECASE)
+        
+        # Expand percentages: 40% -> 40 percent
+        text = re.sub(r'(\d+\.?\d*)%', r'\1 percent', text)
+        
+        # Clean up any double spaces
+        text = re.sub(r'\s+', ' ', text).strip()
+        
+        return text
+    
+    def _build_podcast_script(self, briefing: Dict[str, Any]) -> str:
+        """
+        Build complete podcast script from briefing data.
+        
+        Format with natural phrasing for "net new" vs "continuing" status.
+        """
+        script_parts = []
+        
+        # 1. Title
+        title = briefing.get('briefing_title', 'Executive Briefing')
+        # Convert "Week of Jan 6" to "Week of January 6th"
+        title = re.sub(r'\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b', 
+                      lambda m: {
+                          'Jan': 'January', 'Feb': 'February', 'Mar': 'March',
+                          'Apr': 'April', 'May': 'May', 'Jun': 'June',
+                          'Jul': 'July', 'Aug': 'August', 'Sep': 'September',
+                          'Oct': 'October', 'Nov': 'November', 'Dec': 'December'
+                      }[m.group(1)], title)
+        script_parts.append(f"{title}.")
+        script_parts.append("")  # Pause
+        
+        # 2. BLUF
+        bluf = briefing.get('bluf', '')
+        if bluf:
+            formatted_bluf = self._format_text_for_speech(bluf)
+            script_parts.append(f"Bottom Line Up Front: {formatted_bluf}")
+            script_parts.append("")
+        
+        # 3. Sections
+        sections = briefing.get('sections', [])
+        for idx, section in enumerate(sections, 1):
+            section_header = section.get('header', f'Section {idx}')
+            script_parts.append(f"Section {idx}: {section_header}.")
+            script_parts.append("")
+            
+            # Headline
+            headline = section.get('headline', {})
+            headline_text = headline.get('text', '') if isinstance(headline, dict) else str(headline)
+            headline_status = headline.get('status', 'continuing') if isinstance(headline, dict) else 'continuing'
+            
+            if headline_text:
+                formatted_headline = self._format_text_for_speech(headline_text)
+                
+                # Natural status phrasing
+                if headline_status == 'net_new':
+                    script_parts.append(f"{formatted_headline} This is a new development.")
+                else:
+                    script_parts.append(f"{formatted_headline} We're continuing to track this story.")
+                script_parts.append("")
+            
+            # Insights
+            insights = section.get('insights', [])
+            for insight in insights:
+                insight_text = insight.get('text', '') if isinstance(insight, dict) else str(insight)
+                insight_status = insight.get('status', 'continuing') if isinstance(insight, dict) else 'continuing'
+                
+                if insight_text:
+                    formatted_insight = self._format_text_for_speech(insight_text)
+                    
+                    # Natural status phrasing for net new only
+                    if insight_status == 'net_new':
+                        script_parts.append(f"{formatted_insight} This is new.")
+                    else:
+                        script_parts.append(formatted_insight)
+                    script_parts.append("")
+        
+        # 4. Overall trend
+        overall_trend = briefing.get('overall_trend', '')
+        if overall_trend:
+            script_parts.append("Overall,")
+            formatted_trend = self._format_text_for_speech(overall_trend)
+            script_parts.append(formatted_trend)
+        
+        return "\n".join(script_parts)
+    
+    async def _generate_podcast(self, briefing: Dict[str, Any], briefing_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Generate podcast audio from briefing data.
+        
+        Returns:
+            Dict with {podcast_url, podcast_duration_seconds, podcast_generated_at}
+            or None if generation fails.
+        """
+        if not self.elevenlabs_client:
+            logger.warning("ElevenLabs client not configured - skipping podcast generation")
+            return None
+        
+        try:
+            logger.info(f"Starting podcast generation for briefing {briefing_id}")
+            start_time = time.time()
+            
+            # 1. Build podcast script
+            script = self._build_podcast_script(briefing)
+            logger.info(f"Generated podcast script ({len(script)} characters, ~{len(script.split())} words)")
+            
+            # 2. Generate audio with retries
+            max_retries = 3
+            retry_delay = 2
+            audio_data = None
+            
+            for attempt in range(max_retries):
+                try:
+                    logger.info(f"Calling ElevenLabs API (attempt {attempt + 1}/{max_retries})")
+                    
+                    # Generate speech
+                    audio_generator = self.elevenlabs_client.text_to_speech.convert(
+                        voice_id=self.voice_id,
+                        text=script,
+                        model_id=getattr(self.config, 'elevenlabs_model', 'eleven_monolingual_v1'),
+                        voice_settings=self.voice_settings
+                    )
+                    
+                    # Collect audio chunks
+                    audio_chunks = []
+                    for chunk in audio_generator:
+                        if chunk:
+                            audio_chunks.append(chunk)
+                    
+                    audio_data = b''.join(audio_chunks)
+                    logger.info(f"Generated audio ({len(audio_data)} bytes)")
+                    break
+                    
+                except Exception as e:
+                    error_msg = str(e)
+                    if 'rate' in error_msg.lower() or '429' in error_msg:
+                        logger.warning(f"Rate limited by ElevenLabs, retrying in {retry_delay}s...")
+                        if attempt < max_retries - 1:
+                            time.sleep(retry_delay)
+                            retry_delay *= 2
+                            continue
+                    raise
+            
+            if not audio_data:
+                logger.error("Failed to generate audio after all retries")
+                return None
+            
+            # 3. Upload to Google Cloud Storage
+            from google.cloud import storage
+            
+            if self._gcs_client is None:
+                self._gcs_client = storage.Client(project=self.config.gcp_project_id)
+            if self._gcs_bucket is None:
+                self._gcs_bucket = self._gcs_client.bucket(self.config.gcs_bucket_name)
+            
+            blob_name = f"podcasts/{briefing_id}.mp3"
+            blob = self._gcs_bucket.blob(blob_name)
+            
+            blob.upload_from_string(audio_data, content_type='audio/mpeg')
+            blob.make_public()
+            
+            podcast_url = blob.public_url
+            logger.info(f"Uploaded podcast to GCS: {podcast_url}")
+            
+            # 4. Calculate duration (approximate: 150 words/min)
+            word_count = len(script.split())
+            duration_seconds = int((word_count / 150) * 60)
+            
+            generation_time = time.time() - start_time
+            logger.info(f"Podcast generation complete in {generation_time:.2f}s (estimated {duration_seconds}s audio)")
+            
+            return {
+                "podcast_url": podcast_url,
+                "podcast_duration_seconds": duration_seconds,
+                "podcast_generated_at": datetime.utcnow().isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to generate podcast: {e}", exc_info=True)
+            return None
+
     async def generate(self, pre_brief: Dict[str, Any] = None) -> Optional[Dict[str, Any]]:
         """
         Agent 2: Generate the final high-conviction executive briefing.
@@ -642,6 +858,14 @@ Otherwise, respond with the final briefing JSON:
                 "peripheral_searches_count": len(peripheral_results),
                 "peripheral_articles": peripheral_results if peripheral_results else [],
             }
+            
+            # Generate podcast audio
+            podcast_metadata = await self._generate_podcast(briefing_record, briefing_record["id"])
+            if podcast_metadata:
+                briefing_record.update(podcast_metadata)
+                logger.info(f"Podcast added to briefing: {podcast_metadata['podcast_url']}")
+            else:
+                logger.warning("Podcast generation failed or skipped - briefing will be saved without podcast")
             
             # Save to storage
             await self._save_briefing(briefing_record)
