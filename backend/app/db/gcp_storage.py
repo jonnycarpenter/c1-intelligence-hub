@@ -747,6 +747,7 @@ class BigQueryDataStorage(DataStorageInterface):
         await self._create_digest_items_table()
         await self._create_article_tags_table()
         await self._create_research_reports_table()
+        await self._create_deep_research_reports_table()  # Phase 4: Deep research persistence
         await self._create_article_images_table()
         await self._create_briefings_table()
         await self._create_weekly_briefings_table()
@@ -1207,6 +1208,86 @@ class BigQueryDataStorage(DataStorageInterface):
             type_=bigquery.TimePartitioningType.MONTH,
         )
         table.clustering_fields = ["agent"]
+        
+        try:
+            self.client.create_table(table)
+            logger.info(f"Created table {table_id}")
+        except Exception as e:
+            if "Already Exists" in str(e):
+                logger.info(f"Table {table_id} already exists")
+            else:
+                raise
+
+    async def _create_deep_research_reports_table(self):
+        """Create deep_research_reports table for Phase 4 persistence.
+        
+        This table stores complete Deep Research reports for:
+        - Persistent storage beyond in-memory cache (1-hour TTL)
+        - User report history and retrieval
+        - Memory/context integration (avoid redundant research)
+        - Analytics on research patterns and tool usage
+        
+        Schema supports:
+        - Full report serialization (JSON blob for flexibility)
+        - Semantic search via query embedding
+        - Entity extraction for related report discovery
+        - Validation metadata for quality tracking
+        """
+        from google.cloud import bigquery
+        
+        table_id = f"{self.config.full_dataset_id}.deep_research_reports"
+        schema = [
+            # Identity
+            bigquery.SchemaField("id", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("query_hash", "STRING", mode="REQUIRED"),  # For dedup/cache lookup
+            
+            # User query
+            bigquery.SchemaField("query", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("query_embedding", "FLOAT64", mode="REPEATED"),  # For semantic search
+            
+            # Report content (JSON blobs for flexibility)
+            bigquery.SchemaField("research_brief", "STRING"),  # JSON: groomer output
+            bigquery.SchemaField("financial_output", "STRING"),  # JSON: financial agent findings
+            bigquery.SchemaField("industry_output", "STRING"),  # JSON: industry agent findings
+            bigquery.SchemaField("final_report", "STRING"),  # JSON: synthesized report
+            bigquery.SchemaField("category_output", "STRING"),  # JSON: sales intelligence
+            bigquery.SchemaField("validator_output", "STRING"),  # JSON: validation results
+            
+            # Extracted entities (for search/memory)
+            bigquery.SchemaField("companies", "STRING"),  # JSON array
+            bigquery.SchemaField("industries", "STRING"),  # JSON array
+            bigquery.SchemaField("topics", "STRING"),  # JSON array
+            bigquery.SchemaField("products", "STRING"),  # JSON array
+            
+            # Report metadata
+            bigquery.SchemaField("title", "STRING"),  # From executive summary headline
+            bigquery.SchemaField("executive_summary", "STRING"),  # Key points text
+            bigquery.SchemaField("data_completeness", "STRING"),  # complete, partial, limited
+            bigquery.SchemaField("overall_confidence", "STRING"),  # high, medium, low
+            bigquery.SchemaField("validation_passed", "BOOL"),
+            bigquery.SchemaField("citation_count", "INT64"),
+            bigquery.SchemaField("citation_issues_count", "INT64"),
+            
+            # Performance metrics
+            bigquery.SchemaField("research_time_seconds", "FLOAT64"),
+            bigquery.SchemaField("tools_used", "STRING"),  # JSON array
+            bigquery.SchemaField("sources_count", "INT64"),
+            
+            # User/session context
+            bigquery.SchemaField("user_id", "STRING"),  # For multi-user support
+            bigquery.SchemaField("session_id", "STRING"),
+            
+            # Timestamps
+            bigquery.SchemaField("created_at", "TIMESTAMP", mode="REQUIRED"),
+            bigquery.SchemaField("expires_at", "TIMESTAMP"),  # Optional expiry for cleanup
+        ]
+        
+        table = bigquery.Table(table_id, schema=schema)
+        table.time_partitioning = bigquery.TimePartitioning(
+            field="created_at",
+            type_=bigquery.TimePartitioningType.MONTH,
+        )
+        table.clustering_fields = ["query_hash", "user_id"]
         
         try:
             self.client.create_table(table)
@@ -2263,6 +2344,379 @@ class BigQueryDataStorage(DataStorageInterface):
                 "created_at": row.created_at.isoformat() if row.created_at else None,
             })
         return reports
+
+    # =========================================================================
+    # Deep Research Reports Storage (Phase 4)
+    # =========================================================================
+    
+    async def store_deep_research_report(
+        self,
+        report_id: str,
+        query: str,
+        query_hash: str,
+        state: Dict[str, Any],
+        query_embedding: Optional[List[float]] = None,
+        user_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+    ) -> bool:
+        """
+        Store a completed Deep Research report in BigQuery.
+        
+        Args:
+            report_id: Unique report identifier
+            query: Original user query
+            query_hash: Hash for deduplication/lookup
+            state: Full workflow state with all outputs
+            query_embedding: Optional embedding for semantic search
+            user_id: Optional user identifier
+            session_id: Optional session identifier
+            
+        Returns:
+            True if stored successfully
+        """
+        table_id = f"{self.config.full_dataset_id}.deep_research_reports"
+        
+        # Extract entities and metadata from state
+        final_report = state.get("final_report")
+        category_output = state.get("category_output")
+        validator_output = state.get("validator_output")
+        research_brief = state.get("research_brief")
+        
+        # Extract companies, industries, topics from various outputs
+        companies = set()
+        industries = set()
+        topics = set()
+        products = set()
+        
+        if final_report:
+            exec_summary = final_report.executive_summary if hasattr(final_report, 'executive_summary') else None
+            if exec_summary and hasattr(exec_summary, 'key_points'):
+                for point in exec_summary.key_points[:5]:  # Limit to prevent bloat
+                    topics.add(point[:100])  # Truncate long points
+        
+        if research_brief:
+            if hasattr(research_brief, 'entities_to_track'):
+                for entity in (research_brief.entities_to_track or []):
+                    companies.add(entity)
+        
+        if category_output:
+            if hasattr(category_output, 'product_recommendations'):
+                for rec in (category_output.product_recommendations or []):
+                    if hasattr(rec, 'product_name'):
+                        products.add(rec.product_name)
+            if hasattr(category_output, 'territory_insights'):
+                for territory, insight in (category_output.territory_insights or {}).items():
+                    if hasattr(insight, 'priority_industries'):
+                        industries.update(insight.priority_industries or [])
+        
+        # Safely serialize Pydantic models
+        def safe_dump(obj):
+            if obj is None:
+                return None
+            if hasattr(obj, 'model_dump'):
+                return json.dumps(obj.model_dump())
+            if hasattr(obj, 'dict'):
+                return json.dumps(obj.dict())
+            return json.dumps(obj)
+        
+        row = {
+            "id": report_id,
+            "query_hash": query_hash,
+            "query": query,
+            "query_embedding": query_embedding or [],
+            "research_brief": safe_dump(research_brief),
+            "financial_output": safe_dump(state.get("financial_output")),
+            "industry_output": safe_dump(state.get("industry_output")),
+            "final_report": safe_dump(final_report),
+            "category_output": safe_dump(category_output),
+            "validator_output": safe_dump(validator_output),
+            "companies": json.dumps(list(companies)),
+            "industries": json.dumps(list(industries)),
+            "topics": json.dumps(list(topics)),
+            "products": json.dumps(list(products)),
+            "title": final_report.executive_summary.headline if final_report and hasattr(final_report, 'executive_summary') and final_report.executive_summary else query[:100],
+            "executive_summary": " | ".join(final_report.executive_summary.key_points[:3]) if final_report and hasattr(final_report, 'executive_summary') and final_report.executive_summary else None,
+            "data_completeness": final_report.data_completeness.value if final_report and hasattr(final_report, 'data_completeness') else None,
+            "overall_confidence": final_report.overall_confidence.value if final_report and hasattr(final_report, 'overall_confidence') else None,
+            "validation_passed": validator_output.validation_passed if validator_output and hasattr(validator_output, 'validation_passed') else None,
+            "citation_count": validator_output.total_citations_checked if validator_output and hasattr(validator_output, 'total_citations_checked') else 0,
+            "citation_issues_count": len(validator_output.citation_issues) if validator_output and hasattr(validator_output, 'citation_issues') else 0,
+            "research_time_seconds": final_report.research_time_seconds if final_report and hasattr(final_report, 'research_time_seconds') else None,
+            "tools_used": json.dumps([]),  # TODO: Track tools used
+            "sources_count": len(final_report.sources_used) if final_report and hasattr(final_report, 'sources_used') else 0,
+            "user_id": user_id or "default",
+            "session_id": session_id,
+            "created_at": datetime.utcnow().isoformat(),
+            "expires_at": None,  # No automatic expiry for now
+        }
+        
+        try:
+            errors = self.client.insert_rows_json(table_id, [row])
+            if errors:
+                logger.error(f"BigQuery insert error for deep research report: {errors}")
+                return False
+            logger.info(f"Stored deep research report {report_id}: {query[:50]}...")
+            return True
+        except Exception as e:
+            logger.error(f"Error storing deep research report: {e}")
+            return False
+    
+    async def get_deep_research_report_by_hash(
+        self,
+        query_hash: str,
+        max_age_hours: int = 24,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get a deep research report by query hash.
+        
+        Used for cache lookup before running expensive workflow.
+        
+        Args:
+            query_hash: Hash of normalized query
+            max_age_hours: Only return reports newer than this (default 24h)
+            
+        Returns:
+            Report dict or None if not found/expired
+        """
+        from datetime import timedelta
+        
+        cutoff = (datetime.utcnow() - timedelta(hours=max_age_hours)).isoformat()
+        
+        query = f"""
+            SELECT *
+            FROM `{self.config.full_dataset_id}.deep_research_reports`
+            WHERE query_hash = @query_hash
+              AND created_at >= @cutoff
+            ORDER BY created_at DESC
+            LIMIT 1
+        """
+        
+        from google.cloud import bigquery
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("query_hash", "STRING", query_hash),
+                bigquery.ScalarQueryParameter("cutoff", "STRING", cutoff),
+            ]
+        )
+        
+        try:
+            result = list(self.client.query(query, job_config=job_config))
+            if not result:
+                return None
+            
+            row = result[0]
+            return self._parse_deep_research_row(row)
+        except Exception as e:
+            logger.error(f"Error fetching deep research report by hash: {e}")
+            return None
+    
+    async def get_deep_research_reports(
+        self,
+        user_id: Optional[str] = None,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> List[Dict[str, Any]]:
+        """
+        Get recent deep research reports.
+        
+        Args:
+            user_id: Filter by user (optional)
+            limit: Max reports to return
+            offset: Pagination offset
+            
+        Returns:
+            List of report summaries (not full content)
+        """
+        query = f"""
+            SELECT 
+                id, query_hash, query, title, executive_summary,
+                data_completeness, overall_confidence, validation_passed,
+                citation_count, research_time_seconds, sources_count,
+                companies, industries, topics,
+                user_id, created_at
+            FROM `{self.config.full_dataset_id}.deep_research_reports`
+            WHERE 1=1
+        """
+        
+        if user_id:
+            query += f" AND user_id = '{user_id}'"
+        
+        query += f" ORDER BY created_at DESC LIMIT {limit} OFFSET {offset}"
+        
+        reports = []
+        try:
+            for row in self.client.query(query):
+                reports.append({
+                    "id": row.id,
+                    "query_hash": row.query_hash,
+                    "query": row.query,
+                    "title": row.title,
+                    "executive_summary": row.executive_summary,
+                    "data_completeness": row.data_completeness,
+                    "overall_confidence": row.overall_confidence,
+                    "validation_passed": row.validation_passed,
+                    "citation_count": row.citation_count,
+                    "research_time_seconds": row.research_time_seconds,
+                    "sources_count": row.sources_count,
+                    "companies": _safe_parse_list(row.companies),
+                    "industries": _safe_parse_list(row.industries),
+                    "topics": _safe_parse_list(row.topics),
+                    "user_id": row.user_id,
+                    "created_at": row.created_at.isoformat() if row.created_at else None,
+                })
+        except Exception as e:
+            logger.error(f"Error fetching deep research reports: {e}")
+        
+        return reports
+    
+    async def get_deep_research_report_by_id(self, report_id: str) -> Optional[Dict[str, Any]]:
+        """Get full deep research report by ID."""
+        query = f"""
+            SELECT *
+            FROM `{self.config.full_dataset_id}.deep_research_reports`
+            WHERE id = @report_id
+            LIMIT 1
+        """
+        
+        from google.cloud import bigquery
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("report_id", "STRING", report_id),
+            ]
+        )
+        
+        try:
+            result = list(self.client.query(query, job_config=job_config))
+            if not result:
+                return None
+            return self._parse_deep_research_row(result[0])
+        except Exception as e:
+            logger.error(f"Error fetching deep research report by ID: {e}")
+            return None
+    
+    async def search_related_research(
+        self,
+        query: str,
+        companies: Optional[List[str]] = None,
+        industries: Optional[List[str]] = None,
+        max_age_days: int = 90,
+        limit: int = 5,
+    ) -> List[Dict[str, Any]]:
+        """
+        Search for related past research reports.
+        
+        Used for memory/context integration to avoid redundant research
+        and surface relevant prior findings.
+        
+        Args:
+            query: Current query for text matching
+            companies: Companies to search for
+            industries: Industries to filter by
+            max_age_days: Only search within this window
+            limit: Max results to return
+            
+        Returns:
+            List of related report summaries
+        """
+        from datetime import timedelta
+        
+        cutoff = (datetime.utcnow() - timedelta(days=max_age_days)).isoformat()
+        
+        # Build WHERE clause for entity matching
+        conditions = [f"created_at >= '{cutoff}'"]
+        
+        # Text search on query
+        if query:
+            # Escape single quotes in query
+            escaped_query = query.replace("'", "\\'")
+            conditions.append(f"LOWER(query) LIKE '%{escaped_query.lower()[:50]}%'")
+        
+        # Company matching (check if any requested company is in the stored array)
+        if companies:
+            company_conditions = []
+            for company in companies[:5]:  # Limit to 5 companies
+                escaped = company.replace("'", "\\'")
+                company_conditions.append(f"LOWER(companies) LIKE '%{escaped.lower()}%'")
+            if company_conditions:
+                conditions.append(f"({' OR '.join(company_conditions)})")
+        
+        # Industry matching
+        if industries:
+            industry_conditions = []
+            for industry in industries[:5]:
+                escaped = industry.replace("'", "\\'")
+                industry_conditions.append(f"LOWER(industries) LIKE '%{escaped.lower()}%'")
+            if industry_conditions:
+                conditions.append(f"({' OR '.join(industry_conditions)})")
+        
+        where_clause = " AND ".join(conditions)
+        
+        query_sql = f"""
+            SELECT 
+                id, query_hash, query, title, executive_summary,
+                data_completeness, overall_confidence, validation_passed,
+                companies, industries, topics,
+                created_at
+            FROM `{self.config.full_dataset_id}.deep_research_reports`
+            WHERE {where_clause}
+            ORDER BY created_at DESC
+            LIMIT {limit}
+        """
+        
+        reports = []
+        try:
+            for row in self.client.query(query_sql):
+                reports.append({
+                    "id": row.id,
+                    "query_hash": row.query_hash,
+                    "query": row.query,
+                    "title": row.title,
+                    "executive_summary": row.executive_summary,
+                    "data_completeness": row.data_completeness,
+                    "overall_confidence": row.overall_confidence,
+                    "validation_passed": row.validation_passed,
+                    "companies": _safe_parse_list(row.companies),
+                    "industries": _safe_parse_list(row.industries),
+                    "topics": _safe_parse_list(row.topics),
+                    "created_at": row.created_at.isoformat() if row.created_at else None,
+                })
+        except Exception as e:
+            logger.error(f"Error searching related research: {e}")
+        
+        return reports
+    
+    def _parse_deep_research_row(self, row) -> Dict[str, Any]:
+        """Parse a BigQuery row into a deep research report dict."""
+        return {
+            "id": row.id,
+            "query_hash": row.query_hash,
+            "query": row.query,
+            "query_embedding": list(row.query_embedding) if row.query_embedding else None,
+            "research_brief": json.loads(row.research_brief) if row.research_brief else None,
+            "financial_output": json.loads(row.financial_output) if row.financial_output else None,
+            "industry_output": json.loads(row.industry_output) if row.industry_output else None,
+            "final_report": json.loads(row.final_report) if row.final_report else None,
+            "category_output": json.loads(row.category_output) if row.category_output else None,
+            "validator_output": json.loads(row.validator_output) if row.validator_output else None,
+            "companies": _safe_parse_list(row.companies),
+            "industries": _safe_parse_list(row.industries),
+            "topics": _safe_parse_list(row.topics),
+            "products": _safe_parse_list(row.products),
+            "title": row.title,
+            "executive_summary": row.executive_summary,
+            "data_completeness": row.data_completeness,
+            "overall_confidence": row.overall_confidence,
+            "validation_passed": row.validation_passed,
+            "citation_count": row.citation_count,
+            "citation_issues_count": row.citation_issues_count,
+            "research_time_seconds": row.research_time_seconds,
+            "tools_used": _safe_parse_list(row.tools_used),
+            "sources_count": row.sources_count,
+            "user_id": row.user_id,
+            "session_id": row.session_id,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+            "expires_at": row.expires_at.isoformat() if row.expires_at else None,
+        }
 
     # =========================================================================
     # Article Images Storage

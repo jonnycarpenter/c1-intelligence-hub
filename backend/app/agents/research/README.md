@@ -218,12 +218,53 @@ emit_progress_sync(ToolProgress(
 ))
 ```
 
-### Query Caching
+### Two-Tier Caching (Phase 4)
 
-Reports are cached in-memory by query hash:
+Reports use a two-tier caching strategy:
+
+**Tier 1: In-Memory Cache**
 - TTL: 1 hour
 - Cache key: SHA256 of normalized (lowercase, trimmed) query
+- Fastest retrieval for recent/repeated queries
 - Endpoints: `GET /cache/stats`, `DELETE /cache/clear`
+
+**Tier 2: BigQuery Persistence**
+- TTL: 24 hours (configurable)
+- Table: `deep_research_reports`
+- Survives server restarts
+- Enables report history and search
+- Endpoints: `GET /reports`, `GET /reports/{id}`, `GET /reports/search/related`
+
+### Research Memory Service
+
+The `memory.py` module provides context integration:
+
+```python
+from app.agents.research.memory import get_research_memory
+
+memory = await get_research_memory()
+
+# Check for cached report
+cached = await memory.get_cached_report(query)
+
+# Find related past research for context
+related = await memory.find_related_research(
+    query=query,
+    companies=["Hexcel", "Toray"],
+    industries=["aerospace"]
+)
+
+# Store completed report
+await memory.store_report(report_id, query, state)
+```
+
+### Saved Reports API
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/research/reports` | GET | List saved reports (paginated) |
+| `/api/research/reports/{id}` | GET | Get full report by ID |
+| `/api/research/reports/search/related` | GET | Find related past research |
 
 ## Files
 
@@ -237,6 +278,7 @@ Reports are cached in-memory by query hash:
 | `validator.py` | Citation verification node | URL validation, unsubstantiated claim detection |
 | `state.py` | Pydantic schemas and TypedDict state | **Reducer annotations for parallel execution** |
 | `progress.py` | Progress callback infrastructure | SSE event emission |
+| `memory.py` | **Research memory service (Phase 4)** | BigQuery persistence, related research search |
 | `../graph/research_workflow.py` | LangGraph workflow definition | `Send` API for parallel fan-out |
 
 ## Testing

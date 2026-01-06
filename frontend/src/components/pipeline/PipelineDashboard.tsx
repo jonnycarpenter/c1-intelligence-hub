@@ -191,16 +191,16 @@ export default function PipelineDashboard() {
               {/* Example prompts */}
               <div className="space-y-2 w-full max-w-lg">
                 {[
-                  { icon: Building2, text: "Find companies similar to hexcel.com" },
-                  { icon: Users, text: "Find purchasing managers at aerospace suppliers" },
-                  { icon: Zap, text: "What composites companies are expanding?" },
-                  { icon: Sparkles, text: "Search for carbon fiber manufacturers in the midwest" },
+                  { icon: Building2, text: "Find me all wind energy companies in florida" },
+                  { icon: Building2, text: "Find me similar companies to Brunswick boating company" },
+                  { icon: Sparkles, text: "Find me supplier sourcing leads in the aerospace industry" },
                 ].map((example, i) => (
                   <button
                     key={i}
                     onClick={() => {
                       setInputValue(example.text)
-                      inputRef.current?.focus()
+                      // Auto-submit the query
+                      setTimeout(() => handleSend(), 100)
                     }}
                     className="w-full flex items-center gap-3 px-4 py-3 bg-slate-50 hover:bg-emerald-50 rounded-xl border border-slate-200 hover:border-emerald-200 transition-all text-left group"
                   >

@@ -437,8 +437,8 @@ export default function Home() {
             )}
           </div>
 
-          {/* Right panel - Chat (hidden for pulse and pipeline which have their own chat) */}
-          {activeMode !== 'pulse' && activeMode !== 'pipeline' && (
+          {/* Right panel - Chat (hidden for pulse, pipeline, products, field-sales, and data-preferences) */}
+          {activeMode !== 'pulse' && activeMode !== 'pipeline' && activeMode !== 'products' && activeMode !== 'field-sales' && activeMode !== 'data-preferences' && (
             <div className="w-[400px] shrink-0 border-l border-slate-200 bg-white">
               <ChatInterface
                 mode={activeMode}

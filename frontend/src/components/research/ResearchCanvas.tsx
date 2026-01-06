@@ -31,6 +31,10 @@ import type {
 import ResearchReport from './ResearchReport'
 import ClarificationPrompt from './ClarificationPrompt'
 import ResearchProgress from './ResearchProgress'
+import TerritoryInsights from './TerritoryInsights'
+import ProductRecommendations from './ProductRecommendations'
+import SalesPlays from './SalesPlays'
+import ValidationBadge from './ValidationBadge'
 
 // Research templates for empty state
 const RESEARCH_TEMPLATES: ResearchTemplate[] = [
@@ -360,7 +364,32 @@ export default function ResearchCanvas({
 
           {/* Deep Research Report */}
           {deepResearchReport && (
-            <ResearchReport report={deepResearchReport} />
+            <div className="space-y-6">
+              <ResearchReport report={deepResearchReport} />
+              
+              {/* Territory Insights */}
+              {categoryOutput && categoryOutput.territory_insights && (
+                <TerritoryInsights categoryOutput={categoryOutput} />
+              )}
+              
+              {/* Product Recommendations */}
+              {categoryOutput && categoryOutput.product_recommendations && (
+                <ProductRecommendations 
+                  categoryOutput={categoryOutput}
+                  onAskAbout={onStartResearch}
+                />
+              )}
+              
+              {/* Sales Plays */}
+              {categoryOutput && categoryOutput.sales_plays && (
+                <SalesPlays categoryOutput={categoryOutput} />
+              )}
+              
+              {/* Validation Badge */}
+              {validationOutput && (
+                <ValidationBadge validationOutput={validationOutput} />
+              )}
+            </div>
           )}
 
           {/* Legacy Sections (if any) */}

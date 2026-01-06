@@ -374,17 +374,6 @@ export default function AdHocBriefing({
           }}
         />
       )}
-
-      {/* Empty State Hint */}
-      {!response && !isLoading && !error && !compact && (
-        <div className="text-center py-4 text-xs text-slate-400">
-          <p>Try asking about topics in this week's briefing, or any industry news</p>
-          <p className="mt-1">
-            <span className="font-medium">Examples:</span>{' '}
-            "What's the latest on Hexcel's expansion?" • "Any supply chain disruptions?"
-          </p>
-        </div>
-      )}
     </div>
   )
 }

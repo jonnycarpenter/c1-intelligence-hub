@@ -1,7 +1,6 @@
 'use client'
 
 import { Activity, Search, Package, Building2, Factory, FileText, Settings, ChevronLeft, ChevronRight, Database, Users, ShoppingCart, Construction, Mic, GitBranch, Ship } from 'lucide-react'
-import Image from 'next/image'
 import { cn } from '@/lib/utils'
 import type { Mode } from '@/types'
 
@@ -69,27 +68,16 @@ export default function Sidebar({
     >
       {/* Logo */}
       <div className="h-16 flex items-center px-4 border-b border-slate-800/50">
-        <div className="flex items-center gap-3">
-          {collapsed ? (
-            <Image
-              src="/intelligence_hub_logo.png"
-              alt="Intelligence Hub"
-              width={40}
-              height={40}
-              className="object-contain"
-              priority
-            />
-          ) : (
-            <Image
-              src="/intelligence_hub_logo.png"
-              alt="Intelligence Hub"
-              width={180}
-              height={48}
-              className="object-contain"
-              priority
-            />
-          )}
-        </div>
+        {!collapsed ? (
+          <div className="flex flex-col">
+            <h1 className="text-slate-100 font-semibold text-base leading-tight">Composites One</h1>
+            <p className="text-slate-400 text-xs">Intelligence Hub</p>
+          </div>
+        ) : (
+          <div className="flex items-center justify-center w-full">
+            <span className="text-slate-100 font-bold text-lg">C1</span>
+          </div>
+        )}
       </div>
 
       {/* Navigation */}

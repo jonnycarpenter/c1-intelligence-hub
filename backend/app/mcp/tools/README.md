@@ -19,7 +19,7 @@ If you are building a data collector for the ingestion pipeline, use `app/tools/
 - `exa_search.py` - Web search via Exa.ai
 - `tavily_search.py` - Web search via Tavily
 - `google_trends.py` - Search trends analysis
-- `stocknews_api.py` - On-demand news retrieval
+- `stocknews_api.py` - On-demand news retrieval (instrumented with retries/metrics)
 
 ### Specialized Research
 - `api_ninja_earnings.py` - Earnings transcript search

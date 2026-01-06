@@ -47,7 +47,7 @@ const modeConfig: Record<Mode, { icon: typeof Activity; title: string; subtitle:
   pipeline: {
     icon: GitBranch,
     title: 'Pipeline',
-    subtitle: 'Contacts & prospects',
+    subtitle: 'Companies, Prospects, and Decision Makers',
     color: 'text-slate-500',
     bg: 'bg-slate-100',
   },
@@ -91,22 +91,22 @@ interface AppHeaderProps {
 export default function AppHeader({ activeMode, onRefresh, isRefreshing = false }: AppHeaderProps) {
   const config = modeConfig[activeMode]
   const Icon = config.icon
-  
+
   // User info from localStorage
   const [userName, setUserName] = useState<string>('')
   const [userTeam, setUserTeam] = useState<string>('')
   const [showUserMenu, setShowUserMenu] = useState(false)
-  
+
   useEffect(() => {
     setUserName(localStorage.getItem('userName') || '')
     setUserTeam(localStorage.getItem('userTeam') || '')
   }, [])
-  
+
   const handleLogout = () => {
     sessionStorage.removeItem('c1_hub_authenticated')
     window.location.reload()
   }
-  
+
   // Get initials from name
   const getInitials = (name: string) => {
     if (!name || !name.trim()) return '??'
@@ -147,7 +147,7 @@ export default function AppHeader({ activeMode, onRefresh, isRefreshing = false 
 
         {/* User indicator with dropdown */}
         <div className="relative">
-          <button 
+          <button
             onClick={() => setShowUserMenu(!showUserMenu)}
             className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
           >
@@ -164,7 +164,7 @@ export default function AppHeader({ activeMode, onRefresh, isRefreshing = false 
               </div>
             )}
           </button>
-          
+
           {/* Dropdown menu */}
           {showUserMenu && (
             <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-50">

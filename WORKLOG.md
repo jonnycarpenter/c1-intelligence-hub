@@ -4,6 +4,286 @@ This file tracks completed work and open items across AI assistant sessions.
 
 ---
 
+## Session 29 (January 5, 2026) - Phase 4: BigQuery Persistence & Memory Integration ✅
+
+### 📋 Context
+
+Implemented persistent storage for Deep Research reports and memory/context integration to avoid redundant research. This completes Phase 4 of the Deep Research workflow.
+
+### ✅ Completed
+
+1. **BigQuery Table Schema for Deep Research Reports** 🎉
+   - **File**: [gcp_storage.py](backend/app/db/gcp_storage.py)
+   - New `deep_research_reports` table with:
+     - Full report serialization (JSON blobs for flexibility)
+     - Entity extraction (companies, industries, topics, products)
+     - Validation metadata (citation counts, confidence levels)
+     - Performance metrics (research time, sources count)
+     - Query embedding field for future semantic search
+
+2. **BigQuery Storage Methods** 🎉
+   - **File**: [gcp_storage.py](backend/app/db/gcp_storage.py)
+   - `store_deep_research_report()` - Persist completed reports
+   - `get_deep_research_report_by_hash()` - Lookup by query hash (cache tier 2)
+   - `get_deep_research_reports()` - List reports with pagination
+   - `get_deep_research_report_by_id()` - Fetch full report
+   - `search_related_research()` - Find related past reports by entity/text matching
+
+3. **Research Memory Service** 🎉
+   - **File**: [memory.py](backend/app/agents/research/memory.py) - **NEW**
+   - `ResearchMemory` class with:
+     - Two-tier caching (in-memory 1h, BigQuery 24h)
+     - Related research discovery for context enrichment
+     - `format_context_for_prompt()` for injecting prior research into agent prompts
+   - Singleton pattern via `get_research_memory()`
+
+4. **Two-Tier Cache Integration** 🎉
+   - **File**: [deep_research.py](backend/app/api/routes/deep_research.py)
+   - Tier 1: In-memory cache (existing, 1 hour TTL)
+   - Tier 2: BigQuery persistent cache (new, 24 hour TTL)
+   - Automatic persistence of completed reports
+   - SSE event `report_saved` with report_id on successful persistence
+
+5. **Saved Reports API Endpoints** 🎉
+   - **File**: [deep_research.py](backend/app/api/routes/deep_research.py)
+   - `GET /api/research/reports` - List saved reports (paginated)
+   - `GET /api/research/reports/{report_id}` - Get full report by ID
+   - `GET /api/research/reports/search/related` - Find related past research
+
+6. **Updated Documentation** 🎉
+   - **File**: [README.md](backend/app/agents/research/README.md)
+   - Added two-tier caching documentation
+   - Added Research Memory Service usage examples
+   - Added Saved Reports API reference
+
+### 📁 Files Modified
+- [backend/app/db/gcp_storage.py](backend/app/db/gcp_storage.py) - Table schema + storage methods
+- [backend/app/agents/research/memory.py](backend/app/agents/research/memory.py) - **NEW** memory service
+- [backend/app/api/routes/deep_research.py](backend/app/api/routes/deep_research.py) - Cache tiers + endpoints
+- [backend/app/agents/research/README.md](backend/app/agents/research/README.md) - Documentation
+
+### ✅ Verification
+
+```bash
+cd backend
+python -c "from app.agents.research.memory import get_research_memory; from app.api.routes.deep_research import router; print('All imports OK')"
+# All imports OK
+# Endpoints: ['/run', '/cache/stats', '/cache/clear', '/observability/status', '/tools/health', '/reports', '/reports/{report_id}', '/reports/search/related']
+```
+
+### 🔧 Next Steps
+1. **Deploy to Cloud Run** - Push to main to trigger CI/CD
+2. **Test E2E** - Run full workflow and verify BigQuery persistence
+3. **Frontend integration** - Add "Saved Reports" tab or history view
+4. **Context injection** - Wire `find_related_research()` into groomer prompts for richer context
+5. **Semantic search** - Generate query embeddings for better related research matching
+
+---
+
+## Session 28 (January 5, 2026) - API Reliability & Tool Health ✅
+
+### 📋 Context
+
+Addressed flaky external APIs (StockNewsAPI 422s, Google Trends 429s) by adding centralized retries, graceful degradation, and observability.
+
+### ✅ Completed
+
+1. **Centralized Retry Utilities** 🎉
+   - **File**: [retry.py](backend/app/utils/retry.py)
+   - Exponential backoff with jitter, rate-limit helper, skip-on-failure wrapper, and in-memory tool metrics.
+
+2. **StockNewsAPI Hardening** 🎉
+   - **File**: [stocknews_api.py](backend/app/mcp/tools/stocknews_api.py)
+   - Added skip-on-failure + retries + latency/error metrics to: `get_company_news`, `search_news_keyword`, `get_press_releases`, `get_analyst_ratings`.
+   - Error paths now raise to trigger skip behavior; no-data paths record successes.
+
+3. **Google Trends Rate-Limit Handling** 🎉
+   - **File**: [google_trends.py](backend/app/mcp/tools/google_trends.py)
+   - Added rate-limit-aware retry and metrics; marked as skip-on-failure to avoid blocking workflows.
+
+4. **Tool Health Endpoint** 🎉
+   - **File**: [deep_research.py](backend/app/api/routes/deep_research.py)
+   - New `GET /api/research/tools/health` returns success rates, latency, and recent errors by tool with simple health categorization.
+
+5. **Config Fix** 🎉
+   - StockNewsAPI key added to Cloud Run env as `STOCKNEWS_API_KEY` (was only in Secret Manager before).
+
+### 📁 Files Modified
+- [backend/app/utils/retry.py](backend/app/utils/retry.py) - **NEW** retry utilities and metrics
+- [backend/app/mcp/tools/stocknews_api.py](backend/app/mcp/tools/stocknews_api.py) - Added retries, metrics, skip-on-failure
+- [backend/app/mcp/tools/google_trends.py](backend/app/mcp/tools/google_trends.py) - Added rate-limit retries and metrics
+- [backend/app/api/routes/deep_research.py](backend/app/api/routes/deep_research.py) - Added tool health endpoint
+
+### 🔧 Next Steps
+1. Monitor `GET /api/research/tools/health` after traffic to confirm success rates and latency.
+2. Add targeted tests for retry/skip paths (especially StockNewsAPI 422 and Google Trends 429 scenarios).
+3. Consider surfacing tool health in the frontend dashboard.
+
+---
+
+## Session 27 (January 5, 2026) - Phase 2 Output Display (Category & Validation) 🎉
+
+### 📋 Context
+
+Continued from Session 26. The backend Phase 2 outputs (Category Agent & Validator Agent) were flowing through SSE but not displayed in the UI. This session builds components to visualize territory insights, product recommendations, sales plays, and validation results.
+
+### ✅ Completed
+
+1. **Created TerritoryInsights Component** 🎉
+   - **File**: [TerritoryInsights.tsx](frontend/src/components/research/TerritoryInsights.tsx)
+   - Visual East/West territory relevance scores with progress bars
+   - "Top Match" badge for highest-scoring territory
+   - Territory summaries with industry focus indicators
+   - Industry tags (Aerospace, Wind, Automotive, Defense for East; Marine, RVs, Spas for West)
+
+2. **Created ProductRecommendations Component** 🎉
+   - **File**: [ProductRecommendations.tsx](frontend/src/components/research/ProductRecommendations.tsx)
+   - Grid layout with relevance score badges
+   - High-relevance indicator (70%+ threshold)
+   - "Ask About Product" buttons wired to research query
+   - Datasheet link placeholders
+   - Rationale text for each recommendation
+
+3. **Created SalesPlays Component** 🎉
+   - **File**: [SalesPlays.tsx](frontend/src/components/research/SalesPlays.tsx)
+   - Accordion interface for sales plays
+   - Hook section with copy-to-clipboard
+   - Objection handlers list
+   - Industry talking points section
+   - First play auto-expanded
+
+4. **Created ValidationBadge Component** 🎉
+   - **File**: [ValidationBadge.tsx](frontend/src/components/research/ValidationBadge.tsx)
+   - Collapsible badge showing validation status (passed/failed)
+   - Issue counter badge
+   - Color-coded sections:
+     - Red: Unsubstantiated claims (critical)
+     - Amber: Citation issues
+     - Blue: Confidence adjustments
+     - Gray: General warnings
+   - "All Clear" message when no issues found
+
+5. **Updated ResearchCanvas** 🎉
+   - **File**: [ResearchCanvas.tsx](frontend/src/components/research/ResearchCanvas.tsx)
+   - Added imports for all 4 new components
+   - Conditional rendering based on data availability
+   - Proper prop passing for `onAskAbout` integration
+
+### 📁 Files Modified
+- [frontend/src/components/research/TerritoryInsights.tsx](frontend/src/components/research/TerritoryInsights.tsx) - **NEW**
+- [frontend/src/components/research/ProductRecommendations.tsx](frontend/src/components/research/ProductRecommendations.tsx) - **NEW**
+- [frontend/src/components/research/SalesPlays.tsx](frontend/src/components/research/SalesPlays.tsx) - **NEW**
+- [frontend/src/components/research/ValidationBadge.tsx](frontend/src/components/research/ValidationBadge.tsx) - **NEW**
+- [frontend/src/components/research/ResearchCanvas.tsx](frontend/src/components/research/ResearchCanvas.tsx) - Phase 2 display logic
+- [frontend/src/components/research/index.ts](frontend/src/components/research/index.ts) - Export new components
+
+### ✅ Build Verification
+
+```bash
+cd frontend && npm run build
+# ✅ Compiled successfully
+```
+
+### 🎨 UI Features
+
+**Territory Insights:**
+- Side-by-side East/West comparison cards
+- Animated progress bars
+- Industry focus tags dynamically shown
+
+**Product Recommendations:**
+- Grid layout (2 columns on desktop)
+- Relevance percentage badges
+- Direct integration with research chat
+
+**Sales Plays:**
+- Expandable accordion
+- Copy-to-clipboard for hooks
+- Numbered objection handlers
+
+**Validation Badge:**
+- Non-intrusive collapsed state
+- Expandable to show all issues
+- Clear visual hierarchy (critical → warnings)
+
+### 🔧 Next Steps
+1. E2E test with full workflow to see all Phase 2 components
+2. Consider adding export functionality for sales plays
+3. Phase 4: BigQuery persistence for saved reports
+4. Phase 4: Memory/context integration
+
+---
+
+## Session 26 (January 5, 2026) - Frontend SSE Integration for Deep Research 🎉
+
+### 📋 Context
+
+Continued from Session 25. The Deep Research workflow now runs end-to-end in the backend. This session adds frontend integration for real-time progress tracking via SSE events.
+
+### ✅ Completed
+
+1. **Added TypeScript Types for SSE Events** 🎉
+   - **File**: [types/index.ts](frontend/src/types/index.ts)
+   - Added `ToolProgressEvent`, `NodeProgressEvent`, `CacheHitEvent` types
+   - Added `CategoryOutput`, `ValidationOutput` types for Phase 2 outputs
+   - Added `DeepResearchReport` with full typing
+   - Added `NodeStatus` and `DeepResearchNode` for workflow node tracking
+
+2. **Updated useDeepResearch Hook** 🎉
+   - **File**: [hooks/useDeepResearch.ts](frontend/src/hooks/useDeepResearch.ts)
+   - Now handles ALL SSE event types: `status`, `cache_hit`, `node_start`, `node_complete`, `tool_progress`, `clarification`, `report`, `category`, `validation`, `warnings`, `error`
+   - Added `toolProgress[]` state to track recent tool activity (last 20 events)
+   - Added `nodeStatuses[]` state to track all workflow nodes
+   - Added `activeNode`, `isCacheHit`, `categoryOutput`, `validationOutput`
+   - Added `cancelResearch()` method with AbortController support
+   - Proper error handling for abort signals
+
+3. **Created ResearchProgress Component** 🎉
+   - **File**: [components/research/ResearchProgress.tsx](frontend/src/components/research/ResearchProgress.tsx)
+   - Visual pipeline showing all 6 workflow nodes with status indicators
+   - Icons and friendly labels for each node (Query Analysis, Financial Research, etc.)
+   - Parallel execution indicator when Financial + Industry run together
+   - Live Activity feed showing recent tool executions
+   - Human-friendly tool labels (e.g., "Earnings Transcript" instead of "get_earnings_transcript_ninja")
+   - Pulsing dot indicator for active tools
+
+4. **Updated ResearchCanvas and ResearchDashboard** 🎉
+   - **Files**: [ResearchCanvas.tsx](frontend/src/components/research/ResearchCanvas.tsx), [ResearchDashboard.tsx](frontend/src/components/research/ResearchDashboard.tsx)
+   - Added props for all progress tracking state
+   - Integrated ResearchProgress component for active research
+   - Added Cancel Research button
+   - Added error state display with retry option
+   - Fallback to simple spinner if nodeStatuses not available
+
+5. **Updated Page.tsx** 🎉
+   - **File**: [app/page.tsx](frontend/src/app/page.tsx)
+   - Destructured all new hook values
+   - Passed all props to ResearchDashboard
+
+### 📁 Files Modified
+- [frontend/src/types/index.ts](frontend/src/types/index.ts) - SSE event types
+- [frontend/src/hooks/useDeepResearch.ts](frontend/src/hooks/useDeepResearch.ts) - Full SSE event handling
+- [frontend/src/components/research/ResearchProgress.tsx](frontend/src/components/research/ResearchProgress.tsx) - **NEW** Progress visualization
+- [frontend/src/components/research/ResearchCanvas.tsx](frontend/src/components/research/ResearchCanvas.tsx) - Progress integration
+- [frontend/src/components/research/ResearchDashboard.tsx](frontend/src/components/research/ResearchDashboard.tsx) - Prop passing
+- [frontend/src/components/research/index.ts](frontend/src/components/research/index.ts) - Export new component
+- [frontend/src/app/page.tsx](frontend/src/app/page.tsx) - Hook wiring
+
+### ✅ Build Verification
+
+```bash
+cd frontend && npm run build
+# ✅ Compiled successfully
+```
+
+### 🔧 Next Steps
+1. Manual E2E test with backend running
+2. Consider adding estimated time remaining per node
+3. Phase 4: BigQuery persistence for saved reports
+4. Phase 4: Memory/context integration to avoid redundant fetches
+
+---
+
 ## Session 25 (January 5, 2026) - Deep Research Workflow Fixed! 🎉
 
 ### 📋 Context

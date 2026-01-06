@@ -18,6 +18,7 @@ Reusable utility modules used across ingestion, agents, and API layers.
 
 ### Infrastructure
 - `logger.py` - Centralized logging configuration
+- `retry.py` - Exponential backoff, rate-limit helpers, skip-on-failure wrapper, and in-memory tool metrics
 
 ## Usage Guidelines
 - **Stateless functions only** - No class-based utilities

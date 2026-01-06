@@ -81,6 +81,7 @@ When adding a new API key/secret:
 | **Deep Research agents** | `app/agents/research/*.py` |
 | **Deep Research state schemas** | `app/agents/research/state.py` |
 | **Deep Research progress** | `app/agents/research/progress.py` |
+| **Deep Research memory (Phase 4)** | `app/agents/research/memory.py` |
 | **Deep Research API route** | `app/api/routes/deep_research.py` |
 
 ## README Documentation Index
@@ -146,6 +147,7 @@ claude-sonnet-4-5                 claude-opus-4-5
 | `digest_items` | Classified articles with summaries |
 | `article_tags` | Normalized tags for trending analytics |
 | `companies` | Tracked companies (tickers, names) |
+| `deep_research_reports` | **Saved Deep Research reports (Phase 4)** |
 
 ## Don't Touch (Bug Fix Protected)
 
@@ -154,6 +156,20 @@ These files have critical bug fixes - be careful editing:
 - `app/models/corpus.py` - feed_eligible field
 
 ## Recent Changes (January 5, 2026)
+
+### Session 29 - Phase 4: BigQuery Persistence & Memory Integration ✅
+- Added `deep_research_reports` BigQuery table for persistent report storage
+- Created `ResearchMemory` service (`app/agents/research/memory.py`) for two-tier caching and context integration
+- Two-tier cache: in-memory (1h TTL) + BigQuery (24h TTL)
+- New API endpoints: `GET /api/research/reports`, `GET /api/research/reports/{id}`, `GET /api/research/reports/search/related`
+- Automatic persistence of completed reports with SSE event `report_saved`
+
+### Session 28 - API Reliability & Tool Health ✅
+- Added centralized retry utilities with exponential backoff, rate-limit handling, and default skipping for non-critical tools (`app/utils/retry.py`).
+- Wrapped StockNewsAPI tools (news, keyword search, press releases, analyst ratings) with retries, metrics, and skip-on-failure so research flow degrades gracefully.
+- Wrapped Google Trends tool with rate-limit-aware retry and metrics.
+- Added tool health endpoint `GET /api/research/tools/health` returning success rates, latency, and recent errors for instrumented tools.
+- Note: StockNewsAPI key must be set via `STOCKNEWS_API_KEY` in Cloud Run env (now configured).
 
 ### Session 26 - Pulse UX Enhancements ✅
 - **Visual Dimensionality**: Added `slate-50` background to "Need to Know" column in Pulse dashboard for better separation.
@@ -179,6 +195,21 @@ These files have critical bug fixes - be careful editing:
 - **LangSmith Config**: Added `RunnableConfig` with metadata to workflow invocation
 - **Run Metadata**: `run_id`, `query_hash`, `timestamp`, tags for filtering
 - **Observability Endpoint**: `GET /api/deep-research/observability/status`
+
+### Session 27 - Phase 2 Output Display ✅
+- **TerritoryInsights**: East/West relevance scores with visual progress bars
+- **ProductRecommendations**: Grid with relevance badges, "Ask About" integration
+- **SalesPlays**: Accordion with copy-to-clipboard hooks, objection handlers
+- **ValidationBadge**: Collapsible validation status with issue breakdown
+- **Files**: `TerritoryInsights.tsx`, `ProductRecommendations.tsx`, `SalesPlays.tsx`, `ValidationBadge.tsx`
+
+### Session 26 - Frontend SSE Integration ✅
+- **ResearchProgress Component**: Visual pipeline showing 6 workflow nodes with status indicators
+- **Live Activity Feed**: Real-time tool execution display (last 20 events)
+- **Parallel Execution Indicator**: Shows when Financial + Industry agents run together
+- **Full SSE Support**: Handles `node_start`, `node_complete`, `tool_progress`, `category`, `validation`, `warnings`
+- **Cancel Support**: AbortController-based request cancellation
+- **Files**: `ResearchProgress.tsx`, `useDeepResearch.ts`, `types/index.ts`
 
 ### Session 20 - Ingestion Throughput Tuning ✅
 - **Lookback Reduced**: 3 days → 2 days for daily scheduled runs (orchestrator.py)

@@ -10,8 +10,10 @@ Uses pytrends library to access Google Trends data.
 
 from typing import Optional, List, Dict, Any
 import json
+import time
 
 from langchain_core.tools import tool
+from app.utils.retry import retry_on_rate_limit, skip_on_failure, tool_metrics
 
 from app.utils.logger import get_logger
 
@@ -30,12 +32,15 @@ def get_google_trends(
     Use this for:
     - Demand signal analysis (is interest in a material/product growing?)
     - Comparing competing materials or companies
-    - Identifying seasonal patterns in search interest
+    @skip_on_failure(default_return={"error": "Google Trends temporarily unavailable", "skipped": True}, log_level="warning")
+    @retry_on_rate_limit(max_retries=3, initial_delay=2.0)
+    def get_google_trends(
     - Tracking brand/company awareness trends
     
     Examples:
     - "Compare interest in carbon fiber vs fiberglass"
     - "What's the trend for epoxy resin searches?"
+        start_time = time.time()
     - "Is Hexcel getting more search interest than Toray?"
     
     Returns interest scores (0-100) over time with trend analysis.

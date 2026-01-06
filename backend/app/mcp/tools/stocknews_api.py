@@ -18,6 +18,8 @@ from langchain_core.tools import tool
 
 from app.config.settings import settings
 from app.utils.logger import get_logger
+from app.utils.retry import retry_with_backoff, skip_on_failure, tool_metrics
+import time
 
 logger = get_logger(__name__)
 
@@ -45,6 +47,7 @@ def _format_article(article: dict) -> dict:
 
 
 @tool
+@skip_on_failure(default_return=json.dumps({"error": "Service temporarily unavailable", "skipped": True}), log_level="warning")
 def get_company_news(
     tickers: List[str],
     days: int = 7,
@@ -74,9 +77,11 @@ def get_company_news(
         published_date, sentiment, tickers, rank_score
     """
     logger.info(f"Fetching company news: tickers={tickers}, days={days}, items={items}")
+    start_time = time.time()
     
     api_key = _get_api_key()
     if not api_key:
+        tool_metrics.record_failure("get_company_news", "API key not configured")
         return json.dumps({"error": "StockNewsAPI key not configured"})
     
     try:
@@ -110,6 +115,9 @@ def get_company_news(
         
         formatted_articles = [_format_article(a) for a in articles]
         
+        duration = time.time() - start_time
+        tool_metrics.record_success("get_company_news", duration)
+        
         return json.dumps({
             "source": "StockNewsAPI",
             "tickers": tickers,
@@ -119,14 +127,22 @@ def get_company_news(
         })
         
     except httpx.HTTPStatusError as e:
-        logger.error(f"StockNewsAPI HTTP error: {e}")
-        return json.dumps({"error": f"HTTP error: {e.response.status_code}"})
+        duration = time.time() - start_time
+        error_msg = f"HTTP {e.response.status_code}: {e.response.text[:200]}"
+        tool_metrics.record_failure("get_company_news", error_msg, duration)
+        logger.error(f"StockNewsAPI HTTP error: {error_msg}")
+        # Raise to trigger skip_on_failure decorator
+        raise
     except Exception as e:
+        duration = time.time() - start_time
+        tool_metrics.record_failure("get_company_news", str(e), duration)
         logger.error(f"StockNewsAPI error: {e}")
-        return json.dumps({"error": str(e)})
+        # Raise to trigger skip_on_failure decorator
+        raise
 
 
 @tool
+@skip_on_failure(default_return=json.dumps({"error": "Service temporarily unavailable", "skipped": True}), log_level="warning")
 def search_news_keyword(
     keyword: str,
     days: int = 30,
@@ -150,11 +166,11 @@ def search_news_keyword(
         JSON string with matching articles
     """
     logger.info(f"Searching news by keyword: keyword={keyword}, days={days}, items={items}")
-    
+    start_time = time.time()
     api_key = _get_api_key()
     if not api_key:
+        tool_metrics.record_failure("search_news_keyword", "API key not configured")
         return json.dumps({"error": "StockNewsAPI key not configured"})
-    
     try:
         url = f"{STOCKNEWS_BASE_URL}/category"
         params = {
@@ -172,6 +188,8 @@ def search_news_keyword(
         
         articles = data.get("data", [])
         if not articles:
+            duration = time.time() - start_time
+            tool_metrics.record_success("search_news_keyword", duration)
             return json.dumps({
                 "message": f"No news found for keyword: {keyword}",
                 "keyword": keyword,
@@ -181,6 +199,9 @@ def search_news_keyword(
         
         formatted_articles = [_format_article(a) for a in articles]
         
+        duration = time.time() - start_time
+        tool_metrics.record_success("search_news_keyword", duration)
+
         return json.dumps({
             "source": "StockNewsAPI",
             "keyword": keyword,
@@ -190,14 +211,20 @@ def search_news_keyword(
         })
         
     except httpx.HTTPStatusError as e:
-        logger.error(f"StockNewsAPI HTTP error: {e}")
-        return json.dumps({"error": f"HTTP error: {e.response.status_code}"})
+        duration = time.time() - start_time
+        error_msg = f"HTTP {e.response.status_code}: {e.response.text[:200]}"
+        tool_metrics.record_failure("search_news_keyword", error_msg, duration)
+        logger.error(f"StockNewsAPI HTTP error: {error_msg}")
+        raise
     except Exception as e:
+        duration = time.time() - start_time
+        tool_metrics.record_failure("search_news_keyword", str(e), duration)
         logger.error(f"StockNewsAPI error: {e}")
-        return json.dumps({"error": str(e)})
+        raise
 
 
 @tool
+@skip_on_failure(default_return=json.dumps({"error": "Service temporarily unavailable", "skipped": True}), log_level="warning")
 def get_press_releases(
     tickers: List[str],
     days: int = 30,
@@ -218,9 +245,10 @@ def get_press_releases(
         JSON string with press release articles
     """
     logger.info(f"Fetching press releases: tickers={tickers}, days={days}, items={items}")
-    
+    start_time = time.time()
     api_key = _get_api_key()
     if not api_key:
+        tool_metrics.record_failure("get_press_releases", "API key not configured")
         return json.dumps({"error": "StockNewsAPI key not configured"})
     
     try:
@@ -240,6 +268,8 @@ def get_press_releases(
         
         articles = data.get("data", [])
         if not articles:
+            duration = time.time() - start_time
+            tool_metrics.record_success("get_press_releases", duration)
             return json.dumps({
                 "message": f"No press releases found for tickers: {tickers}",
                 "tickers": tickers,
@@ -248,7 +278,10 @@ def get_press_releases(
             })
         
         formatted_articles = [_format_article(a) for a in articles]
-        
+
+        duration = time.time() - start_time
+        tool_metrics.record_success("get_press_releases", duration)
+
         return json.dumps({
             "source": "StockNewsAPI Press Releases",
             "tickers": tickers,
@@ -258,14 +291,20 @@ def get_press_releases(
         })
         
     except httpx.HTTPStatusError as e:
-        logger.error(f"StockNewsAPI HTTP error: {e}")
-        return json.dumps({"error": f"HTTP error: {e.response.status_code}"})
+        duration = time.time() - start_time
+        error_msg = f"HTTP {e.response.status_code}: {e.response.text[:200]}"
+        tool_metrics.record_failure("get_press_releases", error_msg, duration)
+        logger.error(f"StockNewsAPI HTTP error: {error_msg}")
+        raise
     except Exception as e:
+        duration = time.time() - start_time
+        tool_metrics.record_failure("get_press_releases", str(e), duration)
         logger.error(f"StockNewsAPI error: {e}")
-        return json.dumps({"error": str(e)})
+        raise
 
 
 @tool
+@skip_on_failure(default_return=json.dumps({"error": "Service temporarily unavailable", "skipped": True}), log_level="warning")
 def get_analyst_ratings(
     tickers: Optional[List[str]] = None,
     items: int = 20,
@@ -284,9 +323,10 @@ def get_analyst_ratings(
         JSON string with analyst rating information
     """
     logger.info(f"Fetching analyst ratings: tickers={tickers}, items={items}")
-    
+    start_time = time.time()
     api_key = _get_api_key()
     if not api_key:
+        tool_metrics.record_failure("get_analyst_ratings", "API key not configured")
         return json.dumps({"error": "StockNewsAPI key not configured"})
     
     try:
@@ -306,6 +346,8 @@ def get_analyst_ratings(
         
         ratings = data.get("data", [])
         if not ratings:
+            duration = time.time() - start_time
+            tool_metrics.record_success("get_analyst_ratings", duration)
             return json.dumps({
                 "message": "No analyst ratings found",
                 "tickers": tickers,
@@ -328,6 +370,9 @@ def get_analyst_ratings(
                 "date": r.get("date", ""),
             })
         
+        duration = time.time() - start_time
+        tool_metrics.record_success("get_analyst_ratings", duration)
+
         return json.dumps({
             "source": "StockNewsAPI Analyst Ratings",
             "tickers": tickers,
@@ -336,11 +381,16 @@ def get_analyst_ratings(
         })
         
     except httpx.HTTPStatusError as e:
-        logger.error(f"StockNewsAPI HTTP error: {e}")
-        return json.dumps({"error": f"HTTP error: {e.response.status_code}"})
+        duration = time.time() - start_time
+        error_msg = f"HTTP {e.response.status_code}: {e.response.text[:200]}"
+        tool_metrics.record_failure("get_analyst_ratings", error_msg, duration)
+        logger.error(f"StockNewsAPI HTTP error: {error_msg}")
+        raise
     except Exception as e:
+        duration = time.time() - start_time
+        tool_metrics.record_failure("get_analyst_ratings", str(e), duration)
         logger.error(f"StockNewsAPI error: {e}")
-        return json.dumps({"error": str(e)})
+        raise
 
 
 @tool

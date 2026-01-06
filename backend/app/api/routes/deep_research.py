@@ -1,12 +1,14 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from app.graph.research_workflow import research_workflow
 from app.agents.research.state import DeepResearchState, QueryStatus
 from app.agents.research.progress import set_progress_callback, ToolProgress
+from app.agents.research.memory import get_research_memory, ResearchMemory
 from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
+from app.utils.retry import tool_metrics
 import json
 import asyncio
 import logging
@@ -172,13 +174,14 @@ async def run_deep_research(request: DeepResearchRequest):
     Trigger the deep research workflow with real-time streaming updates.
     
     Features:
-    - Query-based caching (1 hour TTL) to avoid redundant research
+    - Two-tier caching: in-memory (1 hour) + BigQuery (24 hours)
     - Parallel Financial + Industry agent execution
     - Real-time streaming with granular tool progress
+    - BigQuery persistence for report history
     
     Streams SSE events:
     - type: "status" - High-level workflow progress
-    - type: "cache_hit" - Report served from cache (includes query_hash)
+    - type: "cache_hit" - Report served from cache (includes query_hash, source)
     - type: "node_start" - Node beginning execution (includes parallel indicator)
     - type: "node_complete" - Node finished
     - type: "tool_progress" - Granular tool execution progress  
@@ -186,9 +189,10 @@ async def run_deep_research(request: DeepResearchRequest):
     - type: "report" - Final report payload
     - type: "category" - Sales intelligence output (Phase 2)
     - type: "validation" - Citation validation results (Phase 2)
+    - type: "related_research" - Prior related reports found (memory integration)
     - type: "error" - Error details
     """
-    # Check cache first
+    # Tier 1: Check in-memory cache first (fastest)
     cached_state = _report_cache.get(request.query)
     if cached_state:
         # Return cached report via streaming (for UI consistency)
@@ -196,7 +200,8 @@ async def run_deep_research(request: DeepResearchRequest):
             yield _emit_event("status", "Loading cached report...")
             yield _emit_event("cache_hit", {
                 "query_hash": ReportCache.compute_hash(request.query),
-                "message": "Report loaded from cache"
+                "source": "memory",
+                "message": "Report loaded from in-memory cache"
             })
             
             # Re-emit the cached results
@@ -214,6 +219,40 @@ async def run_deep_research(request: DeepResearchRequest):
         
         return StreamingResponse(
             cached_generator(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            }
+        )
+    
+    # Tier 2: Check BigQuery persistent cache (24h TTL)
+    memory = await get_research_memory()
+    bq_cached = await memory.get_cached_report(request.query)
+    if bq_cached:
+        async def bq_cached_generator():
+            yield _emit_event("status", "Loading saved report...")
+            yield _emit_event("cache_hit", {
+                "query_hash": bq_cached.get("query_hash"),
+                "report_id": bq_cached.get("id"),
+                "source": "bigquery",
+                "message": "Report loaded from saved reports"
+            })
+            
+            # Re-emit from stored JSON
+            if bq_cached.get("final_report"):
+                yield _emit_event("report", bq_cached["final_report"])
+            if bq_cached.get("category_output"):
+                yield _emit_event("category", bq_cached["category_output"])
+            if bq_cached.get("validator_output"):
+                yield _emit_event("validation", bq_cached["validator_output"])
+            
+            yield _emit_event("status", "Research complete (saved report).")
+            yield "data: [DONE]\n\n"
+        
+        return StreamingResponse(
+            bq_cached_generator(),
             media_type="text/event-stream",
             headers={
                 "Cache-Control": "no-cache",
@@ -390,8 +429,26 @@ async def run_deep_research(request: DeepResearchRequest):
                 
                 # Cache the successful result for future queries
                 if final_state.get("final_report"):
+                    # Tier 1: In-memory cache (fast, 1 hour TTL)
                     query_hash = _report_cache.set(request.query, final_state)
-                    logger.info(f"Cached research report: hash={query_hash}, query='{request.query[:50]}...'")
+                    logger.info(f"Cached research report (memory): hash={query_hash}, query='{request.query[:50]}...'")
+                    
+                    # Tier 2: BigQuery persistence (durable, 24 hour TTL)
+                    try:
+                        report_id = str(uuid.uuid4())
+                        await memory.store_report(
+                            report_id=report_id,
+                            query=request.query,
+                            state=final_state,
+                        )
+                        logger.info(f"Persisted research report (BigQuery): id={report_id}")
+                        yield _emit_event("report_saved", {
+                            "report_id": report_id,
+                            "query_hash": query_hash,
+                        })
+                    except Exception as persist_error:
+                        logger.warning(f"Failed to persist report to BigQuery: {persist_error}")
+                        # Non-fatal - in-memory cache still works
             
             yield _emit_event("status", "Research complete.")
             yield "data: [DONE]\n\n"
@@ -467,4 +524,157 @@ async def get_observability_status():
             "Each run includes metadata: run_id, query_hash, timestamp",
             "Filter by tag: 'deep_research' in LangSmith dashboard",
         ] if langsmith_enabled else ["LangSmith not configured - add LANGCHAIN_API_KEY to .env"],
+    }
+
+
+@router.get("/tools/health")
+async def get_tool_health():
+    """
+    Get tool performance metrics and health status.
+    
+    Returns success/failure rates, average latency, and recent errors
+    for all instrumented tools (StockNewsAPI, Google Trends, etc.)
+    """
+    stats = tool_metrics.get_stats()
+    
+    # Calculate overall health score
+    if not stats:
+        return {
+            "status": "no_data",
+            "message": "No tool executions recorded yet",
+            "tools": {},
+        }
+    
+    # Aggregate health info
+    healthy_tools = []
+    degraded_tools = []
+    failing_tools = []
+    
+    for tool_name, tool_stats in stats.items():
+        success_rate = tool_stats.get("success_rate", 0)
+        
+        if success_rate >= 95:
+            healthy_tools.append(tool_name)
+        elif success_rate >= 70:
+            degraded_tools.append(tool_name)
+        else:
+            failing_tools.append(tool_name)
+    
+    # Determine overall status
+    if failing_tools:
+        overall_status = "degraded"
+    elif degraded_tools:
+        overall_status = "partial"
+    else:
+        overall_status = "healthy"
+    
+    return {
+        "status": overall_status,
+        "summary": {
+            "healthy": len(healthy_tools),
+            "degraded": len(degraded_tools),
+            "failing": len(failing_tools),
+        },
+        "healthy_tools": healthy_tools,
+        "degraded_tools": degraded_tools,
+        "failing_tools": failing_tools,
+        "tools": stats,
+        "notes": [
+            "Healthy: ≥95% success rate",
+            "Degraded: 70-94% success rate",
+            "Failing: <70% success rate",
+            "Metrics reset on server restart",
+        ],
+    }
+
+# =============================================================================
+# Saved Reports Endpoints (Phase 4)
+# =============================================================================
+
+@router.get("/reports")
+async def list_saved_reports(
+    user_id: Optional[str] = Query(None, description="Filter by user ID"),
+    limit: int = Query(20, ge=1, le=100, description="Max reports to return"),
+    offset: int = Query(0, ge=0, description="Pagination offset"),
+):
+    """
+    List saved deep research reports.
+    
+    Returns report summaries (not full content) for browsing.
+    Use GET /reports/{report_id} to fetch full report.
+    """
+    memory = await get_research_memory()
+    reports = await memory.get_recent_reports(
+        user_id=user_id,
+        limit=limit,
+        offset=offset,
+    )
+    
+    return {
+        "total": len(reports),  # Note: This is the returned count, not total in DB
+        "limit": limit,
+        "offset": offset,
+        "reports": reports,
+    }
+
+
+@router.get("/reports/{report_id}")
+async def get_saved_report(report_id: str):
+    """
+    Get a specific saved research report by ID.
+    
+    Returns full report including all outputs (financial, industry,
+    synthesis, category, validation).
+    """
+    memory = await get_research_memory()
+    report = await memory.get_report_by_id(report_id)
+    
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    
+    return report
+
+
+@router.get("/reports/search/related")
+async def search_related_reports(
+    query: str = Query(..., description="Query to find related reports for"),
+    companies: Optional[str] = Query(None, description="Comma-separated company names"),
+    industries: Optional[str] = Query(None, description="Comma-separated industries"),
+    limit: int = Query(5, ge=1, le=20, description="Max related reports to return"),
+):
+    """
+    Find related past research reports.
+    
+    Useful for:
+    - Checking if similar research already exists
+    - Finding context for new research
+    - Avoiding redundant work
+    
+    Searches by:
+    - Query text similarity
+    - Company overlap
+    - Industry overlap
+    """
+    memory = await get_research_memory()
+    
+    company_list = [c.strip() for c in companies.split(",")] if companies else None
+    industry_list = [i.strip() for i in industries.split(",")] if industries else None
+    
+    related = await memory.find_related_research(
+        query=query,
+        companies=company_list,
+        industries=industry_list,
+    )
+    
+    # Limit results
+    related = related[:limit]
+    
+    return {
+        "query": query,
+        "filters": {
+            "companies": company_list,
+            "industries": industry_list,
+        },
+        "count": len(related),
+        "related_reports": related,
     }

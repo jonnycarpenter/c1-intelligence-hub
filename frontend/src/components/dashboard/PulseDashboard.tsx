@@ -175,7 +175,7 @@ export default function PulseDashboard({
         </div>
 
         {/* Right Column: Need to Know (Briefings) */}
-        <div className="flex-1 overflow-y-auto p-6 pb-10 space-y-6 bg-slate-50 rounded-2xl border border-slate-100/60">
+        <div className="flex-1 overflow-y-auto p-6 pb-10 space-y-4 bg-slate-50 rounded-2xl border border-slate-100/60">
           {/* Ad Hoc Quick Briefing Input */}
           <AdHocBriefing
             context={adHocContext}
