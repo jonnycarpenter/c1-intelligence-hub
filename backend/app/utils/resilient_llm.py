@@ -411,14 +411,18 @@ class ResilientAsyncClient:
         # Try Anthropic first
         try:
             start = time.time()
-            response = await self.anthropic_client.messages.create(
-                model=model,
-                max_tokens=max_tokens,
-                messages=messages,
-                system=system,
-                temperature=temperature,
+            # Build params dict - only include system if provided (SDK 0.75.0+ requires this)
+            anthropic_params = {
+                "model": model,
+                "max_tokens": max_tokens,
+                "messages": messages,
+                "temperature": temperature,
                 **kwargs,
-            )
+            }
+            if system:
+                anthropic_params["system"] = system
+            
+            response = await self.anthropic_client.messages.create(**anthropic_params)
             elapsed = time.time() - start
             logger.debug(f"Anthropic ({model}) succeeded in {elapsed:.2f}s")
             return response

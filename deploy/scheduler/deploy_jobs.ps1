@@ -1,3 +1,10 @@
+# =============================================================================
+# Cloud Scheduler Jobs Deployment Script
+# =============================================================================
+# IMPORTANT: Cloud Scheduler max timeout is 30 minutes (1800s)
+# IMPORTANT: JSON body must use escaped quotes for PowerShell: '{\"key\": \"value\"}'
+# =============================================================================
+
 $ProjectId = "gen-lang-client-0436975498"
 $Region = "us-central1"
 $ServiceName = "c1-hub"
@@ -18,29 +25,41 @@ if (-not $ServiceUrl) {
 }
 
 # Jobs Configuration
+# NOTE: Body must use escaped quotes for PowerShell → gcloud compatibility
+# Cloud Scheduler max timeout is 1800s (30 min) - DO NOT EXCEED
 $Jobs = @(
     @{
         Name        = "ingest-flash-update"
         Schedule    = "0 */4 * * *"
         Uri         = "$ServiceUrl/api/v1/scheduler/ingest"
-        Body        = '{"sources": ["rss", "stocknews", "freight"]}'
-        Timeout     = "900s"
+        # PowerShell requires escaped quotes for JSON to pass correctly to gcloud
+        Body        = '{\"sources\": [\"rss\", \"stocknews\", \"freight\"]}'
+        Timeout     = "900s"  # 15 min - flash jobs are lighter
         Description = "Flash Loop: Frequent updates for fast-moving data (RSS, StockNews, Freight)"
     },
     @{
         Name        = "ingest-deep-dive"
         Schedule    = "0 8 * * *" # 8 AM UTC = 2 AM CST (Standard Time)
         Uri         = "$ServiceUrl/api/v1/scheduler/ingest"
-        Body        = '{"sources": ["tavily", "sec", "earnings", "press_releases", "rss", "stocknews"]}'
-        Timeout     = "3600s"
+        Body        = '{\"sources\": [\"industry_queries\", \"rss\", \"sec\", \"earnings\", \"stocknews\", \"tavily\"]}'
+        Timeout     = "1800s"  # 30 min MAX - deep ingestion needs full time
         Description = "Deep Loop: Comprehensive daily ingestion (Web Search, SEC, Earnings)"
     },
     @{
+        Name        = "daily-evening-ingest"
+        Schedule    = "0 2 * * *" # 2 AM UTC = 8 PM CST
+        Timezone    = "America/Chicago"
+        Uri         = "$ServiceUrl/api/v1/scheduler/ingest"
+        Body        = '{\"sources\": [\"industry_queries\", \"rss\", \"sec\"]}'
+        Timeout     = "1800s"  # 30 min MAX
+        Description = "Evening Loop: Second daily ingestion run"
+    },
+    @{
         Name        = "weekly-executive-briefing"
-        Schedule    = "30 14 * * 1" # 14:30 UTC = 8:30 AM CST
+        Schedule    = "30 14 * * 1" # 14:30 UTC = 8:30 AM CST on Mondays
         Uri         = "$ServiceUrl/api/v1/scheduler/briefing"
         Body        = '{}'
-        Timeout     = "900s"
+        Timeout     = "900s"  # 15 min - briefing generation
         Description = "Briefing Job: Generates weekly 'Need to Know' report"
     }
 )

@@ -4,6 +4,209 @@ This file tracks completed work and open items across AI assistant sessions.
 
 ---
 
+## ⚠️ CRITICAL PRIORITY: Ingestion Pipeline Reliability
+
+**The single most critical thing in any workstream is getting the ingestion pipelines working correctly—for every run, for every day.**
+
+Without reliable daily ingestion:
+- The Pulse page shows stale data
+- Deep Research has no fresh context
+- Weekly briefings have nothing to summarize
+- The entire product value proposition breaks down
+
+**Always verify scheduler jobs are running before working on features.**
+
+---
+
+## Session 39 (January 6, 2026) - Scheduler Job Investigation & Fixes 🔧🚨
+
+### 📋 Context
+
+Investigated why Cloud Scheduler daily ingestion jobs weren't running. Discovered multiple issues with job configuration.
+
+### 🔍 Root Cause Analysis
+
+**Issue 1: Malformed JSON Bodies**
+- Cloud Scheduler jobs had invalid JSON in message bodies
+- PowerShell escaping issues when using `gcloud scheduler jobs update`
+- Bodies looked like `{sources: [rss, sec]}` instead of `{"sources": ["rss", "sec"]}`
+- Result: HTTP 422 (Unprocessable Entity) from FastAPI validation
+
+**Issue 2: Timeout Configuration**
+- Some jobs had 180s (3 min) timeout
+- Ingestion routinely takes 5-15+ minutes
+- Result: DEADLINE_EXCEEDED errors
+
+**Issue 3: 🚨 CRITICAL - Anthropic SDK `system` Parameter Bug**
+- **File**: `backend/app/utils/resilient_llm.py` line ~413
+- Anthropic SDK 0.75.0 changed how `system` parameter works
+- Error: `'system: Input should be a valid list'`
+- **Impact**: ALL classification calls failing - articles stored without classification
+- **Cause**: `messages_create()` passes `system=system` even when `system=None`
+- **Fix Required**: Only include `system` kwarg when it has a value
+
+```python
+# BROKEN (current):
+response = await self.anthropic_client.messages.create(
+    model=model,
+    max_tokens=max_tokens,
+    messages=messages,
+    system=system,  # <-- Passes None, SDK rejects it
+    temperature=temperature,
+)
+
+# FIX NEEDED:
+create_kwargs = {
+    "model": model,
+    "max_tokens": max_tokens,
+    "messages": messages,
+    "temperature": temperature,
+}
+if system:
+    create_kwargs["system"] = system
+response = await self.anthropic_client.messages.create(**create_kwargs)
+```
+
+### ✅ Fixes Applied
+
+1. **Fixed JSON bodies** for all scheduler jobs using escaped quotes:
+   ```powershell
+   --message-body='{\"sources\": [\"rss\", \"stocknews\"]}'
+   ```
+
+2. **Updated timeouts**:
+   - `ingest-flash-update`: 900s (15 min)
+   - `ingest-deep-dive`: 1800s (30 min MAX)
+   - `daily-evening-ingest`: 1800s (30 min MAX)
+
+3. **Updated deployment script** ([deploy/scheduler/deploy_jobs.ps1](deploy/scheduler/deploy_jobs.ps1)):
+   - Added comments about Cloud Scheduler 30-min max timeout
+   - Fixed JSON escaping for PowerShell → gcloud compatibility
+   - Added `daily-evening-ingest` job definition
+
+4. **Paused scheduler jobs** to prevent bad data:
+   ```powershell
+   gcloud scheduler jobs pause ingest-deep-dive --location=us-central1 --project=gen-lang-client-0436975498
+   gcloud scheduler jobs pause daily-evening-ingest --location=us-central1 --project=gen-lang-client-0436975498
+   gcloud scheduler jobs pause ingest-flash-update --location=us-central1 --project=gen-lang-client-0436975498
+   ```
+
+### 🚨 IMMEDIATE TODO (Next Session)
+
+1. ~~**FIX `resilient_llm.py`**~~ - ✅ **ALREADY FIXED** in local repo (see git diff)
+   - The `messages_create` method now conditionally includes `system` parameter
+   - Uses `anthropic_params` dict with `if system:` check before adding
+2. **Deploy fix** - `git push` to trigger Cloud Build (FIX IS LOCAL ONLY - NOT YET IN PROD)
+3. **Resume scheduler jobs**:
+   ```powershell
+   gcloud scheduler jobs resume ingest-flash-update --location=us-central1 --project=gen-lang-client-0436975498
+   gcloud scheduler jobs resume ingest-deep-dive --location=us-central1 --project=gen-lang-client-0436975498
+   gcloud scheduler jobs resume daily-evening-ingest --location=us-central1 --project=gen-lang-client-0436975498
+   ```
+4. **Manually trigger a test run** to verify end-to-end:
+   ```powershell
+   curl -X POST "https://c1-hub-4iz75bvpyq-uc.a.run.app/api/v1/scheduler/ingest" -H "Content-Type: application/json" -d '{"sources": ["rss"]}'
+   ```
+5. **Monitor Cloud Run logs** to confirm classification succeeds (no `system: Input should be a valid list` errors)
+
+### 📊 Current Scheduler Jobs (ALL PAUSED)
+
+| Job | Schedule | Timeout | Sources | Status |
+|-----|----------|---------|---------|--------|
+| `ingest-flash-update` | Every 4 hours | 15 min | rss, stocknews, freight | **PAUSED** |
+| `ingest-deep-dive` | 8 AM UTC (2 AM CST) | 30 min | industry_queries, rss, sec, earnings, stocknews, tavily | **PAUSED** |
+| `daily-evening-ingest` | 2 AM UTC (8 PM CST) | 30 min | industry_queries, rss, sec | **PAUSED** |
+| `weekly-executive-briefing` | Mon 8:30 AM CST | 15 min | (triggers briefing generation) | ENABLED |
+
+### 🔮 Future Architecture Consideration: Split Daily Jobs
+
+**Problem**: Cloud Scheduler has a 30-minute max timeout. If ingestion grows beyond 30 min, jobs will fail.
+
+**Option A: Keep Single Job** (Current)
+- Simpler monitoring
+- Efficient batch classification/embedding
+- Risk: Timeout if sources grow
+
+**Option B: Split by Source Group** (Future consideration)
+```
+2:00 AM CST - ingest-fast-sources (RSS + SEC) - 15 min
+2:20 AM CST - ingest-web-search (industry_queries + tavily) - 30 min
+2:50 AM CST - ingest-financial (earnings + stocknews) - 20 min
+```
+
+**Trade-offs of splitting:**
+- ✅ Fault isolation (one source failure doesn't block others)
+- ✅ Better observability per source
+- ✅ Stays within timeout limits
+- ❌ Deduplication race conditions if jobs overlap
+- ❌ Multiple smaller LLM batches = more API calls
+- ❌ More jobs to monitor
+
+**Decision**: Monitor current single-job approach first. Split if we consistently approach 25+ minute runtimes.
+
+### 🔧 Production Status
+
+- **OpenAI fallback NOT configured** in production (no `OPENAI_API_KEY` secret mounted)
+- Need to add OpenAI key to Secret Manager and `cloudbuild.yaml` if we want fallback protection
+
+---
+
+## Session 38 (January 6, 2026) - Entity Aggregator UI Redesign ✅
+
+### 📋 Context
+
+Redesigned the DRUMBEAT entity aggregator from always-visible pills with heatmap effects to a cleaner, more scannable summary-based interface with expandable drawers.
+
+### ✅ Completed
+
+1. **EntityAggregator Component Redesign** 🎨
+   - **File**: [EntityAggregator.tsx](frontend/src/components/digest/EntityAggregator.tsx)
+   - Removed always-visible entity pills that consumed vertical space
+   - Removed heatmap visual effects (opacity/color intensity scaling)
+   - Implemented 5 compact summary stat buttons:
+     - 🏢 Companies count (distinct)
+     - ⚗️ Materials count (distinct)
+     - 🏭 Industries count (distinct)
+     - 🏷️ Topics count (distinct)
+     - ⚠️ High Priority items count
+   - Added expandable drawer functionality:
+     - Click any stat to expand pills for that category
+     - Pills displayed in scrollable container (max-height: 200px)
+     - Pills sorted by count descending (highest first)
+     - Click-to-filter functionality preserved
+   - Tooltips show "{count} {type} mentioned in the current drumbeat feed"
+
+2. **Local Development Auth Bypass** 🔑
+   - **File**: [PasswordGate.tsx](frontend/src/components/auth/PasswordGate.tsx)
+   - Added localhost detection for local development
+   - Allows password `partnership2026` to authenticate without backend API call
+   - Enables frontend-only testing during development
+   - Production authentication flow unchanged
+
+### 📁 Files Modified
+- [frontend/src/components/digest/EntityAggregator.tsx](frontend/src/components/digest/EntityAggregator.tsx) - Complete redesign
+- [frontend/src/components/auth/PasswordGate.tsx](frontend/src/components/auth/PasswordGate.tsx) - Local dev bypass
+- [frontend/README.md](frontend/README.md) - Updated component description
+
+### 🎯 Design Rationale
+
+**Before:** Always-visible pills with subtle heatmap effects that were imperceptible
+- Pills with vastly different counts (73 vs 27) looked identical
+- Consumed significant vertical space
+- Required horizontal scrolling for long entity lists
+
+**After:** Compact summary stats with on-demand expansion
+- Clean initial state: 5 icon-count buttons in a single row
+- Faster scanning: See all aggregations at a glance
+- Space-efficient: Drawer only appears when needed
+- Better UX: Tooltips and clear visual hierarchy
+
+### 🚀 Deployment
+
+Changes pushed to `origin/master`. Cloud Build automatically triggered deployment to Cloud Run.
+
+---
+
 ## Session 37 (January 6, 2026) - Pre-Demo Polish & UX Improvements ✅
 
 ### 📋 Context

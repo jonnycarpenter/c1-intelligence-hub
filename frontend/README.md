@@ -61,7 +61,7 @@ src/
 - **WeeklyBriefingSection** - Renders briefing with expandable sections
 - **PodcastPlayer** - Audio player for briefing podcasts
 - **AdHocBriefing** - On-demand question interface
-- **EntityAggregator** - Heat map visualization of entities
+- **EntityAggregator** - Compact summary stats (5 aggregations) with expandable drawer showing filterable entity pills
 
 ### Data & Preferences Tab
 - **DataPreferencesDashboard** - Tabbed interface for settings
