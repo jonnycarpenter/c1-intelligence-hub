@@ -287,8 +287,8 @@ export default function AdHocBriefing({
         {response && turnsRemaining > 0 && (
           <div className="px-3 pb-2 flex items-center gap-2 text-xs text-slate-400">
             <span>
-              {turnsRemaining === 2 
-                ? "2 follow-ups available" 
+              {turnsRemaining === 2
+                ? "2 follow-ups available"
                 : `${turnsRemaining} follow-up remaining`}
             </span>
             <button
@@ -309,7 +309,7 @@ export default function AdHocBriefing({
 
       {/* Loading State */}
       {isLoading && (
-        <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 flex items-center justify-center gap-3">
+        <div className="bg-white border border-slate-200 rounded-xl p-6 flex items-center justify-center gap-3">
           <Loader2 size={20} className="animate-spin text-amber-500" />
           <span className="text-sm text-slate-600">Analyzing relevant articles...</span>
         </div>

@@ -3,7 +3,17 @@
 import { useState, useCallback } from 'react'
 import ResearchCanvas from './ResearchCanvas'
 import ResearchSidebar from './ResearchSidebar'
-import type { ResearchSection, RecentSearch, ReportItem, Category } from '@/types'
+import type { 
+  ResearchSection, 
+  RecentSearch, 
+  ReportItem, 
+  Category,
+  NodeStatus,
+  ToolProgressEvent,
+  DeepResearchNode,
+  CategoryOutput,
+  ValidationOutput,
+} from '@/types'
 
 interface ResearchDashboardProps {
   // From streaming/state
@@ -16,12 +26,22 @@ interface ResearchDashboardProps {
   onStartResearch: (prompt: string) => void
   onAddToReport: (item: ReportItem) => void
   onScrollToSection?: (sectionId: string) => void
+  onCancelResearch?: () => void
 
-  // New deep research props
+  // Deep research props
   isResearching?: boolean
   researchStatus?: string
   clarification?: any | null
   deepResearchReport?: any | null
+  
+  // Progress tracking props
+  nodeStatuses?: NodeStatus[]
+  toolProgress?: ToolProgressEvent[]
+  activeNode?: DeepResearchNode | null
+  isCacheHit?: boolean
+  categoryOutput?: CategoryOutput | null
+  validationOutput?: ValidationOutput | null
+  researchError?: string | null
 }
 
 export default function ResearchDashboard({
@@ -32,10 +52,18 @@ export default function ResearchDashboard({
   onStartResearch,
   onAddToReport,
   onScrollToSection,
+  onCancelResearch,
   isResearching,
   researchStatus,
   clarification,
   deepResearchReport,
+  nodeStatuses,
+  toolProgress,
+  activeNode,
+  isCacheHit,
+  categoryOutput,
+  validationOutput,
+  researchError,
 }: ResearchDashboardProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
@@ -123,6 +151,14 @@ export default function ResearchDashboard({
           clarification={clarification}
           deepResearchReport={deepResearchReport}
           onStartResearch={onStartResearch}
+          onCancelResearch={onCancelResearch}
+          nodeStatuses={nodeStatuses}
+          toolProgress={toolProgress}
+          activeNode={activeNode}
+          isCacheHit={isCacheHit}
+          categoryOutput={categoryOutput}
+          validationOutput={validationOutput}
+          researchError={researchError}
         />
       </div>
     </div>

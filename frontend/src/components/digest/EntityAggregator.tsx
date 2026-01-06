@@ -138,21 +138,29 @@ export default function EntityAggregator({
     })
   }
 
+  // Calculate max count for "heat map" scaling per category
+  const getMaxCount = (type: EntityType) => {
+    const entities = aggregatedEntities[type]
+    return entities.length > 0 ? entities[0].count : 1
+  }
+
   // Don't render if no entities
   const hasAnyEntities = Object.values(aggregatedEntities).some(arr => arr.length > 0)
   if (!hasAnyEntities) return null
 
   return (
-    <div className="space-y-1.5 pb-2 border-b border-slate-100 mb-2">
+    <div className="space-y-2 pb-2 border-b border-slate-100 mb-2">
       {/* Clear filters button */}
       {hasFilters && (
-        <button
-          onClick={onClearFilters}
-          className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-md transition-colors"
-        >
-          <X size={12} />
-          Clear filters ({selectedEntities.size})
-        </button>
+        <div className="flex justify-end">
+          <button
+            onClick={onClearFilters}
+            className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-md transition-colors"
+          >
+            <X size={10} />
+            Clear filters ({selectedEntities.size})
+          </button>
+        </div>
       )}
 
       {/* Entity rows */}
@@ -163,17 +171,18 @@ export default function EntityAggregator({
         const isExpanded = expandedTypes.has(type)
         const visibleEntities = isExpanded ? entities : entities.slice(0, MAX_VISIBLE)
         const hasMore = entities.length > MAX_VISIBLE
+        const maxCount = getMaxCount(type)
 
         if (entities.length === 0) return null
 
         return (
-          <div key={type} className="flex items-start gap-2">
-            {/* Icon label */}
-            <div className={cn('flex items-center gap-1 shrink-0 pt-0.5', config.color)}>
-              <Icon size={12} />
-              <span className="text-[10px] font-medium uppercase tracking-wide w-[52px]">
-                {config.label.slice(0, 6)}
-              </span>
+          <div key={type} className="flex items-start gap-3 group">
+            {/* Icon label (Compact) */}
+            <div
+              className={cn('flex items-center justify-center w-6 h-6 rounded-md shrink-0 mt-0.5 transition-colors', config.bgColor)}
+              title={config.label}
+            >
+              <Icon size={14} className={config.color} />
             </div>
 
             {/* Scrollable chips */}
@@ -183,25 +192,37 @@ export default function EntityAggregator({
                   const isSelected = selectedEntities.has(name)
                   const displayName = type === 'industries' ? formatLabel(name) : name
 
+                  // Heat map calculation: higher percentage of maxCount = more opaque/saturated
+                  // Base opacity 10%, scales up to 100% (or distinct shades)
+                  // We'll simplisticly use opacity on the border/bg
+                  const intensity = Math.max(0.2, count / maxCount)
+
                   return (
                     <button
                       key={name}
                       onClick={() => onEntityToggle(name, type)}
                       className={cn(
-                        'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border transition-all whitespace-nowrap',
+                        'relative inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-medium border transition-all whitespace-nowrap',
                         isSelected
-                          ? config.activeColor
-                          : `${config.bgColor} ${config.borderColor} hover:border-slate-300`
+                          ? "bg-slate-900 border-slate-900 text-white shadow-sm"
+                          : "bg-white text-slate-700 hover:border-slate-300"
                       )}
-                      title={displayName}
+                      style={!isSelected ? {
+                        opacity: 0.7 + (intensity * 0.3), // Slight opacity scaling
+                        borderColor: `rgba(0,0,0, ${intensity * 0.2})`, // Dynamic border darkness
+                        backgroundColor: `rgba(0,0,0, ${intensity * 0.02})` // Very subtle background tint
+                      } : {}}
+                      title={`${displayName} (${count} mentions)`}
                     >
-                      <span>{truncate(displayName, MAX_NAME_LENGTH)}</span>
-                      <span className={cn(
-                        'text-[10px] opacity-70',
-                        isSelected ? 'text-amber-600' : ''
-                      )}>
-                        ({count})
-                      </span>
+                      <span className="max-w-[120px] truncate">{displayName}</span>
+                      {count > 1 && (
+                        <span className={cn(
+                          "text-[9px] font-bold px-1 rounded-sm",
+                          isSelected ? "bg-slate-700 text-slate-200" : "bg-slate-100 text-slate-500"
+                        )}>
+                          {count}
+                        </span>
+                      )}
                     </button>
                   )
                 })}
@@ -210,9 +231,10 @@ export default function EntityAggregator({
                 {hasMore && (
                   <button
                     onClick={() => toggleExpand(type)}
-                    className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium text-slate-500 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-colors whitespace-nowrap"
+                    className="inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-medium text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                    title={isExpanded ? "Show less" : `Show ${entities.length - MAX_VISIBLE} more`}
                   >
-                    {isExpanded ? 'Less' : `+${entities.length - MAX_VISIBLE}`}
+                    {isExpanded ? <X size={12} /> : '+'}
                   </button>
                 )}
               </div>

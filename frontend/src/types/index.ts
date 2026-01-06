@@ -534,6 +534,124 @@ export const welcomeMessages: Record<Mode, string> = {
 }
 
 // ============================================
+// Deep Research Types (SSE Events)
+// ============================================
+
+/** Tool progress event from agent execution */
+export interface ToolProgressEvent {
+  tool: string
+  message: string
+  ticker?: string | null
+  status?: 'running' | 'completed' | 'error'
+}
+
+/** Node lifecycle events */
+export interface NodeProgressEvent {
+  node: string
+  description: string
+  parallel_with?: string | null
+  duration_hint?: string
+}
+
+/** Cache hit event */
+export interface CacheHitEvent {
+  query_hash: string
+  message: string
+}
+
+/** Category/sales intelligence output */
+export interface CategoryOutput {
+  territory_insights?: {
+    east_relevance: number
+    west_relevance: number
+    east_summary?: string
+    west_summary?: string
+  }
+  product_recommendations?: Array<{
+    product_name: string
+    relevance_score: number
+    rationale: string
+  }>
+  sales_plays?: Array<{
+    title: string
+    hook: string
+    objection_handlers?: string[]
+  }>
+  industry_talking_points?: string[]
+}
+
+/** Validation output */
+export interface ValidationOutput {
+  validation_passed: boolean
+  citation_issues?: Array<{
+    claim: string
+    issue: string
+  }>
+  unsubstantiated_claims?: string[]
+  confidence_adjustments?: Array<{
+    section: string
+    adjustment: string
+  }>
+  warnings?: string[]
+}
+
+/** Deep Research report structure */
+export interface DeepResearchReport {
+  report_id: string
+  generated_at: string
+  query: string
+  data_completeness?: number
+  overall_confidence?: string
+  executive_summary: {
+    headline: string
+    key_points: string[]
+    key_metrics: Array<{ label: string; value: string; context?: string }>
+  }
+  sections: Array<{
+    section_title: string
+    content: string
+    citations: Array<{
+      source_name: string
+      url?: string
+      published_date?: string
+      quote?: string
+    }>
+  }>
+  field_sales?: {
+    offensive_angles: Array<{
+      title: string
+      description: string
+      target_persona?: string
+    }>
+    defensive_angles: Array<{
+      title: string
+      description: string
+      competitive_threat?: string
+    }>
+    questions_to_explore: string[]
+  }
+}
+
+/** Workflow node types */
+export type DeepResearchNode = 
+  | 'groom'
+  | 'financial_research'
+  | 'industry_research'
+  | 'synthesize'
+  | 'categorize'
+  | 'validate'
+
+/** Node status for UI display */
+export interface NodeStatus {
+  node: DeepResearchNode
+  status: 'pending' | 'running' | 'completed' | 'error'
+  description: string
+  startTime?: Date
+  endTime?: Date
+  parallel_with?: string | null
+}
+
+// ============================================
 // Utility Functions
 // ============================================
 export function formatRelativeTime(date: Date): string {

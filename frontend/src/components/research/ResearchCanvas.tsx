@@ -12,15 +12,25 @@ import {
   TrendingUp,
   Building2,
   Globe,
-  BarChart3
+  BarChart3,
+  Loader2,
+  XCircle,
 } from 'lucide-react'
 import { Button } from '@/components/ui'
 import ResearchSection from './ResearchSection'
 import { cn } from '@/lib/utils'
-import type { ResearchSection as ResearchSectionType, ResearchTemplate } from '@/types'
+import type { 
+  ResearchSection as ResearchSectionType, 
+  ResearchTemplate,
+  NodeStatus,
+  ToolProgressEvent,
+  DeepResearchNode,
+  CategoryOutput,
+  ValidationOutput,
+} from '@/types'
 import ResearchReport from './ResearchReport'
 import ClarificationPrompt from './ClarificationPrompt'
-import { Loader2 } from 'lucide-react'
+import ResearchProgress from './ResearchProgress'
 
 // Research templates for empty state
 const RESEARCH_TEMPLATES: ResearchTemplate[] = [
@@ -94,12 +104,22 @@ interface ResearchCanvasProps {
   onAddAllToReport: () => void
   onTemplateSelect: (prompt: string) => void
 
-  // New deep research props
+  // Deep research props
   isResearching?: boolean
   researchStatus?: string
   clarification?: any | null
   deepResearchReport?: any | null
   onStartResearch?: (prompt: string) => void
+  onCancelResearch?: () => void
+  
+  // Progress tracking props
+  nodeStatuses?: NodeStatus[]
+  toolProgress?: ToolProgressEvent[]
+  activeNode?: DeepResearchNode | null
+  isCacheHit?: boolean
+  categoryOutput?: CategoryOutput | null
+  validationOutput?: ValidationOutput | null
+  researchError?: string | null
 }
 
 export default function ResearchCanvas({
@@ -116,6 +136,14 @@ export default function ResearchCanvas({
   clarification,
   deepResearchReport,
   onStartResearch,
+  onCancelResearch,
+  nodeStatuses,
+  toolProgress,
+  activeNode,
+  isCacheHit,
+  categoryOutput,
+  validationOutput,
+  researchError,
 }: ResearchCanvasProps) {
   const [draggedId, setDraggedId] = useState<string | null>(null)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
@@ -274,11 +302,59 @@ export default function ResearchCanvas({
           )}
 
           {/* Research Progress */}
-          {isResearching && (
+          {isResearching && nodeStatuses && toolProgress && (
+            <div className="space-y-4">
+              <ResearchProgress
+                nodeStatuses={nodeStatuses}
+                toolProgress={toolProgress}
+                activeNode={activeNode || null}
+                isCacheHit={isCacheHit || false}
+              />
+              {onCancelResearch && (
+                <div className="text-center">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={onCancelResearch}
+                    className="text-slate-500 hover:text-red-500 gap-1.5"
+                  >
+                    <XCircle size={14} />
+                    Cancel Research
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Fallback progress (if no node statuses available) */}
+          {isResearching && !nodeStatuses && (
             <div className="bg-white rounded-xl border border-emerald-200 p-8 text-center shadow-sm">
               <Loader2 size={32} className="text-emerald-500 animate-spin mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-slate-800 mb-1">{researchStatus}</h3>
               <p className="text-sm text-slate-500">Our agents are analyzing financial reports and industry news.</p>
+            </div>
+          )}
+
+          {/* Research Error */}
+          {researchError && (
+            <div className="bg-red-50 rounded-xl border border-red-200 p-6 shadow-sm">
+              <div className="flex items-start gap-3">
+                <XCircle className="text-red-500 shrink-0 mt-0.5" size={20} />
+                <div>
+                  <h3 className="font-semibold text-red-800 mb-1">Research Error</h3>
+                  <p className="text-sm text-red-600">{researchError}</p>
+                  {onStartResearch && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="mt-3"
+                      onClick={() => onStartResearch('')}
+                    >
+                      Try Again
+                    </Button>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 

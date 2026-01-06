@@ -76,6 +76,15 @@ export default function Home() {
     report: deepResearchReport,
     startDeepResearch,
     resetResearch,
+    cancelResearch,
+    // Progress tracking
+    nodeStatuses,
+    toolProgress,
+    activeNode,
+    isCacheHit,
+    categoryOutput,
+    validationOutput,
+    error: researchError,
   } = useDeepResearch()
 
   // Report state
@@ -344,11 +353,20 @@ export default function Home() {
                 onStartResearch={handleResearchMessage}
                 onAddToReport={handleAddReportItem}
                 onScrollToSection={handleScrollToSection}
-                // New deep research props
+                onCancelResearch={cancelResearch}
+                // Deep research state
                 isResearching={isResearching}
                 researchStatus={researchStatus}
                 clarification={clarification}
                 deepResearchReport={deepResearchReport}
+                // Progress tracking
+                nodeStatuses={nodeStatuses}
+                toolProgress={toolProgress}
+                activeNode={activeNode}
+                isCacheHit={isCacheHit}
+                categoryOutput={categoryOutput}
+                validationOutput={validationOutput}
+                researchError={researchError}
               />
             )}
             {activeMode === 'products' && (

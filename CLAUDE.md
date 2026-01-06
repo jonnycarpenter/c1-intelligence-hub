@@ -155,6 +155,12 @@ These files have critical bug fixes - be careful editing:
 
 ## Recent Changes (January 5, 2026)
 
+### Session 26 - Pulse UX Enhancements ✅
+- **Visual Dimensionality**: Added `slate-50` background to "Need to Know" column in Pulse dashboard for better separation.
+- **Entity Aggregator Revamp**: implemented "Heat Map" visualization for entity pills (opacity scales with frequency), replaced text labels with icons, and integrated counts.
+- **Component Polish**: Updated `AdHocBriefing` loading state to match card metaphor.
+- **Files Modified**: `PulseDashboard.tsx`, `EntityAggregator.tsx`, `AdHocBriefing.tsx`
+
 ### Session 25 - Deep Research Workflow Fixed! 🎉
 - **Parallel Execution Working**: Fixed `InvalidUpdateError` by adding reducer annotations to ALL `DeepResearchState` fields
 - **Reducers Added**: `_keep_first()` for immutable fields, `_keep_last()` for outputs, `_merge_errors()` for error lists

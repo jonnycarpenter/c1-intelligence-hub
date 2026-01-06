@@ -1,52 +1,87 @@
 'use client'
 
 import { useState, useCallback, useRef } from 'react'
+import type {
+    DeepResearchReport,
+    ToolProgressEvent,
+    NodeStatus,
+    DeepResearchNode,
+    CategoryOutput,
+    ValidationOutput,
+} from '@/types'
 
-interface DeepResearchReport {
-    report_id: string
-    generated_at: string
-    query: string
-    executive_summary: {
-        headline: string
-        key_points: string[]
-        key_metrics: Array<{ label: string, value: string }>
-    }
-    sections: Array<{
-        section_title: string
-        content: string
-        citations: any[]
-    }>
-    field_sales: {
-        offensive_angles: any[]
-        defensive_angles: any[]
-        questions_to_explore: string[]
-    }
+// Node descriptions that match the backend
+const NODE_DESCRIPTIONS: Record<DeepResearchNode, string> = {
+    groom: 'Analyzing your query...',
+    financial_research: 'Researching financial data',
+    industry_research: 'Researching industry intelligence',
+    synthesize: 'Synthesizing findings into report',
+    categorize: 'Generating sales intelligence',
+    validate: 'Verifying citations and sources',
 }
+
+// All workflow nodes in order
+const ALL_NODES: DeepResearchNode[] = [
+    'groom',
+    'financial_research',
+    'industry_research',
+    'synthesize',
+    'categorize',
+    'validate',
+]
 
 interface DeepResearchState {
     isResearching: boolean
     status: string
     clarification: any | null
     report: DeepResearchReport | null
+    categoryOutput: CategoryOutput | null
+    validationOutput: ValidationOutput | null
     error: string | null
+    // Progress tracking
+    toolProgress: ToolProgressEvent[]
+    nodeStatuses: NodeStatus[]
+    activeNode: DeepResearchNode | null
+    isCacheHit: boolean
+    queryHash: string | null
+    warnings: any[]
+}
+
+const initialState: DeepResearchState = {
+    isResearching: false,
+    status: '',
+    clarification: null,
+    report: null,
+    categoryOutput: null,
+    validationOutput: null,
+    error: null,
+    toolProgress: [],
+    nodeStatuses: ALL_NODES.map(node => ({
+        node,
+        status: 'pending',
+        description: NODE_DESCRIPTIONS[node],
+    })),
+    activeNode: null,
+    isCacheHit: false,
+    queryHash: null,
+    warnings: [],
 }
 
 export function useDeepResearch() {
-    const [state, setState] = useState<DeepResearchState>({
-        isResearching: false,
-        status: '',
-        clarification: null,
-        report: null,
-        error: null,
-    })
+    const [state, setState] = useState<DeepResearchState>(initialState)
+    const abortControllerRef = useRef<AbortController | null>(null)
 
     const startDeepResearch = useCallback(async (query: string, history: any[] = []) => {
+        // Cancel any existing request
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort()
+        }
+        abortControllerRef.current = new AbortController()
+
         setState({
+            ...initialState,
             isResearching: true,
-            status: 'Grooming query...',
-            clarification: null,
-            report: null,
-            error: null,
+            status: 'Starting deep research workflow...',
         })
 
         try {
@@ -54,6 +89,7 @@ export function useDeepResearch() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ query, history }),
+                signal: abortControllerRef.current.signal,
             })
 
             if (!response.ok) throw new Error('Failed to start research')
@@ -79,25 +115,7 @@ export function useDeepResearch() {
 
                         try {
                             const data = JSON.parse(dataStr)
-
-                            if (data.type === 'status') {
-                                setState(prev => ({ ...prev, status: data.content }))
-                            } else if (data.type === 'clarification') {
-                                setState(prev => ({
-                                    ...prev,
-                                    isResearching: false,
-                                    clarification: data.content
-                                }))
-                            } else if (data.type === 'report') {
-                                setState(prev => ({
-                                    ...prev,
-                                    isResearching: false,
-                                    report: data.content,
-                                    status: 'Research complete'
-                                }))
-                            } else if (data.type === 'error') {
-                                setState(prev => ({ ...prev, isResearching: false, error: data.content }))
-                            }
+                            handleSSEEvent(data, setState)
                         } catch (e) {
                             console.error('Error parsing stream data:', e)
                         }
@@ -105,19 +123,174 @@ export function useDeepResearch() {
                 }
             }
         } catch (error: any) {
+            if (error.name === 'AbortError') {
+                console.log('Research request aborted')
+                return
+            }
             setState(prev => ({ ...prev, isResearching: false, error: error.message }))
         }
+    }, [])
+
+    const cancelResearch = useCallback(() => {
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort()
+            setState(prev => ({
+                ...prev,
+                isResearching: false,
+                status: 'Research cancelled',
+            }))
+        }
+    }, [])
+
+    const resetResearch = useCallback(() => {
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort()
+        }
+        setState(initialState)
     }, [])
 
     return {
         ...state,
         startDeepResearch,
-        resetResearch: () => setState({
-            isResearching: false,
-            status: '',
-            clarification: null,
-            report: null,
-            error: null,
-        })
+        cancelResearch,
+        resetResearch,
+    }
+}
+
+/**
+ * Handle incoming SSE events from the deep research workflow
+ */
+function handleSSEEvent(
+    data: { type: string; content: any },
+    setState: React.Dispatch<React.SetStateAction<DeepResearchState>>
+) {
+    switch (data.type) {
+        case 'status':
+            // Can be string or object with message
+            const statusText = typeof data.content === 'string' 
+                ? data.content 
+                : data.content?.message || ''
+            setState(prev => ({ ...prev, status: statusText }))
+            break
+
+        case 'cache_hit':
+            setState(prev => ({
+                ...prev,
+                isCacheHit: true,
+                queryHash: data.content.query_hash,
+                status: data.content.message,
+            }))
+            break
+
+        case 'node_start':
+            setState(prev => {
+                const node = data.content.node as DeepResearchNode
+                return {
+                    ...prev,
+                    activeNode: node,
+                    status: data.content.description,
+                    nodeStatuses: prev.nodeStatuses.map(ns =>
+                        ns.node === node
+                            ? { 
+                                ...ns, 
+                                status: 'running', 
+                                startTime: new Date(),
+                                parallel_with: data.content.parallel_with,
+                            }
+                            : ns
+                    ),
+                }
+            })
+            break
+
+        case 'node_complete':
+            setState(prev => {
+                const node = data.content.node as DeepResearchNode
+                return {
+                    ...prev,
+                    nodeStatuses: prev.nodeStatuses.map(ns =>
+                        ns.node === node
+                            ? { ...ns, status: 'completed', endTime: new Date() }
+                            : ns
+                    ),
+                }
+            })
+            break
+
+        case 'tool_progress':
+            setState(prev => ({
+                ...prev,
+                toolProgress: [
+                    ...prev.toolProgress.slice(-19), // Keep last 20 events
+                    {
+                        tool: data.content.tool,
+                        message: data.content.message,
+                        ticker: data.content.ticker,
+                        status: data.content.status || 'running',
+                    },
+                ],
+            }))
+            break
+
+        case 'clarification':
+            setState(prev => ({
+                ...prev,
+                isResearching: false,
+                clarification: data.content,
+            }))
+            break
+
+        case 'report':
+            setState(prev => ({
+                ...prev,
+                isResearching: false,
+                report: data.content,
+                status: 'Research complete',
+                nodeStatuses: prev.nodeStatuses.map(ns => ({
+                    ...ns,
+                    status: 'completed',
+                })),
+            }))
+            break
+
+        case 'category':
+            setState(prev => ({
+                ...prev,
+                categoryOutput: data.content,
+            }))
+            break
+
+        case 'validation':
+            setState(prev => ({
+                ...prev,
+                validationOutput: data.content,
+            }))
+            break
+
+        case 'warnings':
+            setState(prev => ({
+                ...prev,
+                warnings: data.content,
+            }))
+            break
+
+        case 'error':
+            const errorMessage = typeof data.content === 'string'
+                ? data.content
+                : data.content?.message || 'An error occurred'
+            setState(prev => ({
+                ...prev,
+                isResearching: false,
+                error: errorMessage,
+                nodeStatuses: prev.nodeStatuses.map(ns =>
+                    ns.status === 'running'
+                        ? { ...ns, status: 'error' }
+                        : ns
+                ),
+            }))
+            break
+
+        default:
+            console.log('Unknown SSE event type:', data.type, data.content)
     }
 }
