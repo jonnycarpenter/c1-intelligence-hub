@@ -18,6 +18,38 @@ Without reliable daily ingestion:
 
 ---
 
+## 🚀 SESSION 43: Pipeline Agent Follow-Up Bug Fix (January 6, 2026)
+
+**Status**: ✅ DEPLOYED (commit `b455413`)
+
+### 🐛 Bug Fixed
+**Error**: `PipelineAgentResponse message Input should be a valid string [type=string_type, input_value=[{'text': '...', 'type': 'tool_use'}]`
+
+This occurred on **follow-up questions** (especially contact-level queries) when the agent tried to use tools during the final response phase.
+
+### 🔍 Root Cause
+Claude's `response.content` can be either:
+- A **string** (text-only response)
+- A **list** (when response includes tool_use blocks)
+
+The code was passing `response.content` directly to `PipelineAgentResponse(message=...)` which expects only a string.
+
+### ✅ Fix Applied
+1. **Added `_extract_text_content()`** helper method to handle both formats
+   - Extracts text from list content blocks
+   - Ignores tool_use blocks
+   - Provides fallback message if no text found
+
+2. **Added multi-turn tool loop** in `process_query()`
+   - Uses `llm_with_tools` for final response (was using plain `llm`)
+   - Allows agent to call additional tools during follow-up
+   - Max 3 iterations to prevent infinite loops
+
+### 📁 Files Modified
+- `backend/app/agents/pipeline/agent.py` - Added helper method and tool loop
+
+---
+
 ## 🚀 SESSION 42: Deep Research SSE Streaming & Output Fix (January 6, 2026)
 
 **Status**: 🔄 DEPLOYED - Awaiting Cloud Build
