@@ -110,11 +110,20 @@ Generate a podcast for the current executive briefing for demo purposes.
    - Content-Type: audio/mpeg
    - Successfully streamed 100KB+ chunks
 
+8. **Added Range request support** for proper browser audio playback:
+   - Browsers require HTTP 206 Partial Content for audio seeking
+   - Added `Content-Range` and `Content-Length` headers
+   - Streams only requested byte range from GCS
+   - Fixed "Failed to load audio" error in production
+
+9. **Deployed and verified** - Podcast plays in production! 🎉
+
 ### 📁 Files Modified
 - `backend/app/config/settings.py` - Fixed ElevenLabs model name typo
-- `backend/app/api/routes/podcast.py` - Added `/api/podcast/briefing/{id}` streaming endpoint
+- `backend/app/api/routes/podcast.py` - Added `/api/podcast/briefing/{id}` streaming endpoint with Range support
 - `backend/app/ingestion/generators/weekly_briefing.py` - Fixed GCS upload (removed make_public, uses API URL)
 - `backend/scripts/operations/update_podcast_url.py` - Script to update URL in BigQuery
+- `backend/scripts/operations/generate_podcast_for_briefing.py` - Script to regenerate podcast for existing briefings
 
 ### 🗄️ Database Changes
 - Added 3 columns to `weekly_briefings` BigQuery table (podcast_url, podcast_duration_seconds, podcast_generated_at)
@@ -123,7 +132,21 @@ Generate a podcast for the current executive briefing for demo purposes.
 - GCS bucket `gen-lang-client-0436975498-c1-hub-data` has **public access prevention** enabled
 - Cannot use `blob.make_public()` or `allUsers` IAM binding
 - Solution: Stream through backend API instead of direct GCS URL
-- Frontend PodcastPlayer already handles relative URLs via `API_BASE`
+- **Range request support** is critical for browser audio playback (seeking, scrubbing)
+- Frontend PodcastPlayer handles relative URLs via `API_BASE`
+
+### 🔜 Next Steps (Podcast Improvements)
+
+1. **Add second speaker for conversational podcast**
+   - Currently single narrator (Rachel)
+   - Make it a conversation between Host + Analyst
+   - Use existing Josh voice for analyst commentary
+   - Update `_build_podcast_script()` to create dialogue
+
+2. **Move podcast player to modal**
+   - Add "Listen to Podcast" 🎧 icon/button next to "Need to Know" header
+   - Click opens modal with player (instead of embedded player taking space)
+   - Cleaner UI, less visual clutter on the briefing page
 
 ---
 

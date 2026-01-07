@@ -112,6 +112,7 @@ After Agent 2 completes, briefing text is:
 - Path: `/podcasts/{briefing_id}.mp3`
 - ⚠️ Bucket has **public access prevention** - cannot use direct GCS URLs
 - Solution: Stream through backend API `/api/podcast/briefing/{briefing_id}`
+- Endpoint supports HTTP Range requests (206 Partial Content) for browser audio seeking
 
 **Configuration** (`settings.py`):
 - `elevenlabs_api_key` - API key (stored in Secret Manager)

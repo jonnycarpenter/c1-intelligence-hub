@@ -84,6 +84,8 @@ When adding a new API key/secret:
 | **Deep Research progress** | `app/agents/research/progress.py` |
 | **Deep Research memory (Phase 4)** | `app/agents/research/memory.py` |
 | **Deep Research API route** | `app/api/routes/deep_research.py` |
+| **Podcast streaming endpoint** | `app/api/routes/podcast.py` |
+| **Podcast generation (weekly)** | `app/ingestion/generators/weekly_briefing.py` |
 
 ## README Documentation Index
 

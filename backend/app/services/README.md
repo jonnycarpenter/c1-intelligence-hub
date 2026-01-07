@@ -117,7 +117,7 @@ The weekly executive briefing pipeline (`weekly_briefing.py`) uses ElevenLabs di
 
 **Storage**: GCS bucket `gen-lang-client-0436975498-c1-hub-data` in `/podcasts/{briefing_id}.mp3`
 
-**Note**: GCS bucket has public access prevention, so podcasts are streamed through the backend API endpoint `/api/podcast/briefing/{id}`.
+**Note**: GCS bucket has public access prevention, so podcasts are streamed through the backend API endpoint `/api/podcast/briefing/{id}`. This endpoint supports HTTP Range requests (206 Partial Content) for proper browser audio seeking.
 
 **Configuration** (in `settings.py`):
 ```python
