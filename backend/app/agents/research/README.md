@@ -4,7 +4,7 @@ Multi-agent research pipeline for comprehensive industry intelligence reports.
 
 ## Overview
 
-Deep Research is a 7-node LangGraph workflow that orchestrates specialized agents to produce executive-ready research reports. It combines financial data, industry news, and sales intelligence into a single deliverable.
+Deep Research is an 8-node LangGraph workflow that orchestrates specialized agents to produce executive-ready research reports. It combines financial data, industry news, visual assets, and sales intelligence into a single deliverable.
 
 **Status: ✅ PRODUCTION READY** (January 5, 2026)
 
@@ -129,13 +129,23 @@ This gating saves API costs on generic industry queries while still providing co
 
 **Output**: `IndustryAgentOutput` with findings, demand signals, competitive shifts
 
-### 4. Visual Research (`visual.py`) *(Phase 6 - In Progress)*
-**Purpose**: Surface relevant charts, graphs, and visual data from pre-classified image corpus
+### 4. Visual Research (`visual.py`)
+**Purpose**: Surface relevant charts, graphs, and visual data from pre-classified image corpus using LLM reasoning
 
 **Why a Separate Parallel Agent?**
-1. **Zero added latency** - Single BigQuery call (~10-15s) finishes before Financial/Industry (~30s)
+1. **Zero added latency** - BigQuery queries + LLM ranking (~15-20s) often finishes before Financial/Industry (~30s)
 2. **Separation of concerns** - Financial thinks earnings, Industry thinks news, Visual thinks charts
 3. **Future expansion** - Will add chart generation from BigQuery trend datasets
+
+**LLM-Powered Selection:**
+Unlike simple database lookups, the Visual agent uses LLM reasoning to:
+1. Analyze the research brief to identify visual needs
+2. Evaluate candidate visuals for relevance and quality
+3. Select 3-8 most impactful visuals per report
+4. Generate contextual captions tied to research findings
+5. Determine optimal section placement
+
+**Model**: Same as Financial agent (`settings.deep_research_financial_model`)
 
 **Tools Used**:
 - `corpus_visuals_search` - Query `article_images` BigQuery table
@@ -145,7 +155,10 @@ This gating saves API costs on generic industry queries while still providing co
 - Match by industries (from research_brief.industries)
 - Match by topics (revenue, market_share, forecast, etc.)
 - Filter by image_type (chart, graph, infographic)
-- Rank by relevance_score
+- LLM ranks and selects from candidates
+
+**Graceful Degradation:**
+If LLM selection fails, falls back to heuristic selection based on relevance scores.
 
 **Output**: `VisualAgentOutput` with:
 - List of `SupportingVisual` objects

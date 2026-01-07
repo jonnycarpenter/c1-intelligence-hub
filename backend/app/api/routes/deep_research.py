@@ -109,7 +109,8 @@ _report_cache = ReportCache(ttl_minutes=60)
 NODE_DESCRIPTIONS = {
     "groom": "Analyzing your query...",
     "financial_research": "Researching financial data",
-    "industry_research": "Researching industry intelligence", 
+    "industry_research": "Researching industry intelligence",
+    "visual_research": "Searching for relevant visuals",
     "synthesize": "Synthesizing findings into report",
     "categorize": "Generating sales intelligence",
     "validate": "Verifying citations and sources",
@@ -389,12 +390,15 @@ async def run_deep_research(request: DeepResearchRequest):
                     node_name = event_name
                     active_nodes.add(node_name)
                     
-                    # Check if this is running in parallel with another node
+                    # Check if this is running in parallel with other research nodes
+                    # Financial, Industry, and Visual agents run in parallel
                     parallel_with = None
-                    if node_name == "financial_research" and "industry_research" in active_nodes:
-                        parallel_with = "industry_research"
-                    elif node_name == "industry_research" and "financial_research" in active_nodes:
-                        parallel_with = "financial_research"
+                    research_nodes = {"financial_research", "industry_research", "visual_research"}
+                    if node_name in research_nodes:
+                        # Check what other research nodes are active
+                        other_active = research_nodes & active_nodes - {node_name}
+                        if other_active:
+                            parallel_with = list(other_active)
                     
                     yield _emit_event("node_start", {
                         "node": node_name,

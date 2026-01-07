@@ -8,7 +8,7 @@ import time
 from datetime import datetime
 
 SYNTHESIZER_SYSTEM_PROMPT = """
-You are a Lead Synthesis Agent for C1 Intelligence Hub. Your job is to take the separate findings from the Financial and Industry agents and merge them into a CONCISE, executive-ready research report.
+You are a Lead Synthesis Agent for C1 Intelligence Hub. Your job is to take the separate findings from the Financial, Industry, and Visual agents and merge them into a CONCISE, executive-ready research report.
 
 ## CRITICAL: BREVITY IS KEY
 
@@ -29,6 +29,7 @@ Create a FOCUSED report that answers the user's question directly. Quality over 
 2. MERGE & DEDUPLICATE: Combine overlapping findings into single, concise statements.
 3. CONNECT THE DOTS: One sentence explaining how financial data connects to market trends is enough.
 4. CITE EFFICIENTLY: Include citations but don't repeat the same source multiple times.
+5. INCORPORATE VISUALS: Use visual assets (charts, graphs) from visual_assets to support key findings. Place visuals in appropriate sections based on their placement hints.
 
 ## Report Structure (KEEP IT TIGHT)
 
@@ -43,6 +44,7 @@ Create 2-3 sections MAX (not 4-6).
 - **section_title**: Short, descriptive (5 words max).
 - **content**: 1-2 SHORT paragraphs (3-4 sentences each). Get to the point.
 - **tables**: Only if there's genuine tabular data. Don't force tables.
+- **supporting_visuals**: Include relevant visuals from visual_assets that support this section. Each visual should have placement="section_name".
 - **confidence**: High, Medium, or Low.
 
 ### 3. FIELD SALES IMPLICATIONS (BRIEF)
@@ -55,6 +57,9 @@ Create 2-3 sections MAX (not 4-6).
 - **sources_used**: List only the unique, key sources (not every single article).
 - **data_gaps**: 1-2 sentence summary of what's missing.
 
+### 5. ALL VISUALS
+- **all_visuals**: Aggregate all visual assets from visual_assets.supporting_visuals into this array for the report.
+
 ## Anti-Patterns to AVOID
 - ❌ Long introductory paragraphs before getting to findings
 - ❌ Repeating the same information in different sections
@@ -62,6 +67,7 @@ Create 2-3 sections MAX (not 4-6).
 - ❌ Tables with only 2 rows of data
 - ❌ More than 3 thematic sections
 - ❌ Verbose field sales angles with multiple paragraphs
+- ❌ Ignoring visual assets when they're available
 
 ## Output Format
 Always respond with valid JSON matching the SynthesisAgentOutput schema.
@@ -69,7 +75,7 @@ Always respond with valid JSON matching the SynthesisAgentOutput schema.
 
 async def synthesis_node(state: DeepResearchState) -> DeepResearchState:
     """
-    Synthesis node. Merges financial and industry outputs into a final report.
+    Synthesis node. Merges financial, industry, and visual outputs into a final report.
     """
     start_time = time.time()
     llm = create_resilient_llm_with_openai_fallback(
@@ -81,6 +87,7 @@ async def synthesis_node(state: DeepResearchState) -> DeepResearchState:
     
     financial = state["financial_output"]
     industry = state["industry_output"]
+    visual = state.get("visual_output")
     
     if not financial and not industry:
         state["current_status"] = "synthesis_failed_no_input"
@@ -92,6 +99,7 @@ async def synthesis_node(state: DeepResearchState) -> DeepResearchState:
         "research_brief": state["research_brief"].model_dump() if state["research_brief"] else None,
         "financial_findings": financial.model_dump() if financial else None,
         "industry_findings": industry.model_dump() if industry else None,
+        "visual_assets": visual.model_dump() if visual else None,  # NEW: Include visual output
     }
     
     synthesis_prompt = f"""

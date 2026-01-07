@@ -12,6 +12,7 @@ If you are building a data collector for the ingestion pipeline, use `app/tools/
 
 ### Data Retrieval
 - `corpus_query.py` - Query ingested articles from BigQuery
+- `corpus_visuals.py` - Search article_images for charts, graphs, and visual assets (used by Visual Research agent)
 - `timeseries_data.py` - Historical data queries
 - `data_management.py` - Company/material tracker CRUD
 

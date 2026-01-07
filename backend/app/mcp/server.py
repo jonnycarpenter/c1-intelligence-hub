@@ -45,6 +45,9 @@ from app.mcp.tools.corpus_query import (
     get_market_signals,
 )
 
+# Corpus visuals tools - for visual asset search
+from app.mcp.tools.corpus_visuals import corpus_visuals_search
+
 # Product intelligence tools - product catalog and competitive analysis
 from app.mcp.tools.product_intelligence import (
     search_competitor_products,
@@ -121,11 +124,11 @@ def get_all_mcp_tools() -> List[BaseTool]:
     Get ALL available MCP tools as a flat list.
     
     The unified agent has access to all tools - no persona-based filtering.
-    Total: 53 tools across 9 categories.
+    Total: 54 tools across 10 categories.
     
     Categories:
         - Data Management (11): Company/material/industry tracker CRUD
-        - Corpus Query (7): Query pre-ingested articles from BigQuery
+        - Corpus Query (8): Query pre-ingested articles and visuals from BigQuery
         - External Search (6): Exa.ai web/news search
         - StockNews API (6): On-demand news retrieval
         - Time-series (3): Historical data from ingestion pipeline
@@ -136,7 +139,7 @@ def get_all_mcp_tools() -> List[BaseTool]:
         - Document Extraction (2): PDF and document crawling
     
     Returns:
-        List of all 52 available MCP tools
+        List of all 54 available MCP tools
     """
     logger.info("Loading all MCP tools (unified agent)")
     
@@ -155,7 +158,7 @@ def get_all_mcp_tools() -> List[BaseTool]:
         remove_material_from_tracker,
     ]
     
-    # Corpus query tools (7)
+    # Corpus query tools (8)
     corpus_tools = [
         query_corpus,
         get_digest,
@@ -164,6 +167,7 @@ def get_all_mcp_tools() -> List[BaseTool]:
         get_priority_items,
         get_competitor_activity,
         get_market_signals,
+        corpus_visuals_search,
     ]
     
     # External search - Exa.ai (5)

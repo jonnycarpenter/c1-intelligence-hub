@@ -113,6 +113,15 @@ class SupportingVisual(BaseModel):
     size: str
     data_summary: Optional[str] = None
 
+class VisualAgentOutput(BaseModel):
+    """Output from Visual Research Agent - charts, graphs, and visual assets."""
+    status: str = "success"
+    visuals_found: int = 0  # Total visuals found before filtering
+    searches_executed: List[str] = Field(default_factory=list)  # List of search types run
+    supporting_visuals: List[SupportingVisual] = Field(default_factory=list)  # Selected visuals for report
+    data_gaps: List[str] = Field(default_factory=list)  # Topics with no visual coverage
+    warnings: List[str] = Field(default_factory=list)  # Any issues during search
+
 class MetricsTable(BaseModel):
     """Structured tabular data for metrics, projections, comparisons"""
     table_id: str
@@ -310,6 +319,7 @@ class DeepResearchState(TypedDict):
     # Research outputs - Each written by ONE specific branch, keep latest
     financial_output: Annotated[Optional[FinancialAgentOutput], _keep_last]
     industry_output: Annotated[Optional[IndustryAgentOutput], _keep_last]
+    visual_output: Annotated[Optional[VisualAgentOutput], _keep_last]
     
     # Synthesis results - Written sequentially post-merge
     final_report: Annotated[Optional[SynthesisAgentOutput], _keep_last]
