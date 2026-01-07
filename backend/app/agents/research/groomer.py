@@ -244,14 +244,31 @@ async def query_grooming_node(state: DeepResearchState) -> DeepResearchState:
     logger.info(f"Calling groomer LLM for query: {state['user_query'][:50]}...")
     logger.info(f"Message count: {len(messages)}, system prompt length: {len(system_content)}")
     
-    # LLM call timeout (90 seconds) to prevent indefinite hanging
-    LLM_TIMEOUT = 90
+    # LLM call timeout (60 seconds) - reduced from 90s for faster failure detection
+    # The Anthropic SDK has its own 120s HTTP timeout, but we want to fail faster
+    LLM_TIMEOUT = 60
     
     try:
-        response = await asyncio.wait_for(llm.ainvoke(messages), timeout=LLM_TIMEOUT)
-        logger.info(f"Groomer LLM response received, length: {len(response.content)}")
+        logger.info(f"[GROOMER] LLM AWAIT START - timeout={LLM_TIMEOUT}s")
+        
+        # Create the task explicitly so we can track its state
+        llm_task = asyncio.create_task(llm.ainvoke(messages))
+        
+        try:
+            response = await asyncio.wait_for(llm_task, timeout=LLM_TIMEOUT)
+            logger.info(f"[GROOMER] LLM AWAIT COMPLETE - response length: {len(response.content)}")
+        except asyncio.TimeoutError:
+            # Explicitly cancel the task to ensure cleanup
+            logger.error(f"[GROOMER] TIMEOUT after {LLM_TIMEOUT}s - cancelling task")
+            llm_task.cancel()
+            try:
+                await llm_task
+            except asyncio.CancelledError:
+                logger.info("[GROOMER] Task successfully cancelled after timeout")
+            raise  # Re-raise the TimeoutError
+            
     except asyncio.TimeoutError:
-        logger.error(f"Groomer LLM call timed out after {LLM_TIMEOUT}s")
+        logger.error(f"[GROOMER] LLM call timed out after {LLM_TIMEOUT}s")
         state["errors"].append({"node": "groomer", "error": f"LLM call timed out after {LLM_TIMEOUT} seconds"})
         state["current_status"] = "grooming_failed"
         emit_progress_sync(ToolProgress(
@@ -260,8 +277,18 @@ async def query_grooming_node(state: DeepResearchState) -> DeepResearchState:
             status="error"
         ))
         return state
+    except asyncio.CancelledError:
+        logger.error(f"[GROOMER] LLM task was cancelled externally")
+        state["errors"].append({"node": "groomer", "error": "LLM call was cancelled"})
+        state["current_status"] = "grooming_failed"
+        emit_progress_sync(ToolProgress(
+            tool_name="query_analysis",
+            message="Query analysis was cancelled",
+            status="error"
+        ))
+        return state
     except Exception as llm_error:
-        logger.error(f"LLM call failed with error: {type(llm_error).__name__}: {llm_error}")
+        logger.error(f"[GROOMER] LLM call failed: {type(llm_error).__name__}: {llm_error}")
         state["errors"].append({"node": "groomer", "error": f"LLM call failed: {str(llm_error)}"})
         state["current_status"] = "grooming_failed"
         emit_progress_sync(ToolProgress(

@@ -352,11 +352,23 @@ async def run_deep_research(request: DeepResearchRequest):
             ).__aiter__()
             
             # Poll for events with short timeout to enable real-time progress streaming
+            # Log counter to track event loop heartbeat (helps debug hangs)
+            loop_counter = 0
+            last_heartbeat = asyncio.get_event_loop().time()
+            
             while True:
+                loop_counter += 1
+                
                 # Check workflow-level timeout
                 elapsed = asyncio.get_event_loop().time() - workflow_start_time
+                
+                # Log heartbeat every 30 seconds to confirm event loop is running
+                if elapsed - (last_heartbeat - workflow_start_time) >= 30:
+                    logger.info(f"[DEEP_RESEARCH] Heartbeat: {elapsed:.0f}s elapsed, loop iterations: {loop_counter}, active nodes: {active_nodes}, completed: {completed_nodes}")
+                    last_heartbeat = asyncio.get_event_loop().time()
+                
                 if elapsed > workflow_timeout:
-                    logger.warning(f"Deep research workflow timeout after {elapsed:.1f}s (limit: {workflow_timeout}s)")
+                    logger.warning(f"[DEEP_RESEARCH] WORKFLOW TIMEOUT after {elapsed:.1f}s (limit: {workflow_timeout}s)")
                     yield _emit_event("timeout", {
                         "message": f"Research timed out after {int(elapsed)} seconds",
                         "elapsed_seconds": int(elapsed),
@@ -542,15 +554,26 @@ async def run_deep_research(request: DeepResearchRequest):
             yield "data: [DONE]\n\n"
             
         except asyncio.TimeoutError:
-            logger.error(f"Deep research workflow asyncio timeout for query: {request.query[:50]}...")
+            logger.error(f"[DEEP_RESEARCH] Asyncio timeout for query: {request.query[:50]}...")
             yield _emit_event("timeout", {
                 "message": "Research workflow timed out",
                 "type": "asyncio_timeout",
             })
             yield "data: [DONE]\n\n"
+        
+        except asyncio.CancelledError:
+            # This happens when the client disconnects (SSE connection closed)
+            logger.warning(f"[DEEP_RESEARCH] Client disconnected/cancelled for query: {request.query[:50]}...")
+            # Don't try to yield anything - the connection is already closed
+            raise  # Re-raise so FastAPI can clean up
+            
+        except GeneratorExit:
+            # Generator was closed externally (another form of client disconnect)
+            logger.warning(f"[DEEP_RESEARCH] Generator exited (client disconnect?) for query: {request.query[:50]}...")
+            return
             
         except Exception as e:
-            logger.exception("Deep research workflow error")
+            logger.exception(f"[DEEP_RESEARCH] Workflow error for query: {request.query[:50]}...")
             yield _emit_event("error", {"message": str(e), "type": type(e).__name__})
             yield "data: [DONE]\n\n"
 

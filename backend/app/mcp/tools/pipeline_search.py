@@ -657,14 +657,18 @@ async def get_apollo_credits() -> str:
 # Note: PIPELINE_TOOLS_INSTANT is for quick search mode
 # PIPELINE_TOOLS_FULL includes webset building for full list mode
 PIPELINE_TOOLS_INSTANT = [
-    # Exa.ai search tools
+    # Exa.ai search tools (company discovery)
     find_similar_companies,
     search_companies,
-    find_contacts,
+    # NOTE: find_contacts (Exa) is commented out in favor of find_company_contacts (Apollo)
+    # Exa returns LinkedIn profiles without person_id, making reveal_contact impossible.
+    # Apollo provides structured contacts with IDs for email/phone reveal.
+    # TODO: Future enhancement - combine Exa broad search with Apollo data enrichment
+    # find_contacts,
     find_trigger_events,
-    # Apollo.io enrichment tools
+    # Apollo.io enrichment tools (contacts + company data)
     enrich_company,
-    find_company_contacts,
+    find_company_contacts,  # PRIMARY contact search tool - returns revealable contacts
     reveal_contact,
     get_apollo_credits,
     # BigQuery corpus tools (intelligence integration)
@@ -674,15 +678,16 @@ PIPELINE_TOOLS_INSTANT = [
 ]
 
 PIPELINE_TOOLS_FULL = [
-    # Exa.ai search tools
+    # Exa.ai search tools (company discovery)
     find_similar_companies,
     search_companies,
-    find_contacts,
+    # NOTE: find_contacts (Exa) commented out - see note in PIPELINE_TOOLS_INSTANT
+    # find_contacts,
     find_trigger_events,
     build_company_webset,
-    # Apollo.io enrichment tools
+    # Apollo.io enrichment tools (contacts + company data)
     enrich_company,
-    find_company_contacts,
+    find_company_contacts,  # PRIMARY contact search tool - returns revealable contacts
     reveal_contact,
     get_apollo_credits,
     # BigQuery corpus tools (intelligence integration)

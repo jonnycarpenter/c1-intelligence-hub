@@ -71,8 +71,8 @@ class ResilientChatAnthropic(BaseChatModel):
     fallback_api_key: Optional[str] = None
     temperature: float = 0.3
     max_tokens: int = 4096
-    timeout: float = 120.0
-    max_retries: int = 2
+    timeout: float = 45.0  # Reduced from 120s - should fail fast, let fallback handle slow requests
+    max_retries: int = 1   # Reduced from 2 - faster failure, let asyncio timeout handle retries
     
     # Internal clients (not part of pydantic model)
     _primary_client: Optional[ChatAnthropic] = None
