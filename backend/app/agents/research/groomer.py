@@ -7,8 +7,12 @@ from app.config.settings import settings
 from app.utils.resilient_llm import create_resilient_llm_with_openai_fallback
 import json
 import logging
+import asyncio
 
 logger = logging.getLogger(__name__)
+
+# Timeout for prior research lookup (seconds)
+PRIOR_RESEARCH_TIMEOUT = 10
 
 
 async def _get_prior_research_context(query: str) -> str:
@@ -22,23 +26,32 @@ async def _get_prior_research_context(query: str) -> str:
     
     Returns:
         Formatted context string, empty if no related research found
+        
+    Note: Has a timeout to prevent BigQuery delays from blocking workflow
     """
     try:
-        memory = await get_research_memory()
+        # Wrap in timeout to prevent BigQuery delays from blocking the workflow
+        async def _fetch():
+            memory = await get_research_memory()
+            
+            # Find related research (entities not yet known, so just use query text)
+            related = await memory.find_related_research(
+                query=query,
+                companies=None,  # Will be extracted after grooming
+                industries=None,
+            )
+            
+            if related:
+                logger.info(f"Found {len(related)} related prior reports for context injection")
+                return memory.format_context_for_prompt(related)
+            
+            return ""
         
-        # Find related research (entities not yet known, so just use query text)
-        related = await memory.find_related_research(
-            query=query,
-            companies=None,  # Will be extracted after grooming
-            industries=None,
-        )
+        return await asyncio.wait_for(_fetch(), timeout=PRIOR_RESEARCH_TIMEOUT)
         
-        if related:
-            logger.info(f"Found {len(related)} related prior reports for context injection")
-            return memory.format_context_for_prompt(related)
-        
+    except asyncio.TimeoutError:
+        logger.warning(f"Prior research lookup timed out after {PRIOR_RESEARCH_TIMEOUT}s, proceeding without context")
         return ""
-        
     except Exception as e:
         logger.warning(f"Failed to fetch prior research context: {e}")
         return ""
@@ -224,8 +237,21 @@ async def query_grooming_node(state: DeepResearchState) -> DeepResearchState:
         status="running"
     ))
     logger.info(f"Calling groomer LLM for query: {state['user_query'][:50]}...")
-    response = await llm.ainvoke(messages)
-    logger.info(f"Groomer LLM response received, length: {len(response.content)}")
+    logger.info(f"Message count: {len(messages)}, system prompt length: {len(system_content)}")
+    
+    try:
+        response = await llm.ainvoke(messages)
+        logger.info(f"Groomer LLM response received, length: {len(response.content)}")
+    except Exception as llm_error:
+        logger.error(f"LLM call failed with error: {type(llm_error).__name__}: {llm_error}")
+        state["errors"].append({"node": "groomer", "error": f"LLM call failed: {str(llm_error)}"})
+        state["current_status"] = "grooming_failed"
+        emit_progress_sync(ToolProgress(
+            tool_name="query_analysis",
+            message=f"LLM call failed: {str(llm_error)[:100]}",
+            status="error"
+        ))
+        return state
     emit_progress_sync(ToolProgress(
         tool_name="query_analysis",
         message="Research plan generated",
@@ -270,6 +296,12 @@ async def query_grooming_node(state: DeepResearchState) -> DeepResearchState:
         logger.error(f"Response content: {response.content[:1000]}")
         state["errors"].append({"node": "groomer", "error": f"JSON parse error: {str(e)}", "response": response.content[:500]})
         state["current_status"] = "grooming_failed"
+        # Emit error progress so UI doesn't show spinner indefinitely
+        emit_progress_sync(ToolProgress(
+            tool_name="query_analysis",
+            message=f"Failed to parse query plan: {str(e)[:100]}",
+            status="error"
+        ))
     except Exception as e:
         import traceback
         error_info = traceback.format_exc()
@@ -277,5 +309,11 @@ async def query_grooming_node(state: DeepResearchState) -> DeepResearchState:
         logger.error(error_info)
         state["errors"].append({"node": "groomer", "error": str(e), "trace": error_info})
         state["current_status"] = "grooming_failed"
+        # Emit error progress so UI doesn't show spinner indefinitely
+        emit_progress_sync(ToolProgress(
+            tool_name="query_analysis",
+            message=f"Query analysis failed: {str(e)[:100]}",
+            status="error"
+        ))
         
     return state

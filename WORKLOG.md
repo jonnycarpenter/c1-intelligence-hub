@@ -1,4 +1,4 @@
-# C1 Intelligence Hub - Work Log
+﻿# C1 Intelligence Hub - Work Log
 
 This file tracks completed work and open items across AI assistant sessions.
 
@@ -15,6 +15,38 @@ Without reliable daily ingestion:
 - The entire product value proposition breaks down
 
 **Always verify scheduler jobs are running before working on features.**
+
+---
+## SESSION 57: Deep Research Groomer Hang Fix (January 7, 2026)
+
+**Status**: COMPLETE
+
+### Issue
+Deep Research workflow appeared to hang at the groomer/query analysis stage. The UI would spin indefinitely without progressing to the parallel research agents.
+
+### Root Cause
+When the Visual Research Agent was added in Session 53, the **backend** was fully updated but the **frontend** was missing the new node in multiple places:
+- `types/index.ts` - Missing `visual_research` in DeepResearchNode type
+- `useDeepResearch.ts` - Missing in NODE_DESCRIPTIONS and ALL_NODES  
+- `ResearchProgress.tsx` - Missing in NODE_ICONS and NODE_LABELS
+
+This caused the frontend state machine to not recognize `visual_research` SSE events, breaking workflow progress tracking.
+
+### Fixes Applied
+1. **Frontend Type** - Added `visual_research` to DeepResearchNode union type
+2. **Frontend Hook** - Added to NODE_DESCRIPTIONS and ALL_NODES
+3. **Frontend Progress** - Added Image icon and label for visual_research
+4. **Backend Groomer** - Added error progress emission, 10s timeout on prior research lookup, better LLM error handling
+
+### Files Modified
+- `frontend/src/types/index.ts`
+- `frontend/src/hooks/useDeepResearch.ts`
+- `frontend/src/components/research/ResearchProgress.tsx`
+- `backend/app/agents/research/groomer.py`
+
+### Lessons Learned
+- When adding a new workflow node, update BOTH backend AND frontend
+- SSE events for unknown nodes get silently ignored, causing apparent hangs
 
 ---
 

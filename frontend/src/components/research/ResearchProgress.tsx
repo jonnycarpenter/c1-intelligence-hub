@@ -13,6 +13,7 @@ import {
     Circle,
     AlertCircle,
     Zap,
+    Image,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { NodeStatus, ToolProgressEvent, DeepResearchNode } from '@/types'
@@ -22,6 +23,7 @@ const NODE_ICONS: Record<DeepResearchNode, React.ElementType> = {
     groom: Search,
     financial_research: DollarSign,
     industry_research: Factory,
+    visual_research: Image,
     synthesize: FileText,
     categorize: ShoppingCart,
     validate: Shield,
@@ -32,6 +34,7 @@ const NODE_LABELS: Record<DeepResearchNode, string> = {
     groom: 'Query Analysis',
     financial_research: 'Financial Research',
     industry_research: 'Industry Research',
+    visual_research: 'Visual Research',
     synthesize: 'Report Synthesis',
     categorize: 'Sales Intelligence',
     validate: 'Quality Check',

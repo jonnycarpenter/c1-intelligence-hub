@@ -637,6 +637,7 @@ export type DeepResearchNode =
   | 'groom'
   | 'financial_research'
   | 'industry_research'
+  | 'visual_research'
   | 'synthesize'
   | 'categorize'
   | 'validate'
