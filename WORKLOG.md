@@ -17,6 +17,52 @@ Without reliable daily ingestion:
 **Always verify scheduler jobs are running before working on features.**
 
 ---
+## 🎙️ SESSION 58: Podcast System Audit (January 7, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Issue
+User reported "failed to produce audio" when clicking the Listen button on the executive briefing. Suspected the conversational enhancements from Session 54 might be breaking it.
+
+### 🔍 Root Cause
+**Two issues found:**
+
+1. **Missing `/api` prefix in frontend podcast URL** (HIGH - root cause of failure)
+   - Frontend was calling `/podcast/briefing/{id}` instead of `/api/podcast/briefing/{id}`
+   - Route is mounted at `/api/podcast` in `main.py`
+   - This was NOT related to the conversational enhancements
+
+2. **Blocking `time.sleep()` in async function** (MEDIUM)
+   - `_generate_podcast()` used `time.sleep()` during retry delays
+   - Blocks the event loop; should use `await asyncio.sleep()`
+
+### ✅ Fixes Applied
+
+1. **Frontend URL fix** (`WeeklyBriefingSection.tsx` line 448):
+   ```tsx
+   // Before: audioUrl={`${API_BASE}/podcast/briefing/${briefing.id}`}
+   // After:  audioUrl={`${API_BASE}/api/podcast/briefing/${briefing.id}`}
+   ```
+
+2. **Async sleep fix** (`weekly_briefing.py`):
+   - Added `import asyncio`
+   - Replaced 3 instances of `time.sleep()` with `await asyncio.sleep()`
+
+### 📁 Files Modified
+- `frontend/src/components/dashboard/WeeklyBriefingSection.tsx` - Fixed podcast URL
+- `backend/app/ingestion/generators/weekly_briefing.py` - Fixed blocking sleep
+
+### 🔍 Audit Summary
+Conducted comprehensive fine-tooth comb review of entire podcast system:
+- ✅ ElevenLabs Text-to-Dialogue API integration - Working
+- ✅ GCS upload and storage - Working
+- ✅ BigQuery podcast columns - Exist and correctly populated
+- ✅ Backend streaming endpoint with Range support - Working
+- ✅ Frontend PodcastModal component - Working
+- ❌ Frontend URL construction - **Fixed**
+- ❌ Async sleep - **Fixed**
+
+---
 ## SESSION 57: Deep Research Groomer Hang Fix (January 7, 2026)
 
 **Status**: COMPLETE

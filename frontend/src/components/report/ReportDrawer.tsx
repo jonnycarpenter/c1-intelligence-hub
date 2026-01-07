@@ -10,7 +10,8 @@ import {
   Headphones, 
   Share2, 
   ChevronDown,
-  Plus
+  Plus,
+  Construction
 } from 'lucide-react'
 import { Button, CategoryBadge, PriorityBadge } from '@/components/ui'
 import { cn } from '@/lib/utils'
@@ -71,6 +72,15 @@ export default function ReportDrawer({
           >
             <X size={20} />
           </button>
+        </div>
+
+        {/* Under Construction Banner */}
+        <div className="mx-4 mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-3">
+          <Construction size={18} className="text-amber-600 shrink-0" />
+          <div>
+            <p className="text-sm font-medium text-amber-800">Under Construction</p>
+            <p className="text-xs text-amber-600">This feature is coming soon. Stay tuned!</p>
+          </div>
         </div>
 
         {/* Content */}

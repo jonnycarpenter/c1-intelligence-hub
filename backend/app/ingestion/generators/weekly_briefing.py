@@ -17,6 +17,7 @@ Cadence: Monday 8:30 AM CST (14:30 UTC)
 import uuid
 import json
 import re
+import asyncio
 import time
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional, Set
@@ -695,20 +696,20 @@ Otherwise, respond with the final briefing JSON:
                         elif response.status_code == 429:
                             logger.warning(f"Rate limited by ElevenLabs, retrying in {retry_delay}s...")
                             if attempt < max_retries - 1:
-                                time.sleep(retry_delay)
+                                await asyncio.sleep(retry_delay)
                                 retry_delay *= 2
                                 continue
                         else:
                             logger.error(f"ElevenLabs API error: {response.status_code} - {response.text}")
                             if attempt < max_retries - 1:
-                                time.sleep(retry_delay)
+                                await asyncio.sleep(retry_delay)
                                 retry_delay *= 2
                                 continue
                             
                 except Exception as e:
                     logger.error(f"Error calling ElevenLabs API: {e}")
                     if attempt < max_retries - 1:
-                        time.sleep(retry_delay)
+                        await asyncio.sleep(retry_delay)
                         retry_delay *= 2
                         continue
                     raise
