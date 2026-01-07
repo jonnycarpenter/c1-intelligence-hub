@@ -243,6 +243,17 @@ async def query_grooming_node(state: DeepResearchState) -> DeepResearchState:
             content = content.split("```")[1].split("```")[0].strip()
             
         brief_data = json.loads(content)
+        
+        # Handle case where LLM returns clarifying_question as string instead of object
+        # This happens when LLM doesn't follow the exact schema
+        if brief_data.get("clarifying_question") and isinstance(brief_data["clarifying_question"], str):
+            logger.warning("LLM returned clarifying_question as string, converting to object")
+            brief_data["clarifying_question"] = {
+                "question": brief_data["clarifying_question"],
+                "options": None,
+                "default_if_skipped": "Proceeding with general analysis covering all aspects."
+            }
+        
         research_brief = ResearchBrief(**brief_data)
         
         state["research_brief"] = research_brief

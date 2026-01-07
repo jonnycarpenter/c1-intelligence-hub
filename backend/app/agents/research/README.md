@@ -20,29 +20,30 @@ Deep Research is a 7-node LangGraph workflow that orchestrates specialized agent
 ```
                          ┌─────────────┐
                     ┌───►│  Financial  │───┐
-┌─────────────┐     │    │  Research   │   │
-│   Groomer   │─────┤    └─────────────┘   │    ┌─────────────┐
-│   (Query)   │     │                      ├───►│ Synthesizer │
-└─────────────┘     │    ┌─────────────┐   │    │  (Report)   │
-                    └───►│  Industry   │───┘    └──────┬──────┘
-                         │  Research   │               │
-                         └─────────────┘               ▼
-                                              ┌─────────────┐
-                                              │  Category   │
-                                              │   (Sales)   │
-                                              └──────┬──────┘
-                                                     │
-                                                     ▼
-                                              ┌─────────────┐
-                                              │  Validator  │
-                                              │  (QA Gate)  │
-                                              └──────┬──────┘
-                                                     │
-                                                     ▼
-                                              [Final Report]
+                    │    │  Research   │   │
+┌─────────────┐     │    └─────────────┘   │
+│   Groomer   │─────┼───►┌─────────────┐   │    ┌─────────────┐
+│   (Query)   │     │    │  Industry   │   ├───►│ Synthesizer │
+└─────────────┘     │    │  Research   │   │    │  (Report)   │
+                    │    └─────────────┘   │    └──────┬──────┘
+                    │    ┌─────────────┐   │           │
+                    └───►│   Visual    │───┘           ▼
+                         │  Research   │       ┌─────────────┐
+                         └─────────────┘       │  Category   │
+                                               │   (Sales)   │
+                                               └──────┬──────┘
+                                                      │
+                                                      ▼
+                                               ┌─────────────┐
+                                               │  Validator  │
+                                               │  (QA Gate)  │
+                                               └──────┬──────┘
+                                                      │
+                                                      ▼
+                                               [Final Report]
 ```
 
-**Parallel Execution**: Financial and Industry agents run simultaneously using LangGraph's `Send` API with custom reducer functions for state merging.
+**Parallel Execution**: Financial, Industry, and Visual agents run simultaneously using LangGraph's `Send` API with custom reducer functions for state merging. Visual agent completes fastest (~10-15s) due to single BigQuery call vs multi-tool research agents (~30s).
 
 ### Reducer Architecture
 
@@ -128,7 +129,42 @@ This gating saves API costs on generic industry queries while still providing co
 
 **Output**: `IndustryAgentOutput` with findings, demand signals, competitive shifts
 
-### 4. Synthesizer (`synthesizer.py`)
+### 4. Visual Research (`visual.py`) *(Phase 6 - In Progress)*
+**Purpose**: Surface relevant charts, graphs, and visual data from pre-classified image corpus
+
+**Why a Separate Parallel Agent?**
+1. **Zero added latency** - Single BigQuery call (~10-15s) finishes before Financial/Industry (~30s)
+2. **Separation of concerns** - Financial thinks earnings, Industry thinks news, Visual thinks charts
+3. **Future expansion** - Will add chart generation from BigQuery trend datasets
+
+**Tools Used**:
+- `corpus_visuals_search` - Query `article_images` BigQuery table
+
+**Query Strategy:**
+- Match by companies (from research_brief.entities)
+- Match by industries (from research_brief.industries)
+- Match by topics (revenue, market_share, forecast, etc.)
+- Filter by image_type (chart, graph, infographic)
+- Rank by relevance_score
+
+**Output**: `VisualAgentOutput` with:
+- List of `SupportingVisual` objects
+- Each visual includes: image_url, description, chart_type, source_article, relevance_score
+
+**BigQuery Table Reference:**
+```sql
+SELECT id, url, description, image_type, chart_type, 
+       companies, industries, topics, relevance_score,
+       article_title, article_url
+FROM `article_images`
+WHERE companies LIKE '%Hexcel%' 
+   OR industries LIKE '%aerospace%'
+   AND image_type IN ('chart', 'graph', 'infographic')
+ORDER BY relevance_score DESC
+LIMIT 10
+```
+
+### 5. Synthesizer (`synthesizer.py`)
 **Purpose**: Merge findings into executive-ready report
 
 - Deduplicates overlapping findings
@@ -136,10 +172,14 @@ This gating saves API costs on generic industry queries while still providing co
 - Structures content into thematic sections
 - Creates executive summary with key metrics
 - Generates field sales implications
+- **Places relevant visuals** in appropriate report sections (from Visual agent output)
 
-**Output**: `SynthesisAgentOutput` with full report structure
+**Visual Integration:**
+The synthesizer receives `visual_output` from the Visual agent and matches visuals to sections by topic. For example, a revenue growth chart is placed in the "Financial Performance" section, while a market share diagram goes in "Competitive Landscape".
 
-### 5. Category Agent (`category.py`) *(Phase 2)*
+**Output**: `SynthesisAgentOutput` with full report structure, including `supporting_visuals` per section
+
+### 6. Category Agent (`category.py`) *(Phase 2)*
 **Purpose**: Territory-specific sales intelligence
 
 **Territory Focus**:
@@ -159,7 +199,7 @@ This gating saves API costs on generic industry queries while still providing co
 - Structured sales plays (hooks, objection handlers)
 - Industry talking points
 
-### 6. Validator (`validator.py`) *(Phase 2)*
+### 7. Validator (`validator.py`) *(Phase 2)*
 **Purpose**: Citation verification and quality gate
 
 **Checks**:
@@ -189,6 +229,7 @@ class DeepResearchState(TypedDict):
     # Mutable outputs (each agent updates its own field)
     financial_output: Annotated[Optional[FinancialAgentOutput], _keep_last]
     industry_output: Annotated[Optional[IndustryAgentOutput], _keep_last]
+    visual_output: Annotated[Optional[VisualAgentOutput], _keep_last]  # NEW - Phase 6
     final_report: Annotated[Optional[SynthesisAgentOutput], _keep_last]
     category_output: Annotated[Optional[CategoryAgentOutput], _keep_last]
     validator_output: Annotated[Optional[ValidatorOutput], _keep_last]
@@ -199,6 +240,15 @@ class DeepResearchState(TypedDict):
 ```
 
 **Why Annotated?** LangGraph's `Send` API for parallel execution passes full state to each branch. When branches return, their states must be merged. Without reducers, duplicate keys cause `InvalidUpdateError`.
+
+**Visual Output Schema:**
+```python
+class VisualAgentOutput(BaseModel):
+    """Output from Visual Research agent."""
+    visuals: List[SupportingVisual] = []  # Uses existing SupportingVisual model
+    search_summary: str  # What was searched for
+    total_found: int  # Total matches before filtering
+```
 
 ## API Endpoints
 
@@ -426,7 +476,19 @@ validation = result["validator_output"]
 - [x] Frontend timeout UI with retry option
 - [x] Per-tool timeout utility (`sync_tool_with_timeout` decorator)
 
-### Phase 6 (Planned)
+### Phase 6 (In Progress - Visual Agent)
+- [ ] **Visual Research Agent** - New parallel agent for charts/graphs
+  - [ ] Create `corpus_visuals_search` MCP tool (`app/mcp/tools/corpus_visuals.py`)
+  - [ ] Create Visual agent (`app/agents/research/visual.py`)
+  - [ ] Add `VisualAgentOutput` to state schema
+  - [ ] Update workflow for 3-way parallel fan-out
+  - [ ] Update Synthesizer to place visuals in sections
+  - [ ] Add SSE streaming for visual_research node
+
+### Phase 7 (Planned)
+- [ ] **Chart Generation** - Generate visuals from BigQuery trend data
+  - [ ] `generate_trend_chart` tool (matplotlib/plotly)
+  - [ ] `generate_comparison_table` tool
 - [ ] Frontend: Tool Health dashboard (API status, latency, success rates)
 - [ ] Frontend: Saved Reports history view
 - [ ] Semantic search on past reports (query embeddings)

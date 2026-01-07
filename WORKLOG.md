@@ -18,6 +18,194 @@ Without reliable daily ingestion:
 
 ---
 
+## 🎨 SESSION 52: Visual Research Agent - Planning (January 7, 2026)
+
+**Status**: 🔄 READY TO IMPLEMENT (pick up in next session)
+
+### 🎯 Goal
+Add a new **Visual Research Agent** that runs in parallel with Financial and Industry agents to surface relevant charts/graphs from the `article_images` BigQuery table.
+
+### 📐 Architecture Decision
+
+**Why a new parallel agent (not adding to existing agents)?**
+
+1. **Zero added latency** - Visual agent (~10-15s) finishes before Financial/Industry (~30s)
+2. **Separation of concerns** - Financial thinks about earnings, Industry thinks about news, Visual thinks about charts
+3. **Future expansion** - Will add chart generation capabilities from BigQuery trend datasets
+
+**New Pipeline Architecture:**
+```
+                         ┌─────────────────┐
+                    ┌───►│    Financial    │───┐
+                    │    │    Research     │   │
+┌─────────────┐     │    └─────────────────┘   │
+│   Groomer   │─────┼───►┌─────────────────┐   ├───► [Synthesizer] → [Category] → [Validator]
+│   (Query)   │     │    │    Industry     │   │
+└─────────────┘     │    │    Research     │   │
+                    │    └─────────────────┘   │
+                    │    ┌─────────────────┐   │
+                    └───►│     Visual      │───┘
+                         │    Research     │
+                         └─────────────────┘
+```
+
+### 📝 Implementation Plan
+
+#### 1. Create `corpus_visuals_search` MCP Tool (`app/mcp/tools/corpus_visuals.py`)
+- Query `article_images` BigQuery table
+- Filter by: companies, industries, topics, image_type, chart_type
+- Return: `{image_url, description, chart_type, source_article, relevance_score}`
+- Add to `server.py` registration
+
+#### 2. Create Visual Agent (`app/agents/research/visual.py`)
+- Lightweight agent - single tool call
+- Input: entities, industries, topics from `research_brief`
+- Output: `VisualAgentOutput` with list of relevant visuals
+
+#### 3. Add State Schema (`app/agents/research/state.py`)
+- Add `VisualAgentOutput` Pydantic model
+- Add `visual_output: Annotated[Optional[VisualAgentOutput], _keep_last]` to `DeepResearchState`
+
+#### 4. Update Workflow (`app/graph/research_workflow.py`)
+- Add `visual_research` node
+- Update `route_after_groom` to fan-out to 3 agents:
+  ```python
+  return [
+      Send("financial_research", state),
+      Send("industry_research", state),
+      Send("visual_research", state),  # NEW
+  ]
+  ```
+- Add edge: `visual_research` → `synthesize`
+
+#### 5. Update Synthesizer (`app/agents/research/synthesizer.py`)
+- Accept `visual_output` from state
+- Place visuals in appropriate sections based on topic matching
+- Populate `supporting_visuals` in `FindingSection`
+
+#### 6. Update API Route (`app/api/routes/deep_research.py`)
+- Add `visual_research` to `NODE_DESCRIPTIONS`
+- Handle `visual_output` in SSE streaming
+
+### 📊 BigQuery Table Reference: `article_images`
+
+Schema fields available for querying:
+| Field | Type | Use |
+|-------|------|-----|
+| `id` | STRING | Primary key |
+| `article_id` | STRING | Link to source article |
+| `article_title` | STRING | Context for caption |
+| `url` | STRING | Image URL to display |
+| `image_type` | STRING | chart, graph, infographic, photo, diagram, table |
+| `chart_type` | STRING | line, bar, pie, area, scatter, candlestick |
+| `description` | STRING | AI-generated description |
+| `topics` | STRING (JSON) | revenue, market_share, forecast, etc. |
+| `companies` | STRING (JSON) | Companies mentioned |
+| `industries` | STRING (JSON) | Industries covered |
+| `relevance_score` | FLOAT64 | Quality ranking |
+
+### 🔮 Future Phase: Chart Generation
+
+After visuals from `article_images` are working, add:
+- `generate_trend_chart` - Pull data from BigQuery trend tables → matplotlib/plotly chart
+- `generate_comparison_table` - Structured data → visual table
+- Integration with any new trending datasets
+
+### 📁 Files to Create/Modify
+
+**Create:**
+- `backend/app/mcp/tools/corpus_visuals.py` - New search tool
+- `backend/app/agents/research/visual.py` - New visual agent
+
+**Modify:**
+- `backend/app/mcp/server.py` - Register new tool
+- `backend/app/agents/research/state.py` - Add VisualAgentOutput, visual_output field
+- `backend/app/graph/research_workflow.py` - Add visual_research node, 3-way fan-out
+- `backend/app/agents/research/synthesizer.py` - Incorporate visuals into sections
+- `backend/app/api/routes/deep_research.py` - SSE handling for visual agent
+- `backend/app/agents/research/README.md` - Document new agent
+- `backend/app/mcp/tools/README.md` - Document new tool
+
+### 🧪 Testing
+
+```bash
+# Verify workflow compiles with new node
+cd backend
+python -c "from app.graph.research_workflow import create_research_workflow; g = create_research_workflow(); print('Nodes:', list(g.nodes.keys()))"
+# Expected: [..., 'visual_research', ...]
+
+# Test corpus_visuals_search tool
+python -c "from app.mcp.tools.corpus_visuals import corpus_visuals_search; print(corpus_visuals_search.invoke({'companies': ['Hexcel']}))"
+```
+
+---
+
+## 🐛 SESSION 51: Deep Research Groomer Fix (January 6, 2026 - Night)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Problem
+Deep Research workflow was "hanging" after the groomer phase - showing SSE progress like "query analysis" and "prior research" but never completing. Frontend would spin indefinitely.
+
+### 🔍 Root Cause
+**Two issues found:**
+
+1. **Pydantic validation error**: Claude sometimes returns `clarifying_question` as a plain string (e.g., "To provide the most relevant analysis, which aspect...") instead of the expected object structure `{question, options, default_if_skipped}`. This caused a Pydantic validation error in `ResearchBrief(**brief_data)`.
+
+2. **Silent failure**: When grooming failed, the workflow ended (returned `END` from `route_after_groom`), but the API route never emitted an error SSE event - it just hung waiting for more LangGraph events that would never come.
+
+### ✅ Fixes Applied
+
+1. **Groomer robustness** ([groomer.py](backend/app/agents/research/groomer.py)):
+   - Added handling for `clarifying_question` as string
+   - Converts string to proper object: `{question: <string>, options: null, default_if_skipped: "Proceeding with general analysis..."}`
+
+2. **Error SSE emission** ([deep_research.py](backend/app/api/routes/deep_research.py)):
+   - Added explicit check for `current_status == "grooming_failed"` in `on_chain_end` handler
+   - Emits `error` SSE event with message and details
+   - Properly sends `[DONE]` and returns so frontend isn't left hanging
+   - Also handles case where brief is None but status isn't explicitly failed
+
+### 📁 Files Modified
+- `backend/app/agents/research/groomer.py` - Handle clarifying_question as string
+- `backend/app/api/routes/deep_research.py` - Emit error SSE on grooming failure
+
+### 🧪 Verification
+```bash
+cd backend
+python -c "from app.graph.research_workflow import create_research_workflow; g = create_research_workflow(); print('OK:', list(g.nodes.keys()))"
+```
+
+---
+
+## 🎨 SESSION 50: Pipeline Tab Visual Enhancements (January 6, 2026 - Late Night)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Goal
+Enhance the visual design of the Pipeline tab to match the "Pulse" tab aesthetic, introducing better contrast, floating card layouts, and improved readability for search results.
+
+### ✅ Changes Made
+
+1.  **Pipeline Dashboard Styling** (`PipelineDashboard.tsx`):
+    - Changed main background to `bg-slate-200` to match Pulse.
+    - Converted Chat (Left) and Results (Right) panels into "floating cards" with `rounded-2xl`, margins, and shadows.
+    - Added spacing (`gap-4`) between panels to reveal the underlying slate background, creating depth.
+
+2.  **Search Result Zebra Striping** (`SearchBlockCard.tsx`):
+    - Implemented alternating background colors for list items:
+        - Even rows: `bg-white`
+        - Odd rows: `bg-emerald-50/20`
+    - Applied to Prospects, Contacts, and Trigger Events lists.
+    - This "zebra striping" improves readability of long lists and visual separation between items.
+
+### 📁 Files Modified
+- `frontend/src/components/pipeline/PipelineDashboard.tsx` - Layout and background updates
+- `frontend/src/components/pipeline/SearchBlockCard.tsx` - Zebra striping logic
+- `frontend/README.md` - Added Pipeline Tab component documentation
+
+---
+
 ## 🎨 SESSION 49: Global Color Palette Update & Welcome Audio Swap (January 6, 2026 - Night)
 
 **Status**: ✅ COMPLETE

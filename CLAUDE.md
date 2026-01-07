@@ -84,6 +84,9 @@ When adding a new API key/secret:
 | **Deep Research progress** | `app/agents/research/progress.py` |
 | **Deep Research memory (Phase 4)** | `app/agents/research/memory.py` |
 | **Deep Research API route** | `app/api/routes/deep_research.py` |
+| **Visual Research agent (Phase 6)** | `app/agents/research/visual.py` *(to create)* |
+| **Corpus visuals search tool** | `app/mcp/tools/corpus_visuals.py` *(to create)* |
+| **Article images table** | BigQuery `article_images` - classified images from ingestion |
 | **Podcast streaming endpoint** | `app/api/routes/podcast.py` |
 | **Podcast generation (weekly)** | `app/ingestion/generators/weekly_briefing.py` |
 
@@ -159,6 +162,7 @@ claude-sonnet-4-5                 claude-opus-4-5              ElevenLabs TTS
 | `article_tags` | Normalized tags for trending analytics |
 | `companies` | Tracked companies (tickers, names) |
 | `deep_research_reports` | **Saved Deep Research reports (Phase 4)** |
+| `article_images` | **Classified images from articles** - image_type, chart_type, topics, companies, industries, relevance_score. Used by Visual Research agent (Phase 6) |
 
 ## Don't Touch (Bug Fix Protected)
 
@@ -215,6 +219,30 @@ response = await client.messages_create(model="claude-sonnet-4-5", ...)
 
 > **Note**: The `OPENAI_API_KEY` environment variable must be set for fallback to work.
 > See `app/utils/resilient_llm.py` for implementation details.
+
+## Recent Changes (January 7, 2026)
+
+### Session 52 - Visual Research Agent (READY TO IMPLEMENT)
+- **New Feature**: Adding Visual Research Agent to Deep Research workflow
+- **Architecture**: 3-way parallel fan-out (Financial + Industry + Visual)
+- **Goal**: Surface relevant charts/graphs from `article_images` BigQuery table
+- **Zero Added Latency**: Visual agent (~10-15s) finishes before other agents (~30s)
+- **Files to Create**:
+  - `app/mcp/tools/corpus_visuals.py` - `corpus_visuals_search` tool
+  - `app/agents/research/visual.py` - Visual Research agent
+- **Files to Modify**:
+  - `app/agents/research/state.py` - Add `VisualAgentOutput`, `visual_output` field
+  - `app/graph/research_workflow.py` - Add `visual_research` node, 3-way fan-out
+  - `app/agents/research/synthesizer.py` - Place visuals in report sections
+  - `app/api/routes/deep_research.py` - SSE handling for visual_research
+  - `app/mcp/server.py` - Register new tool
+- **See**: `WORKLOG.md` Session 52 for detailed implementation plan
+
+### Session 51 - Deep Research Groomer Fix ✅
+- **Bug Fix**: Deep Research was "hanging" after groomer phase
+- **Root Cause**: Claude returned `clarifying_question` as string instead of object → Pydantic validation error
+- **Fix 1**: `groomer.py` - Convert string to `{question, options, default_if_skipped}` object
+- **Fix 2**: `deep_research.py` - Check for `grooming_failed` status, emit error SSE event, send `[DONE]`
 
 ## Recent Changes (January 6, 2026)
 

@@ -416,8 +416,22 @@ async def run_deep_research(request: DeepResearchRequest):
                             if value is not None:
                                 accumulated_state[key] = value
                     
-                    # Check for clarification needed (from groom node)
+                    # Check for clarification needed OR failure (from groom node)
                     if node_name == "groom" and output:
+                        # Check for grooming failure FIRST
+                        current_status = output.get("current_status")
+                        if current_status == "grooming_failed":
+                            errors = output.get("errors", [])
+                            error_msg = errors[0].get("error", "Query analysis failed") if errors else "Query analysis failed"
+                            logger.error(f"Grooming failed: {error_msg}")
+                            yield _emit_event("error", {
+                                "message": f"Unable to understand query: {error_msg[:200]}",
+                                "type": "grooming_failed",
+                                "details": errors,
+                            })
+                            yield "data: [DONE]\n\n"
+                            return  # Stop workflow - grooming failed
+                        
                         brief = output.get("research_brief")
                         if brief and hasattr(brief, "status"):
                             if brief.status == QueryStatus.NEEDS_CLARIFICATION:
@@ -433,6 +447,15 @@ async def run_deep_research(request: DeepResearchRequest):
                                     "industry_queries": brief.industry_agent_queries or [],
                                     "entities": brief.entities_to_track or [],
                                 })
+                        elif not brief:
+                            # Brief is None but status isn't grooming_failed - still an error
+                            logger.error("Grooming completed but no research_brief in output")
+                            yield _emit_event("error", {
+                                "message": "Query analysis completed but failed to generate research plan",
+                                "type": "no_brief",
+                            })
+                            yield "data: [DONE]\n\n"
+                            return
                     
                     yield _emit_event("node_complete", {
                         "node": node_name,
