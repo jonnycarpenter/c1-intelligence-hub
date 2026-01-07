@@ -20,7 +20,7 @@ Without reliable daily ingestion:
 
 ## 🚀 SESSION 45: Split Web Search by Engine (January 6, 2026 - Evening)
 
-**Status**: ✅ COMPLETE - Ready to deploy
+**Status**: ✅ DEPLOYED
 
 ### 🎯 Problem Solved
 
@@ -35,7 +35,7 @@ Instead of trimming queries, we split the web search job into two separate jobs 
 | `ingest-web-search` (236 queries, 25-35 min) | `ingest-exa` (91 queries, ~15 min) |
 | | `ingest-tavily` (145 queries, ~18 min) |
 
-### 📊 New Scheduler Jobs
+### 📊 New Scheduler Jobs (Deployed)
 
 | Job | Schedule (UTC) | Schedule (CST) | Sources | Timeout |
 |-----|---------------|----------------|---------|---------|
@@ -62,17 +62,26 @@ Instead of trimming queries, we split the web search job into two separate jobs 
 
 4. **No downstream changes**: Same BigQuery tables, same `source_type` values, same classification/storage
 
+### 🧹 Bonus Fix: Classifier Company Loading
+
+Fixed classifier to use BigQuery `companies` table as single source of truth:
+- Removed redundant `_load_from_csv()` method
+- Changed `load_tracked_entities()` to use `db.get_companies()` instead of non-existent `list_entities()`
+- Now when you add/remove companies in BigQuery, classifier picks them up automatically
+
 ### 📁 Files Modified
 - `backend/app/ingestion/orchestrator.py` - Added exa_queries/tavily_queries source handling
+- `backend/app/ingestion/classifier.py` - Fixed to use BigQuery companies table
 - `backend/app/api/routes/scheduler.py` - Updated API docs
 - `backend/app/ingestion/README.md` - Updated scheduler job docs
 - `deploy/scheduler/deploy_jobs.ps1` - New job definitions (ingest-exa, ingest-tavily)
 - `.agent/ARCHITECTURE.md` - Updated ADR-008
 
-### ⏭️ Next Steps After Deploy
-1. Push code to trigger Cloud Build
-2. Run `deploy_jobs.ps1` to create new scheduler jobs
-3. Monitor first run at 2:00 AM CST
+### ✅ Deployment Completed
+- Code pushed: commits `379b695`, `6371424`
+- Scheduler jobs deployed via `deploy_jobs.ps1`
+- Legacy `ingest-web-search` job deleted
+- First run: 2:00 AM CST (ingest-exa), 2:20 AM CST (ingest-tavily)
 
 ### 🔧 Useful Commands
 
