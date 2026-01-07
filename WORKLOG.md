@@ -60,12 +60,13 @@ HOST: "That's your briefing for this week. Stay sharp."
 - `podcast_conversation_thoughtstarter` - Implemented simpler approach
 
 **4. Documentation**
-- Updated `backend/app/services/README.md` with conversational format
+- Updated `backend/app/services/README.md` with Text-to-Dialogue API details
 
 ### 📁 Files Modified
 - `frontend/src/components/dashboard/PodcastModal.tsx` (NEW)
 - `frontend/src/components/dashboard/WeeklyBriefingSection.tsx` - Modal integration
-- `backend/app/ingestion/generators/weekly_briefing.py` - Two-voice dialogue
+- `backend/app/ingestion/generators/weekly_briefing.py` - Two-voice dialogue + Text-to-Dialogue API
+- `backend/scripts/operations/generate_podcast_for_briefing.py` - Updated for new API
 - `backend/app/services/README.md` - Updated podcast docs
 
 ### 🧪 Verification
@@ -81,9 +82,20 @@ cd frontend && npm run build
 ```
 
 ### 📝 Notes
-- Voice IDs already configured: Rachel (host), Josh (analyst)
+- Voice IDs: Rachel (host) `21m00Tcm4TlvDq8ikWAM`, Josh (analyst) `TxGEqnHWrfWFTfGW9XjX`
 - Podcast URL stored per briefing - each week gets new audio
 - GCS streaming endpoint unchanged (`/api/podcast/briefing/{id}`)
+- Text-to-Dialogue API produces noticeably better audio quality
+- Single API call is more efficient (~15-20 calls reduced to 1)
+
+### 🧪 Testing
+```bash
+# Regenerate podcast for latest briefing
+python scripts/operations/generate_podcast_for_briefing.py
+
+# Result: 254s (4:14) podcast generated successfully
+# URL: https://storage.googleapis.com/.../podcasts/{briefing_id}.mp3
+```
 
 ---
 

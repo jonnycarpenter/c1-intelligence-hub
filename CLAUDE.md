@@ -88,7 +88,7 @@ When adding a new API key/secret:
 | **Corpus visuals search tool** | `app/mcp/tools/corpus_visuals.py` *(to create)* |
 | **Article images table** | BigQuery `article_images` - classified images from ingestion |
 | **Podcast streaming endpoint** | `app/api/routes/podcast.py` |
-| **Podcast generation (weekly)** | `app/ingestion/generators/weekly_briefing.py` |
+| **Podcast generation (weekly)** | `app/ingestion/generators/weekly_briefing.py` *(uses ElevenLabs Text-to-Dialogue API)* |
 
 ## README Documentation Index
 

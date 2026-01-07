@@ -110,15 +110,21 @@ BigQuery: digest_items table
 - `GET /api/podcast/voices` - List available voices
 
 **Weekly Briefing Integration**:
-The weekly executive briefing pipeline (`weekly_briefing.py`) generates a **conversational two-voice podcast**:
+The weekly executive briefing pipeline (`weekly_briefing.py`) generates a **conversational two-voice podcast** using ElevenLabs **Text-to-Dialogue API**:
 1. `_format_text_for_speech()` - Cleans text for TTS (removes citations, expands "$2.4B" → "2.4 billion dollars")
 2. `_build_podcast_dialogue()` - Creates dialogue turns between Host (Rachel) and Analyst (Josh)
-3. `_generate_podcast()` - Generates audio for each turn, concatenates, uploads to GCS
+3. `_generate_podcast()` - **Single API call** to `/v1/text-to-dialogue` with all turns, uploads to GCS
 
 **Dialogue Format**:
 - **Host (Rachel)**: Opens briefing, introduces sections, transitions, closes
 - **Analyst (Josh)**: Delivers content - BLUF, headlines, insights, trends
 - Natural back-and-forth creates an engaging listen vs monotone narration
+
+**Text-to-Dialogue API** (as of Jan 7, 2026):
+- Model: `eleven_v3` (required by dialogue endpoint)
+- Single API call handles all speaker transitions smoothly
+- Better audio quality than concatenating individual TTS calls
+- Uses `httpx` directly (ElevenLabs Python SDK doesn't support this endpoint yet)
 
 **Storage**: GCS bucket `gen-lang-client-0436975498-c1-hub-data` in `/podcasts/{briefing_id}.mp3`
 
@@ -127,10 +133,8 @@ The weekly executive briefing pipeline (`weekly_briefing.py`) generates a **conv
 **Configuration** (in `settings.py`):
 ```python
 elevenlabs_api_key: str = ""
-elevenlabs_voice_id: str = "21m00Tcm4TlvDq8ikWAM"  # Rachel
-elevenlabs_model: str = "eleven_monolingual_v1"
-elevenlabs_voice_stability: float = 0.5
-elevenlabs_voice_similarity_boost: float = 0.75
+elevenlabs_host_voice_id: str = "21m00Tcm4TlvDq8ikWAM"  # Rachel
+elevenlabs_analyst_voice_id: str = "TxGEqnHWrfWFTfGW9XjX"  # Josh
 ```
 
 ---
