@@ -83,25 +83,25 @@ You must respond with a single, valid JSON object. Do not include any text befor
                 logger.warning(f"Could not initialize BigQuery storage: {e}")
         return self._bq_storage
 
-    def _get_this_weeks_sunday(self) -> datetime:
+    def _get_this_weeks_monday(self) -> datetime:
         """
-        Get the Sunday of the current week (most recent Sunday).
+        Get the Monday of the current week (most recent Monday).
         
         This ensures that executive briefings always reference the same week,
         regardless of when they're run (manual vs scheduled).
         
-        Industry convention: "Week of [Sunday date]"
+        Convention: "Week of [Monday date]" (e.g., "Week of Jan 6")
         
         Returns:
-            datetime: This week's Sunday at midnight UTC
+            datetime: This week's Monday at midnight UTC
         """
         today = datetime.utcnow()
-        # Monday = 0, Sunday = 6
-        # Calculate days since last Sunday (same as days_since_monday)
-        days_since_sunday = today.weekday()
-        this_sunday = today - timedelta(days=days_since_sunday)
+        # Python weekday(): Monday=0, Tuesday=1, ..., Sunday=6
+        # So weekday() directly gives us days since Monday
+        days_since_monday = today.weekday()
+        this_monday = today - timedelta(days=days_since_monday)
         # Reset to start of day (midnight UTC)
-        return this_sunday.replace(hour=0, minute=0, second=0, microsecond=0)
+        return this_monday.replace(hour=0, minute=0, second=0, microsecond=0)
 
     async def _get_articles(
         self, 
@@ -125,9 +125,9 @@ You must respond with a single, valid JSON object. Do not include any text befor
             period_start = start_date
             period_end = end_date
         else:
-            # Use this week's Sunday as the reference point
+            # Use this week's Monday as the reference point
             # This ensures manual runs always show the same "Week of" date
-            period_end = self._get_this_weeks_sunday()
+            period_end = self._get_this_weeks_monday()
             period_start = period_end - timedelta(days=days)
         
         # Query BigQuery (primary source of truth)

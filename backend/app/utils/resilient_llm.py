@@ -244,7 +244,7 @@ class ResilientChatAnthropic(BaseChatModel):
         
         # Try primary model
         try:
-            logger.debug(f"Async invoking primary model: {self.primary_model}")
+            logger.info(f"Async invoking primary model: {self.primary_model} (message count: {len(messages)})")
             start = time.time()
             result = await self._primary_client.ainvoke(messages, config=config, **kwargs)
             elapsed = time.time() - start

@@ -239,9 +239,22 @@ async def query_grooming_node(state: DeepResearchState) -> DeepResearchState:
     logger.info(f"Calling groomer LLM for query: {state['user_query'][:50]}...")
     logger.info(f"Message count: {len(messages)}, system prompt length: {len(system_content)}")
     
+    # LLM call timeout (90 seconds) to prevent indefinite hanging
+    LLM_TIMEOUT = 90
+    
     try:
-        response = await llm.ainvoke(messages)
+        response = await asyncio.wait_for(llm.ainvoke(messages), timeout=LLM_TIMEOUT)
         logger.info(f"Groomer LLM response received, length: {len(response.content)}")
+    except asyncio.TimeoutError:
+        logger.error(f"Groomer LLM call timed out after {LLM_TIMEOUT}s")
+        state["errors"].append({"node": "groomer", "error": f"LLM call timed out after {LLM_TIMEOUT} seconds"})
+        state["current_status"] = "grooming_failed"
+        emit_progress_sync(ToolProgress(
+            tool_name="query_analysis",
+            message=f"Query analysis timed out after {LLM_TIMEOUT}s - please try again",
+            status="error"
+        ))
+        return state
     except Exception as llm_error:
         logger.error(f"LLM call failed with error: {type(llm_error).__name__}: {llm_error}")
         state["errors"].append({"node": "groomer", "error": f"LLM call failed: {str(llm_error)}"})

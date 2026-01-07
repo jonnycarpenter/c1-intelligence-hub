@@ -146,14 +146,14 @@ Agent 2 can use `search_peripheral_intelligence()` to find adjacent signals:
 - Limited to 3 searches per briefing
 
 ### Week Date Calculation
-Briefings always reference **this week's Sunday** as the period_end date:
-- `_get_this_weeks_sunday()` calculates the most recent Sunday at midnight UTC
+Briefings always reference **this week's Monday** as the period_end date:
+- `_get_this_weeks_monday()` calculates the most recent Monday at midnight UTC
 - Ensures manual/off-schedule runs show consistent week dates
 - Prevents date drift when running multiple times
-- Industry convention: "Week of [Sunday date]"
+- Convention: "Week of [Monday date]"
 
-**Example**: Running on Tuesday, Jan 7, 2026:
-- `period_end` = Sunday, Jan 5, 2026 (this week's Sunday)
+**Example**: Running on Wednesday, Jan 7, 2026:
+- `period_end` = Monday, Jan 5, 2026 (this week's Monday)
 - `period_start` = 14 days before (for pre-briefing analysis)
 - Displayed as: "Week of Jan 5"
 

@@ -185,7 +185,14 @@ function handleSSEEvent(
             const statusText = typeof data.content === 'string' 
                 ? data.content 
                 : data.content?.message || ''
-            setState(prev => ({ ...prev, status: statusText }))
+            // Don't show "Research complete" while still researching - that would be confusing
+            // This can happen if backend sends status before report event
+            setState(prev => {
+                if (prev.isResearching && statusText.toLowerCase().includes('complete')) {
+                    return prev // Keep existing status while still researching
+                }
+                return { ...prev, status: statusText }
+            })
             break
 
         case 'cache_hit':

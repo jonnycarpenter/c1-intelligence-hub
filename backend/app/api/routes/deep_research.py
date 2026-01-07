@@ -274,6 +274,7 @@ async def run_deep_research(request: DeepResearchRequest):
         "clarification_count": 0,
         "financial_output": None,
         "industry_output": None,
+        "visual_output": None,
         "final_report": None,
         "category_output": None,
         "validator_output": None,

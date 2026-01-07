@@ -17,6 +17,45 @@ Without reliable daily ingestion:
 **Always verify scheduler jobs are running before working on features.**
 
 ---
+## 📅 SESSION 59: Briefing Date Fix & Logo Formatting Deployment (January 7, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Issues Reported
+1. **Logo insertion and formatting not showing in production** on the BLUF and overall_trend in weekly briefings
+2. **Date showing "Week of Jan 11"** instead of "Week of Jan 5" (this week's Monday)
+
+### 🔍 Root Cause Analysis
+
+**Logo/Formatting Issue:**
+- The code from Session 55 (`53cb74c`) exists and is committed
+- However, the **existing briefing in BigQuery was generated before these changes**
+- Fix: Regenerate the weekly briefing after deployment
+
+**Date Issue:**
+- Function `_get_this_weeks_sunday()` was mislabeled - the formula actually calculates Monday
+- The stored briefing had old `period_end` data from a prior manual run
+- Fix: Rename function for clarity and regenerate briefing
+
+### ✅ Changes Made
+
+1. **Renamed function for clarity** (`pre_briefing.py`):
+   - `_get_this_weeks_sunday()` → `_get_this_weeks_monday()`
+   - Formula was already correct (weekday() = days since Monday)
+   - Comments updated to reflect Monday convention
+
+2. **Documentation updated** (`generators/README.md`):
+   - All Sunday references changed to Monday
+   - Example updated to show correct date calculation
+
+### 📁 Files Modified
+- `backend/app/ingestion/generators/pre_briefing.py` - Function rename
+- `backend/app/ingestion/generators/README.md` - Documentation update
+
+### 🔜 Next Steps After Deploy
+- Regenerate weekly briefing to apply logo formatting and correct date
+
+---
 ## 🎙️ SESSION 58: Podcast System Audit (January 7, 2026)
 
 **Status**: ✅ COMPLETE
