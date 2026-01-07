@@ -155,49 +155,29 @@ Relevance Score Guidelines:
         self.model = config.classifier_model
         self.temperature = config.classifier_temperature
         
-        # Tracked entities (loaded from DB or master CSV)
-        self._competitors: List[str] = []
-        self._oems: List[str] = []
-        self._load_from_csv()
-    
-    def _load_from_csv(self):
-        """Load companies from master CSV as initial defaults."""
-        try:
-            from app.utils.grounding import load_companies
-            df = load_companies()
-            if not df.empty and 'company' in df.columns:
-                # All companies in master list are relevant
-                self._competitors = df['company'].dropna().tolist()
-                logger.info(f"Loaded {len(self._competitors)} companies from master list")
-        except Exception as e:
-            logger.warning(f"Could not load companies from CSV: {e}")
-            self._competitors = DEFAULT_COMPETITORS.copy()
-            self._oems = DEFAULT_OEMS.copy()
+        # Tracked entities - initialized with defaults, then loaded from BigQuery
+        # via load_tracked_entities() during orchestrator initialization
+        self._competitors: List[str] = DEFAULT_COMPETITORS.copy()
+        self._oems: List[str] = DEFAULT_OEMS.copy()
     
     async def load_tracked_entities(self, db):
-        """Load tracked entities from database and CSV for classification context."""
+        """Load tracked entities from BigQuery companies table for classification context.
+        
+        This is the single source of truth for company data. The BigQuery `companies` table
+        should be updated when adding/removing tracked companies.
+        """
         try:
-            # 1. Load from CSV first
-            from app.utils.grounding import load_companies
-            df = load_companies()
-            if not df.empty:
-                self._competitors = df[df['type'] == 'competitor']['company'].tolist()
-                self._oems = df[df['type'] == 'oem']['company'].tolist()
-
-            # 2. Merge with DB entities
-            entities = await db.list_entities()
+            # Load from BigQuery companies table (single source of truth)
+            companies = await db.get_companies()
             
-            db_competitors = [e['name'] for e in entities if e.get('type') == 'competitor']
-            db_oems = [e['name'] for e in entities if e.get('type') == 'oem']
+            self._competitors = [c['name'] for c in companies if c.get('type') == 'competitor']
+            self._oems = [c['name'] for c in companies if c.get('type') == 'oem']
             
-            if db_competitors:
-                self._competitors = list(set(self._competitors + db_competitors))
-            if db_oems:
-                self._oems = list(set(self._oems + db_oems))
-            
-            logger.info(f"Loaded {len(self._competitors)} competitors, {len(self._oems)} OEMs for classification")
+            logger.info(f"Loaded {len(self._competitors)} competitors, {len(self._oems)} OEMs from BigQuery")
         except Exception as e:
-            logger.warning(f"Could not load tracked entities, using defaults: {e}")
+            logger.warning(f"Could not load tracked entities from BigQuery, using defaults: {e}")
+            self._competitors = DEFAULT_COMPETITORS.copy()
+            self._oems = DEFAULT_OEMS.copy()
     
     async def classify(self, article: RawArticle) -> ClassificationResult:
         """Classify a single article."""
