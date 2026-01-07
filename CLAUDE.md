@@ -25,7 +25,12 @@ Read these files first:
    - Ingestion tools → `app/tools/`
    - Scripts → `scripts/{monitoring,health,operations}/`
 3. **Update READMEs** when adding new modules
-4. **Test before committing**:
+4. **Add comprehensive debug logging** when building new features:
+   - Use `[MODULE_NAME]` prefixed log messages for easy Cloud Run filtering
+   - Log START/COMPLETE with timing for async operations
+   - Log state keys and key variables at entry/exit points
+   - Add LLM timeout protection (`asyncio.wait_for`) for any LLM calls
+5. **Test before committing**:
    ```bash
    cd backend
    python -c "from app.mcp.server import get_all_mcp_tools; print(len(get_all_mcp_tools()))"

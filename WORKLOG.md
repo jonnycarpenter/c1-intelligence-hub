@@ -17,6 +17,101 @@ Without reliable daily ingestion:
 **Always verify scheduler jobs are running before working on features.**
 
 ---
+## 📅 SESSION 60: Deep Research Workflow Debugging & Stabilization (January 7, 2026)
+
+**Status**: 🚧 IN PROGRESS - Ready for Deploy
+
+### 🎯 Issues Reported
+1. **Groomer LLM hanging indefinitely** - Cloud Run logs showed groomer stuck at "Message count: 2, system prompt length: 4308" for 5+ minutes without timeout
+2. **Frontend showing "Research complete" prematurely** - Status text appeared while spinner still active
+3. **Missing `visual_output` in initial state** - Could cause state merge issues in parallel execution
+
+### 🔍 Root Cause Analysis
+
+**Groomer Hang Issue:**
+- The `ResilientChatAnthropic` wrapper had HTTP timeout (120s) but NO asyncio-level timeout
+- The `ainvoke()` call was awaiting indefinitely with no cancellation mechanism
+- Anthropic API appears to occasionally hang (perhaps rate limiting or network issues)
+- Other nodes (financial, industry) worked fine because they didn't experience the same delay
+
+**Frontend "Research complete" Issue:**
+- The SSE event handler received a `status: "Research complete."` message from the workflow
+- This status was being displayed even while `isResearching` was still `true`
+- The handler blindly set whatever status text came through
+
+**Visual Output Issue:**
+- `initial_state` in `deep_research.py` was missing `visual_output: None`
+- This could cause issues during LangGraph state merging from parallel Send nodes
+
+### ✅ Fixes Applied
+
+#### 1. Groomer LLM Timeout (`groomer.py`)
+Added 90-second `asyncio.wait_for` around the LLM call:
+```python
+LLM_TIMEOUT = 90
+try:
+    response = await asyncio.wait_for(llm.ainvoke(messages), timeout=LLM_TIMEOUT)
+except asyncio.TimeoutError:
+    logger.error(f"Groomer LLM call timed out after {LLM_TIMEOUT}s")
+    # Graceful failure with error progress emission
+```
+
+#### 2. Frontend Status Display (`useDeepResearch.ts`)
+Modified status handler to ignore "complete" messages while still researching:
+```typescript
+case 'status':
+    setState(prev => {
+        if (prev.isResearching && statusText.toLowerCase().includes('complete')) {
+            return prev // Keep existing status while still researching
+        }
+        return { ...prev, status: statusText }
+    })
+```
+
+#### 3. Initial State Fix (`deep_research.py`)
+Added missing `visual_output: None` to initial_state
+
+#### 4. Logging Visibility (`resilient_llm.py`)
+Changed `logger.debug` → `logger.info` for LLM invocation so it appears in Cloud Run logs
+
+### 🔧 Comprehensive Debug Logging Added
+
+Added `[NODE_NAME]` prefixed logging throughout workflow for production debugging:
+
+| File | Logging Added |
+|------|---------------|
+| `groomer.py` | `[GROOMER] START/COMPLETE` with timing, query count |
+| `financial.py` | `[FINANCIAL_RESEARCH] START/COMPLETE` with timing, finding count |
+| `industry.py` | `[INDUSTRY_RESEARCH] START/COMPLETE` with timing, finding count |
+| `visual.py` | `[VISUAL_RESEARCH] START` with state keys |
+| `synthesizer.py` | `[SYNTHESIZER] START/COMPLETE` with timing, input analysis |
+| `research_workflow.py` | `[ROUTE_AFTER_GROOM]` with state keys, current_status |
+| `deep_research.py` | `[DEEP_RESEARCH]` initial state logging |
+
+### 📁 Files Modified
+- `backend/app/agents/research/groomer.py` - LLM timeout + debug logging
+- `backend/app/agents/research/financial.py` - Debug logging
+- `backend/app/agents/research/industry.py` - Debug logging  
+- `backend/app/agents/research/visual.py` - Debug logging
+- `backend/app/agents/research/synthesizer.py` - Debug logging
+- `backend/app/graph/research_workflow.py` - Routing debug logging
+- `backend/app/api/routes/deep_research.py` - Initial state fix + logging
+- `backend/app/utils/resilient_llm.py` - Changed debug → info for visibility
+- `frontend/src/hooks/useDeepResearch.ts` - Status display fix
+
+### ✅ Validation
+- Workflow compiles successfully with all 8 nodes
+- Frontend builds successfully
+
+### 🔜 Next Steps
+1. **Deploy**: `git add . && git commit -m "Fix groomer timeout, status display, add comprehensive logging" && git push origin main`
+2. **Test**: Run research query and verify:
+   - Groomer doesn't hang (should timeout at 90s if needed)
+   - No premature "Research complete" message
+   - Debug logs visible in Cloud Run Logs
+3. **Monitor**: Look for `[GROOMER]`, `[FINANCIAL_RESEARCH]`, etc. prefixes in logs
+
+---
 ## 📅 SESSION 59: Briefing Date Fix & Logo Formatting Deployment (January 7, 2026)
 
 **Status**: ✅ COMPLETE

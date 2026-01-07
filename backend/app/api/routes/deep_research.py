@@ -264,6 +264,9 @@ async def run_deep_research(request: DeepResearchRequest):
         )
     
     # Not cached - run the full workflow
+    logger.info(f"[DEEP_RESEARCH] Starting workflow for query: {request.query[:100]}...")
+    logger.info(f"[DEEP_RESEARCH] History length: {len(request.history)}")
+    
     initial_state: DeepResearchState = {
         "user_query": request.query,
         "conversation_history": [
@@ -281,6 +284,7 @@ async def run_deep_research(request: DeepResearchRequest):
         "current_status": "starting",
         "errors": [],
     }
+    logger.info(f"[DEEP_RESEARCH] Initial state keys: {list(initial_state.keys())}")
 
     async def event_generator():
         """

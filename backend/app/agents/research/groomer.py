@@ -173,6 +173,11 @@ async def query_grooming_node(state: DeepResearchState) -> DeepResearchState:
     - Avoid redundant clarifying questions
     - Generate more targeted search queries
     """
+    import time
+    start_time = time.time()
+    logger.info(f"[GROOMER] START - query: {state.get('user_query', '')[:50]}...")
+    logger.info(f"[GROOMER] State keys: {list(state.keys())}")
+    
     llm = create_resilient_llm_with_openai_fallback(
         primary_model=settings.deep_research_groomer_model,
         anthropic_api_key=settings.anthropic_api_key,
@@ -296,7 +301,9 @@ async def query_grooming_node(state: DeepResearchState) -> DeepResearchState:
         research_brief = ResearchBrief(**brief_data)
         
         state["research_brief"] = research_brief
-        logger.info(f"Research brief created with status: {research_brief.status}")
+        elapsed = time.time() - start_time
+        logger.info(f"[GROOMER] COMPLETE in {elapsed:.1f}s - status: {research_brief.status}")
+        logger.info(f"[GROOMER] Financial queries: {len(research_brief.financial_agent_queries or [])}, Industry queries: {len(research_brief.industry_agent_queries or [])}")
         
         if research_brief.status == QueryStatus.NEEDS_CLARIFICATION:
             state["clarification_count"] += 1

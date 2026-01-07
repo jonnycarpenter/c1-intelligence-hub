@@ -250,6 +250,9 @@ async def financial_research_node(state: DeepResearchState) -> Dict[str, Any]:
     - Enhanced extraction prompt with research context
     """
     start_time = time.time()
+    logger.info(f"[FINANCIAL_RESEARCH] START - query: {state.get('user_query', '')[:50]}...")
+    logger.info(f"[FINANCIAL_RESEARCH] State keys: {list(state.keys())}")
+    
     llm = create_resilient_llm_with_openai_fallback(
         primary_model=settings.deep_research_financial_model,
         anthropic_api_key=settings.anthropic_api_key,
@@ -528,6 +531,9 @@ IMPORTANT:
         # Add execution metadata
         financial_output.execution_time_seconds = time.time() - start_time
         financial_output.queries_executed = queries_executed
+        
+        elapsed = time.time() - start_time
+        logger.info(f"[FINANCIAL_RESEARCH] COMPLETE in {elapsed:.1f}s - findings: {len(financial_output.findings)}")
         
         # Return PARTIAL STATE - only fields this node updates
         # This is required for LangGraph's Send API parallel merge

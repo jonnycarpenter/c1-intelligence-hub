@@ -77,7 +77,16 @@ async def synthesis_node(state: DeepResearchState) -> DeepResearchState:
     """
     Synthesis node. Merges financial, industry, and visual outputs into a final report.
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     start_time = time.time()
+    logger.info(f"[SYNTHESIZER] START - query: {state.get('user_query', '')[:50]}...")
+    logger.info(f"[SYNTHESIZER] State keys: {list(state.keys())}")
+    logger.info(f"[SYNTHESIZER] Has financial_output: {state.get('financial_output') is not None}")
+    logger.info(f"[SYNTHESIZER] Has industry_output: {state.get('industry_output') is not None}")
+    logger.info(f"[SYNTHESIZER] Has visual_output: {state.get('visual_output') is not None}")
+    
     llm = create_resilient_llm_with_openai_fallback(
         primary_model=settings.deep_research_synthesizer_model,
         anthropic_api_key=settings.anthropic_api_key,
@@ -229,6 +238,9 @@ async def synthesis_node(state: DeepResearchState) -> DeepResearchState:
             
         final_report = SynthesisAgentOutput(**output_data)
         final_report.research_time_seconds = time.time() - start_time
+        
+        elapsed = time.time() - start_time
+        logger.info(f"[SYNTHESIZER] COMPLETE in {elapsed:.1f}s - sections: {len(final_report.sections)}, data_completeness: {final_report.data_completeness}")
         
         state["final_report"] = final_report
         state["current_status"] = "synthesis_complete"

@@ -91,6 +91,8 @@ async def visual_research_node(state: DeepResearchState) -> Dict[str, Any]:
     returns an empty visual list without failing the workflow.
     """
     start_time = time.time()
+    logger.info(f"[VISUAL_RESEARCH] START - query: {state.get('user_query', '')[:50]}...")
+    logger.info(f"[VISUAL_RESEARCH] State keys: {list(state.keys())}")
     
     brief = state.get("research_brief")
     if not brief:

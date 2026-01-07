@@ -6,14 +6,25 @@ Multi-agent research pipeline for comprehensive industry intelligence reports.
 
 Deep Research is an 8-node LangGraph workflow that orchestrates specialized agents to produce executive-ready research reports. It combines financial data, industry news, visual assets, and sales intelligence into a single deliverable.
 
-**Status: ✅ PRODUCTION READY** (January 5, 2026)
+**Status: ✅ PRODUCTION READY** (January 7, 2026)
 
 **Key Features:**
-- Parallel execution of Financial + Industry agents (~40% faster)
+- Parallel execution of Financial + Industry + Visual agents (~60% faster)
 - Real-time SSE streaming with granular tool progress
 - In-memory query caching (1-hour TTL)
 - LangSmith observability for cost/latency tracking
 - Pydantic schema validation at every node
+- Comprehensive debug logging with `[NODE_NAME]` prefixes
+- LLM timeout protection (90s per call) to prevent hangs
+
+## File Organization
+
+**Agent Nodes**: This folder (`app/agents/research/`) contains the individual agent implementations.
+
+**LangGraph Workflow**: The LangGraph workflow definition lives in a separate folder:
+- `app/graph/research_workflow.py` - Workflow graph with nodes, edges, and routing logic
+- `app/graph/state.py` - Shared state definitions (if separate from agent state)
+- `app/graph/workflow.py` - Any additional workflow utilities
 
 ## Pipeline Architecture
 
@@ -388,7 +399,13 @@ await memory.store_report(report_id, query, state)
 | `state.py` | Pydantic schemas and TypedDict state | **Reducer annotations for parallel execution** |
 | `progress.py` | Progress callback infrastructure | SSE event emission |
 | `memory.py` | **Research memory service (Phase 4)** | BigQuery persistence, related research search |
-| `../graph/research_workflow.py` | LangGraph workflow definition | `Send` API for parallel fan-out |
+
+**LangGraph Workflow Files** (in `app/graph/` folder):
+
+| File | Purpose | Key Features |
+|------|---------|---------------|
+| `research_workflow.py` | LangGraph workflow definition | `Send` API for parallel fan-out, node routing |
+| `workflow.py` | Workflow utilities | Helper functions for graph operations |
 
 ## Testing
 
@@ -505,6 +522,67 @@ validation = result["validator_output"]
 - [ ] Frontend: Tool Health dashboard (API status, latency, success rates)
 - [ ] Frontend: Saved Reports history view
 - [ ] Semantic search on past reports (query embeddings)
+
+## Debug Logging
+
+Comprehensive debug logging is built into every node for production debugging. All log messages use a consistent `[NODE_NAME]` prefix for easy filtering in Cloud Run Logs.
+
+### Log Prefixes
+
+| Prefix | Node | What's Logged |
+|--------|------|---------------|
+| `[GROOMER]` | Query Grooming | START/COMPLETE timing, query count, financial/industry queries generated |
+| `[FINANCIAL_RESEARCH]` | Financial Agent | START/COMPLETE timing, finding count, state keys |
+| `[INDUSTRY_RESEARCH]` | Industry Agent | START/COMPLETE timing, finding count, state keys |
+| `[VISUAL_RESEARCH]` | Visual Agent | START timing, state keys |
+| `[SYNTHESIZER]` | Synthesizer | START/COMPLETE timing, input analysis, section count |
+| `[ROUTE_AFTER_GROOM]` | Workflow Router | Routing decision, state keys, current_status |
+| `[DEEP_RESEARCH]` | API Route | Initial state, workflow start |
+
+### Example Log Output
+
+```
+[GROOMER] START - query: What's the outlook for aerospace compos...
+[GROOMER] State keys: ['user_query', 'conversation_history', 'research_brief', ...]
+[GROOMER] COMPLETE in 12.3s - status: QueryStatus.READY
+[GROOMER] Financial queries: 4, Industry queries: 5
+[ROUTE_AFTER_GROOM] State keys: ['user_query', 'research_brief', ...]
+[ROUTE_AFTER_GROOM] current_status: grooming_complete
+[FINANCIAL_RESEARCH] START - query: What's the outlook for aerospace compos...
+[INDUSTRY_RESEARCH] START - query: What's the outlook for aerospace compos...
+[VISUAL_RESEARCH] START - query: What's the outlook for aerospace compos...
+```
+
+### Cloud Run Log Filtering
+
+```bash
+# Filter by node in Cloud Run Logs
+gcloud logging read 'resource.type="cloud_run_revision" AND textPayload=~"\[GROOMER\]"' --limit=50
+
+# Filter all research workflow logs
+gcloud logging read 'resource.type="cloud_run_revision" AND textPayload=~"\[(GROOMER|FINANCIAL_RESEARCH|INDUSTRY_RESEARCH|SYNTHESIZER)\]"' --limit=100
+```
+
+## LLM Timeout Protection
+
+Each LLM call has a 90-second `asyncio.wait_for` timeout to prevent indefinite hangs:
+
+```python
+# groomer.py example
+LLM_TIMEOUT = 90
+try:
+    response = await asyncio.wait_for(llm.ainvoke(messages), timeout=LLM_TIMEOUT)
+    logger.info(f"Groomer LLM response received, length: {len(response.content)}")
+except asyncio.TimeoutError:
+    logger.error(f"Groomer LLM call timed out after {LLM_TIMEOUT}s")
+    state["errors"].append({"node": "groomer", "error": f"LLM call timed out after {LLM_TIMEOUT} seconds"})
+    state["current_status"] = "grooming_failed"
+```
+
+**Why 90 seconds?**
+- HTTP timeout (120s) wasn't being enforced at the asyncio task level
+- Anthropic API can occasionally hang with no response
+- 90s gives ample time for complex queries while preventing indefinite waits
 
 ## Troubleshooting
 

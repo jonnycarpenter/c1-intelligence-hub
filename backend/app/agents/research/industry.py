@@ -255,6 +255,9 @@ async def industry_research_node(state: DeepResearchState) -> Dict[str, Any]:
     5. Google Trends for demand signal validation
     """
     start_time = time.time()
+    logger.info(f"[INDUSTRY_RESEARCH] START - query: {state.get('user_query', '')[:50]}...")
+    logger.info(f"[INDUSTRY_RESEARCH] State keys: {list(state.keys())}")
+    
     llm = create_resilient_llm_with_openai_fallback(
         primary_model=settings.deep_research_industry_model,
         anthropic_api_key=settings.anthropic_api_key,
@@ -506,6 +509,9 @@ IMPORTANT:
         industry_output = IndustryAgentOutput(**output_data)
         
         industry_output.queries_executed = queries_executed
+        
+        elapsed = time.time() - start_time
+        logger.info(f"[INDUSTRY_RESEARCH] COMPLETE in {elapsed:.1f}s - findings: {len(industry_output.findings)}")
         
         # Return PARTIAL STATE - only fields this node updates
         # This is required for LangGraph's Send API parallel merge

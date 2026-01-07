@@ -25,12 +25,15 @@ def route_after_groom(state: DeepResearchState) -> Union[List[Send], Literal["__
     Note: We no longer loop back to "groom" - if grooming fails, we end the workflow.
     This prevents infinite loops.
     """
+    logger.info(f"[ROUTE_AFTER_GROOM] State keys: {list(state.keys())}")
+    logger.info(f"[ROUTE_AFTER_GROOM] current_status: {state.get('current_status')}")
+    
     brief = state.get("research_brief")
     
     # If grooming failed (no brief), end the workflow
     if not brief:
-        logger.error("Grooming failed - no research_brief in state. Ending workflow.")
-        logger.error(f"State errors: {state.get('errors', [])}")
+        logger.error("[ROUTE_AFTER_GROOM] Grooming failed - no research_brief in state. Ending workflow.")
+        logger.error(f"[ROUTE_AFTER_GROOM] State errors: {state.get('errors', [])}")
         return END
         
     logger.info(f"Grooming complete. Status: {brief.status}")
