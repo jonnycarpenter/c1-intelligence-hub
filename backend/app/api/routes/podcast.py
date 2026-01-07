@@ -1,6 +1,6 @@
 """Podcast API endpoints - Generate AI podcasts from intelligence content."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, StreamingResponse
 
 from app.api.schemas import (
@@ -141,13 +141,13 @@ async def list_available_voices():
 
 
 @router.get("/briefing/{briefing_id}")
-async def get_briefing_podcast(briefing_id: str):
+async def get_briefing_podcast(briefing_id: str, request: Request):
     """
     Stream podcast audio for a weekly briefing from GCS.
     
     This endpoint proxies the audio file from GCS to work around
-    bucket public access prevention. The file is streamed to avoid
-    loading the entire file into memory.
+    bucket public access prevention. Supports Range requests for
+    proper audio seeking in browsers.
     """
     logger.info(f"Streaming briefing podcast: {briefing_id}")
     
@@ -161,22 +161,59 @@ async def get_briefing_podcast(briefing_id: str):
         if not blob.exists():
             raise HTTPException(status_code=404, detail="Podcast not found for this briefing")
         
-        # Stream the file from GCS
+        # Get file size
+        blob.reload()
+        file_size = blob.size
+        
+        # Parse Range header
+        range_header = request.headers.get("range")
+        start = 0
+        end = file_size - 1
+        
+        if range_header:
+            # Parse "bytes=start-end" format
+            range_spec = range_header.replace("bytes=", "")
+            if "-" in range_spec:
+                parts = range_spec.split("-")
+                if parts[0]:
+                    start = int(parts[0])
+                if parts[1]:
+                    end = int(parts[1])
+        
+        # Ensure valid range
+        if start >= file_size:
+            raise HTTPException(status_code=416, detail="Range not satisfiable")
+        end = min(end, file_size - 1)
+        content_length = end - start + 1
+        
+        # Stream the requested range from GCS
         def generate():
             with blob.open("rb") as f:
-                while True:
-                    chunk = f.read(8192)  # 8KB chunks
+                f.seek(start)
+                remaining = content_length
+                while remaining > 0:
+                    chunk_size = min(8192, remaining)
+                    chunk = f.read(chunk_size)
                     if not chunk:
                         break
+                    remaining -= len(chunk)
                     yield chunk
+        
+        headers = {
+            "Content-Disposition": f'inline; filename="briefing_{briefing_id}.mp3"',
+            "Accept-Ranges": "bytes",
+            "Content-Length": str(content_length),
+            "Content-Range": f"bytes {start}-{end}/{file_size}",
+        }
+        
+        # Return 206 Partial Content for Range requests, 200 otherwise
+        status_code = 206 if range_header else 200
         
         return StreamingResponse(
             generate(),
+            status_code=status_code,
             media_type="audio/mpeg",
-            headers={
-                "Content-Disposition": f'inline; filename="briefing_{briefing_id}.mp3"',
-                "Accept-Ranges": "bytes",
-            }
+            headers=headers,
         )
         
     except HTTPException:
