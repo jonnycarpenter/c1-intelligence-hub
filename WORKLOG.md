@@ -18,7 +18,37 @@ Without reliable daily ingestion:
 
 ---
 
-## 🎨 SESSION 55: Executive Briefing Text Formatting Enhancement (January 7, 2026)
+## �️ SESSION 56: Podcast Playback Fix (January 7, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Issue
+The "Listen" button appeared but showed "can't play podcast" error when clicking to play. The conversational dialogue changes from Session 54 were not the issue.
+
+### 🔍 Root Cause
+The backend was storing direct GCS URLs (`https://storage.googleapis.com/...`) in the `podcast_url` field, but the GCS bucket has **public access prevention** enabled. The frontend was trying to load audio from these inaccessible URLs.
+
+### ✅ Fix
+Updated the frontend to construct the correct API proxy URL instead of using the stored GCS URL directly:
+```typescript
+// Before: audioUrl={briefing.podcast_url}
+// After:  audioUrl={`${API_BASE}/podcast/briefing/${briefing.id}`}
+```
+
+The `/api/podcast/briefing/{id}` endpoint in the backend properly streams audio from GCS with Range request support (for seeking).
+
+### 📁 Files Modified
+- `frontend/src/components/dashboard/WeeklyBriefingSection.tsx` - Changed audioUrl to use API endpoint
+
+### 📝 Technical Context
+- Backend stores GCS URL internally for its own access
+- Frontend must use `/api/podcast/briefing/{id}` endpoint which proxies the audio
+- This pattern is documented in `backend/app/services/README.md`
+- The conversational dialogue feature (Host + Analyst voices) works correctly
+
+---
+
+## �🎨 SESSION 55: Executive Briefing Text Formatting Enhancement (January 7, 2026)
 
 **Status**: ✅ COMPLETE
 
@@ -52,42 +82,6 @@ The BLUF and overall trend text now have the same visual treatment as the sectio
 - Company names are bolded for emphasis
 - Product/material names (composite materials, etc.) are bolded
 - Citations appear as emerald-colored superscript numbers
-
----
-
-## 📅 SESSION 55b: Executive Briefing Week Date Fix (January 7, 2026)
-
-**Status**: ✅ COMPLETE
-
-### 🎯 Goal
-Fix the "Week of" date calculation in executive briefings to always show this week's date, regardless of when the briefing is run manually (off-schedule).
-
-### 🐛 Problem
-When briefings were run manually multiple times, each run used `datetime.utcnow()` as the period_end, causing the displayed week date to drift forward (e.g., showing "Week of Jan 11" instead of "Week of Jan 5").
-
-### ✅ Solution
-Modified `pre_briefing.py` to calculate `period_end` as **this week's Sunday** instead of "now":
-
-**Backend Changes** (`backend/app/ingestion/generators/pre_briefing.py`):
-- Added `_get_this_weeks_sunday()` helper method
-- Calculates the most recent Sunday at midnight UTC
-- Updated `_get_articles()` to use this as period_end when no custom dates provided
-- Industry convention: "Week of [Sunday date]"
-
-### 📁 Files Modified
-- `backend/app/ingestion/generators/pre_briefing.py` - Date calculation fix
-
-### 🧪 Verification
-```bash
-cd backend
-python -c "from app.ingestion.generators.pre_briefing import PreBriefGenerator; print('Import successful')"
-# Import successful
-```
-
-### 🎯 Result
-- Briefing now consistently shows "Week of Jan 5" (this week's Sunday)
-- Manual runs no longer increment the week date
-- Aligns with scheduled Monday morning runs
 
 ---
 

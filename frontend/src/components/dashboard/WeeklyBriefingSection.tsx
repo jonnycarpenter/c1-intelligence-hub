@@ -445,7 +445,7 @@ export default function WeeklyBriefingSection({
         <PodcastModal
           isOpen={isPodcastModalOpen}
           onClose={() => setIsPodcastModalOpen(false)}
-          audioUrl={briefing.podcast_url}
+          audioUrl={`${API_BASE}/podcast/briefing/${briefing.id}`}
           duration={briefing.podcast_duration_seconds}
           title={briefing.briefing_title}
         />
