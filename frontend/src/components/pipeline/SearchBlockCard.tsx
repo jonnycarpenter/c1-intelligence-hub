@@ -278,6 +278,7 @@ export function SearchBlockCard({
             <ProspectItem
               key={`${prospect.url}-${idx}`}
               prospect={prospect}
+              index={idx}
               onSave={onSaveProspect}
               onEnrich={(domain) => onEnrichProspect ? onEnrichProspect(block.id, domain) : Promise.resolve(null)}
             />
@@ -288,6 +289,7 @@ export function SearchBlockCard({
             <ContactItem
               key={`${contact.url}-${idx}`}
               contact={contact}
+              index={idx}
               onSave={onSaveContact}
             />
           ))}
@@ -297,6 +299,7 @@ export function SearchBlockCard({
             <TriggerEventItem
               key={`${event.url}-${idx}`}
               event={event}
+              index={idx}
             />
           ))}
 
@@ -333,10 +336,12 @@ export function SearchBlockCard({
 // Individual result items
 function ProspectItem({
   prospect,
+  index,
   onSave,
   onEnrich
 }: {
   prospect: EnhancedProspectSearchResult
+  index?: number
   onSave?: (p: EnhancedProspectSearchResult) => void
   onEnrich?: (domain: string) => Promise<ApolloEnrichmentResult | null>
 }) {
@@ -376,7 +381,7 @@ function ProspectItem({
     null;
 
   return (
-    <div className="flex flex-col gap-3 p-4 bg-white border border-slate-200 rounded-xl hover:border-emerald-200 hover:shadow-md transition-all group">
+    <div className={`flex flex-col gap-3 p-4 border border-slate-200 rounded-xl hover:border-emerald-200 hover:shadow-md transition-all group ${index !== undefined && index % 2 === 0 ? 'bg-white' : 'bg-emerald-50/20'}`}>
       {/* 1. Header & Identity */}
       <div className="flex items-start gap-4">
         <CompanyLogo domain={prospect.domain} size={48} />
@@ -590,9 +595,11 @@ function ProspectItem({
 
 function ContactItem({
   contact,
+  index,
   onSave
 }: {
   contact: EnhancedContactSearchResult
+  index?: number
   onSave?: (c: EnhancedContactSearchResult) => void
 }) {
   const [saved, setSaved] = useState(false)
@@ -605,7 +612,7 @@ function ContactItem({
   }
 
   return (
-    <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors group">
+    <div className={`flex items-start gap-3 p-3 rounded-lg hover:bg-gray-100 transition-colors group ${index !== undefined && index % 2 === 0 ? 'bg-white' : 'bg-emerald-50/20'}`}>
       <CompanyLogo domain={contact.company_domain} size={40} />
       <div className="flex-1 min-w-0">
         <h4 className="font-medium text-gray-900">{contact.name}</h4>
@@ -651,11 +658,11 @@ function ContactItem({
   )
 }
 
-function TriggerEventItem({ event }: { event: EnhancedTriggerEventResult }) {
+function TriggerEventItem({ event, index }: { event: EnhancedTriggerEventResult, index?: number }) {
   const eventTypeColor = EVENT_TYPE_COLORS[event.event_type || 'other'] || EVENT_TYPE_COLORS.other
 
   return (
-    <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors group">
+    <div className={`flex items-start gap-3 p-3 rounded-lg hover:bg-gray-100 transition-colors group ${index !== undefined && index % 2 === 0 ? 'bg-white' : 'bg-emerald-50/20'}`}>
       {event.logo_url || event.mentioned_company_domain ? (
         <CompanyLogo
           domain={event.mentioned_company_domain}

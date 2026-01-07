@@ -106,345 +106,347 @@ export default function PipelineDashboard() {
   const hasConversation = conversationHistory.length > 0
 
   return (
-    <div className="h-full flex bg-slate-50">
-      {/* Left Panel - Chat Interface */}
-      <div className="w-[400px] shrink-0 flex flex-col border-r border-slate-200 bg-white">
-        {/* Header */}
-        <div className="shrink-0 px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-emerald-50 to-white">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
-                <Sparkles className="w-5 h-5 text-emerald-600" />
+    <div className="h-full flex flex-col overflow-hidden bg-slate-200 p-4 gap-4">
+      <div className="flex-1 flex gap-4 min-h-0">
+        {/* Left Panel - Chat Interface */}
+        <div className="w-[400px] shrink-0 flex flex-col bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100/60">
+          {/* Header */}
+          <div className="shrink-0 px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-emerald-50 to-white">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
+                  <Sparkles className="w-5 h-5 text-emerald-600" />
+                </div>
+                <div>
+                  <h1 className="text-lg font-semibold text-slate-800">Pipeline Agent</h1>
+                  <p className="text-xs text-slate-500">AI-powered prospect discovery</p>
+                </div>
               </div>
-              <div>
-                <h1 className="text-lg font-semibold text-slate-800">Pipeline Agent</h1>
-                <p className="text-xs text-slate-500">AI-powered prospect discovery</p>
-              </div>
+              {hasConversation && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearConversation}
+                  className="text-slate-400 hover:text-slate-600"
+                >
+                  <Trash2 size={14} />
+                  Clear
+                </Button>
+              )}
             </div>
-            {hasConversation && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={clearConversation}
-                className="text-slate-400 hover:text-slate-600"
+
+            {/* Mode Toggle */}
+            <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
+              <button
+                onClick={() => setPipelineMode('instant')}
+                className={cn(
+                  'flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center justify-center gap-1.5',
+                  pipelineMode === 'instant'
+                    ? 'bg-white text-emerald-700 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
+                )}
               >
-                <Trash2 size={14} />
-                Clear
-              </Button>
+                <Search size={12} />
+                Quick Search
+              </button>
+              <button
+                onClick={() => setPipelineMode('full')}
+                className={cn(
+                  'flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center justify-center gap-1.5',
+                  pipelineMode === 'full'
+                    ? 'bg-white text-emerald-700 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
+                )}
+              >
+                <ListChecks size={12} />
+                Full List
+              </button>
+            </div>
+            {pipelineMode === 'full' && (
+              <p className="text-xs text-emerald-600 mt-2">
+                Full List mode can build enriched company lists (1-5 min). Type &quot;CONFIRM&quot; to start.
+              </p>
             )}
           </div>
 
-          {/* Mode Toggle */}
-          <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
-            <button
-              onClick={() => setPipelineMode('instant')}
-              className={cn(
-                'flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center justify-center gap-1.5',
-                pipelineMode === 'instant'
-                  ? 'bg-white text-emerald-700 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700'
-              )}
-            >
-              <Search size={12} />
-              Quick Search
-            </button>
-            <button
-              onClick={() => setPipelineMode('full')}
-              className={cn(
-                'flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center justify-center gap-1.5',
-                pipelineMode === 'full'
-                  ? 'bg-white text-emerald-700 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700'
-              )}
-            >
-              <ListChecks size={12} />
-              Full List
-            </button>
-          </div>
-          {pipelineMode === 'full' && (
-            <p className="text-xs text-emerald-600 mt-2">
-              Full List mode can build enriched company lists (1-5 min). Type &quot;CONFIRM&quot; to start.
-            </p>
-          )}
-        </div>
+          {/* Chat Messages Area */}
+          <div className="flex-1 overflow-auto p-6">
+            {!hasConversation ? (
+              // Empty state - show suggestions
+              <div className="h-full flex flex-col items-center justify-center text-center px-4">
+                <div className="w-16 h-16 rounded-2xl bg-emerald-100 flex items-center justify-center mb-4">
+                  <MessageSquare className="w-8 h-8 text-emerald-600" />
+                </div>
+                <h2 className="text-xl font-semibold text-slate-800 mb-2">
+                  Ask me anything about prospects
+                </h2>
+                <p className="text-sm text-slate-500 mb-6 max-w-md">
+                  I can find similar companies, search by description, locate decision makers,
+                  and discover trigger events like expansions and funding.
+                </p>
 
-        {/* Chat Messages Area */}
-        <div className="flex-1 overflow-auto p-6">
-          {!hasConversation ? (
-            // Empty state - show suggestions
-            <div className="h-full flex flex-col items-center justify-center text-center px-4">
-              <div className="w-16 h-16 rounded-2xl bg-emerald-100 flex items-center justify-center mb-4">
-                <MessageSquare className="w-8 h-8 text-emerald-600" />
+                {/* Example prompts */}
+                <div className="space-y-2 w-full max-w-lg">
+                  {[
+                    { icon: Building2, text: "Find me all wind energy companies in florida" },
+                    { icon: Building2, text: "Find me similar companies to Brunswick boating company" },
+                    { icon: Sparkles, text: "Find me supplier sourcing leads in the aerospace industry" },
+                  ].map((example, i) => (
+                    <button
+                      key={i}
+                      onClick={() => {
+                        setInputValue(example.text)
+                        // Auto-submit the query
+                        setTimeout(() => handleSend(), 100)
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-3 bg-slate-50 hover:bg-emerald-50 rounded-xl border border-slate-200 hover:border-emerald-200 transition-all text-left group"
+                    >
+                      <example.icon className="w-5 h-5 text-slate-400 group-hover:text-emerald-500 transition-colors" />
+                      <span className="text-sm text-slate-600 group-hover:text-slate-800">{example.text}</span>
+                      <ChevronRight className="w-4 h-4 text-slate-300 ml-auto group-hover:text-emerald-500 transition-colors" />
+                    </button>
+                  ))}
+                </div>
               </div>
-              <h2 className="text-xl font-semibold text-slate-800 mb-2">
-                Ask me anything about prospects
-              </h2>
-              <p className="text-sm text-slate-500 mb-6 max-w-md">
-                I can find similar companies, search by description, locate decision makers,
-                and discover trigger events like expansions and funding.
-              </p>
+            ) : (
+              // Conversation messages
+              <div className="space-y-4">
+                {conversationHistory.map((msg, idx) => (
+                  <div
+                    key={idx}
+                    className={cn(
+                      'flex',
+                      msg.role === 'user' ? 'justify-end' : 'justify-start'
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        'max-w-[85%] rounded-2xl px-4 py-3',
+                        msg.role === 'user'
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-slate-100 text-slate-800'
+                      )}
+                    >
+                      <MarkdownContent
+                        content={msg.content}
+                        isUser={msg.role === 'user'}
+                      />
+                      <p className={cn(
+                        'text-xs mt-1',
+                        msg.role === 'user' ? 'text-emerald-200' : 'text-slate-400'
+                      )}>
+                        {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                  </div>
+                ))}
 
-              {/* Example prompts */}
-              <div className="space-y-2 w-full max-w-lg">
-                {[
-                  { icon: Building2, text: "Find me all wind energy companies in florida" },
-                  { icon: Building2, text: "Find me similar companies to Brunswick boating company" },
-                  { icon: Sparkles, text: "Find me supplier sourcing leads in the aerospace industry" },
-                ].map((example, i) => (
+                {/* Agent thinking indicator */}
+                {isAgentThinking && (
+                  <div className="flex justify-start">
+                    <div className="bg-slate-100 rounded-2xl px-4 py-3 flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
+                      <span className="text-sm text-slate-600">Searching...</span>
+                    </div>
+                  </div>
+                )}
+
+                <div ref={messagesEndRef} />
+              </div>
+            )}
+          </div>
+
+          {/* Error display */}
+          {agentError && (
+            <div className="shrink-0 mx-6 mb-4 bg-red-50 border border-red-200 rounded-xl p-3 flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+              <p className="text-sm text-red-600">{agentError}</p>
+            </div>
+          )}
+
+          {/* Suggested followups */}
+          {suggestedFollowups.length > 0 && !isAgentThinking && (
+            <div className="shrink-0 px-6 pb-2">
+              <div className="flex flex-wrap gap-2">
+                {suggestedFollowups.map((followup, i) => (
                   <button
                     key={i}
-                    onClick={() => {
-                      setInputValue(example.text)
-                      // Auto-submit the query
-                      setTimeout(() => handleSend(), 100)
-                    }}
-                    className="w-full flex items-center gap-3 px-4 py-3 bg-slate-50 hover:bg-emerald-50 rounded-xl border border-slate-200 hover:border-emerald-200 transition-all text-left group"
+                    onClick={() => handleFollowupClick(followup)}
+                    className="px-3 py-1.5 bg-slate-100 hover:bg-emerald-50 text-xs text-slate-600 hover:text-emerald-700 rounded-full border border-slate-200 hover:border-emerald-200 transition-all"
                   >
-                    <example.icon className="w-5 h-5 text-slate-400 group-hover:text-emerald-500 transition-colors" />
-                    <span className="text-sm text-slate-600 group-hover:text-slate-800">{example.text}</span>
-                    <ChevronRight className="w-4 h-4 text-slate-300 ml-auto group-hover:text-emerald-500 transition-colors" />
+                    {followup}
                   </button>
                 ))}
               </div>
             </div>
-          ) : (
-            // Conversation messages
-            <div className="space-y-4">
-              {conversationHistory.map((msg, idx) => (
-                <div
-                  key={idx}
-                  className={cn(
-                    'flex',
-                    msg.role === 'user' ? 'justify-end' : 'justify-start'
-                  )}
-                >
-                  <div
-                    className={cn(
-                      'max-w-[85%] rounded-2xl px-4 py-3',
-                      msg.role === 'user'
-                        ? 'bg-emerald-600 text-white'
-                        : 'bg-slate-100 text-slate-800'
-                    )}
-                  >
-                    <MarkdownContent
-                      content={msg.content}
-                      isUser={msg.role === 'user'}
+          )}
+
+          {/* Input Area */}
+          <div className="shrink-0 p-4 border-t border-slate-200 bg-white">
+            <div className="flex gap-2">
+              <input
+                ref={inputRef}
+                type="text"
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
+                placeholder="Ask about prospects, contacts, or market signals..."
+                className="flex-1 px-4 py-3 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none transition-all"
+                disabled={isAgentThinking}
+              />
+              <Button
+                onClick={handleSend}
+                disabled={!inputValue.trim() || isAgentThinking}
+                className="px-4"
+              >
+                {isAgentThinking ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Send className="w-5 h-5" />
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Panel - Results / Saved */}
+        <div className="flex-1 flex flex-col bg-slate-50 rounded-2xl overflow-hidden shadow-sm border border-slate-100/60">
+          {/* Panel Toggle */}
+          <div className="shrink-0 p-4 border-b border-slate-200">
+            <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
+              <button
+                onClick={() => setRightPanelView('results')}
+                className={cn(
+                  'flex-1 px-3 py-2 rounded-md text-sm font-medium transition-all flex items-center justify-center gap-2',
+                  rightPanelView === 'results'
+                    ? 'bg-white text-slate-800 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
+                )}
+              >
+                <Sparkles size={14} />
+                Results
+                {searchBlocks.length > 0 && (
+                  <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-xs rounded-full">
+                    {searchBlocks.length}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setRightPanelView('saved')}
+                className={cn(
+                  'flex-1 px-3 py-2 rounded-md text-sm font-medium transition-all flex items-center justify-center gap-2',
+                  rightPanelView === 'saved'
+                    ? 'bg-white text-slate-800 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
+                )}
+              >
+                <Bookmark size={14} />
+                Saved
+                {(savedProspects.length + savedContacts.length) > 0 && (
+                  <span className="px-1.5 py-0.5 bg-slate-200 text-slate-600 text-xs rounded-full">
+                    {savedProspects.length + savedContacts.length}
+                  </span>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Panel Content */}
+          <div className="flex-1 overflow-auto p-4">
+            {rightPanelView === 'results' ? (
+              // Search Results (SearchBlocks)
+              <div className="space-y-4">
+                {!hasSearchBlocks ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center py-12">
+                    <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center mb-3">
+                      <Sparkles className="w-6 h-6 text-slate-400" />
+                    </div>
+                    <p className="text-sm text-slate-500">Search results will appear here</p>
+                    <p className="text-xs text-slate-400 mt-1">Ask the agent to find prospects or contacts</p>
+                  </div>
+                ) : (
+                  searchBlocks.map((block) => (
+                    <SearchBlockCard
+                      key={block.id}
+                      block={block}
+                      onToggle={() => toggleBlockExpansion(block.id)}
+                      onRemove={() => removeSearchBlock(block.id)}
+                      onSaveProspect={handleSaveProspect}
+                      onSaveContact={handleSaveContact}
+                      onEnrichProspect={enrichProspect}
+                      isPolling={block.webset_id ? pollingWebsets.has(block.webset_id) : false}
                     />
-                    <p className={cn(
-                      'text-xs mt-1',
-                      msg.role === 'user' ? 'text-emerald-200' : 'text-slate-400'
-                    )}>
-                      {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </p>
-                  </div>
-                </div>
-              ))}
-
-              {/* Agent thinking indicator */}
-              {isAgentThinking && (
-                <div className="flex justify-start">
-                  <div className="bg-slate-100 rounded-2xl px-4 py-3 flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
-                    <span className="text-sm text-slate-600">Searching...</span>
-                  </div>
-                </div>
-              )}
-
-              <div ref={messagesEndRef} />
-            </div>
-          )}
-        </div>
-
-        {/* Error display */}
-        {agentError && (
-          <div className="shrink-0 mx-6 mb-4 bg-red-50 border border-red-200 rounded-xl p-3 flex items-start gap-2">
-            <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-            <p className="text-sm text-red-600">{agentError}</p>
-          </div>
-        )}
-
-        {/* Suggested followups */}
-        {suggestedFollowups.length > 0 && !isAgentThinking && (
-          <div className="shrink-0 px-6 pb-2">
-            <div className="flex flex-wrap gap-2">
-              {suggestedFollowups.map((followup, i) => (
-                <button
-                  key={i}
-                  onClick={() => handleFollowupClick(followup)}
-                  className="px-3 py-1.5 bg-slate-100 hover:bg-emerald-50 text-xs text-slate-600 hover:text-emerald-700 rounded-full border border-slate-200 hover:border-emerald-200 transition-all"
-                >
-                  {followup}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Input Area */}
-        <div className="shrink-0 p-4 border-t border-slate-200 bg-white">
-          <div className="flex gap-2">
-            <input
-              ref={inputRef}
-              type="text"
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
-              placeholder="Ask about prospects, contacts, or market signals..."
-              className="flex-1 px-4 py-3 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none transition-all"
-              disabled={isAgentThinking}
-            />
-            <Button
-              onClick={handleSend}
-              disabled={!inputValue.trim() || isAgentThinking}
-              className="px-4"
-            >
-              {isAgentThinking ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <Send className="w-5 h-5" />
-              )}
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      {/* Right Panel - Results / Saved */}
-      <div className="flex-1 flex flex-col bg-white">
-        {/* Panel Toggle */}
-        <div className="shrink-0 p-4 border-b border-slate-200">
-          <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
-            <button
-              onClick={() => setRightPanelView('results')}
-              className={cn(
-                'flex-1 px-3 py-2 rounded-md text-sm font-medium transition-all flex items-center justify-center gap-2',
-                rightPanelView === 'results'
-                  ? 'bg-white text-slate-800 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700'
-              )}
-            >
-              <Sparkles size={14} />
-              Results
-              {searchBlocks.length > 0 && (
-                <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-xs rounded-full">
-                  {searchBlocks.length}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => setRightPanelView('saved')}
-              className={cn(
-                'flex-1 px-3 py-2 rounded-md text-sm font-medium transition-all flex items-center justify-center gap-2',
-                rightPanelView === 'saved'
-                  ? 'bg-white text-slate-800 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700'
-              )}
-            >
-              <Bookmark size={14} />
-              Saved
-              {(savedProspects.length + savedContacts.length) > 0 && (
-                <span className="px-1.5 py-0.5 bg-slate-200 text-slate-600 text-xs rounded-full">
-                  {savedProspects.length + savedContacts.length}
-                </span>
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* Panel Content */}
-        <div className="flex-1 overflow-auto p-4">
-          {rightPanelView === 'results' ? (
-            // Search Results (SearchBlocks)
-            <div className="space-y-4">
-              {!hasSearchBlocks ? (
-                <div className="h-full flex flex-col items-center justify-center text-center py-12">
-                  <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center mb-3">
-                    <Sparkles className="w-6 h-6 text-slate-400" />
-                  </div>
-                  <p className="text-sm text-slate-500">Search results will appear here</p>
-                  <p className="text-xs text-slate-400 mt-1">Ask the agent to find prospects or contacts</p>
-                </div>
-              ) : (
-                searchBlocks.map((block) => (
-                  <SearchBlockCard
-                    key={block.id}
-                    block={block}
-                    onToggle={() => toggleBlockExpansion(block.id)}
-                    onRemove={() => removeSearchBlock(block.id)}
-                    onSaveProspect={handleSaveProspect}
-                    onSaveContact={handleSaveContact}
-                    onEnrichProspect={enrichProspect}
-                    isPolling={block.webset_id ? pollingWebsets.has(block.webset_id) : false}
-                  />
-                ))
-              )}
-            </div>
-          ) : (
-            // Saved Items
-            <div className="space-y-6">
-              {/* Saved Prospects */}
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-semibold text-slate-700">
-                    Prospects ({savedProspects.length})
-                  </h3>
-                  {savedProspects.length > 0 && (
-                    <Button variant="ghost" size="sm" onClick={exportProspectsToCSV}>
-                      <Download size={12} />
-                      CSV
-                    </Button>
-                  )}
-                </div>
-                {savedProspects.length === 0 ? (
-                  <div className="bg-slate-50 rounded-xl p-6 text-center border border-slate-200">
-                    <Building2 className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                    <p className="text-xs text-slate-500">No saved prospects</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {savedProspects.map((prospect) => (
-                      <SavedProspectCard
-                        key={prospect.id}
-                        prospect={prospect}
-                        onRemove={() => removeProspect(prospect.id)}
-                        onUpdateStatus={(status) => updateProspect(prospect.id, { status })}
-                      />
-                    ))}
-                  </div>
+                  ))
                 )}
               </div>
-
-              {/* Saved Contacts */}
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-semibold text-slate-700">
-                    Contacts ({savedContacts.length})
-                  </h3>
-                  {savedContacts.length > 0 && (
-                    <Button variant="ghost" size="sm" onClick={exportContactsToCSV}>
-                      <Download size={12} />
-                      CSV
-                    </Button>
+            ) : (
+              // Saved Items
+              <div className="space-y-6">
+                {/* Saved Prospects */}
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-semibold text-slate-700">
+                      Prospects ({savedProspects.length})
+                    </h3>
+                    {savedProspects.length > 0 && (
+                      <Button variant="ghost" size="sm" onClick={exportProspectsToCSV}>
+                        <Download size={12} />
+                        CSV
+                      </Button>
+                    )}
+                  </div>
+                  {savedProspects.length === 0 ? (
+                    <div className="bg-slate-50 rounded-xl p-6 text-center border border-slate-200">
+                      <Building2 className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                      <p className="text-xs text-slate-500">No saved prospects</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {savedProspects.map((prospect) => (
+                        <SavedProspectCard
+                          key={prospect.id}
+                          prospect={prospect}
+                          onRemove={() => removeProspect(prospect.id)}
+                          onUpdateStatus={(status) => updateProspect(prospect.id, { status })}
+                        />
+                      ))}
+                    </div>
                   )}
                 </div>
-                {savedContacts.length === 0 ? (
-                  <div className="bg-slate-50 rounded-xl p-6 text-center border border-slate-200">
-                    <Users className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                    <p className="text-xs text-slate-500">No saved contacts</p>
+
+                {/* Saved Contacts */}
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-semibold text-slate-700">
+                      Contacts ({savedContacts.length})
+                    </h3>
+                    {savedContacts.length > 0 && (
+                      <Button variant="ghost" size="sm" onClick={exportContactsToCSV}>
+                        <Download size={12} />
+                        CSV
+                      </Button>
+                    )}
                   </div>
-                ) : (
-                  <div className="space-y-2">
-                    {savedContacts.map((contact) => (
-                      <SavedContactCard
-                        key={contact.id}
-                        contact={contact}
-                        onRemove={() => removeContact(contact.id)}
-                      />
-                    ))}
-                  </div>
-                )}
+                  {savedContacts.length === 0 ? (
+                    <div className="bg-slate-50 rounded-xl p-6 text-center border border-slate-200">
+                      <Users className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                      <p className="text-xs text-slate-500">No saved contacts</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {savedContacts.map((contact) => (
+                        <SavedContactCard
+                          key={contact.id}
+                          contact={contact}
+                          onRemove={() => removeContact(contact.id)}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </div>

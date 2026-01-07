@@ -61,8 +61,12 @@ src/
 - **EntityAggregator** - Compact summary stats (5 aggregations) with expandable drawer showing filterable entity pills
 
 ### Data & Preferences Tab
-- **DataPreferencesDashboard** - Tabbed interface for settings
+- **DataPreferencesDashboard** - Tabbed interface forsettings
 - **PreferencesPanel** - Manage priority/blocked topics
+
+### Pipeline Tab (Session 50 Enhancement)
+- **PipelineDashboard** - "Pulse-style" layout with floating cards and slate-200 background
+- **SearchBlockCard** - Renders search results with alternating row colors (zebra striping) for readability
 
 ## Custom Hooks
 
