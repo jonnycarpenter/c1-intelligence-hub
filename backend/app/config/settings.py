@@ -49,7 +49,8 @@ class Settings(BaseSettings):
     
     # ElevenLabs API (for podcast generation)
     elevenlabs_api_key: str = ""
-    elevenlabs_voice_id: str = "21m00Tcm4TlvDq8ikWAM"  # Rachel - professional, clear voice
+    elevenlabs_host_voice_id: str = "21m00Tcm4TlvDq8ikWAM"  # Rachel - host voice
+    elevenlabs_analyst_voice_id: str = "TxGEqnHWrfWFTfGW9XjX"  # Josh - analyst voice
     elevenlabs_model: str = "eleven_monolingual_v1"
     elevenlabs_voice_stability: float = 0.5
     elevenlabs_voice_similarity_boost: float = 0.75

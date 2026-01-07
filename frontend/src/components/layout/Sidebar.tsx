@@ -27,18 +27,20 @@ interface NavItem {
   bg: string
   isDisabled?: boolean
   isBeta?: boolean
+  isDemo?: boolean
+  isHidden?: boolean
   tooltip?: string
 }
 
 const navItems: NavItem[] = [
   { id: 'pulse', label: 'Pulse', icon: Activity, description: 'Real-time intelligence', color: 'text-emerald-500', bg: 'bg-emerald-500' },
   { id: 'research', label: 'Research', icon: Search, description: 'Deep analysis', color: 'text-emerald-500', bg: 'bg-emerald-500' },
+  { id: 'pipeline', label: 'Pipeline', icon: GitBranch, description: 'Prospect discovery', color: 'text-purple-500', bg: 'bg-purple-500', tooltip: 'Find similar companies and decision makers' },
   // { id: 'importyeti', label: 'Trade Intel', icon: Ship, description: 'Supply chain tracking', color: 'text-indigo-500', bg: 'bg-indigo-500' }, // ARCHIVED
   { id: 'products', label: 'Products', icon: Package, description: 'Product intelligence', color: 'text-blue-500', bg: 'bg-blue-500', isBeta: true },
-  { id: 'field-sales', label: 'Field Intel', icon: Mic, description: 'Field observations', color: 'text-emerald-500', bg: 'bg-emerald-500', isDisabled: false, tooltip: 'Capture field intelligence' },
-  { id: 'pipeline', label: 'Pipeline', icon: GitBranch, description: 'Prospect discovery', color: 'text-purple-500', bg: 'bg-purple-500', isBeta: true, tooltip: 'Find similar companies and decision makers' },
-  { id: 'companies', label: 'Companies', icon: Building2, description: 'Coming soon', color: 'text-slate-500', bg: 'bg-slate-500', isDisabled: true },
-  { id: 'industries', label: 'Industries', icon: Factory, description: 'Coming soon', color: 'text-slate-500', bg: 'bg-slate-500', isDisabled: true },
+  { id: 'field-sales', label: 'Field Intel', icon: Mic, description: 'Field observations', color: 'text-emerald-500', bg: 'bg-emerald-500', isDemo: true, tooltip: 'Capture field intelligence' },
+  { id: 'companies', label: 'Companies', icon: Building2, description: 'Coming soon', color: 'text-slate-500', bg: 'bg-slate-500', isDisabled: true, isHidden: true },
+  { id: 'industries', label: 'Industries', icon: Factory, description: 'Coming soon', color: 'text-slate-500', bg: 'bg-slate-500', isDisabled: true, isHidden: true },
   { id: 'data-preferences', label: 'Data & Prefs', icon: Database, description: 'Manage tracked data', color: 'text-cyan-500', bg: 'bg-cyan-500' },
 ]
 
@@ -82,7 +84,7 @@ export default function Sidebar({
 
       {/* Navigation */}
       <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto scrollbar-hide">
-        {navItems.map((item) => {
+        {navItems.filter(item => !item.isHidden).map((item) => {
           const isActive = activeMode === item.id
           const Icon = item.icon
           const isDisabled = item.isDisabled
@@ -120,6 +122,9 @@ export default function Sidebar({
                     )}
                     {item.isBeta && (
                       <span className="text-[10px] px-1.5 py-0.5 bg-blue-600 text-blue-100 rounded-full font-medium">Beta</span>
+                    )}
+                    {item.isDemo && (
+                      <span className="text-[10px] px-1.5 py-0.5 bg-blue-600 text-blue-100 rounded-full font-medium">Demo</span>
                     )}
                   </span>
                   <span className="text-xs text-slate-500 block">{item.description}</span>

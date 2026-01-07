@@ -167,7 +167,8 @@ Otherwise, respond with the final briefing JSON:
         elevenlabs_api_key = getattr(self.config, 'elevenlabs_api_key', None)
         if elevenlabs_api_key:
             self.elevenlabs_client = ElevenLabs(api_key=elevenlabs_api_key)
-            self.voice_id = getattr(self.config, 'elevenlabs_voice_id', '21m00Tcm4TlvDq8ikWAM')  # Rachel
+            self.host_voice_id = getattr(self.config, 'elevenlabs_host_voice_id', '21m00Tcm4TlvDq8ikWAM')  # Rachel
+            self.analyst_voice_id = getattr(self.config, 'elevenlabs_analyst_voice_id', 'TxGEqnHWrfWFTfGW9XjX')  # Josh
             self.voice_settings = VoiceSettings(
                 stability=getattr(self.config, 'elevenlabs_voice_stability', 0.5),
                 similarity_boost=getattr(self.config, 'elevenlabs_voice_similarity_boost', 0.75),
@@ -515,15 +516,17 @@ Otherwise, respond with the final briefing JSON:
         
         return text
     
-    def _build_podcast_script(self, briefing: Dict[str, Any]) -> str:
+    def _build_podcast_dialogue(self, briefing: Dict[str, Any]) -> List[Dict[str, str]]:
         """
-        Build complete podcast script from briefing data.
+        Build conversational podcast dialogue from briefing data.
         
-        Format with natural phrasing for "net new" vs "continuing" status.
+        Returns a list of dialogue turns: [{"speaker": "host"|"analyst", "text": "..."}]
+        Host (Rachel) handles introductions and transitions.
+        Analyst (Josh) delivers the content and insights.
         """
-        script_parts = []
+        dialogue = []
         
-        # 1. Title
+        # 1. Opening - Host introduces the briefing
         title = briefing.get('briefing_title', 'Executive Briefing')
         # Convert "Week of Jan 6" to "Week of January 6th"
         title = re.sub(r'\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b', 
@@ -533,24 +536,44 @@ Otherwise, respond with the final briefing JSON:
                           'Jul': 'July', 'Aug': 'August', 'Sep': 'September',
                           'Oct': 'October', 'Nov': 'November', 'Dec': 'December'
                       }[m.group(1)], title)
-        script_parts.append(f"{title}.")
-        script_parts.append("")  # Pause
         
-        # 2. BLUF
+        dialogue.append({
+            "speaker": "host",
+            "text": f"Good morning. Welcome to your {title}. I'm here with our analyst to break down what you need to know."
+        })
+        
+        # 2. BLUF - Analyst delivers the bottom line
         bluf = briefing.get('bluf', '')
         if bluf:
             formatted_bluf = self._format_text_for_speech(bluf)
-            script_parts.append(f"Bottom Line Up Front: {formatted_bluf}")
-            script_parts.append("")
+            dialogue.append({
+                "speaker": "host",
+                "text": "Let's start with the bottom line."
+            })
+            dialogue.append({
+                "speaker": "analyst",
+                "text": formatted_bluf
+            })
         
-        # 3. Sections
+        # 3. Sections - Host introduces, Analyst delivers
         sections = briefing.get('sections', [])
-        for idx, section in enumerate(sections, 1):
-            section_header = section.get('header', f'Section {idx}')
-            script_parts.append(f"Section {idx}: {section_header}.")
-            script_parts.append("")
+        section_transitions = [
+            "Let's dive into our first area of focus.",
+            "Moving on to our next topic.",
+            "And finally,"
+        ]
+        
+        for idx, section in enumerate(sections):
+            section_header = section.get('header', f'Section {idx + 1}')
             
-            # Headline
+            # Host introduces section
+            transition = section_transitions[min(idx, len(section_transitions) - 1)]
+            dialogue.append({
+                "speaker": "host",
+                "text": f"{transition} {section_header}."
+            })
+            
+            # Analyst delivers headline
             headline = section.get('headline', {})
             headline_text = headline.get('text', '') if isinstance(headline, dict) else str(headline)
             headline_status = headline.get('status', 'continuing') if isinstance(headline, dict) else 'continuing'
@@ -558,41 +581,69 @@ Otherwise, respond with the final briefing JSON:
             if headline_text:
                 formatted_headline = self._format_text_for_speech(headline_text)
                 
-                # Natural status phrasing
+                # Add status context naturally
                 if headline_status == 'net_new':
-                    script_parts.append(f"{formatted_headline} This is a new development.")
+                    analyst_text = f"This is a new development. {formatted_headline}"
                 else:
-                    script_parts.append(f"{formatted_headline} We're continuing to track this story.")
-                script_parts.append("")
-            
-            # Insights
-            insights = section.get('insights', [])
-            for insight in insights:
-                insight_text = insight.get('text', '') if isinstance(insight, dict) else str(insight)
-                insight_status = insight.get('status', 'continuing') if isinstance(insight, dict) else 'continuing'
+                    analyst_text = f"We're continuing to track this. {formatted_headline}"
                 
-                if insight_text:
-                    formatted_insight = self._format_text_for_speech(insight_text)
-                    
-                    # Natural status phrasing for net new only
-                    if insight_status == 'net_new':
-                        script_parts.append(f"{formatted_insight} This is new.")
-                    else:
-                        script_parts.append(formatted_insight)
-                    script_parts.append("")
+                dialogue.append({
+                    "speaker": "analyst",
+                    "text": analyst_text
+                })
+            
+            # Analyst delivers insights
+            insights = section.get('insights', [])
+            if insights:
+                insight_texts = []
+                for insight in insights:
+                    insight_text = insight.get('text', '') if isinstance(insight, dict) else str(insight)
+                    if insight_text:
+                        formatted_insight = self._format_text_for_speech(insight_text)
+                        insight_texts.append(formatted_insight)
+                
+                if insight_texts:
+                    # Combine insights into natural flow
+                    combined = " ".join(insight_texts)
+                    dialogue.append({
+                        "speaker": "analyst",
+                        "text": combined
+                    })
+            
+            # Host acknowledges after each section (except last)
+            if idx < len(sections) - 1:
+                acknowledgments = ["Interesting.", "Good to know.", "Thanks for that."]
+                dialogue.append({
+                    "speaker": "host",
+                    "text": acknowledgments[idx % len(acknowledgments)]
+                })
         
-        # 4. Overall trend
+        # 4. Overall trend - Host asks, Analyst summarizes
         overall_trend = briefing.get('overall_trend', '')
         if overall_trend:
-            script_parts.append("Overall,")
+            dialogue.append({
+                "speaker": "host",
+                "text": "Zooming out, what's the bigger picture here?"
+            })
             formatted_trend = self._format_text_for_speech(overall_trend)
-            script_parts.append(formatted_trend)
+            dialogue.append({
+                "speaker": "analyst",
+                "text": formatted_trend
+            })
         
-        return "\n".join(script_parts)
+        # 5. Closing - Host wraps up
+        dialogue.append({
+            "speaker": "host",
+            "text": "That's your briefing for this week. Stay sharp, and we'll see you next time."
+        })
+        
+        return dialogue
     
     async def _generate_podcast(self, briefing: Dict[str, Any], briefing_id: str) -> Optional[Dict[str, Any]]:
         """
-        Generate podcast audio from briefing data.
+        Generate conversational podcast audio from briefing data.
+        
+        Uses two voices (Host: Rachel, Analyst: Josh) for a natural dialogue.
         
         Returns:
             Dict with {podcast_url, podcast_duration_seconds, podcast_generated_at}
@@ -606,50 +657,66 @@ Otherwise, respond with the final briefing JSON:
             logger.info(f"Starting podcast generation for briefing {briefing_id}")
             start_time = time.time()
             
-            # 1. Build podcast script
-            script = self._build_podcast_script(briefing)
-            logger.info(f"Generated podcast script ({len(script)} characters, ~{len(script.split())} words)")
+            # 1. Build podcast dialogue (list of turns)
+            dialogue = self._build_podcast_dialogue(briefing)
+            total_words = sum(len(turn["text"].split()) for turn in dialogue)
+            logger.info(f"Generated podcast dialogue ({len(dialogue)} turns, ~{total_words} words)")
             
-            # 2. Generate audio with retries
+            # 2. Generate audio for each turn and concatenate
+            all_audio_chunks = []
             max_retries = 3
-            retry_delay = 2
-            audio_data = None
             
-            for attempt in range(max_retries):
-                try:
-                    logger.info(f"Calling ElevenLabs API (attempt {attempt + 1}/{max_retries})")
-                    
-                    # Generate speech
-                    audio_generator = self.elevenlabs_client.text_to_speech.convert(
-                        voice_id=self.voice_id,
-                        text=script,
-                        model_id=getattr(self.config, 'elevenlabs_model', 'eleven_monolingual_v1'),
-                        voice_settings=self.voice_settings
-                    )
-                    
-                    # Collect audio chunks
-                    audio_chunks = []
-                    for chunk in audio_generator:
-                        if chunk:
-                            audio_chunks.append(chunk)
-                    
-                    audio_data = b''.join(audio_chunks)
-                    logger.info(f"Generated audio ({len(audio_data)} bytes)")
-                    break
-                    
-                except Exception as e:
-                    error_msg = str(e)
-                    if 'rate' in error_msg.lower() or '429' in error_msg:
-                        logger.warning(f"Rate limited by ElevenLabs, retrying in {retry_delay}s...")
-                        if attempt < max_retries - 1:
-                            time.sleep(retry_delay)
-                            retry_delay *= 2
-                            continue
-                    raise
+            for turn_idx, turn in enumerate(dialogue):
+                speaker = turn["speaker"]
+                text = turn["text"]
+                voice_id = self.host_voice_id if speaker == "host" else self.analyst_voice_id
+                
+                retry_delay = 2
+                turn_audio = None
+                
+                for attempt in range(max_retries):
+                    try:
+                        logger.debug(f"Generating turn {turn_idx + 1}/{len(dialogue)} ({speaker})")
+                        
+                        # Generate speech for this turn
+                        audio_generator = self.elevenlabs_client.text_to_speech.convert(
+                            voice_id=voice_id,
+                            text=text,
+                            model_id=getattr(self.config, 'elevenlabs_model', 'eleven_monolingual_v1'),
+                            voice_settings=self.voice_settings
+                        )
+                        
+                        # Collect audio chunks for this turn
+                        turn_chunks = []
+                        for chunk in audio_generator:
+                            if chunk:
+                                turn_chunks.append(chunk)
+                        
+                        turn_audio = b''.join(turn_chunks)
+                        break
+                        
+                    except Exception as e:
+                        error_msg = str(e)
+                        if 'rate' in error_msg.lower() or '429' in error_msg:
+                            logger.warning(f"Rate limited by ElevenLabs on turn {turn_idx + 1}, retrying in {retry_delay}s...")
+                            if attempt < max_retries - 1:
+                                time.sleep(retry_delay)
+                                retry_delay *= 2
+                                continue
+                        raise
+                
+                if turn_audio:
+                    all_audio_chunks.append(turn_audio)
+                else:
+                    logger.warning(f"Failed to generate audio for turn {turn_idx + 1}, skipping")
             
-            if not audio_data:
-                logger.error("Failed to generate audio after all retries")
+            if not all_audio_chunks:
+                logger.error("Failed to generate any audio chunks")
                 return None
+            
+            # Concatenate all audio (simple byte concatenation works for MP3)
+            audio_data = b''.join(all_audio_chunks)
+            logger.info(f"Generated {len(all_audio_chunks)} audio segments ({len(audio_data)} bytes total)")
             
             # 3. Upload to Google Cloud Storage
             from google.cloud import storage
@@ -663,16 +730,13 @@ Otherwise, respond with the final briefing JSON:
             blob = self._gcs_bucket.blob(blob_name)
             
             blob.upload_from_string(audio_data, content_type='audio/mpeg')
-            # Note: Bucket has uniform bucket-level access, so objects are publicly readable
-            # via IAM policy on the bucket. No need for make_public() on individual objects.
             
             # Construct public URL (bucket has allUsers read access)
             podcast_url = f"https://storage.googleapis.com/{self.config.gcs_bucket_name}/{blob_name}"
             logger.info(f"Uploaded podcast to GCS: {podcast_url}")
             
             # 4. Calculate duration (approximate: 150 words/min)
-            word_count = len(script.split())
-            duration_seconds = int((word_count / 150) * 60)
+            duration_seconds = int((total_words / 150) * 60)
             
             generation_time = time.time() - start_time
             logger.info(f"Podcast generation complete in {generation_time:.2f}s (estimated {duration_seconds}s audio)")

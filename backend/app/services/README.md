@@ -110,10 +110,15 @@ BigQuery: digest_items table
 - `GET /api/podcast/voices` - List available voices
 
 **Weekly Briefing Integration**:
-The weekly executive briefing pipeline (`weekly_briefing.py`) uses ElevenLabs directly to generate podcast audio:
+The weekly executive briefing pipeline (`weekly_briefing.py`) generates a **conversational two-voice podcast**:
 1. `_format_text_for_speech()` - Cleans text for TTS (removes citations, expands "$2.4B" → "2.4 billion dollars")
-2. `_build_podcast_script()` - Creates natural narration with "net new" vs "continuing" phrasing
-3. `_generate_podcast()` - Calls ElevenLabs API, uploads to GCS
+2. `_build_podcast_dialogue()` - Creates dialogue turns between Host (Rachel) and Analyst (Josh)
+3. `_generate_podcast()` - Generates audio for each turn, concatenates, uploads to GCS
+
+**Dialogue Format**:
+- **Host (Rachel)**: Opens briefing, introduces sections, transitions, closes
+- **Analyst (Josh)**: Delivers content - BLUF, headlines, insights, trends
+- Natural back-and-forth creates an engaging listen vs monotone narration
 
 **Storage**: GCS bucket `gen-lang-client-0436975498-c1-hub-data` in `/podcasts/{briefing_id}.mp3`
 

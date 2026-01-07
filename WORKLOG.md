@@ -18,7 +18,76 @@ Without reliable daily ingestion:
 
 ---
 
-## 🎨 SESSION 53: Visual Research Agent - Implementation (January 7, 2026)
+## �️ SESSION 54: Conversational Podcast & Modal Player (January 7, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Goal
+Enhance the weekly briefing podcast with two improvements:
+1. Two-voice conversational format (Host + Analyst)
+2. Modal-based podcast player (cleaner UI)
+
+### ✅ Changes Made
+
+**1. Podcast Modal** (`frontend/src/components/dashboard/PodcastModal.tsx`)
+- Created new dark-theme modal for podcast playback
+- Features: skip ±15s, progress bar, volume control, download
+- 🎧 "Listen" button added to "Need to Know" header
+- Replaced embedded player for cleaner briefing page
+
+**2. Two-Voice Dialogue** (`backend/app/ingestion/generators/weekly_briefing.py`)
+- `_build_podcast_dialogue()` - Returns list of `{speaker, text}` turns
+- **Host (Rachel)**: Opens briefing, introduces sections, transitions, closes
+- **Analyst (Josh)**: Delivers BLUF, headlines, insights, trends
+- `_generate_podcast()` - Generates audio per turn, concatenates to single MP3
+
+**Dialogue Structure**:
+```
+HOST: "Good morning. Welcome to your Executive Briefing..."
+HOST: "Let's start with the bottom line."
+ANALYST: "[BLUF content]"
+HOST: "Let's dive into our first area of focus. [Section header]."
+ANALYST: "This is a new development. [Headline]"
+HOST: "Interesting."
+... (repeats for each section)
+HOST: "Zooming out, what's the bigger picture here?"
+ANALYST: "[Overall trend]"
+HOST: "That's your briefing for this week. Stay sharp."
+```
+
+**3. Deleted Files**
+- `PodcastPlayer.tsx` - Replaced by modal
+- `podcast_conversation_thoughtstarter` - Implemented simpler approach
+
+**4. Documentation**
+- Updated `backend/app/services/README.md` with conversational format
+
+### 📁 Files Modified
+- `frontend/src/components/dashboard/PodcastModal.tsx` (NEW)
+- `frontend/src/components/dashboard/WeeklyBriefingSection.tsx` - Modal integration
+- `backend/app/ingestion/generators/weekly_briefing.py` - Two-voice dialogue
+- `backend/app/services/README.md` - Updated podcast docs
+
+### 🧪 Verification
+```bash
+# Backend compiles
+cd backend && python -c "from app.ingestion.generators.weekly_briefing import WeeklyBriefingGenerator; print('OK')"
+
+# 54 MCP tools
+python -c "from app.mcp.server import get_all_mcp_tools; print(len(get_all_mcp_tools()))"
+
+# Frontend builds
+cd frontend && npm run build
+```
+
+### 📝 Notes
+- Voice IDs already configured: Rachel (host), Josh (analyst)
+- Podcast URL stored per briefing - each week gets new audio
+- GCS streaming endpoint unchanged (`/api/podcast/briefing/{id}`)
+
+---
+
+## �🎨 SESSION 53: Visual Research Agent - Implementation (January 7, 2026)
 
 **Status**: ✅ COMPLETE
 

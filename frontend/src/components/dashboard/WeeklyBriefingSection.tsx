@@ -8,12 +8,13 @@ import {
   Sparkles,
   RefreshCw,
   ExternalLink,
-  Clock
+  Clock,
+  Headphones
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui'
 import { API_BASE } from '@/lib/config'
-import PodcastPlayer from './PodcastPlayer'
+import PodcastModal from './PodcastModal'
 import type {
   WeeklyBriefing,
   BriefingSection,
@@ -328,6 +329,8 @@ export default function WeeklyBriefingSection({
   isLoading,
   onHistoryClick
 }: WeeklyBriefingSectionProps) {
+  const [isPodcastModalOpen, setIsPodcastModalOpen] = useState(false)
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -374,6 +377,17 @@ export default function WeeklyBriefingSection({
             <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight leading-none">Need to Know</h2>
             <p className="text-xs text-emerald-600/80 font-bold uppercase tracking-widest mt-1">Executive Briefing</p>
           </div>
+          {/* Listen to Podcast Button */}
+          {briefing.podcast_url && (
+            <button
+              onClick={() => setIsPodcastModalOpen(true)}
+              className="flex items-center gap-2 px-3 py-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 rounded-lg transition-colors border border-emerald-200/60"
+              title="Listen to podcast"
+            >
+              <Headphones size={16} />
+              <span className="text-xs font-semibold">Listen</span>
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 text-xs text-slate-400">
@@ -412,9 +426,11 @@ export default function WeeklyBriefingSection({
         </div>
       </div>
 
-      {/* Podcast Player */}
+      {/* Podcast Modal */}
       {briefing.podcast_url && (
-        <PodcastPlayer
+        <PodcastModal
+          isOpen={isPodcastModalOpen}
+          onClose={() => setIsPodcastModalOpen(false)}
           audioUrl={briefing.podcast_url}
           duration={briefing.podcast_duration_seconds}
           title={briefing.briefing_title}
