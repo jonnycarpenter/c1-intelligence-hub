@@ -1,53 +1,99 @@
-# Ignore node_modules
+# =============================================================================
+# .gcloudignore - Files to exclude when uploading to Cloud Build
+# =============================================================================
+# Used by: gcloud builds submit
+# Note: GitHub-triggered builds upload from the repo, so this mainly helps
+#       manual deploys. Use .dockerignore for the actual Docker context.
+
+# -----------------------------------------------------------------------------
+# Node.js (rebuilt in Docker)
+# -----------------------------------------------------------------------------
 node_modules/
 frontend/node_modules/
-new_architecture_frontend/node_modules/
-
-# Ignore Python virtual environments
-.venv/
-venv/
-__pycache__/
-*.pyc
-*.pyo
-.pytest_cache/
-
-# Ignore local data that shouldn't be deployed
-chroma_db/
-backend/data/chroma/
-*.sqlite3
-
-# Ignore git
-.git/
-.gitignore
-
-# Ignore IDE files
-.vscode/
-.idea/
-
-# Ignore CSV data files (large)
-*.csv
-
-# Ignore backup files
-*.bak
-
-# Ignore frontend build artifacts (will be rebuilt)
 frontend/.next/
 frontend/out/
 
-# Ignore sec-api-python-master (not needed for deployment)
-sec-api-python-master/
+# -----------------------------------------------------------------------------
+# Python virtual environments (500MB+ each!)
+# -----------------------------------------------------------------------------
+.venv/
+venv/
+backend/venv/
+backend/.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
 
-# Ignore terraform state
+# -----------------------------------------------------------------------------
+# Git and version control
+# -----------------------------------------------------------------------------
+.git/
+.gitignore
+.gitattributes
+
+# -----------------------------------------------------------------------------
+# IDE and editor files
+# -----------------------------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# -----------------------------------------------------------------------------
+# Local data (mounted from GCS at runtime)
+# -----------------------------------------------------------------------------
+backend/data/
+backend/downloads/
+data/
+downloads/
+chroma_db/
+backend/data/chroma/
+*.sqlite3
+*.csv
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+
+# -----------------------------------------------------------------------------
+# Archives and backup files
+# -----------------------------------------------------------------------------
+archive/
+*.bak
+*.backup
+
+# -----------------------------------------------------------------------------
+# Documentation and dev files
+# -----------------------------------------------------------------------------
+docs/
+deploy/
+.agent/
+.coderabbit.yaml
+
+# -----------------------------------------------------------------------------
+# Terraform state
+# -----------------------------------------------------------------------------
 deploy/terraform/.terraform/
 *.tfstate
 *.tfstate.backup
 
-# Ignore logs
+# -----------------------------------------------------------------------------
+# Logs and test files
+# -----------------------------------------------------------------------------
 *.log
-
-# Ignore local test files
+logs/
 test_*.py
 eval_notebook.ipynb
+*.ipynb
+
+# -----------------------------------------------------------------------------
+# Environment files (secrets in Cloud Run)
+# -----------------------------------------------------------------------------
+.env
+.env.*
+backend/.env
 
 # Ignore documentation files not needed at runtime
 *.md

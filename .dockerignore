@@ -1,0 +1,126 @@
+# =============================================================================
+# .dockerignore - Dramatically speeds up Cloud Build by excluding unnecessary files
+# =============================================================================
+# Without this, Cloud Build uploads EVERYTHING (venvs, node_modules, .git, etc.)
+# This file should cut build time from 18-23 minutes to ~5-8 minutes
+
+# -----------------------------------------------------------------------------
+# Python virtual environments (can be 500MB+ each!)
+# -----------------------------------------------------------------------------
+.venv/
+venv/
+backend/venv/
+backend/.venv/
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+
+# -----------------------------------------------------------------------------
+# Node.js - frontend rebuilds these in Docker anyway
+# -----------------------------------------------------------------------------
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+node_modules/
+
+# -----------------------------------------------------------------------------
+# Git - no need for version history in container
+# -----------------------------------------------------------------------------
+.git/
+.gitignore
+.gitattributes
+
+# -----------------------------------------------------------------------------
+# IDE and editor files
+# -----------------------------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# -----------------------------------------------------------------------------
+# Local environment files (secrets handled by Cloud Run)
+# -----------------------------------------------------------------------------
+.env
+.env.*
+*.env
+backend/.env
+
+# -----------------------------------------------------------------------------
+# Archives and old files
+# -----------------------------------------------------------------------------
+archive/
+backend/archive/
+*.bak
+*.backup
+
+# -----------------------------------------------------------------------------
+# Data files - mounted from GCS at runtime
+# -----------------------------------------------------------------------------
+backend/data/
+backend/downloads/
+backend/bq_results.json
+backend/digest_report.txt
+data/
+downloads/
+
+# -----------------------------------------------------------------------------
+# Documentation and dev files (not needed in production)
+# -----------------------------------------------------------------------------
+docs/
+*.md
+!README.md
+deploy/
+.agent/
+.coderabbit.yaml
+
+# -----------------------------------------------------------------------------
+# Test and development files
+# -----------------------------------------------------------------------------
+tests/
+test/
+*.test.js
+*.test.ts
+*.spec.js
+*.spec.ts
+coverage/
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+.nox/
+
+# -----------------------------------------------------------------------------
+# Jupyter notebooks and eval files
+# -----------------------------------------------------------------------------
+*.ipynb
+backend/eval_notebook.ipynb
+
+# -----------------------------------------------------------------------------
+# Build artifacts and logs
+# -----------------------------------------------------------------------------
+*.log
+logs/
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# -----------------------------------------------------------------------------
+# Docker files (don't nest Docker contexts)
+# -----------------------------------------------------------------------------
+Dockerfile
+Dockerfile.dev
+backend/Dockerfile.dev
+frontend/Dockerfile.dev
+docker-compose.yml
+
+# Keep Dockerfile.prod (it's the one we use)
+!Dockerfile.prod
+!docker-entrypoint.sh
