@@ -17,9 +17,105 @@ Without reliable daily ingestion:
 **Always verify scheduler jobs are running before working on features.**
 
 ---
+## 📅 SESSION 61: Pipeline Contact Search Fix - Apollo vs Exa (January 7, 2026)
+
+**Status**: 🚧 IN PROGRESS - Needs Verification After Backend Restart
+
+### 🎯 Issue Reported
+**"Get list of contact information" functionality in Pipeline tab is not working.**
+
+When users ask for contacts at a company (e.g., "Find contacts at Hexcel in purchasing"), the agent:
+- Returns LinkedIn profile search results (from Exa.ai)
+- Does NOT return Apollo contacts with revealable email/phone
+- Cannot fulfill "reveal email" requests because Exa results lack `person_id`
+
+### 🔍 Root Cause Analysis
+
+**The Pipeline agent has TWO contact search tools:**
+
+| Tool | Source | Returns | Can Reveal? |
+|------|--------|---------|-------------|
+| `find_contacts` | **Exa.ai** (LinkedIn search) | Names, titles, LinkedIn URLs | ❌ No `person_id` |
+| `find_company_contacts` | **Apollo.io** | Contact teasers with `id`, has_email flags | ✅ Has `person_id` for reveal |
+
+**The Problem:**
+- The LLM was choosing `find_contacts` (Exa) for contact queries
+- Exa results are LinkedIn web scrapes - no structured contact data
+- Without Apollo's `person_id`, the `reveal_contact` tool can't get emails
+- The system prompt didn't clearly guide when to use each tool
+
+### ✅ Fixes Applied
+
+#### 1. Commented Out Exa `find_contacts` Tool (`pipeline_search.py`)
+```python
+PIPELINE_TOOLS_INSTANT = [
+    find_similar_companies,
+    search_companies,
+    # NOTE: find_contacts (Exa) is commented out in favor of find_company_contacts (Apollo)
+    # Exa returns LinkedIn profiles without person_id, making reveal_contact impossible.
+    # Apollo provides structured contacts with IDs for email/phone reveal.
+    # TODO: Future enhancement - combine Exa broad search with Apollo data enrichment
+    # find_contacts,
+    find_trigger_events,
+    enrich_company,
+    find_company_contacts,  # PRIMARY contact search tool
+    reveal_contact,
+    get_apollo_credits,
+    # ... corpus tools
+]
+```
+
+#### 2. Updated System Prompts (`agent.py`)
+- Removed `find_contacts` from capabilities list
+- Made `find_company_contacts` the PRIMARY contact search tool
+- Added clear guidance for Company vs Contact searches:
+  - **Company Searches** → Use Exa.ai (search_companies, find_similar_companies)
+  - **Contact Searches** → Use Apollo (find_company_contacts)
+- Added clarification prompt for ambiguous queries:
+  > "Would you like me to find **companies** matching that criteria, or **contacts/people** at those companies?"
+
+#### 3. Tool Numbering Updated
+Renumbered tool references (1-10 instead of 1-11) since Exa find_contacts is removed
+
+### 📁 Files Modified
+- `backend/app/mcp/tools/pipeline_search.py` - Commented out `find_contacts` from tool lists
+- `backend/app/agents/pipeline/agent.py` - Updated both `SYSTEM_PROMPT_INSTANT` and `SYSTEM_PROMPT_FULL`
+
+### ⚠️ VERIFICATION NEEDED
+
+**The fix needs testing with a fresh backend restart:**
+
+1. **Kill all uvicorn processes** (there are currently two running - port conflict!)
+2. **Restart backend**: `python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000`
+3. **Test**: Navigate to Pipeline, ask "Find contacts at Hexcel in purchasing"
+4. **Expected SUCCESS indicators:**
+   - Block header is **CYAN** (not green/emerald)
+   - Block title says "Contacts at Hexcel" 
+   - Cards show **"Email available"** / **"Phone available"** badges
+   - **"Reveal" button** appears on hover (rose/red colored)
+   - **NO LinkedIn connection counts** (those are Exa-specific)
+
+### 📋 Frontend Component Reference
+
+The frontend is ALREADY built for Apollo contacts:
+- `SearchBlockCard.tsx` has `ApolloContactTeaserItem` component (lines 836-921)
+- Uses `block_type === 'apollo_contacts'` for cyan styling
+- Shows "Reveal" button when `has_email || has_phone` is true
+- Displays email/phone availability badges
+
+The `_create_search_block` method in `agent.py` correctly maps `find_company_contacts` results to `apollo_contacts` block type.
+
+### 🔮 Future Enhancement
+The Exa `find_contacts` tool is preserved (commented out, not deleted) for potential future enhancement:
+- Combine Exa's broad industry-wide contact discovery with Apollo's structured data
+- Use Exa to find people, then match/enrich via Apollo for email reveal
+
+---
 ## 📅 SESSION 60: Deep Research Workflow Debugging & Stabilization (January 7, 2026)
 
-**Status**: 🚧 IN PROGRESS - Ready for Deploy
+**Status**: 🚧 IN PROGRESS - Deployed, Need to Check Logs
+
+**Deployed Commit**: `e9c9a68`
 
 ### 🎯 Issues Reported
 1. **Groomer LLM hanging indefinitely** - Cloud Run logs showed groomer stuck at "Message count: 2, system prompt length: 4308" for 5+ minutes without timeout
