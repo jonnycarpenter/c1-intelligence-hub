@@ -41,21 +41,25 @@ The data ingestion system for C1 Intelligence Hub. Collects, deduplicates, enric
 | Job | Schedule (CST) | Schedule (UTC) | Timeout | Sources | Purpose |
 |-----|----------------|----------------|---------|---------|---------|
 | `ingest-flash-update` | Every 4 hours | Every 4 hours | 10 min | rss, freight | Fast RSS + freight updates |
-| `ingest-web-search` | 2:00 AM | 8:00 AM | 30 min | industry_queries, press_releases | Exa + Tavily web search |
+| `ingest-exa` | 2:00 AM | 8:00 AM | 20 min | exa_queries, press_releases | Exa 91 queries + press releases |
+| `ingest-tavily` | 2:20 AM | 8:20 AM | 25 min | tavily_queries | Tavily 145 queries |
 | `ingest-financial` | 2:45 AM | 8:45 AM | 30 min | sec, earnings, fmp_news, stocknews | Financial data sources |
 | `weekly-executive-briefing` | Mon 8:30 AM | Mon 14:30 | 15 min | (triggers briefing) | Weekly "Need to Know" report |
 
-**Why Split Into Multiple Jobs?**
+**Why Split By Search Engine?**
 - Cloud Scheduler has a 30-minute maximum timeout
-- Single deep-dive was hitting this limit and getting killed
-- Split gives 45-minute buffer between jobs for reliability
-- All daily ingestion completes by ~3:30 AM CST (plenty of buffer before workday)
+- Combined Exa+Tavily (236 queries) was taking 25-35 min, often exceeding timeout
+- Splitting by search engine keeps each job well under 30 min
+- 20-minute buffer between Exa and Tavily, 25-minute buffer before Financial
+- All daily ingestion completes by ~3:15 AM CST (plenty of buffer before workday)
 
-### The 8 Data Sources (Split Across Jobs)
+### The 10 Data Sources (Split Across Jobs)
 
 | Source Key | Description | API/Method | BQ source_type |
 |------------|-------------|------------|----------------|
-| `industry_queries` | Exa (91) + Tavily (145) web search | Neural + crawl | `web_news_exa`, `web_news_tavily` |
+| `exa_queries` | Exa 91 industry queries + per-company news | Exa neural search | `web_news_exa` |
+| `tavily_queries` | Tavily 145 broadening queries | Tavily crawl | `web_news_tavily` |
+| `industry_queries` | **Legacy** - runs both Exa + Tavily | Both | `web_news_exa`, `web_news_tavily` |
 | `rss` | 14 industry RSS feeds | Feed parsing | `rss` |
 | `sec` | SEC EDGAR filings (10-K, 10-Q, 8-K) | sec-api.io | `sec_filing` |
 | `earnings` | Earnings call transcripts | API Ninja | `earnings_transcript` |
@@ -71,7 +75,7 @@ POST /api/v1/scheduler/ingest
 Content-Type: application/json
 
 {
-  "sources": ["industry_queries", "rss", "sec", "earnings", "stocknews", "fmp_news", "freight", "press_releases"],
+  "sources": ["exa_queries", "tavily_queries", "rss", "sec", "earnings", "stocknews", "fmp_news", "freight", "press_releases"],
   "backfill_days": null
 }
 ```
@@ -101,10 +105,20 @@ $body = '{"sources": ["rss"]}'
 Invoke-RestMethod -Uri "https://c1-hub-4iz75bvpyq-uc.a.run.app/api/v1/scheduler/ingest" `
   -Method Post -Body $body -ContentType "application/json" -TimeoutSec 300
 
-# Full deep dive (all 8 sources) - takes 10-20 minutes
-$body = '{"sources": ["industry_queries", "rss", "sec", "earnings", "stocknews", "fmp_news", "freight", "press_releases"]}'
+# Test Exa queries only (~15 min)
+$body = '{"sources": ["exa_queries", "press_releases"]}'
 Invoke-RestMethod -Uri "https://c1-hub-4iz75bvpyq-uc.a.run.app/api/v1/scheduler/ingest" `
-  -Method Post -Body $body -ContentType "application/json" -TimeoutSec 1800
+  -Method Post -Body $body -ContentType "application/json" -TimeoutSec 1200
+
+# Test Tavily queries only (~18 min)
+$body = '{"sources": ["tavily_queries"]}'
+Invoke-RestMethod -Uri "https://c1-hub-4iz75bvpyq-uc.a.run.app/api/v1/scheduler/ingest" `
+  -Method Post -Body $body -ContentType "application/json" -TimeoutSec 1500
+
+# Full ingestion (all sources) - takes 30-40 minutes total
+$body = '{"sources": ["exa_queries", "tavily_queries", "rss", "sec", "earnings", "stocknews", "fmp_news", "freight", "press_releases"]}'
+Invoke-RestMethod -Uri "https://c1-hub-4iz75bvpyq-uc.a.run.app/api/v1/scheduler/ingest" `
+  -Method Post -Body $body -ContentType "application/json" -TimeoutSec 2400
 ```
 
 ### Job Management Commands
@@ -114,26 +128,29 @@ Invoke-RestMethod -Uri "https://c1-hub-4iz75bvpyq-uc.a.run.app/api/v1/scheduler/
 gcloud scheduler jobs list --location=us-central1 --project=gen-lang-client-0436975498
 
 # Check job status
-gcloud scheduler jobs describe ingest-deep-dive --location=us-central1 --project=gen-lang-client-0436975498
+gcloud scheduler jobs describe ingest-exa --location=us-central1 --project=gen-lang-client-0436975498
+gcloud scheduler jobs describe ingest-tavily --location=us-central1 --project=gen-lang-client-0436975498
 
 # Pause a job (for maintenance)
-gcloud scheduler jobs pause ingest-deep-dive --location=us-central1 --project=gen-lang-client-0436975498
+gcloud scheduler jobs pause ingest-exa --location=us-central1 --project=gen-lang-client-0436975498
 
 # Resume a job
-gcloud scheduler jobs resume ingest-deep-dive --location=us-central1 --project=gen-lang-client-0436975498
+gcloud scheduler jobs resume ingest-exa --location=us-central1 --project=gen-lang-client-0436975498
 
 # Force-run a job now
-gcloud scheduler jobs run ingest-deep-dive --location=us-central1 --project=gen-lang-client-0436975498
+gcloud scheduler jobs run ingest-exa --location=us-central1 --project=gen-lang-client-0436975498
 ```
 
 ### Deleted/Legacy Jobs (DO NOT RECREATE)
 
 | Job Name | Reason for Removal |
 |----------|-------------------|
-| `daily-evening-ingest` | Redundant - subset of `ingest-deep-dive` sources |
+| `ingest-web-search` | Split into `ingest-exa` + `ingest-tavily` (Jan 6, 2026) |
+| `ingest-deep-dive` | Split into separate jobs (Jan 2026) |
+| `daily-evening-ingest` | Redundant - subset of sources |
 | `weekly-corpus-refresh` | Stub - did nothing (BigQuery has no periodic reindex) |
 | `weekly-data-cleanup` | Stub - did nothing |
-| `daily-morning-ingest` | Legacy - replaced by `ingest-deep-dive` |
+| `daily-morning-ingest` | Legacy - replaced by split jobs |
 | `orchestrator-ingestion-morning` | Legacy naming |
 | `orchestrator-ingestion-evening` | Legacy naming |
 
@@ -290,7 +307,8 @@ See `processing/classifier.py` for the full `BLOCKED_SOURCES` set.
 gcloud logging read "resource.type=cloud_run_revision AND resource.labels.service_name=c1-hub AND severity>=ERROR" --limit=50 --project=gen-lang-client-0436975498
 
 # Check scheduler job execution history
-gcloud scheduler jobs describe ingest-deep-dive --location=us-central1 --format="yaml(state,lastAttemptTime,status)"
+gcloud scheduler jobs describe ingest-web-search --location=us-central1 --format="yaml(state,lastAttemptTime,status)"
+gcloud scheduler jobs describe ingest-financial --location=us-central1 --format="yaml(state,lastAttemptTime,status)"
 
 # Query recent ingestion counts in BigQuery
 bq query --use_legacy_sql=false "
@@ -327,8 +345,20 @@ python backend/scripts/monitoring/production_dashboard.py --detailed
 - **Fix**: Conditionally include `system` in kwargs only when provided
 - **File**: `backend/app/utils/resilient_llm.py` (see `messages_create` method)
 
+**January 7, 2026 - Timezone Comparison Error**
+- **Symptom**: `TypeError: can't compare offset-naive and offset-aware datetimes` during web search
+- **Cause**: `_is_future_date()` used `datetime.now()` (naive) but Exa returns timezone-aware dates
+- **Fix**: Changed to `datetime.now(timezone.utc)` in `date_extraction.py`
+- **File**: `backend/app/utils/date_extraction.py`
+
+**January 7, 2026 - Cloud Run Liveness Probe Killing Long Jobs**
+- **Symptom**: Ingestion jobs killed mid-execution, scheduler shows code 14 (UNAVAILABLE)
+- **Cause**: Liveness probe timeout was 20 min (10 × 2 min), jobs take 25-35 min
+- **Fix**: Increased to 60 min tolerance: `periodSeconds=300, failureThreshold=12`
+- **Command**: `gcloud run services update c1-hub --liveness-probe="httpGet.path=/health,..."`
+
 ---
 
-*Last updated: January 6, 2026*
+*Last updated: January 7, 2026*
 
 

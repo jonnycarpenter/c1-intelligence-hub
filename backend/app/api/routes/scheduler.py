@@ -35,12 +35,12 @@ router = APIRouter(prefix="/v1/scheduler", tags=["scheduler"])
 class IngestRequest(BaseModel):
     """Request body for ingestion trigger."""
     sources: list[str] = Field(
-        default=["industry_queries", "rss", "sec"],
-        description="Sources to collect: industry_queries, rss, sec, press_releases, earnings, stocknews, freight"
+        default=["exa_queries", "tavily_queries", "rss", "sec"],
+        description="Sources to collect: exa_queries, tavily_queries, rss, sec, press_releases, earnings, stocknews, fmp_news, freight. Note: 'industry_queries' runs both exa+tavily (legacy)."
     )
     backfill_days: Optional[int] = Field(
         default=None,
-        description="Number of days to backfill. If None, uses default 3-day window."
+        description="Number of days to backfill. If None, uses default 2-day window."
     )
 
 

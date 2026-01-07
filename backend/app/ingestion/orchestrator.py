@@ -153,14 +153,17 @@ class IngestionOrchestrator:
         Args:
             backfill_days: Number of days to backfill (optional)
             sources: List of sources to run. If None, runs ALL sources.
-                     Options: "rss", "industry_queries", "sec", "earnings", "stocknews", "fmp_news", "freight", "press_releases"
+                     Options: "rss", "industry_queries", "exa_queries", "tavily_queries", "sec", "earnings", "stocknews", "fmp_news", "freight", "press_releases"
+                     
+                     Note: "industry_queries" runs both Exa + Tavily (legacy, for backcompat).
+                           Use "exa_queries" and "tavily_queries" separately for scheduler jobs to avoid timeout.
         """
         if not self._initialized:
             await self.initialize()
         
         # Default to ALL sources if none provided
         if not sources:
-            sources = ["rss", "industry_queries", "sec", "earnings", "stocknews", "fmp_news", "freight", "press_releases"]
+            sources = ["rss", "exa_queries", "tavily_queries", "sec", "earnings", "stocknews", "fmp_news", "freight", "press_releases"]
             
         logger.info(f"Starting ingestion run with sources: {sources}")
         
@@ -358,13 +361,23 @@ class IngestionOrchestrator:
                     logger.error(f"FMP Premium News fetch failed: {e}")
                     stats.errors.append(f"FMP error: {str(e)[:100]}")
             
-            # 2f. General Web Search (Exa) - Tier 2
+            # 2f. General Web Search (Exa + Tavily) - Tier 2
+            # Supports 3 modes:
+            #   - "industry_queries" = run both Exa + Tavily (legacy, for backward compat)
+            #   - "exa_queries" = run only Exa queries (~91 queries, ~12-15 min)
+            #   - "tavily_queries" = run only Tavily queries (~145 queries, ~15-18 min)
             web_items = []
-            if "industry_queries" in sources:  # Runs 236 industry queries via Exa (91) + Tavily (145)
+            
+            # Determine which query sets to run
+            run_exa = "exa_queries" in sources or "industry_queries" in sources
+            run_tavily = "tavily_queries" in sources or "industry_queries" in sources
+            
+            if run_exa or run_tavily:
                 logger.info(f"Fetching General Web News (Since {tier2_since.date()})...")
-                
-                # --- PART 1: Industry-Wide Queries (Split: Exa + Tavily) ---
-                # Loop 1: Exa Critical Queries (High Quality)
+                logger.info(f"  Run Exa: {run_exa}, Run Tavily: {run_tavily}")
+            
+            # --- PART 1a: Exa Queries (High Quality) ---
+            if run_exa:
                 exa_queries = get_all_exa_queries_v2()
                 logger.info(f"Running {len(exa_queries)} Exa critical queries...")
                 
@@ -393,7 +406,8 @@ class IngestionOrchestrator:
                     except Exception as e:
                         logger.error(f"Exa query failed '{iq.query[:30]}...': {e}")
 
-                # Loop 2: Tavily Broadening Queries (Monitoring)
+            # --- PART 1b: Tavily Queries (Broadening) ---
+            if run_tavily:
                 tavily_queries = get_all_tavily_queries_v2()
                 logger.info(f"Running {len(tavily_queries)} Tavily monitoring queries...")
                 
@@ -420,7 +434,8 @@ class IngestionOrchestrator:
                     except Exception as e:
                         logger.error(f"Tavily query failed '{iq.query[:30]}...': {e}")
                 
-                # --- PART 2: Per-Company Specific News ---
+            # --- PART 2: Per-Company Specific News (runs with Exa queries) ---
+            if run_exa:
                 company_web_count = 0
                 for comp in companies:
                     query = f"{comp['name']} news"
@@ -440,6 +455,9 @@ class IngestionOrchestrator:
                         logger.error(f"Web search failed for {comp['name']}: {e}")
                 
                 logger.info(f"Per-company queries returned {company_web_count} articles")
+            
+            # Log stats for web search (outside the if blocks so it captures both Exa and Tavily)
+            if run_exa or run_tavily:
                 logger.info(f"Total web news articles: {len(web_items)}")
                 stats.web_articles_fetched = len(web_items)
             

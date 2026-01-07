@@ -168,38 +168,42 @@ app/mcp/tools/
 **Impact**: Added `langchain-openai>=0.2.0` and `openai>=1.54.0` to requirements  
 **Env Var**: `OPENAI_API_KEY` (optional, enables fallback)
 
-### ADR-008: Split Cloud Scheduler Jobs for Reliability
-**Date**: January 6, 2026 (Updated)  
+### ADR-008: Split Cloud Scheduler Jobs by Search Engine
+**Date**: January 6, 2026 (Updated v2)  
 **Status**: Accepted  
 **Context**: 
-- Cloud Scheduler max timeout is 30 minutes
-- Single `ingest-deep-dive` job was taking 25-35 minutes and getting killed
+- Cloud Scheduler max timeout is 30 minutes (hard limit)
+- Original `ingest-web-search` job ran 236 queries (91 Exa + 145 Tavily) taking 25-35 min
+- Job would timeout even though data was successfully ingested
 - Liveness probe failures during long-running ingestion caused instance restarts
-- StockNews API alone requires 48 API calls (~15-20 min)
 
-**Decision**: Split daily ingestion into multiple sequential jobs with buffers:
+**Decision**: Split web search by search engine into separate jobs:
 
 | Job | Schedule (CST) | Sources | Timeout |
 |-----|----------------|---------|---------|
 | `ingest-flash-update` | Every 4h | rss, freight | 10 min |
-| `ingest-web-search` | 2:00 AM | industry_queries, press_releases | 30 min |
+| `ingest-exa` | 2:00 AM | exa_queries, press_releases | 20 min |
+| `ingest-tavily` | 2:20 AM | tavily_queries | 25 min |
 | `ingest-financial` | 2:45 AM | sec, earnings, fmp_news, stocknews | 30 min |
 | `weekly-executive-briefing` | Mon 8:30 AM | (triggers briefing) | 15 min |
 
 **Rationale**: 
 - Each job stays well under 30-minute limit
-- 45-minute buffer between daily jobs prevents overlap
-- Flash updates run frequently for fast-moving RSS/freight
-- All daily ingestion completes by ~3:30 AM CST (before workday)
-- Better error isolation - know exactly which source failed
+- 20-minute buffer between Exa and Tavily, 25-minute buffer before Financial
+- Exa runs first (higher quality queries), Tavily follows (broadening queries)
+- All daily ingestion completes by ~3:15 AM CST (before workday)
+- Better error isolation - know exactly which search engine failed
+- Deduplication handles cross-job overlap (same URL from Exa at 2:00 AM gets skipped if Tavily finds it at 2:20 AM)
 
 **Implementation**:
+- Added `exa_queries` and `tavily_queries` as new source types in `orchestrator.py`
+- Legacy `industry_queries` still works (runs both) for backward compatibility
 - [deploy/scheduler/deploy_jobs.ps1](deploy/scheduler/deploy_jobs.ps1) - canonical job definitions
-- Legacy `ingest-deep-dive` auto-deleted when script runs
-- JSON bodies use escaped quotes for PowerShell: `'{\"key\": \"value\"}'`
+- Legacy `ingest-web-search` auto-deleted when deploy script runs
 
 **Source Distribution**:
-- **Web Search Job**: industry_queries (Exa 91 + Tavily 145 queries), press_releases
+- **Exa Job**: exa_queries (91 queries), press_releases, per-company news
+- **Tavily Job**: tavily_queries (145 broadening queries)
 - **Financial Job**: sec, earnings, fmp_news, stocknews (48 API calls)
 - **Flash Job**: rss (14 feeds), freight (Drewry WCI)
 

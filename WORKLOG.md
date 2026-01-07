@@ -18,7 +18,114 @@ Without reliable daily ingestion:
 
 ---
 
-## 🚀 SESSION 43: Pipeline Agent Follow-Up Bug Fix (January 6, 2026)
+## 🚀 SESSION 45: Split Web Search by Engine (January 6, 2026 - Evening)
+
+**Status**: ✅ COMPLETE - Ready to deploy
+
+### 🎯 Problem Solved
+
+The `ingest-web-search` job was running 236 queries (91 Exa + 145 Tavily) and taking 25-35 minutes. Since Cloud Scheduler has a hard 30-minute timeout, jobs would show "failed" even when data successfully ingested.
+
+### ✅ Solution: Split by Search Engine
+
+Instead of trimming queries, we split the web search job into two separate jobs by search engine:
+
+| Before | After |
+|--------|-------|
+| `ingest-web-search` (236 queries, 25-35 min) | `ingest-exa` (91 queries, ~15 min) |
+| | `ingest-tavily` (145 queries, ~18 min) |
+
+### 📊 New Scheduler Jobs
+
+| Job | Schedule (UTC) | Schedule (CST) | Sources | Timeout |
+|-----|---------------|----------------|---------|---------|
+| `ingest-flash-update` | Every 4h | Every 4h | rss, freight | 10 min |
+| `ingest-exa` | 8:00 AM | 2:00 AM | exa_queries, press_releases | 20 min |
+| `ingest-tavily` | 8:20 AM | 2:20 AM | tavily_queries | 25 min |
+| `ingest-financial` | 8:45 AM | 2:45 AM | sec, earnings, fmp_news, stocknews | 30 min |
+| `weekly-executive-briefing` | Mon 14:30 | Mon 8:30 AM | (triggers briefing) | 15 min |
+
+### 🔧 Implementation Details
+
+1. **New source types added to orchestrator.py**:
+   - `exa_queries` - runs only Exa (91 queries + per-company news)
+   - `tavily_queries` - runs only Tavily (145 queries)
+   - `industry_queries` - legacy, runs both (for backward compat)
+
+2. **Logic**: 
+   ```python
+   run_exa = "exa_queries" in sources or "industry_queries" in sources
+   run_tavily = "tavily_queries" in sources or "industry_queries" in sources
+   ```
+
+3. **Deduplication**: Works across jobs - if Exa finds URL at 2:00 AM, Tavily skips it at 2:20 AM
+
+4. **No downstream changes**: Same BigQuery tables, same `source_type` values, same classification/storage
+
+### 📁 Files Modified
+- `backend/app/ingestion/orchestrator.py` - Added exa_queries/tavily_queries source handling
+- `backend/app/api/routes/scheduler.py` - Updated API docs
+- `backend/app/ingestion/README.md` - Updated scheduler job docs
+- `deploy/scheduler/deploy_jobs.ps1` - New job definitions (ingest-exa, ingest-tavily)
+- `.agent/ARCHITECTURE.md` - Updated ADR-008
+
+### ⏭️ Next Steps After Deploy
+1. Push code to trigger Cloud Build
+2. Run `deploy_jobs.ps1` to create new scheduler jobs
+3. Monitor first run at 2:00 AM CST
+
+### 🔧 Useful Commands
+
+```powershell
+# Deploy scheduler jobs
+cd deploy/scheduler
+.\deploy_jobs.ps1
+
+# Test Exa queries only (~15 min)
+$body = '{"sources": ["exa_queries", "press_releases"]}'
+Invoke-RestMethod -Uri "https://c1-hub-4iz75bvpyq-uc.a.run.app/api/v1/scheduler/ingest" `
+  -Method Post -Body $body -ContentType "application/json" -TimeoutSec 1200
+
+# Test Tavily queries only (~18 min)
+$body = '{"sources": ["tavily_queries"]}'
+Invoke-RestMethod -Uri "https://c1-hub-4iz75bvpyq-uc.a.run.app/api/v1/scheduler/ingest" `
+  -Method Post -Body $body -ContentType "application/json" -TimeoutSec 1500
+
+# Check scheduler jobs
+gcloud scheduler jobs list --location=us-central1 --project=gen-lang-client-0436975498
+```
+
+---
+
+## 📦 SESSION 44 HANDOFF (January 6-7, 2026 - Night)
+
+**Status**: Superseded by Session 45 - web search now split by engine
+
+### ✅ What Was Done
+
+1. **Split `ingest-deep-dive` into 2 jobs** (was timing out at 30 min)
+   - `ingest-web-search` (2:00 AM CST / 8:00 UTC) - industry_queries + press_releases
+   - `ingest-financial` (2:45 AM CST / 8:45 UTC) - sec, earnings, fmp_news, stocknews
+   - 45-min buffer between jobs
+
+2. **Fixed timezone bug in date_extraction.py**
+   - Error: `can't compare offset-naive and offset-aware datetimes`
+   - Fix: Changed `datetime.now()` to `datetime.now(timezone.utc)` in `_is_future_date()`
+
+3. **Increased Cloud Run liveness probe tolerance**
+   - Was: 120s period × 10 failures = 20 min (killing jobs mid-execution)
+   - Now: 300s period × 12 failures = 60 min tolerance
+   - Command: `gcloud run services update c1-hub --liveness-probe="httpGet.path=/health,httpGet.port=8080,periodSeconds=300,failureThreshold=12,timeoutSeconds=60"`
+
+4. **Updated scheduler jobs via deploy_jobs.ps1**
+
+### ⚠️ Issue That Led to Session 45
+
+The `ingest-web-search` job was still timing out at 30 minutes because it ran 236 queries. Session 45 solved this by splitting into `ingest-exa` and `ingest-tavily`.
+
+---
+
+## �🚀 SESSION 43: Pipeline Agent Follow-Up Bug Fix (January 6, 2026)
 
 **Status**: ✅ DEPLOYED (commit `b455413`)
 
