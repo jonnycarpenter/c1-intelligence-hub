@@ -17,6 +17,121 @@ Without reliable daily ingestion:
 **Always verify scheduler jobs are running before working on features.**
 
 ---
+## 📅 SESSION 63: Deep Research Groomer Hang - Root Cause Analysis (January 7, 2026)
+
+**Status**: 🚧 IN PROGRESS - Deployed Fixes, Testing
+
+**Deployed Commits**: 
+- `f4be46d` - Timeout fixes (HTTP timeout reduction, explicit task cancellation)
+- `7eadc3b` - Disabled prior research context injection
+
+### 🎯 Issue Reported
+Deep research query "marine/yacht composites" stuck at groomer stage. Last visible log was `corpus_query` at 15:08:34 CST. User reported "Query analysis canceled" in UI after latest deploy.
+
+### 🔍 Root Cause Analysis (Detailed)
+
+**Session 60 had deployed debug logging** - we could see `[GROOMER] START` but NO `[GROOMER] COMPLETE` or timeout logs. The 90s asyncio.wait_for timeout from Session 60 was NOT firing.
+
+**Why the timeout didn't work:**
+The `ResilientChatAnthropic` wrapper has an HTTP client timeout set via `httpx.AsyncClient(timeout=...)`. This timeout was **120 seconds** while our asyncio.wait_for was **90 seconds**.
+
+When asyncio tries to cancel a task, it sends a CancelledError - but if the underlying HTTP client is blocking on a socket read with its own longer timeout, the cancellation cannot interrupt it. The HTTP layer holds the task hostage until IT times out (or succeeds).
+
+**Key insight from user**: "The workflow was working prior to us adding the enhancement to check prior research and the visual agent." User confirmed Visual Agent is critical and must stay. That made prior research context injection the suspect.
+
+### ✅ Fixes Deployed
+
+#### Commit `f4be46d` - Timeout Architecture Fix
+
+**1. HTTP Client Timeout Reduction (`resilient_llm.py`)**
+- Reduced HTTP timeout from 120s → 45s
+- Reduced retry attempts from 2 → 1
+- Now asyncio.wait_for(60s) > HTTP timeout(45s), so cancellation works
+
+**2. Explicit Task Cancellation (`groomer.py`)**
+- Wrapped LLM call in `asyncio.create_task()` 
+- On timeout: explicitly call `task.cancel()` + `await task` to cleanup
+- Ensures proper resource cleanup
+
+**3. Heartbeat Logging (`deep_research.py`)**
+- Added 30-second heartbeat logging during SSE streaming
+- Helps identify if workflow is progressing or stuck
+
+**4. Client Disconnect Handling (`deep_research.py`)**
+- Added explicit handling for `CancelledError` and `GeneratorExit`
+- Logs when client disconnects vs normal completion
+
+#### Commit `7eadc3b` - Disable Prior Research Context
+
+**Hypothesis**: The `_get_prior_research_context()` call in groomer was causing the hang. This function:
+1. Calls `gcp_storage.search_related_research(query)` 
+2. Queries BigQuery `deep_research_reports` table with LIKE matching
+3. Returns concatenated prior research context
+
+Disabled by hardcoding `prior_context = ""` and commenting out the BQ lookup call.
+
+### 📁 Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/app/utils/resilient_llm.py` | HTTP timeout 120s→45s, retries 2→1 |
+| `backend/app/agents/research/groomer.py` | Explicit task cancellation, prior research disabled |
+| `backend/app/api/routes/deep_research.py` | Heartbeat logging, disconnect handling |
+
+### ⚠️ Current Issue
+After deploying commit `7eadc3b`, user tested and got **"Query analysis canceled"** message in the UI. This suggests:
+- The new client disconnect handling (`CancelledError` catch) is triggering
+- Something is causing the SSE connection to close early
+- Need to check Cloud Run logs for the actual error
+
+### 🔍 Log Query Information
+**GCP Project**: `gen-lang-client-0436975498`
+**Service**: `c1-hub-service`
+**Log patterns to search**: `[GROOMER]`, `canceled`, `Cancelled`, `disconnect`, `CancelledError`
+
+### 🔜 Next Steps (For Next Session)
+1. **Check Cloud Run Logs** for the test query - look for:
+   - `[GROOMER] START` - did groomer even begin?
+   - `[GROOMER] COMPLETE` - did it finish?
+   - Any error messages or stack traces
+   - Client disconnect logs
+
+2. **If groomer didn't start**: Issue is BEFORE groomer (routing, initial state)
+
+3. **If groomer started but canceled**: The 60s timeout may be too aggressive, OR there's a new error in the simplified groomer code
+
+4. **If workflow completed but UI showed canceled**: Frontend SSE handling issue
+
+5. **Once working**: Re-enable prior research with proper timeout wrapping around JUST the BQ call
+
+### 📋 Technical Context for Continuation
+
+**Groomer code structure** (simplified after disable):
+```python
+async def groom_query(state: ResearchState) -> ResearchState:
+    logger.info(f"[GROOMER] START - Query: {state.get('query', 'N/A')[:100]}")
+    
+    # DISABLED for debugging - was calling BQ search_related_research
+    prior_context = ""
+    logger.info("[GROOMER] Prior research context disabled for debugging")
+    
+    # LLM call with explicit task cancellation
+    task = asyncio.create_task(llm.ainvoke(messages))
+    try:
+        response = await asyncio.wait_for(task, timeout=60)
+    except asyncio.TimeoutError:
+        task.cancel()
+        await task  # Wait for cancellation
+        raise
+```
+
+**Prior research function** (disabled, in `gcp_storage.py`):
+- `search_related_research(query)` - queries `deep_research_reports` table
+- Uses SQL LIKE with query keywords
+- Returns up to 3 matching reports' executive summaries
+
+---
+
 ## 📅 SESSION 62: Pipeline Contact Card Enrichment (January 7, 2026)
 
 **Status**: ✅ COMPLETE - Ready for Production Deploy
