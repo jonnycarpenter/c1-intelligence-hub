@@ -86,6 +86,50 @@ BigQuery: digest_items table
 
 ---
 
+### `podcast_service.py` - Podcast Generation Service
+
+**Purpose**: Generates AI podcast scripts and audio using ElevenLabs TTS.
+
+**Key Features**:
+- Script generation from content (conversational, professional, brief styles)
+- Multi-speaker support (Host + Analyst voices)
+- ElevenLabs TTS integration
+- Audio file caching
+
+**Voices**:
+| Role | Name | Voice ID | Description |
+|------|------|----------|-------------|
+| Host | Rachel | `21m00Tcm4TlvDq8ikWAM` | Calm, professional |
+| Analyst | Josh | `TxGEqnHWrfWFTfGW9XjX` | Conversational |
+
+**API Endpoints**:
+- `POST /api/podcast/script` - Generate podcast script from content
+- `POST /api/podcast/audio` - Generate audio from script
+- `GET /api/podcast/audio/{id}` - Retrieve generated audio file
+- `GET /api/podcast/briefing/{id}` - Stream weekly briefing podcast from GCS
+- `GET /api/podcast/voices` - List available voices
+
+**Weekly Briefing Integration**:
+The weekly executive briefing pipeline (`weekly_briefing.py`) uses ElevenLabs directly to generate podcast audio:
+1. `_format_text_for_speech()` - Cleans text for TTS (removes citations, expands "$2.4B" → "2.4 billion dollars")
+2. `_build_podcast_script()` - Creates natural narration with "net new" vs "continuing" phrasing
+3. `_generate_podcast()` - Calls ElevenLabs API, uploads to GCS
+
+**Storage**: GCS bucket `gen-lang-client-0436975498-c1-hub-data` in `/podcasts/{briefing_id}.mp3`
+
+**Note**: GCS bucket has public access prevention, so podcasts are streamed through the backend API endpoint `/api/podcast/briefing/{id}`.
+
+**Configuration** (in `settings.py`):
+```python
+elevenlabs_api_key: str = ""
+elevenlabs_voice_id: str = "21m00Tcm4TlvDq8ikWAM"  # Rachel
+elevenlabs_model: str = "eleven_monolingual_v1"
+elevenlabs_voice_stability: float = 0.5
+elevenlabs_voice_similarity_boost: float = 0.75
+```
+
+---
+
 ### `memory_service.py` - Long-Term Memory System
 
 **Purpose**: Provides organizational memory for the C1 Intelligence Hub.

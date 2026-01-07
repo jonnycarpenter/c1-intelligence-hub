@@ -1,7 +1,7 @@
 """Podcast API endpoints - Generate AI podcasts from intelligence content."""
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 
 from app.api.schemas import (
     PodcastRequest,
@@ -11,6 +11,7 @@ from app.api.schemas import (
     PodcastStyle,
 )
 from app.services.podcast_service import PodcastService
+from app.config.settings import settings
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -137,3 +138,49 @@ async def list_available_voices():
         ],
         "note": "Voice customization coming in future updates",
     }
+
+
+@router.get("/briefing/{briefing_id}")
+async def get_briefing_podcast(briefing_id: str):
+    """
+    Stream podcast audio for a weekly briefing from GCS.
+    
+    This endpoint proxies the audio file from GCS to work around
+    bucket public access prevention. The file is streamed to avoid
+    loading the entire file into memory.
+    """
+    logger.info(f"Streaming briefing podcast: {briefing_id}")
+    
+    try:
+        from google.cloud import storage
+        
+        client = storage.Client(project=settings.gcp_project_id)
+        bucket = client.bucket(settings.gcs_bucket_name)
+        blob = bucket.blob(f"podcasts/{briefing_id}.mp3")
+        
+        if not blob.exists():
+            raise HTTPException(status_code=404, detail="Podcast not found for this briefing")
+        
+        # Stream the file from GCS
+        def generate():
+            with blob.open("rb") as f:
+                while True:
+                    chunk = f.read(8192)  # 8KB chunks
+                    if not chunk:
+                        break
+                    yield chunk
+        
+        return StreamingResponse(
+            generate(),
+            media_type="audio/mpeg",
+            headers={
+                "Content-Disposition": f'inline; filename="briefing_{briefing_id}.mp3"',
+                "Accept-Ranges": "bytes",
+            }
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error streaming podcast: {e}")
+        raise HTTPException(status_code=500, detail="Failed to stream podcast audio")

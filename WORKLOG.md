@@ -18,6 +18,64 @@ Without reliable daily ingestion:
 
 ---
 
+## 🎙️ SESSION 47: ElevenLabs Podcast Fix & GCS Streaming (January 6, 2026 - Night)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Goal
+Generate a podcast for the current executive briefing for demo purposes.
+
+### ✅ Completed
+
+1. **Fixed ElevenLabs model typo** in `settings.py`:
+   - `elevenlabs_model` was `"eleven_mon olingual_v1"` (with space) 
+   - Fixed to `"eleven_monolingual_v1"`
+
+2. **Fixed GCS upload** in `weekly_briefing.py`:
+   - Removed `blob.make_public()` call that failed due to uniform bucket-level access
+   - Now stores podcast URL as API endpoint instead of direct GCS URL
+
+3. **Added BigQuery columns** to `weekly_briefings` table:
+   - `podcast_url` (STRING)
+   - `podcast_duration_seconds` (INTEGER)
+   - `podcast_generated_at` (TIMESTAMP)
+
+4. **Generated podcast audio** successfully:
+   - Briefing ID: `c21f6cdc-1b55-4d1b-9a89-51aff8aa905f`
+   - File: `podcasts/c21f6cdc-1b55-4d1b-9a89-51aff8aa905f.mp3` (4.7MB, ~272s)
+   - Uploaded to GCS bucket `gen-lang-client-0436975498-c1-hub-data`
+
+5. **Added streaming endpoint** `/api/podcast/briefing/{briefing_id}`:
+   - Streams audio from GCS through backend (bypasses public access prevention)
+   - Added to `backend/app/api/routes/podcast.py`
+   - Returns `audio/mpeg` with proper headers for browser playback
+
+6. **Updated podcast URL in BigQuery**:
+   - Changed from direct GCS URL to `/api/podcast/briefing/{id}`
+   - Verified: 272s duration stored correctly
+
+7. **Tested locally** - Streaming endpoint verified working:
+   - Status: 200 OK
+   - Content-Type: audio/mpeg
+   - Successfully streamed 100KB+ chunks
+
+### 📁 Files Modified
+- `backend/app/config/settings.py` - Fixed ElevenLabs model name typo
+- `backend/app/api/routes/podcast.py` - Added `/api/podcast/briefing/{id}` streaming endpoint
+- `backend/app/ingestion/generators/weekly_briefing.py` - Fixed GCS upload (removed make_public, uses API URL)
+- `backend/scripts/operations/update_podcast_url.py` - Script to update URL in BigQuery
+
+### 🗄️ Database Changes
+- Added 3 columns to `weekly_briefings` BigQuery table (podcast_url, podcast_duration_seconds, podcast_generated_at)
+
+### 📝 Key Technical Notes
+- GCS bucket `gen-lang-client-0436975498-c1-hub-data` has **public access prevention** enabled
+- Cannot use `blob.make_public()` or `allUsers` IAM binding
+- Solution: Stream through backend API instead of direct GCS URL
+- Frontend PodcastPlayer already handles relative URLs via `API_BASE`
+
+---
+
 ## 🧠 SESSION 46: Memory Context Integration (January 6, 2026 - Late Evening)
 
 **Status**: ✅ COMPLETE

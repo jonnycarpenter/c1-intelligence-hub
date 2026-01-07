@@ -209,6 +209,22 @@ export function useAdHocBriefing() {
                     if (line.startsWith('data: ')) {
                         const data = line.slice(6)
                         if (data === '[DONE]') {
+                            // Construct response before returning
+                            if (fullText) {
+                                const streamedResponse: AdHocBriefing = {
+                                    id: sessionId || `stream-${Date.now()}`,
+                                    question,
+                                    answer: fullText,
+                                    sources_used: [],
+                                    confidence: 'medium',
+                                    suggest_deep_research: followUpCount >= 2,
+                                    related_topics: [],
+                                    follow_up_count: followUpCount,
+                                    generated_at: new Date().toISOString(),
+                                    session_id: sessionId ?? undefined,
+                                }
+                                setResponse(streamedResponse)
+                            }
                             setIsStreaming(false)
                             return fullText
                         }
@@ -272,6 +288,23 @@ export function useAdHocBriefing() {
                         }
                     }
                 }
+            }
+
+            // Construct the response object from streamed text so ResponseCard renders
+            if (fullText) {
+                const streamedResponse: AdHocBriefing = {
+                    id: sessionId || `stream-${Date.now()}`,
+                    question,
+                    answer: fullText,
+                    sources_used: [], // Sources embedded in markdown text
+                    confidence: 'medium',
+                    suggest_deep_research: followUpCount >= 2,
+                    related_topics: [],
+                    follow_up_count: followUpCount,
+                    generated_at: new Date().toISOString(),
+                    session_id: sessionId ?? undefined,
+                }
+                setResponse(streamedResponse)
             }
 
             return fullText

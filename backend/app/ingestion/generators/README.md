@@ -97,9 +97,28 @@ Agent 2 produces briefings with this structure:
 After Agent 2 completes, briefing text is:
 - Formatted for natural speech (currency/percentages expanded)
 - Narrated with natural "net new" vs "continuing" phrasing
-- Generated via ElevenLabs TTS (Rachel voice)
+- Generated via ElevenLabs TTS (Rachel voice, `eleven_monolingual_v1` model)
 - Uploaded to GCS `/podcasts/{briefing_id}.mp3`
 - ~4-6 minutes for typical 3-section briefing
+
+**Text Formatting** (`_format_text_for_speech()`):
+- Removes citations: `[1]`, `[Exa:2]` → removed
+- Removes company tags: `[[Boeing]]` → "Boeing"
+- Expands currency: `$2.4B` → "2.4 billion dollars"
+- Expands percentages: `40%` → "40 percent"
+
+**Storage & Access**:
+- GCS bucket: `gen-lang-client-0436975498-c1-hub-data`
+- Path: `/podcasts/{briefing_id}.mp3`
+- ⚠️ Bucket has **public access prevention** - cannot use direct GCS URLs
+- Solution: Stream through backend API `/api/podcast/briefing/{briefing_id}`
+
+**Configuration** (`settings.py`):
+- `elevenlabs_api_key` - API key (stored in Secret Manager)
+- `elevenlabs_voice_id` - Default: `21m00Tcm4TlvDq8ikWAM` (Rachel)
+- `elevenlabs_model` - Default: `eleven_monolingual_v1`
+- `elevenlabs_voice_stability` - Default: 0.5
+- `elevenlabs_voice_similarity_boost` - Default: 0.75
 
 ### Source Article Linking
 Citations like `[1]`, `[2]` in text are linked to actual articles:

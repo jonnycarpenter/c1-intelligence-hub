@@ -165,6 +165,9 @@ c1-intelligence-hub_v2/
 | `/api/verify-access` | POST | Login verification |
 | `/api/data/preferences` | GET/POST/DELETE | User/org preferences CRUD |
 | `/api/pipeline/articles` | GET | Pipeline article search |
+| `/api/podcast/briefing/{id}` | GET | Stream weekly briefing podcast audio |
+| `/api/podcast/script` | POST | Generate podcast script from content |
+| `/api/podcast/audio` | POST | Generate audio from script |
 | `/health` | GET | Health check |
 
 ## Configuration

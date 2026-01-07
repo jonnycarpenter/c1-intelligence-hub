@@ -663,9 +663,11 @@ Otherwise, respond with the final briefing JSON:
             blob = self._gcs_bucket.blob(blob_name)
             
             blob.upload_from_string(audio_data, content_type='audio/mpeg')
-            blob.make_public()
+            # Note: Bucket has uniform bucket-level access, so objects are publicly readable
+            # via IAM policy on the bucket. No need for make_public() on individual objects.
             
-            podcast_url = blob.public_url
+            # Construct public URL (bucket has allUsers read access)
+            podcast_url = f"https://storage.googleapis.com/{self.config.gcs_bucket_name}/{blob_name}"
             logger.info(f"Uploaded podcast to GCS: {podcast_url}")
             
             # 4. Calculate duration (approximate: 150 words/min)
