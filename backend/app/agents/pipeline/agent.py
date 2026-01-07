@@ -391,11 +391,46 @@ class PipelineAgent:
                     ))
                 
                 # Get agent's summary response
-                final_response = await self.llm.ainvoke(messages)
-                response_text = final_response.content
+                final_response = await self.llm_with_tools.ainvoke(messages)
+                
+                # Handle if agent wants to call more tools (multi-turn loop)
+                max_iterations = 3  # Prevent infinite loops
+                iteration = 0
+                
+                while final_response.tool_calls and iteration < max_iterations:
+                    iteration += 1
+                    logger.info(f"[Pipeline Agent] Follow-up tool calls iteration {iteration}")
+                    
+                    for tool_call in final_response.tool_calls:
+                        tool_name = tool_call["name"]
+                        tool_args = tool_call["args"]
+                        
+                        logger.info(f"[Pipeline Agent] Calling {tool_name} with args: {tool_args}")
+                        
+                        if tool_name in self.tools:
+                            tool_result = await self.tools[tool_name].ainvoke(tool_args)
+                            
+                            from langchain_core.messages import ToolMessage
+                            messages.append(final_response)
+                            messages.append(ToolMessage(
+                                content=tool_result,
+                                tool_call_id=tool_call["id"],
+                            ))
+                            
+                            # Parse result and create SearchBlock
+                            search_block = self._create_search_block(
+                                tool_name, tool_args, tool_result, user_query
+                            )
+                            if search_block:
+                                search_blocks.append(search_block)
+                    
+                    # Get next response
+                    final_response = await self.llm_with_tools.ainvoke(messages)
+                
+                response_text = self._extract_text_content(final_response.content)
             else:
                 # No tool calls - just a conversational response
-                response_text = response.content
+                response_text = self._extract_text_content(response.content)
             
             # Generate suggested follow-ups
             suggested_followups = self._generate_followups(user_query, search_blocks)
@@ -654,6 +689,38 @@ class PipelineAgent:
         except Exception as e:
             logger.error(f"Error creating SearchBlock: {e}")
             return None
+    
+    def _extract_text_content(self, content) -> str:
+        """
+        Extract text content from LLM response.
+        
+        Claude/LangChain response.content can be:
+        - A string (text-only response)
+        - A list of blocks (when including tool_use blocks)
+        
+        This method handles both cases.
+        """
+        if isinstance(content, str):
+            return content
+        
+        if isinstance(content, list):
+            # Extract text from content blocks, ignoring tool_use blocks
+            text_parts = []
+            for block in content:
+                if isinstance(block, dict):
+                    if block.get("type") == "text":
+                        text_parts.append(block.get("text", ""))
+                elif isinstance(block, str):
+                    text_parts.append(block)
+            
+            if text_parts:
+                return " ".join(text_parts)
+            
+            # Fallback: if no text found, return a helpful message
+            return "I've processed your request. Please see the results above."
+        
+        # Fallback for unexpected types
+        return str(content) if content else "Search completed."
     
     def _generate_followups(
         self,
