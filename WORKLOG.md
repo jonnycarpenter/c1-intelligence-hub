@@ -18,7 +18,80 @@ Without reliable daily ingestion:
 
 ---
 
-## �️ SESSION 54: Conversational Podcast & Modal Player (January 7, 2026)
+## 🎨 SESSION 55: Executive Briefing Text Formatting Enhancement (January 7, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Goal
+Add logo.dev integration and company/product name bolding to the BLUF and overall trend text in the "Need to Know" executive briefing section, matching the formatting already used in section insights.
+
+### ✅ Changes Made
+
+**Enhanced Text Rendering** (`frontend/src/components/dashboard/WeeklyBriefingSection.tsx`):
+- Extracted `renderTextWithLogosAndCitations` function to module scope for reuse
+- Collected all companies with logos from all briefing sections
+- Applied logo and citation rendering to both `bluf` and `overall_trend` fields
+- Now displays `[[Company Name]]` tags with inline company logos (via logo.dev)
+- Company names appear bolded in both BLUF and overall trend paragraphs
+- Citations `[1]`, `[2]` render as superscript links matching section style
+
+### 📁 Files Modified
+- `frontend/src/components/dashboard/WeeklyBriefingSection.tsx` - Text rendering enhancement
+
+### 🧪 Verification
+```bash
+# Frontend builds successfully
+cd frontend && npm run build
+# ✓ Compiled successfully in 3.6s
+# ✓ Finished TypeScript in 6.6s
+```
+
+### 🎨 Design Consistency
+The BLUF and overall trend text now have the same visual treatment as the section insights:
+- Logo.dev integration shows company logos inline with mentions
+- Company names are bolded for emphasis
+- Product/material names (composite materials, etc.) are bolded
+- Citations appear as emerald-colored superscript numbers
+
+---
+
+## 📅 SESSION 55b: Executive Briefing Week Date Fix (January 7, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Goal
+Fix the "Week of" date calculation in executive briefings to always show this week's date, regardless of when the briefing is run manually (off-schedule).
+
+### 🐛 Problem
+When briefings were run manually multiple times, each run used `datetime.utcnow()` as the period_end, causing the displayed week date to drift forward (e.g., showing "Week of Jan 11" instead of "Week of Jan 5").
+
+### ✅ Solution
+Modified `pre_briefing.py` to calculate `period_end` as **this week's Sunday** instead of "now":
+
+**Backend Changes** (`backend/app/ingestion/generators/pre_briefing.py`):
+- Added `_get_this_weeks_sunday()` helper method
+- Calculates the most recent Sunday at midnight UTC
+- Updated `_get_articles()` to use this as period_end when no custom dates provided
+- Industry convention: "Week of [Sunday date]"
+
+### 📁 Files Modified
+- `backend/app/ingestion/generators/pre_briefing.py` - Date calculation fix
+
+### 🧪 Verification
+```bash
+cd backend
+python -c "from app.ingestion.generators.pre_briefing import PreBriefGenerator; print('Import successful')"
+# Import successful
+```
+
+### 🎯 Result
+- Briefing now consistently shows "Week of Jan 5" (this week's Sunday)
+- Manual runs no longer increment the week date
+- Aligns with scheduled Monday morning runs
+
+---
+
+## 🎙️ SESSION 54: Conversational Podcast & Modal Player (January 7, 2026)
 
 **Status**: ✅ COMPLETE
 

@@ -102,6 +102,51 @@ function CompanyLogo({ company, size = 'sm' }: CompanyLogoProps) {
 }
 
 // =============================================================================
+// Text Rendering Helper - Handles logos and citations
+// =============================================================================
+
+// Parse citations like [1], [2] and logos like [[Company Name]]
+const renderTextWithLogosAndCitations = (text: string, companiesWithLogos: CompanyWithLogo[]) => {
+  // Split by citations [N] and company tags [[Company]]
+  const parts = text.split(/(\[\d+\]|\[\[.*?\]\])/g)
+
+  return parts.map((part, idx) => {
+    // Handle citations [N]
+    if (/^\[\d+\]$/.test(part)) {
+      const num = part.replace(/[\[\]]/g, '')
+      return (
+        <sup
+          key={idx}
+          className="text-emerald-600 font-semibold ml-0.5 cursor-help"
+          title={`Source ${num}`}
+        >
+          {num}
+        </sup>
+      )
+    }
+
+    // Handle company logos [[Company]]
+    if (/^\[\[.*?\]\]$/.test(part)) {
+      const companyName = part.replace(/[\[\]]/g, '')
+      const company = companiesWithLogos.find(c => c.name === companyName)
+
+      return (
+        <span key={idx} className="inline-flex items-center gap-1.5 align-baseline">
+          <span className="font-bold text-slate-900 mx-0.5">{companyName}</span>
+          {company && (
+            <span className="inline-block transform translate-y-0.5">
+              <CompanyLogo company={company} size="sm" />
+            </span>
+          )}
+        </span>
+      )
+    }
+
+    return part
+  })
+}
+
+// =============================================================================
 // Insight Item Component
 // =============================================================================
 
@@ -113,46 +158,6 @@ interface InsightItemProps {
 }
 
 function InsightItem({ insight, companiesWithLogos, isHeadline = false, isSneakPeak = false }: InsightItemProps) {
-  // Parse citations like [1], [2] and logos like [[Company Name]]
-  const renderTextWithLogosAndCitations = (text: string, companiesWithLogos: CompanyWithLogo[]) => {
-    // Split by citations [N] and company tags [[Company]]
-    const parts = text.split(/(\[\d+\]|\[\[.*?\]\])/g)
-
-    return parts.map((part, idx) => {
-      // Handle citations [N]
-      if (/^\[\d+\]$/.test(part)) {
-        const num = part.replace(/[\[\]]/g, '')
-        return (
-          <sup
-            key={idx}
-            className="text-emerald-600 font-semibold ml-0.5 cursor-help"
-            title={`Source ${num}`}
-          >
-            {num}
-          </sup>
-        )
-      }
-
-      // Handle company logos [[Company]]
-      if (/^\[\[.*?\]\]$/.test(part)) {
-        const companyName = part.replace(/[\[\]]/g, '')
-        const company = companiesWithLogos.find(c => c.name === companyName)
-
-        return (
-          <span key={idx} className="inline-flex items-center gap-1.5 align-baseline">
-            <span className="font-bold text-slate-900 mx-0.5">{companyName}</span>
-            {company && (
-              <span className="inline-block transform translate-y-0.5">
-                <CompanyLogo company={company} size="sm" />
-              </span>
-            )}
-          </span>
-        )
-      }
-
-      return part
-    })
-  }
 
   return (
     <div className={cn(
@@ -357,6 +362,11 @@ export default function WeeklyBriefingSection({
     )
   }
 
+  // Collect all companies with logos from all sections
+  const allCompaniesWithLogos = briefing.sections.flatMap(
+    section => section.companies_with_logos || []
+  )
+
   // Format date range
   const periodStart = new Date(briefing.period_start).toLocaleDateString('en-US', {
     month: 'short', day: 'numeric'
@@ -412,12 +422,16 @@ export default function WeeklyBriefingSection({
           <div className="mt-3 p-3 bg-white/60 rounded-lg border border-emerald-200/50">
             <div className="flex items-start gap-2">
               <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider shrink-0 mt-0.5">BLUF</span>
-              <p className="text-sm font-medium text-slate-800 leading-relaxed">{briefing.bluf}</p>
+              <p className="text-sm font-medium text-slate-800 leading-relaxed">
+                {renderTextWithLogosAndCitations(briefing.bluf, allCompaniesWithLogos)}
+              </p>
             </div>
           </div>
         )}
         {briefing.overall_trend && (
-          <p className="text-sm text-slate-600 mt-3">{briefing.overall_trend}</p>
+          <p className="text-sm text-slate-600 mt-3">
+            {renderTextWithLogosAndCitations(briefing.overall_trend, allCompaniesWithLogos)}
+          </p>
         )}
         <div className="mt-3 flex items-center gap-4 text-xs text-slate-500">
           <span>{briefing.article_count} articles analyzed</span>
