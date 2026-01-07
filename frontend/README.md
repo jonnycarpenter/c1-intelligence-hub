@@ -13,7 +13,7 @@ src/
 │   ├── dashboard/         # Pulse tab components
 │   │   ├── PulseDashboard.tsx
 │   │   ├── WeeklyBriefingSection.tsx
-│   │   ├── PodcastPlayer.tsx
+│   │   ├── PodcastModal.tsx
 │   │   ├── AdHocBriefing.tsx
 │   │   └── EntityAggregator.tsx
 │   ├── data-preferences/  # Settings & preferences tab
@@ -55,8 +55,8 @@ src/
 
 ### Pulse Tab
 - **PulseDashboard** - Weekly briefing + ad-hoc briefing layout
-- **WeeklyBriefingSection** - Renders briefing with expandable sections
-- **PodcastPlayer** - Audio player for briefing podcasts
+- **WeeklyBriefingSection** - Renders briefing with expandable sections + 🎧 Listen button
+- **PodcastModal** - Dark-theme modal for podcast playback (skip ±15s, volume, progress, download)
 - **AdHocBriefing** - On-demand question interface
 - **EntityAggregator** - Compact summary stats (5 aggregations) with expandable drawer showing filterable entity pills
 

@@ -11,7 +11,7 @@ C1 Intelligence Hub helps composites industry professionals stay informed with A
 | Feature | Description |
 |---------|-------------|
 | **Ad-Hoc Briefings** | On-demand AI briefings on any topic with real-time web search |
-| **Weekly Executive Briefings** | 2-agent pipeline with podcast generation (ElevenLabs TTS) |
+| **Weekly Executive Briefings** | 2-agent pipeline with conversational podcast (ElevenLabs Text-to-Dialogue API) |
 | **[Deep Research](#deep-research)** | 7-node LangGraph pipeline with parallel agents, real-time streaming |
 | **Saved Reports** | Browse and reload past Deep Research reports from sidebar |
 | **Pipeline Dashboard** | Track news from 50+ industry sources via Exa/Tavily |
