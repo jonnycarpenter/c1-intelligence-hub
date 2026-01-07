@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import {
     FileText,
     BarChart3,
@@ -8,27 +9,90 @@ import {
     ChevronRight,
     ShieldCheck,
     TrendingUp,
-    LayoutDashboard
+    LayoutDashboard,
+    Bookmark,
+    CheckCircle,
+    Loader2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import ReactMarkdown from 'react-markdown'
+import { api } from '@/lib/api'
 
 interface DeepResearchReportProps {
     report: any
 }
 
 export default function ResearchReport({ report }: DeepResearchReportProps) {
+    const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+
     if (!report) return null
 
     const { executive_summary, sections, field_sales } = report
+
+    const handleSaveToMemory = async () => {
+        if (saveStatus === 'saving' || saveStatus === 'saved') return
+
+        setSaveStatus('saving')
+        try {
+            await api.saveToMemory({
+                type: 'research_export',
+                question: report.query || executive_summary.headline,
+                answer: [
+                    `**${executive_summary.headline}**`,
+                    '',
+                    ...(executive_summary.key_points || []).map((p: string) => `• ${p}`),
+                ].join('\n'),
+                sources: (report.sources || []).slice(0, 5).map((s: any) => ({
+                    title: s.title || s.name || 'Source',
+                    url: s.url,
+                })),
+                confidence: report.overall_confidence || 'medium',
+                tags: [
+                    ...(report.companies || []).slice(0, 5),
+                    ...(report.topics || []).slice(0, 3),
+                ],
+            })
+            setSaveStatus('saved')
+        } catch (err) {
+            console.error('Failed to save to memory:', err)
+            setSaveStatus('error')
+            // Reset after 3 seconds so user can try again
+            setTimeout(() => setSaveStatus('idle'), 3000)
+        }
+    }
 
     return (
         <div className="space-y-6 pb-12">
             {/* Executive Summary */}
             <section className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-                <div className="bg-slate-900 px-6 py-4 flex items-center gap-2">
-                    <LayoutDashboard size={20} className="text-emerald-400" />
-                    <h2 className="text-white font-semibold">Executive Summary</h2>
+                <div className="bg-slate-900 px-6 py-4 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <LayoutDashboard size={20} className="text-emerald-400" />
+                        <h2 className="text-white font-semibold">Executive Summary</h2>
+                    </div>
+                    <button
+                        onClick={handleSaveToMemory}
+                        disabled={saveStatus === 'saving' || saveStatus === 'saved'}
+                        className={cn(
+                            "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors",
+                            saveStatus === 'saved'
+                                ? "bg-emerald-600 text-white cursor-default"
+                                : saveStatus === 'error'
+                                    ? "bg-red-600 text-white"
+                                    : "bg-slate-700 hover:bg-slate-600 text-slate-200"
+                        )}
+                        title="Save to Memory"
+                    >
+                        {saveStatus === 'saving' ? (
+                            <><Loader2 size={14} className="animate-spin" /> Saving...</>
+                        ) : saveStatus === 'saved' ? (
+                            <><CheckCircle size={14} /> Saved</>
+                        ) : saveStatus === 'error' ? (
+                            <><Bookmark size={14} /> Error</>
+                        ) : (
+                            <><Bookmark size={14} /> Save to Memory</>
+                        )}
+                    </button>
                 </div>
                 <div className="p-6">
                     <h1 className="text-2xl font-bold text-slate-900 mb-4">{executive_summary.headline}</h1>

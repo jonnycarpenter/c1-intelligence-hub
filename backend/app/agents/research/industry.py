@@ -17,6 +17,9 @@ from app.mcp.tools.timeseries_data import get_freight_rates
 from app.utils.grounding import load_companies
 import json
 import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Composites industry trade publications for domain-filtered searches
 COMPOSITES_TRADE_PUBLICATIONS = [
@@ -118,6 +121,85 @@ def _extract_keywords_for_trends(query: str, brief) -> List[str]:
     return keywords[:5]  # Google Trends max
 
 
+def _classify_industry_query_type(original_query: str, brief) -> dict:
+    """
+    Classify the query type to guide intelligent tool selection for Industry agent.
+    
+    Returns a dict with boolean flags indicating what type of research is needed:
+    - needs_trade_news: User wants industry/trade publication coverage
+    - needs_general_news: User wants broad news coverage
+    - needs_demand_signals: User wants trend/demand validation (Google Trends)
+    - needs_company_news: User mentions specific companies
+    - needs_freight_data: User asking about supply chain/logistics
+    - needs_trending: User wants what's hot/trending right now
+    
+    This enables smart tool selection to avoid running every tool for every query.
+    """
+    query_lower = original_query.lower()
+    entities = brief.entities_to_track if brief else []
+    
+    result = {
+        "needs_trade_news": False,
+        "needs_general_news": False,
+        "needs_demand_signals": False,
+        "needs_company_news": False,
+        "needs_freight_data": False,
+        "needs_trending": False,
+    }
+    
+    # Trade/industry publication queries
+    trade_keywords = [
+        "industry", "market", "sector", "trend", "technology", "manufacturing",
+        "production", "capacity", "supply", "material", "composite", "fiber",
+        "resin", "aerospace", "wind", "automotive", "marine", "defense"
+    ]
+    if any(kw in query_lower for kw in trade_keywords):
+        result["needs_trade_news"] = True
+    
+    # General news queries
+    news_keywords = [
+        "news", "recent", "latest", "announcement", "update", "development",
+        "happening", "current", "this week", "this month", "breaking"
+    ]
+    if any(kw in query_lower for kw in news_keywords):
+        result["needs_general_news"] = True
+    
+    # Demand signal validation queries
+    demand_keywords = [
+        "demand", "trend", "growth", "interest", "popular", "adoption",
+        "uptake", "momentum", "emerging", "rising", "falling", "hot"
+    ]
+    if any(kw in query_lower for kw in demand_keywords):
+        result["needs_demand_signals"] = True
+    
+    # Company-specific queries (only if companies mentioned)
+    if entities and len(entities) > 0:
+        result["needs_company_news"] = True
+    
+    # Freight/logistics queries
+    freight_keywords = [
+        "freight", "shipping", "logistics", "supply chain", "port",
+        "container", "transport", "cost", "lane", "delivery"
+    ]
+    if any(kw in query_lower for kw in freight_keywords):
+        result["needs_freight_data"] = True
+    
+    # Trending/hot topics queries
+    trending_keywords = [
+        "trending", "hot", "buzz", "popular", "headline", "major",
+        "top story", "big news", "important"
+    ]
+    if any(kw in query_lower for kw in trending_keywords):
+        result["needs_trending"] = True
+    
+    # Default: If no specific type detected, enable core research
+    if not any(result.values()):
+        result["needs_trade_news"] = True
+        result["needs_general_news"] = True
+    
+    return result
+
+
 def _rank_results_by_relevance(raw_results: List[Dict], original_query: str) -> List[Dict]:
     """
     Rank raw results by relevance to the original query.
@@ -197,6 +279,13 @@ async def industry_research_node(state: DeepResearchState) -> Dict[str, Any]:
     # Collect all tickers mentioned across queries for batch processing
     all_resolved_tickers = set()
     
+    # =========================================================================
+    # Classify query type for intelligent tool selection
+    # This guides which tools to run based on what the user is actually asking
+    # =========================================================================
+    query_type = _classify_industry_query_type(brief.original_query, brief)
+    logger.info(f"Industry agent: Query type classification: {query_type}")
+    
     for q in brief.industry_agent_queries:
         queries_executed.append(q)
         
@@ -213,28 +302,33 @@ async def industry_research_node(state: DeepResearchState) -> Dict[str, Any]:
             errors.append({"node": "industry_research", "query": q, "error": f"Corpus query: {str(e)}"})
         
         # 2. EXA WEB SEARCH - Trade publications (domain-filtered for high-quality industry content)
-        emit_progress_sync(ToolProgress(tool_name="exa_trade_pubs", message="Searching trade publications"))
-        try:
-            trade_pub_results = web_search.invoke({
-                "query": q,
-                "max_results": 10,
-                "search_depth": "advanced",
-                "time_range": "month",
-                "include_domains": COMPOSITES_TRADE_PUBLICATIONS,
-            })
-            raw_results.append({"query": q, "source": "exa_trade_pubs", "content": trade_pub_results})
-        except Exception as e:
-            errors.append({"node": "industry_research", "query": q, "error": f"Exa trade pubs: {str(e)}"})
+        # Run if: user wants trade/industry news
+        if query_type["needs_trade_news"]:
+            emit_progress_sync(ToolProgress(tool_name="exa_trade_pubs", message="Searching trade publications"))
+            try:
+                trade_pub_results = web_search.invoke({
+                    "query": q,
+                    "max_results": 10,
+                    "search_depth": "advanced",
+                    "time_range": "month",
+                    "include_domains": COMPOSITES_TRADE_PUBLICATIONS,
+                })
+                raw_results.append({"query": q, "source": "exa_trade_pubs", "content": trade_pub_results})
+            except Exception as e:
+                errors.append({"node": "industry_research", "query": q, "error": f"Exa trade pubs: {str(e)}"})
         
         # 3. EXA NEWS SEARCH (general news with reliable dates)
-        emit_progress_sync(ToolProgress(tool_name="exa_news", message="Searching recent news"))
-        try:
-            news_results = news_search.invoke({"query": q, "max_results": 10, "time_range": "week"})
-            raw_results.append({"query": q, "source": "exa_news", "content": news_results})
-        except Exception as e:
-            errors.append({"node": "industry_research", "query": q, "error": f"Exa news: {str(e)}"})
+        # Run if: user wants general/recent news
+        if query_type["needs_general_news"]:
+            emit_progress_sync(ToolProgress(tool_name="exa_news", message="Searching recent news"))
+            try:
+                news_results = news_search.invoke({"query": q, "max_results": 10, "time_range": "week"})
+                raw_results.append({"query": q, "source": "exa_news", "content": news_results})
+            except Exception as e:
+                errors.append({"node": "industry_research", "query": q, "error": f"Exa news: {str(e)}"})
         
         # 4. MARKET SIGNALS (aggregated signals from corpus)
+        # Always run - lightweight and uses internal data
         emit_progress_sync(ToolProgress(tool_name="market_signals", message="Analyzing market signals"))
         try:
             industry_filter = None
@@ -248,16 +342,19 @@ async def industry_research_node(state: DeepResearchState) -> Dict[str, Any]:
             pass  # Non-critical
         
         # 5. STOCKNEWS KEYWORD SEARCH (for industry terms, private companies)
-        emit_progress_sync(ToolProgress(tool_name="stocknews_keyword", message="Searching news by keyword"))
-        try:
-            keyword_result = search_news_keyword.invoke({"keyword": q, "days": 60, "items": 15})
-            raw_results.append({"query": q, "source": "stocknews_keyword", "content": keyword_result})
-        except Exception as e:
-            errors.append({"node": "industry_research", "query": q, "error": f"StockNews keyword: {str(e)}"})
+        # Run if: user wants general news (complements Exa)
+        if query_type["needs_general_news"]:
+            emit_progress_sync(ToolProgress(tool_name="stocknews_keyword", message="Searching news by keyword"))
+            try:
+                keyword_result = search_news_keyword.invoke({"keyword": q, "days": 60, "items": 15})
+                raw_results.append({"query": q, "source": "stocknews_keyword", "content": keyword_result})
+            except Exception as e:
+                errors.append({"node": "industry_research", "query": q, "error": f"StockNews keyword: {str(e)}"})
     
     # 6. STOCKNEWS COMPANY NEWS (batch for all resolved tickers)
+    # Run ONLY if: user mentions specific companies AND wants company news
     all_tickers = list(all_resolved_tickers)
-    if all_tickers:
+    if all_tickers and query_type["needs_company_news"]:
         emit_progress_sync(ToolProgress(tool_name="stocknews_company", message=f"Fetching company news for {', '.join(all_tickers[:3])}{'...' if len(all_tickers) > 3 else ''}"))
         try:
             company_news = get_company_news.invoke({"tickers": all_tickers[:10], "days": 30, "items": 20})
@@ -271,30 +368,42 @@ async def industry_research_node(state: DeepResearchState) -> Dict[str, Any]:
             raw_results.append({"query": "resolved_tickers", "source": "stocknews_press_releases", "content": pr_result, "tickers": all_tickers[:10]})
         except Exception as e:
             errors.append({"node": "industry_research", "error": f"StockNews press releases: {str(e)}"})
+    elif all_tickers:
+        logger.info("Industry agent: Skipping company-specific news (not needed for query type)")
     
     # 7. GOOGLE TRENDS (demand signal validation)
-    emit_progress_sync(ToolProgress(tool_name="google_trends", message="Checking Google Trends for demand signals"))
-    try:
-        trends_keywords = _extract_keywords_for_trends(brief.original_query, brief)
-        if trends_keywords:
-            trends_result = get_google_trends.invoke({
-                "keywords": trends_keywords,
-                "timeframe": "today 3-m",
-                "geo": "US"
-            })
-            raw_results.append({"query": brief.original_query, "source": "google_trends", "content": trends_result, "keywords": trends_keywords})
-    except Exception as e:
-        errors.append({"node": "industry_research", "error": f"Google Trends: {str(e)}"})
+    # Run ONLY if: user wants demand signals/trends validation
+    if query_type["needs_demand_signals"]:
+        emit_progress_sync(ToolProgress(tool_name="google_trends", message="Checking Google Trends for demand signals"))
+        try:
+            trends_keywords = _extract_keywords_for_trends(brief.original_query, brief)
+            if trends_keywords:
+                trends_result = get_google_trends.invoke({
+                    "keywords": trends_keywords,
+                    "timeframe": "today 3-m",
+                    "geo": "US"
+                })
+                raw_results.append({"query": brief.original_query, "source": "google_trends", "content": trends_result, "keywords": trends_keywords})
+        except Exception as e:
+            errors.append({"node": "industry_research", "error": f"Google Trends: {str(e)}"})
+    else:
+        logger.info("Industry agent: Skipping Google Trends (not needed for query type)")
     
     # 8. TRENDING HEADLINES (once, not per query)
-    try:
-        trending_result = get_trending_headlines.invoke({"items": 10})
-        raw_results.append({"query": "trending", "source": "stocknews_trending", "content": trending_result})
-    except Exception as e:
-        pass  # Non-critical
+    # Run ONLY if: user wants trending/hot topics
+    if query_type["needs_trending"]:
+        try:
+            trending_result = get_trending_headlines.invoke({"items": 10})
+            raw_results.append({"query": "trending", "source": "stocknews_trending", "content": trending_result})
+        except Exception as e:
+            pass  # Non-critical
+    else:
+        logger.info("Industry agent: Skipping trending headlines (not needed for query type)")
     
-    # 9. FREIGHT INTELLIGENCE (if query mentions shipping, logistics, freight, ports, containers)
-    if any(kw in brief.original_query.lower() for kw in ["ship", "freight", "logistics", "port", "container", "cost", "lane"]):
+    # 9. FREIGHT INTELLIGENCE
+    # Run ONLY if: user explicitly asks about freight/logistics
+    if query_type["needs_freight_data"]:
+        emit_progress_sync(ToolProgress(tool_name="freight_rates", message="Fetching freight intelligence"))
         try:
             # Check for specific lanes mentioned
             target_lane = None
@@ -307,6 +416,8 @@ async def industry_research_node(state: DeepResearchState) -> Dict[str, Any]:
             raw_results.append({"query": "freight_intelligence", "source": "freight_rates", "content": freight_result})
         except Exception as e:
             pass  # Non-critical
+    else:
+        logger.info("Industry agent: Skipping freight data (not needed for query type)")
     
     # Rank results by relevance before truncation
     ranked_results = _rank_results_by_relevance(raw_results, brief.original_query)

@@ -10,7 +10,7 @@ Endpoints:
 """
 
 from typing import List, Dict, Any, Optional
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Header
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from datetime import datetime
@@ -449,7 +449,10 @@ async def get_weekly_briefing_history(
 # =============================================================================
 
 @router.post("/adhoc", response_model=AdHocBriefingResponse)
-async def create_adhoc_briefing(request: AdHocBriefingRequest):
+async def create_adhoc_briefing(
+    request: AdHocBriefingRequest,
+    x_user_team: Optional[str] = Header(None, alias="X-User-Team"),
+):
     """
     Generate an ad hoc quick briefing based on user's question.
     
@@ -458,7 +461,11 @@ async def create_adhoc_briefing(request: AdHocBriefingRequest):
     - Searches embedded articles (semantic search)
     - Context-aware of current brief and digest
     - **Session-based follow-up tracking** - Max 2 follow-ups, then suggests Deep Research
+    - **Memory context** - Injects user preferences and relevant past memories
     - Stores in adhoc_briefings BigQuery table
+    
+    Request headers:
+    - X-User-Team: User's team for team-scoped memory context
     
     Request body:
     - question: User's question (required)
@@ -471,7 +478,7 @@ async def create_adhoc_briefing(request: AdHocBriefingRequest):
     - session_id: Use this for follow-up questions
     - session: Full session state with follow_up_count and turns_remaining
     """
-    logger.info(f"Ad hoc briefing request: '{request.question[:50]}...' follow_up={request.is_follow_up} session={request.session_id}")
+    logger.info(f"Ad hoc briefing request: '{request.question[:50]}...' follow_up={request.is_follow_up} session={request.session_id} team={x_user_team}")
     
     try:
         from app.agents.adhoc_briefing import AdHocBriefingAgent, BriefingContext, get_session_manager
@@ -485,13 +492,14 @@ async def create_adhoc_briefing(request: AdHocBriefingRequest):
         # Build context
         context = BriefingContext.from_dict(request.context)
         
-        # Create agent and generate briefing with session
+        # Create agent and generate briefing with session and memory context
         agent = AdHocBriefingAgent()
         result = await agent.generate_briefing(
             question=request.question,
             context=context,
             is_follow_up=request.is_follow_up,
             session=session,
+            user_team=x_user_team,
         )
         
         logger.info(f"Ad hoc briefing generated: id={result.get('id')}, confidence={result.get('confidence')}, session={session.session_id}")
@@ -504,12 +512,18 @@ async def create_adhoc_briefing(request: AdHocBriefingRequest):
 
 
 @router.post("/adhoc/stream")
-async def create_adhoc_briefing_stream(request: AdHocBriefingRequest):
+async def create_adhoc_briefing_stream(
+    request: AdHocBriefingRequest,
+    x_user_team: Optional[str] = Header(None, alias="X-User-Team"),
+):
     """
     Stream an ad hoc quick briefing response.
     
     Returns a streaming response with chunks of the briefing as they're generated.
-    Better UX for longer responses.
+    Better UX for longer responses. Includes memory context (preferences + past memories).
+    
+    Request headers:
+    - X-User-Team: User's team for team-scoped memory context
     
     Request body:
     - question: User's question (required)
@@ -522,7 +536,7 @@ async def create_adhoc_briefing_stream(request: AdHocBriefingRequest):
     - {"type": "session_info", "session_id": "...", "follow_up_count": N, "turns_remaining": N} - Session state at end
     - {"type": "redirect", ...} - Redirect to Deep Research
     """
-    logger.info(f"Ad hoc briefing stream request: '{request.question[:50]}...' session={request.session_id}")
+    logger.info(f"Ad hoc briefing stream request: '{request.question[:50]}...' session={request.session_id} team={x_user_team}")
     
     try:
         from app.agents.adhoc_briefing import StreamingAdHocBriefingAgent, BriefingContext, get_session_manager
@@ -542,6 +556,7 @@ async def create_adhoc_briefing_stream(request: AdHocBriefingRequest):
                 context=context,
                 is_follow_up=request.is_follow_up,
                 session=session,
+                user_team=x_user_team,
             ):
                 yield f"data: {chunk}\n\n"
             yield "data: [DONE]\n\n"

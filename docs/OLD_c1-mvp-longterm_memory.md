@@ -1,11 +1,16 @@
 # C1 Intelligence Hub: MVP Long Term Memory
 
-> **Implementation Status: 🟡 Partial - On Hold**
+> ⚠️ **DEPRECATED - Design Document Only**
+>
+> This was the original design specification. For **current implementation documentation**, see:
 > 
-> Core backend complete, frontend integration in progress. Paused for higher-priority work.
-> See [Implementation Status](#implementation-status) section for details.
+> **[`backend/app/services/MEMORY_README.md`](../backend/app/services/MEMORY_README.md)**
+>
+> The implementation is complete and integrated as of January 2026.
 
-## Overview
+---
+
+## Overview (Original Design)
 
 A minimal memory system for the C1 Intelligence Hub that enables:
 1. **Manual preferences** - Topics to prioritize or exclude from intelligence

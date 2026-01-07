@@ -86,6 +86,34 @@ BigQuery: digest_items table
 
 ---
 
+### `memory_service.py` - Long-Term Memory System
+
+**Purpose**: Provides organizational memory for the C1 Intelligence Hub.
+
+**Data Source**: ✅ **BigQuery** `org_preferences` and `memory_log` tables
+
+**Key Features**:
+- Manual preferences (priority/blocked topics)
+- Memory log (saved briefings and research exports)
+- Vector search with Vertex AI embeddings
+- Time-weighted scoring (newer = more relevant)
+- Team-scoped context
+- Cleanup of expired memories (60-day TTL)
+
+> 📖 See [MEMORY_README.md](./MEMORY_README.md) for full architecture documentation.
+
+**Key Functions**:
+- `build_agent_context(query, user_team)` - Main entry point for agents
+- `get_org_preferences(user_team)` - Get priority/blocked topics
+- `get_relevant_memories(query, user_team)` - Vector search with scoring
+- `save_to_memory_log(...)` - Save briefings/research
+
+**API Endpoints**: `/api/memory/*` - See [Memory Routes](../api/routes/memory.py)
+
+**Used By**: Ad-Hoc Briefing agent, Deep Research save feature
+
+---
+
 ## Adding a New Service
 
 1. Create service class in this directory
@@ -104,4 +132,4 @@ BigQuery: digest_items table
 
 ---
 
-*Last updated: January 5, 2026*
+*Last updated: January 6, 2026*

@@ -78,6 +78,10 @@ def emit_progress_sync(progress: ToolProgress) -> None:
 
 # Human-readable tool descriptions
 TOOL_DESCRIPTIONS = {
+    # Groomer agent tools
+    "prior_research": "Checking for related prior research",
+    "query_analysis": "Analyzing query and generating research plan",
+    
     # Financial agent tools
     "sec_filings": "Fetching SEC filings",
     "sec_10k": "Fetching 10-K annual report",

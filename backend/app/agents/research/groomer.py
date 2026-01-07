@@ -2,6 +2,7 @@ from typing import Dict, Any, List, Optional
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from app.agents.research.state import DeepResearchState, ResearchBrief, QueryStatus
 from app.agents.research.memory import get_research_memory
+from app.agents.research.progress import emit_progress_sync, ToolProgress
 from app.config.settings import settings
 from app.utils.resilient_llm import create_resilient_llm_with_openai_fallback
 import json
@@ -180,6 +181,11 @@ async def query_grooming_node(state: DeepResearchState) -> DeepResearchState:
     # Context Injection: Fetch related prior research
     # This enriches the groomer's understanding of what we've already researched
     # =========================================================================
+    emit_progress_sync(ToolProgress(
+        tool_name="prior_research",
+        message="Checking for related prior research...",
+        status="running"
+    ))
     prior_context = await _get_prior_research_context(user_query)
     
     # Build system prompt with optional prior context
@@ -187,6 +193,17 @@ async def query_grooming_node(state: DeepResearchState) -> DeepResearchState:
     if prior_context:
         system_content = f"{GROOMER_SYSTEM_PROMPT}\n\n{prior_context}"
         logger.info("Injected prior research context into groomer prompt")
+        emit_progress_sync(ToolProgress(
+            tool_name="prior_research",
+            message="Found related prior research",
+            status="complete"
+        ))
+    else:
+        emit_progress_sync(ToolProgress(
+            tool_name="prior_research",
+            message="No related prior research found",
+            status="complete"
+        ))
     
     # Build messages from state
     messages = [SystemMessage(content=system_content)]
@@ -201,9 +218,19 @@ async def query_grooming_node(state: DeepResearchState) -> DeepResearchState:
     messages.append(HumanMessage(content=user_query))
     
     # Force JSON output if possible or just parse
+    emit_progress_sync(ToolProgress(
+        tool_name="query_analysis",
+        message="Analyzing query and generating research plan...",
+        status="running"
+    ))
     logger.info(f"Calling groomer LLM for query: {state['user_query'][:50]}...")
     response = await llm.ainvoke(messages)
     logger.info(f"Groomer LLM response received, length: {len(response.content)}")
+    emit_progress_sync(ToolProgress(
+        tool_name="query_analysis",
+        message="Research plan generated",
+        status="complete"
+    ))
     
     try:
         # Extract JSON from response content (handling potential markdown)

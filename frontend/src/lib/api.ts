@@ -336,7 +336,10 @@ class ApiClient {
     try {
       const response = await fetch(`${this.baseUrl}/api/pulse/adhoc`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Team': localStorage.getItem('userTeam') || 'All Others',
+        },
         body: JSON.stringify(request),
         signal: controller.signal,
       })
@@ -381,7 +384,10 @@ class ApiClient {
     try {
       const response = await fetch(`${this.baseUrl}/api/pulse/adhoc/stream`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Team': localStorage.getItem('userTeam') || 'All Others',
+        },
         body: JSON.stringify(request),
         signal: controller.signal,
       })

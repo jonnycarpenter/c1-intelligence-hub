@@ -18,6 +18,44 @@ Without reliable daily ingestion:
 
 ---
 
+## 🧠 SESSION 46: Memory Context Integration (January 6, 2026 - Late Evening)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Goal
+Wire up the existing memory system to make preferences and saved memories actually influence AI responses.
+
+### ✅ Changes Made
+
+**Backend - Ad-Hoc Briefing Agent:**
+- Added `build_agent_context()` call to fetch preferences + relevant memories
+- Inject memory context into prompts in both `generate_briefing()` and `generate_briefing_stream()`
+- Added `user_team` parameter to scope context by team
+
+**Backend - API Endpoints:**
+- Added `X-User-Team` header support to `/api/pulse/adhoc` and `/api/pulse/adhoc/stream`
+
+**Frontend - API Client:**
+- Added `X-User-Team` header to ad-hoc briefing API calls (from localStorage)
+
+**Frontend - Deep Research:**
+- Added "Save to Memory" button to `ResearchReport.tsx` Executive Summary header
+- Implemented save handler with UX states: idle → saving → saved (or error)
+- Auto-resets on error after 3 seconds
+
+### 📁 Files Modified
+- `backend/app/agents/adhoc_briefing/agent.py` - Memory context injection
+- `backend/app/api/routes/briefing.py` - X-User-Team header
+- `frontend/src/lib/api.ts` - X-User-Team header in ad-hoc calls
+- `frontend/src/components/research/ResearchReport.tsx` - Save to Memory button
+
+### 🧪 Testing Notes
+- Backend imports verified successfully
+- Manual testing required to verify end-to-end flow
+- Test by: 1) Add preference in Data & Preferences, 2) Ask ad-hoc question, 3) Verify context influences response
+
+---
+
 ## 🚀 SESSION 45: Split Web Search by Engine (January 6, 2026 - Evening)
 
 **Status**: ✅ DEPLOYED

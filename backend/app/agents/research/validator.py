@@ -102,6 +102,21 @@ Respond ONLY with valid JSON matching the ValidatorOutput schema:
   - ≥3 citation issues of severity "error"
   - ≥5 unsubstantiated claims
   - Key executive summary claims lack citations
+
+## IMPORTANT: Be Practical
+
+The goal is to catch REAL issues, not be pedantic:
+- Don't flag every missing URL — some internal sources don't have URLs
+- Focus on claims that NEED citations (numbers, quotes, forecasts)
+- General industry context doesn't need citations
+- If the report answers the user's question with reasonable sourcing, pass it
+
+## Output Brevity
+
+Keep your output concise:
+- citation_issues: Only list the 3-5 most important issues
+- unsubstantiated_claims: Only flag claims that really need sources
+- warnings: 2-3 key warnings max
 """
 
 

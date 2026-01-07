@@ -83,6 +83,85 @@ def _has_specific_company_mention(original_query: str, entities_to_track: Option
     return False
 
 
+def _classify_query_type(original_query: str, brief) -> dict:
+    """
+    Classify the query type to guide intelligent tool selection.
+    
+    Returns a dict with boolean flags indicating what type of research is needed:
+    - needs_company_financials: User asking about specific companies' financials
+    - needs_industry_outlook: User wants broad industry/market outlook
+    - needs_competitive_intel: User wants competitive comparisons
+    - needs_recent_news: User wants recent developments/news
+    - needs_analyst_views: User asking about analyst ratings/sentiment
+    
+    This enables smart tool selection to avoid running every tool for every query.
+    """
+    query_lower = original_query.lower()
+    entities = brief.entities_to_track if brief else []
+    
+    result = {
+        "needs_company_financials": False,
+        "needs_industry_outlook": False,
+        "needs_competitive_intel": False,
+        "needs_recent_news": False,
+        "needs_analyst_views": False,
+    }
+    
+    # Company-specific financial queries
+    company_financial_keywords = [
+        "revenue", "earnings", "profit", "margin", "guidance", "forecast",
+        "10-k", "10-q", "8-k", "sec filing", "annual report", "quarterly",
+        "eps", "ebitda", "cash flow", "balance sheet", "income statement",
+        "capex", "capital expenditure", "dividend", "buyback"
+    ]
+    if any(kw in query_lower for kw in company_financial_keywords):
+        result["needs_company_financials"] = True
+    
+    # Industry/market outlook queries
+    outlook_keywords = [
+        "outlook", "forecast", "projection", "trend", "market size",
+        "industry", "sector", "growth rate", "cagr", "demand", "supply",
+        "2025", "2026", "2027", "q1", "q2", "q3", "q4", "next year",
+        "future", "expected", "anticipated", "predict"
+    ]
+    if any(kw in query_lower for kw in outlook_keywords):
+        result["needs_industry_outlook"] = True
+    
+    # Competitive intelligence queries
+    competitive_keywords = [
+        "competitor", "competitive", "versus", "vs", "compare", "comparison",
+        "market share", "position", "ranking", "leader", "player",
+        "who is", "which company", "best", "top"
+    ]
+    if any(kw in query_lower for kw in competitive_keywords):
+        result["needs_competitive_intel"] = True
+    
+    # Recent news/developments queries
+    news_keywords = [
+        "recent", "latest", "news", "announcement", "update", "new",
+        "this week", "this month", "today", "yesterday", "breaking",
+        "development", "happening", "current"
+    ]
+    if any(kw in query_lower for kw in news_keywords):
+        result["needs_recent_news"] = True
+    
+    # Analyst views queries
+    analyst_keywords = [
+        "analyst", "rating", "upgrade", "downgrade", "price target",
+        "recommendation", "buy", "sell", "hold", "sentiment", "opinion",
+        "wall street", "coverage"
+    ]
+    if any(kw in query_lower for kw in analyst_keywords):
+        result["needs_analyst_views"] = True
+    
+    # Default: If no specific type detected, enable broad research
+    if not any(result.values()):
+        result["needs_industry_outlook"] = True
+        result["needs_recent_news"] = True
+    
+    return result
+
+
 def _rank_financial_results(raw_results: List[Dict], original_query: str) -> List[Dict]:
     """
     Rank raw results by relevance for financial research.
@@ -208,6 +287,13 @@ async def financial_research_node(state: DeepResearchState) -> Dict[str, Any]:
         logger.info(f"Financial agent: Generic query - skipping external earnings API, using corpus only")
     
     # =========================================================================
+    # STEP 0b: Classify query type for intelligent tool selection
+    # This guides which tools to run based on what the user is actually asking
+    # =========================================================================
+    query_type = _classify_query_type(brief.original_query, brief)
+    logger.info(f"Financial agent: Query type classification: {query_type}")
+    
+    # =========================================================================
     # STEP 1: Batch Ticker Resolution
     # Resolve all tickers mentioned across all queries upfront for efficient API usage
     # =========================================================================
@@ -277,50 +363,70 @@ async def financial_research_node(state: DeepResearchState) -> Dict[str, Any]:
     
     # =========================================================================
     # STEP 4: StockNewsAPI Calls (Batched by Ticker List)
-    # Real-time financial news, analyst ratings, press releases, sentiment
+    # INTELLIGENT GATING: Only run tools that match the query type
+    # - Company news: Run if recent_news or company_financials needed
+    # - Press releases: Run if recent_news or company_financials needed  
+    # - Analyst ratings: Run ONLY if analyst_views explicitly requested
+    # - Sentiment: Run ONLY if analyst_views explicitly requested
     # =========================================================================
     ticker_list = list(all_tickers)
     if ticker_list:
         # Company news - recent headlines and developments
-        emit_progress_sync(ToolProgress(tool_name="company_news", message=f"Fetching company news for {', '.join(ticker_list[:3])}{'...' if len(ticker_list) > 3 else ''}"))
-        try:
-            news_result = get_company_news.invoke({"tickers": ticker_list, "days": 30, "items": 20})
-            if news_result:
-                raw_results.append({"query": "Company news", "source": "stocknews_company", "content": news_result})
-        except Exception as e:
-            errors.append({"node": "financial_research", "error": f"StockNews company: {str(e)}"})
+        # Run if: user wants recent news OR specific company financials
+        if query_type["needs_recent_news"] or query_type["needs_company_financials"]:
+            emit_progress_sync(ToolProgress(tool_name="company_news", message=f"Fetching company news for {', '.join(ticker_list[:3])}{'...' if len(ticker_list) > 3 else ''}"))
+            try:
+                news_result = get_company_news.invoke({"tickers": ticker_list, "days": 30, "items": 20})
+                if news_result:
+                    raw_results.append({"query": "Company news", "source": "stocknews_company", "content": news_result})
+            except Exception as e:
+                errors.append({"node": "financial_research", "error": f"StockNews company: {str(e)}"})
+        else:
+            logger.info("Financial agent: Skipping company news (not needed for query type)")
         
         # Press releases - official company announcements
-        emit_progress_sync(ToolProgress(tool_name="press_releases", message="Fetching press releases"))
-        try:
-            pr_result = get_press_releases.invoke({"tickers": ticker_list, "days": 60, "items": 15})
-            if pr_result:
-                raw_results.append({"query": "Press releases", "source": "stocknews_press_releases", "content": pr_result})
-        except Exception as e:
-            errors.append({"node": "financial_research", "error": f"StockNews PR: {str(e)}"})
+        # Run if: user wants recent news OR specific company financials
+        if query_type["needs_recent_news"] or query_type["needs_company_financials"]:
+            emit_progress_sync(ToolProgress(tool_name="press_releases", message="Fetching press releases"))
+            try:
+                pr_result = get_press_releases.invoke({"tickers": ticker_list, "days": 60, "items": 15})
+                if pr_result:
+                    raw_results.append({"query": "Press releases", "source": "stocknews_press_releases", "content": pr_result})
+            except Exception as e:
+                errors.append({"node": "financial_research", "error": f"StockNews PR: {str(e)}"})
+        else:
+            logger.info("Financial agent: Skipping press releases (not needed for query type)")
         
         # Analyst ratings - upgrades, downgrades, price targets
-        emit_progress_sync(ToolProgress(tool_name="analyst_ratings", message="Getting analyst ratings"))
-        try:
-            ratings_result = get_analyst_ratings.invoke({"tickers": ticker_list, "items": 15})
-            if ratings_result:
-                raw_results.append({"query": "Analyst ratings", "source": "stocknews_analyst_ratings", "content": ratings_result})
-        except Exception as e:
-            errors.append({"node": "financial_research", "error": f"StockNews ratings: {str(e)}"})
+        # Run ONLY if: user explicitly wants analyst views
+        if query_type["needs_analyst_views"]:
+            emit_progress_sync(ToolProgress(tool_name="analyst_ratings", message="Getting analyst ratings"))
+            try:
+                ratings_result = get_analyst_ratings.invoke({"tickers": ticker_list, "items": 15})
+                if ratings_result:
+                    raw_results.append({"query": "Analyst ratings", "source": "stocknews_analyst_ratings", "content": ratings_result})
+            except Exception as e:
+                errors.append({"node": "financial_research", "error": f"StockNews ratings: {str(e)}"})
+        else:
+            logger.info("Financial agent: Skipping analyst ratings (not explicitly requested)")
         
         # Sentiment summary - per ticker (must be called individually)
-        for ticker in ticker_list[:5]:  # Limit to top 5 to avoid rate limits
-            try:
-                sentiment_result = get_sentiment_summary.invoke({"ticker": ticker, "days": 30})
-                if sentiment_result:
-                    raw_results.append({
-                        "query": f"Sentiment for {ticker}",
-                        "source": "stocknews_sentiment",
-                        "content": sentiment_result,
-                        "ticker": ticker
-                    })
-            except Exception as e:
-                pass  # Sentiment miss is not critical
+        # Run ONLY if: user explicitly wants analyst views/sentiment
+        if query_type["needs_analyst_views"]:
+            for ticker in ticker_list[:5]:  # Limit to top 5 to avoid rate limits
+                try:
+                    sentiment_result = get_sentiment_summary.invoke({"ticker": ticker, "days": 30})
+                    if sentiment_result:
+                        raw_results.append({
+                            "query": f"Sentiment for {ticker}",
+                            "source": "stocknews_sentiment",
+                            "content": sentiment_result,
+                            "ticker": ticker
+                        })
+                except Exception as e:
+                    pass  # Sentiment miss is not critical
+        else:
+            logger.info("Financial agent: Skipping sentiment analysis (not explicitly requested)")
     
     # =========================================================================
     # STEP 5: Relevance Ranking & LLM Extraction

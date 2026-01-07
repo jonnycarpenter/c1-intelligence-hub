@@ -28,6 +28,7 @@ from anthropic import AsyncAnthropic  # Keep for streaming support
 from app.config.settings import settings
 from app.utils.resilient_llm import get_resilient_async_client
 from app.utils.logger import get_logger
+from app.services.memory_service import build_agent_context
 
 if TYPE_CHECKING:
     from .session_manager import BriefingSession
@@ -340,6 +341,7 @@ Respond with a JSON object:
         context: BriefingContext,
         is_follow_up: bool = False,
         session: Optional["BriefingSession"] = None,
+        user_team: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Generate an ad hoc briefing response.
@@ -349,10 +351,14 @@ Respond with a JSON object:
             context: Structured context from current brief/digest
             is_follow_up: Whether this is a follow-up question
             session: Optional session for stateful conversation tracking
+            user_team: User's team for team-scoped memory context
         
         Returns:
             Briefing response with answer, sources, and metadata
         """
+        # Fetch memory context (preferences + relevant memories)
+        memory_context = await build_agent_context(question, user_team)
+        memory_prompt_addition = memory_context.prompt_addition if memory_context else ""
         # Use session state if available, otherwise fall back to instance state
         if session:
             if is_follow_up:
@@ -441,7 +447,13 @@ Respond with a JSON object:
         if session and session.conversation_history:
             conversation_context = f"\n\n{session.get_conversation_context()}\n"
         
-        full_prompt = f"""{context_string}
+        # Inject memory context (preferences + relevant past memories) if available
+        memory_section = ""
+        if memory_prompt_addition:
+            memory_section = f"\n\n{memory_prompt_addition}\n"
+            logger.info(f"Injecting memory context into ad-hoc briefing ({len(memory_prompt_addition)} chars)")
+        
+        full_prompt = f"""{context_string}{memory_section}
 {conversation_context}
 {search_context}
 
@@ -569,6 +581,7 @@ class StreamingAdHocBriefingAgent(AdHocBriefingAgent):
         context: BriefingContext,
         is_follow_up: bool = False,
         session: Optional["BriefingSession"] = None,
+        user_team: Optional[str] = None,
     ) -> AsyncIterator[str]:
         """
         Stream an ad hoc briefing response with progress events.
@@ -588,7 +601,11 @@ class StreamingAdHocBriefingAgent(AdHocBriefingAgent):
             context: Structured context from current brief/digest
             is_follow_up: Whether this is a follow-up question
             session: Optional session for stateful conversation tracking
+            user_team: User's team for team-scoped memory context
         """
+        # Fetch memory context (preferences + relevant memories) early
+        memory_context = await build_agent_context(question, user_team)
+        memory_prompt_addition = memory_context.prompt_addition if memory_context else ""
         # Use session state if available
         if session:
             if is_follow_up:
@@ -705,7 +722,13 @@ class StreamingAdHocBriefingAgent(AdHocBriefingAgent):
         if session and session.conversation_history:
             conversation_context = f"\n\n{session.get_conversation_context()}\n"
         
-        full_prompt = f"""{context_string}
+        # Inject memory context if available
+        memory_section = ""
+        if memory_prompt_addition:
+            memory_section = f"\n\n{memory_prompt_addition}\n"
+            logger.info(f"Injecting memory context into streaming briefing ({len(memory_prompt_addition)} chars)")
+        
+        full_prompt = f"""{context_string}{memory_section}
 {conversation_context}
 {search_context}
 
