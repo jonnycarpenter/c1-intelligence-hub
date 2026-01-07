@@ -15,7 +15,8 @@ import {
   Database,
   Globe,
   TrendingUp,
-  Brain
+  Brain,
+  ChevronDown
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Badge, Button } from '@/components/ui'
@@ -268,6 +269,97 @@ function ResponseCard({ response, onDeepResearch, onClose, onSaveToMemory }: Res
 }
 
 // =============================================================================
+// Collapsible Briefing Component (for stacking older briefings)
+// =============================================================================
+
+interface CollapsibleBriefingProps {
+  briefing: AdHocBriefingType
+  index: number
+  totalCount: number
+  onDeepResearch?: (query: string) => void
+}
+
+function CollapsibleBriefing({ briefing, index, totalCount, onDeepResearch }: CollapsibleBriefingProps) {
+  // First briefing (newest) is always expanded, others start collapsed
+  const [isExpanded, setIsExpanded] = useState(index === 0)
+
+  // If it's the newest briefing, always show full
+  if (index === 0) {
+    return (
+      <ResponseCard
+        response={briefing}
+        onDeepResearch={onDeepResearch}
+        onSaveToMemory={async () => {
+          await api.saveToMemory({
+            type: 'briefing',
+            question: briefing.question,
+            answer: briefing.answer,
+            sources: briefing.sources_used,
+            confidence: briefing.confidence,
+            tags: briefing.related_topics,
+          })
+        }}
+      />
+    )
+  }
+
+  // Older briefings: collapsed header that expands on click
+  return (
+    <div className="transition-all duration-200">
+      {/* Collapsed Header - click to expand */}
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className={cn(
+          "w-full text-left px-4 py-3 rounded-xl border transition-all duration-200",
+          isExpanded
+            ? "bg-white border-slate-200 rounded-b-none border-b-0"
+            : "bg-slate-100/80 border-slate-200 hover:bg-slate-100"
+        )}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <MessageSquare size={14} className="text-slate-400" />
+            <span className="text-sm font-medium text-slate-600">
+              {briefing.question.slice(0, 60)}{briefing.question.length > 60 ? '...' : ''}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <ConfidenceBadge confidence={briefing.confidence} />
+            <ChevronDown
+              size={16}
+              className={cn(
+                "text-slate-400 transition-transform duration-200",
+                isExpanded && "rotate-180"
+              )}
+            />
+          </div>
+        </div>
+      </button>
+
+      {/* Expanded Content */}
+      {isExpanded && (
+        <div className="border border-t-0 border-slate-200 rounded-b-xl overflow-hidden">
+          <ResponseCard
+            response={briefing}
+            onDeepResearch={onDeepResearch}
+            onSaveToMemory={async () => {
+              await api.saveToMemory({
+                type: 'briefing',
+                question: briefing.question,
+                answer: briefing.answer,
+                sources: briefing.sources_used,
+                confidence: briefing.confidence,
+                tags: briefing.related_topics,
+              })
+            }}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
+// =============================================================================
 // Main Ad Hoc Briefing Component
 // =============================================================================
 
@@ -289,15 +381,13 @@ export default function AdHocBriefing({
   const inputRef = useRef<HTMLInputElement>(null)
 
   const {
-    response,
+    briefings,
     isLoading,
     isStreaming,
     error,
     isTimeout,
     followUpCount,
-    turnsRemaining,
     progressSteps,
-    askQuestion,
     streamQuestion,
     reset
   } = useAdHocBriefing()
@@ -306,26 +396,24 @@ export default function AdHocBriefing({
     e.preventDefault()
     if (!question.trim() || isLoading || isStreaming) return
 
-    const isFollowUp = response !== null
+    const isFollowUp = briefings.length > 0
     // Use streaming for progress feedback
     await streamQuestion(question.trim(), context, isFollowUp)
     setQuestion('')
   }
 
-  const handleNewQuestion = () => {
-    reset()
-    inputRef.current?.focus()
-  }
+  // Check if we should show gentle nudge to use Deep Research
+  const shouldNudgeDeepResearch = followUpCount >= 2
 
   return (
     <div className={cn(
       "flex flex-col",
       compact ? "gap-3" : "gap-4"
     )}>
-      {/* Input Section */}
+      {/* Input Section - Always ready for questions */}
       <div className={cn(
         "bg-white border rounded-xl overflow-hidden transition-all duration-200",
-        response ? "border-slate-200" : "border-amber-200 shadow-sm shadow-amber-100/50"
+        briefings.length === 0 ? "border-amber-200 shadow-sm shadow-amber-100/50" : "border-slate-200"
       )}>
         <form onSubmit={handleSubmit} className="flex items-center gap-2 p-3">
           <MessageSquare size={18} className="text-amber-500 shrink-0" />
@@ -334,21 +422,21 @@ export default function AdHocBriefing({
             type="text"
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
-            placeholder={response ? "Ask a follow-up question..." : "Ask about this week's news..."}
+            placeholder={briefings.length > 0 ? "Ask another question..." : "Ask about this week's news..."}
             className="flex-1 text-sm bg-transparent border-none outline-none placeholder:text-slate-400"
-            disabled={isLoading}
+            disabled={isLoading || isStreaming}
           />
           <button
             type="submit"
-            disabled={!question.trim() || isLoading}
+            disabled={!question.trim() || isLoading || isStreaming}
             className={cn(
               "p-2 rounded-lg transition-all duration-200",
-              question.trim() && !isLoading
+              question.trim() && !isLoading && !isStreaming
                 ? "bg-amber-500 text-white hover:bg-amber-600"
                 : "bg-slate-100 text-slate-400"
             )}
           >
-            {isLoading ? (
+            {(isLoading || isStreaming) ? (
               <Loader2 size={16} className="animate-spin" />
             ) : (
               <Send size={16} />
@@ -356,26 +444,11 @@ export default function AdHocBriefing({
           </button>
         </form>
 
-        {/* Follow-up indicator - shows remaining turns from server-side session */}
-        {response && turnsRemaining > 0 && (
-          <div className="px-3 pb-2 flex items-center gap-2 text-xs text-slate-400">
-            <span>
-              {turnsRemaining === 2
-                ? "2 follow-ups available"
-                : `${turnsRemaining} follow-up remaining`}
-            </span>
-            <button
-              onClick={handleNewQuestion}
-              className="text-amber-600 hover:text-amber-700 font-medium"
-            >
-              Start new conversation
-            </button>
-          </div>
-        )}
-        {response && turnsRemaining === 0 && (
-          <div className="px-3 pb-2 flex items-center gap-2 text-xs text-amber-600">
+        {/* Gentle nudge after multiple questions */}
+        {shouldNudgeDeepResearch && briefings.length > 0 && !isLoading && !isStreaming && (
+          <div className="px-3 pb-2 flex items-center gap-2 text-xs text-amber-600 border-t border-slate-100 bg-amber-50/50">
             <Sparkles size={12} />
-            <span>Follow-up limit reached. Use Deep Research for more detailed analysis.</span>
+            <span>For comprehensive analysis, try <button onClick={() => onDeepResearch?.(briefings[0]?.question || '')} className="font-medium underline hover:text-amber-700">Deep Research</button></span>
           </div>
         )}
       </div>
@@ -447,23 +520,31 @@ export default function AdHocBriefing({
         </div>
       )}
 
-      {/* Response */}
-      {response && !isLoading && (
-        <ResponseCard
-          response={response}
-          onDeepResearch={onDeepResearch}
-          onClose={handleNewQuestion}
-          onSaveToMemory={async () => {
-            await api.saveToMemory({
-              type: 'briefing',
-              question: response.question,
-              answer: response.answer,
-              sources: response.sources_used,
-              confidence: response.confidence,
-              tags: response.related_topics,
-            })
-          }}
-        />
+      {/* Stacked Briefings - Newest first, older ones collapsed */}
+      {briefings.length > 0 && !isLoading && !isStreaming && (
+        <div className="space-y-3">
+          {briefings.map((briefing, index) => (
+            <CollapsibleBriefing
+              key={briefing.id || index}
+              briefing={briefing}
+              index={index}
+              totalCount={briefings.length}
+              onDeepResearch={onDeepResearch}
+            />
+          ))}
+
+          {/* Clear conversation button at bottom */}
+          {briefings.length > 1 && (
+            <div className="flex justify-center pt-2">
+              <button
+                onClick={reset}
+                className="text-xs text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                Clear conversation
+              </button>
+            </div>
+          )}
+        </div>
       )}
     </div>
   )

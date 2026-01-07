@@ -18,6 +18,57 @@ Without reliable daily ingestion:
 
 ---
 
+## 💬 SESSION 48: Ad-Hoc Briefing Bug Fix & Stacking Feature (January 6, 2026 - Night)
+
+**Status**: ✅ COMPLETE
+
+### 🐛 Bug Fix: Streaming Response Not Rendering
+
+**Problem**: SSE progress events worked, but the final briefing report never appeared on screen.
+
+**Root Cause**: When the backend sent `[DONE]`, the frontend code returned early (line 213) BEFORE constructing the response object. The `setResponse()` call at line 277 was never reached.
+
+**Fix**: Moved response construction into the `[DONE]` handler before returning.
+
+**File**: `frontend/src/hooks/useBriefing.ts`
+
+### ✨ New Feature: Stacking Briefings with Collapsible History
+
+Converted ad-hoc briefing from single-response to full conversational experience:
+
+| Before | After |
+|--------|-------|
+| Single `response` state | Array `briefings[]` (newest first) |
+| Follow-up replaces previous | Stacks on top, previous collapses |
+| "2 follow-ups available" buttons | Removed |
+| Hard limit then redirect | Gentle inline nudge after 2 questions |
+| Previous briefings gone | Collapsed headers, click to expand |
+
+**UX Flow**:
+1. User asks question → Report appears as full ResponseCard
+2. User asks another → New report on top, old one collapses to header
+3. After 2 questions → Gentle nudge "For comprehensive analysis, try Deep Research"
+4. User can click collapsed headers to expand/view previous briefings
+5. "Clear conversation" at bottom to reset session
+
+### 📁 Files Modified
+
+- `frontend/src/hooks/useBriefing.ts`:
+  - Changed `response` (single) → `briefings[]` (array)
+  - Added `addBriefing()` helper to prepend new briefings
+  - Updated all `setResponse` calls to use `addBriefing`
+  - Added `currentBriefing` and backward-compat `response` alias
+  
+- `frontend/src/components/dashboard/AdHocBriefing.tsx`:
+  - Added `CollapsibleBriefing` component for stacking
+  - Newest briefing shows full, older ones collapse to headers
+  - ChevronDown icon indicates expand/collapse state
+  - Removed follow-up counter and "Start new" button
+  - Added gentle Deep Research nudge after 2 turns
+  - Added "Clear conversation" button at bottom
+
+---
+
 ## 🎙️ SESSION 47: ElevenLabs Podcast Fix & GCS Streaming (January 6, 2026 - Night)
 
 **Status**: ✅ COMPLETE

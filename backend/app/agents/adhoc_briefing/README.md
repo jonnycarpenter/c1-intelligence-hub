@@ -52,11 +52,28 @@ The streaming endpoint emits progress events for real-time feedback:
 }
 ```
 
-## Session Management
+## Conversational UX (v2.1)
 
-- **TTL**: 30 minutes of inactivity
-- **Max Sessions**: 1000 (LRU eviction)
-- **Max Follow-ups**: 2 (then redirects to Deep Research)
+The ad-hoc briefing is now fully conversational with collapsible history:
+
+- **Stacking Briefings**: Each new question adds a briefing to the stack (newest on top)
+- **Collapsible History**: Older briefings collapse to header; click to expand
+- **No Limits**: Users can ask unlimited questions in a session
+- **Gentle Nudge**: After 2 questions, shows "For comprehensive analysis, try Deep Research"
+- **Clear Option**: "Clear conversation" button at bottom to reset
+
+### Frontend Components
+
+**CollapsibleBriefing Component**:
+- Index 0 (newest): Always shows full ResponseCard
+- Index > 0 (older): Shows collapsed header with question + confidence badge
+- Click header → expands to show full ResponseCard
+- ChevronDown icon rotates to indicate state
+
+**Frontend State** (`useAdHocBriefing` hook):
+- `briefings[]`: Array of all briefings (newest first)
+- `currentBriefing`: Most recent briefing (backward compat alias)
+- `followUpCount`: Number of questions asked this session
 
 ## Response Format
 

@@ -216,6 +216,15 @@ response = await client.messages_create(model="claude-sonnet-4-5", ...)
 
 ## Recent Changes (January 6, 2026)
 
+### Session 48 - Ad-Hoc Briefing Conversational UX ✅
+- **Bug Fix**: Streaming response not rendering (early return before setting response)
+- **Stacking Briefings**: `briefings[]` array replaces single `response`
+- **Collapsible History**: Older briefings collapse to headers, click to expand
+- **Removed Follow-up Limits**: No more "2 follow-ups available" buttons
+- **Gentle Deep Research Nudge**: Shows after 2 questions instead of hard redirect
+- **New Component**: `CollapsibleBriefing` handles expand/collapse UX
+- **Files Modified**: `useBriefing.ts`, `AdHocBriefing.tsx`
+
 ### Session 41 - Ad-Hoc Briefing SSE Progress Events ✅
 - **Streaming Progress Events**: Real-time feedback during research phases
   - Knowledge Base → Advanced Web Search → Stock Market News → Analysis

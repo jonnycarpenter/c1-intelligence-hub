@@ -364,6 +364,7 @@ export default function WeeklyBriefingSection({
 
   return (
     <div className="space-y-6">
+      {/* Need to Know Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <div className="p-3 bg-gradient-to-br from-amber-100 to-amber-50 rounded-xl shadow-sm border border-amber-200/60">

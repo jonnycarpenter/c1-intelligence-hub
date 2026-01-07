@@ -119,7 +119,8 @@ interface ProgressStep {
  * - Each step has: step, label, message, status, count
  */
 export function useAdHocBriefing() {
-    const [response, setResponse] = useState<AdHocBriefing | null>(null)
+    // Stack of briefings - newest first
+    const [briefings, setBriefings] = useState<AdHocBriefing[]>([])
     const [isLoading, setIsLoading] = useState(false)
     const [isStreaming, setIsStreaming] = useState(false)
     const [streamedText, setStreamedText] = useState('')
@@ -130,6 +131,11 @@ export function useAdHocBriefing() {
     const [turnsRemaining, setTurnsRemaining] = useState(2)
     // Progress tracking for streaming
     const [progressSteps, setProgressSteps] = useState<ProgressStep[]>([])
+
+    // Helper to add a new briefing to the stack (prepend)
+    const addBriefing = useCallback((briefing: AdHocBriefing) => {
+        setBriefings(prev => [briefing, ...prev])
+    }, [])
 
     const askQuestion = useCallback(async (
         question: string,
@@ -146,7 +152,7 @@ export function useAdHocBriefing() {
                 is_follow_up: isFollowUp,
                 session_id: sessionId ?? undefined,  // Pass existing session_id if we have one
             })
-            setResponse(data)
+            addBriefing(data)
 
             // Update session state from response
             if (data.session_id) {
@@ -223,7 +229,7 @@ export function useAdHocBriefing() {
                                     generated_at: new Date().toISOString(),
                                     session_id: sessionId ?? undefined,
                                 }
-                                setResponse(streamedResponse)
+                                addBriefing(streamedResponse)
                             }
                             setIsStreaming(false)
                             return fullText
@@ -236,7 +242,8 @@ export function useAdHocBriefing() {
                             } else if (parsed.type === 'progress') {
                                 // Update progress steps
                                 setProgressSteps(prev => {
-                                    const existing = prev.findIndex(p => p.step === parsed.step)
+                                    const steps = prev || []
+                                    const existing = steps.findIndex(p => p.step === parsed.step)
                                     const newStep: ProgressStep = {
                                         step: parsed.step,
                                         label: parsed.label || parsed.step,
@@ -246,12 +253,12 @@ export function useAdHocBriefing() {
                                     }
                                     if (existing >= 0) {
                                         // Update existing step
-                                        const updated = [...prev]
+                                        const updated = [...steps]
                                         updated[existing] = newStep
                                         return updated
                                     } else {
                                         // Add new step
-                                        return [...prev, newStep]
+                                        return [...steps, newStep]
                                     }
                                 })
                             } else if (parsed.type === 'session_info') {
@@ -266,7 +273,7 @@ export function useAdHocBriefing() {
                                     setTurnsRemaining(parsed.turns_remaining)
                                 }
                             } else if (parsed.type === 'redirect') {
-                                setResponse({
+                                addBriefing({
                                     id: '',
                                     question,
                                     answer: parsed.message,
@@ -304,7 +311,7 @@ export function useAdHocBriefing() {
                     generated_at: new Date().toISOString(),
                     session_id: sessionId ?? undefined,
                 }
-                setResponse(streamedResponse)
+                addBriefing(streamedResponse)
             }
 
             return fullText
@@ -320,7 +327,7 @@ export function useAdHocBriefing() {
     }, [sessionId, followUpCount])
 
     const reset = useCallback(() => {
-        setResponse(null)
+        setBriefings([])  // Clear all briefings
         setStreamedText('')
         setFollowUpCount(0)
         setSessionId(null)  // Clear session to start fresh
@@ -330,8 +337,13 @@ export function useAdHocBriefing() {
         setProgressSteps([])  // Clear progress
     }, [])
 
+    // Current briefing is the first in the stack (most recent)
+    const currentBriefing = briefings.length > 0 ? briefings[0] : null
+
     return {
-        response,
+        briefings,        // All briefings in the session (newest first)
+        currentBriefing,  // Most recent briefing (for backward compat)
+        response: currentBriefing, // Backward compat alias
         streamedText,
         isLoading,
         isStreaming,
