@@ -61,7 +61,7 @@ const RESEARCH_TEMPLATES: ResearchTemplate[] = [
     description: 'Compliance analysis',
     icon: 'FileText',
     prompt: 'Analyze the impact of [regulation/policy] on the composites industry. Include compliance requirements, timeline, and affected segments.',
-    color: 'bg-amber-500',
+    color: 'bg-emerald-500',
   },
   {
     id: 'competitive-landscape',

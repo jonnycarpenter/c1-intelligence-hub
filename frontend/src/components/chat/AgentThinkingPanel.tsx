@@ -36,7 +36,7 @@ export default function AgentThinkingPanel({ thinking, traceUrl, isStreaming = f
           <Brain size={16} className="text-violet-500" />
           <span className="font-medium text-slate-700">Agent Thinking</span>
           {isStreaming && (
-            <span className="flex items-center gap-1 text-xs text-amber-600">
+            <span className="flex items-center gap-1 text-xs text-emerald-600">
               <Loader2 size={12} className="animate-spin" />
               Processing...
             </span>
@@ -130,7 +130,7 @@ function StepStatusIcon({ status }: { status: AgentThinking['status'] }) {
     case 'completed':
       return <CheckCircle size={16} className="text-emerald-500" />
     case 'in-progress':
-      return <Loader2 size={16} className="text-amber-500 animate-spin" />
+      return <Loader2 size={16} className="text-emerald-500 animate-spin" />
     case 'error':
       return <AlertCircle size={16} className="text-red-500" />
     default:
@@ -161,7 +161,7 @@ function ToolCallItem({ tool }: ToolCallItemProps) {
 function ToolStatusBadge({ status }: { status: ToolCall['status'] }) {
   const styles = {
     pending: 'bg-slate-100 text-slate-600',
-    running: 'bg-amber-100 text-amber-700',
+    running: 'bg-emerald-100 text-emerald-700',
     completed: 'bg-emerald-100 text-emerald-700',
     error: 'bg-red-100 text-red-700',
   }

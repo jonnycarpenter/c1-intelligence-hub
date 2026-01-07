@@ -482,7 +482,7 @@ function ProductCard({
               In Catalog
             </span>
           ) : (
-            <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs rounded">
+            <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs rounded">
               Competitor
             </span>
           )}
@@ -560,7 +560,7 @@ function ProductListItem({
               In Catalog
             </span>
           ) : (
-            <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs rounded">
+            <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs rounded">
               Competitor
             </span>
           )}

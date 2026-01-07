@@ -78,7 +78,7 @@ export default function StreamingThinkingPanel({
                 className={cn(
                   'flex-1 h-1 rounded-full transition-all duration-300',
                   step.status === 'completed' ? 'bg-emerald-400' :
-                  step.status === 'in-progress' ? 'bg-amber-400 animate-pulse' :
+                  step.status === 'in-progress' ? 'bg-emerald-400 animate-pulse' :
                   step.status === 'error' ? 'bg-red-400' : 'bg-slate-200'
                 )}
               />
@@ -185,10 +185,10 @@ function StepStatusIcon({ status }: { status: AgentThinking['status'] }) {
     case 'in-progress':
       return (
         <div className="relative shrink-0">
-          <Zap size={16} className="text-amber-500" />
+          <Zap size={16} className="text-emerald-500" />
           <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
           </span>
         </div>
       )

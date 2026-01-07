@@ -18,6 +18,44 @@ Without reliable daily ingestion:
 
 ---
 
+## 🎨 SESSION 49: Global Color Palette Update & Welcome Audio Swap (January 6, 2026 - Night)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Goal
+Unify the app's color palette by replacing all amber/orange accents with the emerald green palette used in the Pipeline and Research tabs. Also swap the welcome tour audio to an updated 2-minute version.
+
+### ✅ Changes Made
+
+1. **Welcome Audio Updated**
+   - Swapped `/elevenlabs_audio_walkthrough_tutorial.mp3` → `/11labs_c1_hub_walkthrough_2mins.mp3`
+   - Copied new audio file to `frontend/public/`
+   - Updated reference in `WelcomeTourModal.tsx`
+
+2. **Global Color Palette: Amber/Orange → Emerald**
+   - Applied find-replace across all `.tsx` and `.ts` files in `frontend/src/`
+   - Mapping: `amber-*` → `emerald-*`, `orange-*` → `emerald-*`
+
+### 📁 Key Components Updated
+- `WelcomeTourModal.tsx` - Play button, progress bar, sound tip
+- `Button.tsx` - Accent variant  
+- `Badge.tsx` - Warning, accent, medium priority badges
+- `Toast.tsx` - Warning toast style
+- `ReportDrawer.tsx` - Header icon
+- `PodcastPlayer.tsx` - Gradient background
+- `WeeklyBriefingSection.tsx` - Briefing cards
+- `ValidationBadge.tsx` - Timeout/warning states
+- `ResearchDashboard.tsx`, `ResearchCanvas.tsx` - Timeout states
+- `ProductsDashboard.tsx` - Various badges
+- `PipelineDashboard.tsx` - Qualified status
+- `Sidebar.tsx` - Field Intel icon color
+- `DataPreferencesDashboard.tsx` - Memory tab icon
+
+### 🎨 Design Rationale
+The emerald green palette creates a more unified, professional look across the entire application, matching the established design language of the Pipeline and Research tabs.
+
+---
+
 ## 💬 SESSION 48: Ad-Hoc Briefing Bug Fix & Stacking Feature (January 6, 2026 - Night)
 
 **Status**: ✅ COMPLETE

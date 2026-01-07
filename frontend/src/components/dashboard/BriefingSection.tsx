@@ -29,7 +29,7 @@ const BriefingItem = ({ briefing }: BriefingItemProps) => {
         switch (signal) {
             case 'accelerating': return <TrendingUp className="text-emerald-500" size={16} />
             case 'declining': return <TrendingUp className="text-rose-500 rotate-180" size={16} />
-            case 'mixed': return <Zap className="text-amber-500" size={16} />
+            case 'mixed': return <Zap className="text-emerald-500" size={16} />
             default: return <CheckCircle2 className="text-slate-400" size={16} />
         }
     }
@@ -67,7 +67,7 @@ const BriefingItem = ({ briefing }: BriefingItemProps) => {
                 <div className="space-y-2 mb-4">
                     {briefing.key_insights.map((insight, idx) => (
                         <div key={idx} className="flex gap-2 items-start text-sm">
-                            <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                            <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
                             <span className="text-slate-700 font-medium leading-normal">{insight}</span>
                         </div>
                     ))}
@@ -117,7 +117,7 @@ export default function BriefingSection({ briefings, isLoading }: BriefingSectio
         <div className="space-y-8">
             <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-extrabold text-slate-900 flex items-center gap-3">
-                    <span className="bg-amber-100 text-amber-600 p-2 rounded-lg">
+                    <span className="bg-emerald-100 text-emerald-600 p-2 rounded-lg">
                         <Zap size={24} fill="currentColor" />
                     </span>
                     Need to Know

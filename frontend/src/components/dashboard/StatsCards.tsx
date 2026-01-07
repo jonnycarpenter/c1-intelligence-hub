@@ -56,8 +56,8 @@ export default function StatsCards({ stats }: StatsCardsProps) {
       label: 'News Items',
       value: s.newsItems,
       icon: Newspaper,
-      color: 'text-amber-600',
-      bgColor: 'bg-amber-50',
+      color: 'text-emerald-600',
+      bgColor: 'bg-emerald-50',
     },
   ]
 

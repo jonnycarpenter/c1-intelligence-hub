@@ -31,11 +31,11 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { id: 'pulse', label: 'Pulse', icon: Activity, description: 'Real-time intelligence', color: 'text-amber-500', bg: 'bg-amber-500' },
+  { id: 'pulse', label: 'Pulse', icon: Activity, description: 'Real-time intelligence', color: 'text-emerald-500', bg: 'bg-emerald-500' },
   { id: 'research', label: 'Research', icon: Search, description: 'Deep analysis', color: 'text-emerald-500', bg: 'bg-emerald-500' },
   // { id: 'importyeti', label: 'Trade Intel', icon: Ship, description: 'Supply chain tracking', color: 'text-indigo-500', bg: 'bg-indigo-500' }, // ARCHIVED
   { id: 'products', label: 'Products', icon: Package, description: 'Product intelligence', color: 'text-blue-500', bg: 'bg-blue-500', isBeta: true },
-  { id: 'field-sales', label: 'Field Intel', icon: Mic, description: 'Field observations', color: 'text-orange-500', bg: 'bg-orange-500', isDisabled: false, tooltip: 'Capture field intelligence' },
+  { id: 'field-sales', label: 'Field Intel', icon: Mic, description: 'Field observations', color: 'text-emerald-500', bg: 'bg-emerald-500', isDisabled: false, tooltip: 'Capture field intelligence' },
   { id: 'pipeline', label: 'Pipeline', icon: GitBranch, description: 'Prospect discovery', color: 'text-purple-500', bg: 'bg-purple-500', isBeta: true, tooltip: 'Find similar companies and decision makers' },
   { id: 'companies', label: 'Companies', icon: Building2, description: 'Coming soon', color: 'text-slate-500', bg: 'bg-slate-500', isDisabled: true },
   { id: 'industries', label: 'Industries', icon: Factory, description: 'Coming soon', color: 'text-slate-500', bg: 'bg-slate-500', isDisabled: true },
@@ -139,7 +139,7 @@ export default function Sidebar({
           <span className="w-8 h-8 rounded-lg bg-slate-800/50 flex items-center justify-center relative">
             <FileText size={18} className="text-slate-400" />
             {reportCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
                 {reportCount}
               </span>
             )}
@@ -178,7 +178,7 @@ export default function Sidebar({
               {/* Under Construction overlay */}
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <div className={cn(
-                  "flex items-center gap-1 bg-amber-500/90 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-lg",
+                  "flex items-center gap-1 bg-emerald-500/90 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-lg",
                   collapsed && "px-1.5"
                 )}>
                   <Construction size={12} />
@@ -188,7 +188,7 @@ export default function Sidebar({
               {/* Custom tooltip for better styling */}
               <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 z-50 hidden group-hover:block">
                 <div className="bg-slate-800 text-white text-xs px-3 py-2 rounded-lg shadow-xl max-w-[200px] whitespace-normal border border-slate-700">
-                  <p className="font-semibold text-amber-400 mb-1">{page.label}</p>
+                  <p className="font-semibold text-emerald-400 mb-1">{page.label}</p>
                   <p className="text-slate-300">{page.tooltip}</p>
                 </div>
               </div>

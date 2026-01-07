@@ -1,14 +1,14 @@
 'use client'
 
-import { useState, useCallback } from 'react'
-import { 
-  Building2, 
-  Beaker, 
-  Factory, 
-  Settings2, 
-  History, 
-  Plus, 
-  Trash2, 
+import { useState, useCallback, useEffect } from 'react'
+import {
+  Building2,
+  Beaker,
+  Factory,
+  Settings2,
+  History,
+  Plus,
+  Trash2,
   Search,
   Filter,
   Download,
@@ -51,8 +51,8 @@ const tabs: Tab[] = [
   { id: 'companies', label: 'Companies', icon: Building2, color: 'text-emerald-500', description: 'Tracked companies & competitors' },
   { id: 'materials', label: 'Materials', icon: Beaker, color: 'text-blue-500', description: 'Materials & processes' },
   { id: 'industries', label: 'Industries', icon: Factory, color: 'text-purple-500', description: 'Industry verticals' },
-  { id: 'preferences', label: 'Preferences', icon: Settings2, color: 'text-amber-500', description: 'User preferences & exclusions' },
-  { id: 'memory', label: 'Memory', icon: Bookmark, color: 'text-orange-500', description: 'Saved briefings & research' },
+  { id: 'preferences', label: 'Preferences', icon: Settings2, color: 'text-emerald-500', description: 'User preferences & exclusions' },
+  { id: 'memory', label: 'Memory', icon: Bookmark, color: 'text-emerald-500', description: 'Saved briefings & research' },
   { id: 'changelog', label: 'Change Log', icon: History, color: 'text-slate-500', description: 'History of all changes' },
 ]
 
@@ -82,7 +82,7 @@ function AddItemModal({ isOpen, onClose, itemType, onSubmit, types }: AddItemMod
       setError('Name and your name are required')
       return
     }
-    
+
     try {
       setIsSubmitting(true)
       setError('')
@@ -112,7 +112,7 @@ function AddItemModal({ isOpen, onClose, itemType, onSubmit, types }: AddItemMod
             <X size={20} />
           </button>
         </div>
-        
+
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && (
             <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 px-3 py-2 rounded-lg">
@@ -120,7 +120,7 @@ function AddItemModal({ isOpen, onClose, itemType, onSubmit, types }: AddItemMod
               {error}
             </div>
           )}
-          
+
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
               {itemType === 'preference' ? 'Preference/Exclusion' : `${itemType.charAt(0).toUpperCase() + itemType.slice(1)} Name`}
@@ -130,7 +130,7 @@ function AddItemModal({ isOpen, onClose, itemType, onSubmit, types }: AddItemMod
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder={itemType === 'preference' ? "e.g., Don't show cultured marble insights" : `Enter ${itemType} name`}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
               autoFocus
             />
           </div>
@@ -146,7 +146,7 @@ function AddItemModal({ isOpen, onClose, itemType, onSubmit, types }: AddItemMod
                   value={ticker}
                   onChange={(e) => setTicker(e.target.value.toUpperCase())}
                   placeholder="e.g., HXL"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                 />
               </div>
               {types && types.length > 0 && (
@@ -155,7 +155,7 @@ function AddItemModal({ isOpen, onClose, itemType, onSubmit, types }: AddItemMod
                   <select
                     value={selectedType}
                     onChange={(e) => setSelectedType(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                   >
                     <option value="">Select type...</option>
                     {types.map(t => (
@@ -173,7 +173,7 @@ function AddItemModal({ isOpen, onClose, itemType, onSubmit, types }: AddItemMod
               <select
                 value={selectedType}
                 onChange={(e) => setSelectedType(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
               >
                 <option value="">Select type...</option>
                 {types.map(t => (
@@ -194,7 +194,7 @@ function AddItemModal({ isOpen, onClose, itemType, onSubmit, types }: AddItemMod
                 value={userName}
                 onChange={(e) => setUserName(e.target.value)}
                 placeholder="First name, Last initial (e.g., John D.)"
-                className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
               />
             </div>
             <p className="text-xs text-slate-500 mt-1">Required for accountability</p>
@@ -211,7 +211,7 @@ function AddItemModal({ isOpen, onClose, itemType, onSubmit, types }: AddItemMod
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex-1 px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-50"
+              className="flex-1 px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors disabled:opacity-50"
             >
               {isSubmitting ? 'Adding...' : 'Add'}
             </button>
@@ -244,7 +244,7 @@ function RemoveModal({ isOpen, onClose, itemName, itemType, onConfirm }: RemoveM
       setError('Your name is required')
       return
     }
-    
+
     try {
       setIsSubmitting(true)
       setError('')
@@ -269,7 +269,7 @@ function RemoveModal({ isOpen, onClose, itemName, itemType, onConfirm }: RemoveM
             <X size={20} />
           </button>
         </div>
-        
+
         <div className="p-6 space-y-4">
           {error && (
             <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 px-3 py-2 rounded-lg">
@@ -277,7 +277,7 @@ function RemoveModal({ isOpen, onClose, itemName, itemType, onConfirm }: RemoveM
               {error}
             </div>
           )}
-          
+
           <p className="text-slate-600">
             Are you sure you want to remove <strong>{itemName}</strong> from the {itemType} list?
           </p>
@@ -293,7 +293,7 @@ function RemoveModal({ isOpen, onClose, itemName, itemType, onConfirm }: RemoveM
                 value={userName}
                 onChange={(e) => setUserName(e.target.value)}
                 placeholder="First name, Last initial (e.g., John D.)"
-                className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                 autoFocus
               />
             </div>
@@ -342,6 +342,11 @@ export default function DataPreferencesDashboard({ onAskAgent }: DataPreferences
   const { industries, fetchIndustries, addIndustry, removeIndustry, isLoading: industriesLoading } = useTrackedIndustries()
   const { preferences, updatePreference, isLoading: prefsLoading } = useUserPreferences()
   const { changes, fetchChanges, isLoading: changelogLoading } = useChangeLog()
+
+  // Fetch companies on initial mount (since it's the default tab)
+  useEffect(() => {
+    fetchCompanies({})
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Search handler
   const handleSearch = useCallback(() => {
@@ -424,7 +429,7 @@ export default function DataPreferencesDashboard({ onAskAgent }: DataPreferences
       case 'materials': return handleAddMaterial
       case 'industries': return handleAddIndustry
       case 'preferences': return handleAddPreference
-      default: return async () => {}
+      default: return async () => { }
     }
   }
 
@@ -435,7 +440,7 @@ export default function DataPreferencesDashboard({ onAskAgent }: DataPreferences
       case 'material': return handleRemoveMaterial
       case 'industry': return handleRemoveIndustry
       case 'preference': return handleRemovePreference
-      default: return async () => {}
+      default: return async () => { }
     }
   }
 
@@ -493,9 +498,9 @@ export default function DataPreferencesDashboard({ onAskAgent }: DataPreferences
               <div className="text-2xl font-bold text-purple-600">{summary.industries.total}</div>
               <div className="text-sm text-purple-700">Industries</div>
             </div>
-            <div className="bg-amber-50 rounded-lg px-4 py-3">
-              <div className="text-2xl font-bold text-amber-600">{summary.change_log.total_changes}</div>
-              <div className="text-sm text-amber-700">Changes Logged</div>
+            <div className="bg-emerald-50 rounded-lg px-4 py-3">
+              <div className="text-2xl font-bold text-emerald-600">{summary.change_log.total_changes}</div>
+              <div className="text-sm text-emerald-700">Changes Logged</div>
             </div>
           </div>
         )}
@@ -516,7 +521,7 @@ export default function DataPreferencesDashboard({ onAskAgent }: DataPreferences
                 className={cn(
                   'flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px',
                   isActive
-                    ? 'border-amber-500 text-amber-600'
+                    ? 'border-emerald-500 text-emerald-600'
                     : 'border-transparent text-slate-500 hover:text-slate-700'
                 )}
               >
@@ -538,17 +543,17 @@ export default function DataPreferencesDashboard({ onAskAgent }: DataPreferences
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
             placeholder={`Search ${activeTab}...`}
-            className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+            className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
           />
         </div>
-        
+
         {getCurrentTypes().length > 0 && (
           <div className="flex items-center gap-2">
             <Filter size={16} className="text-slate-400" />
             <select
               value={selectedType}
               onChange={(e) => setSelectedType(e.target.value)}
-              className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+              className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
             >
               <option value="">All types</option>
               {getCurrentTypes().map(t => (
@@ -568,7 +573,7 @@ export default function DataPreferencesDashboard({ onAskAgent }: DataPreferences
         {activeTab !== 'changelog' && (
           <button
             onClick={() => setAddModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors"
           >
             <Plus size={16} />
             Add {activeTab === 'preferences' ? 'Preference' : activeTab.slice(0, -1)}
@@ -704,7 +709,7 @@ function CompanyCard({ company, onRemove, onAskAgent }: { company: TrackedCompan
           {onAskAgent && (
             <button
               onClick={() => onAskAgent(`Tell me about ${company.company}`)}
-              className="text-slate-400 hover:text-amber-500 transition-colors"
+              className="text-slate-400 hover:text-emerald-500 transition-colors"
               title="Ask agent about this company"
             >
               <ChevronRight size={18} />
@@ -734,8 +739,8 @@ function MaterialCard({ material, onRemove, onAskAgent }: { material: TrackedMat
             <span className={cn(
               'px-2 py-0.5 text-xs rounded',
               material.est_manufacturer_margin_tier === 'HIGH' ? 'bg-green-100 text-green-700' :
-              material.est_manufacturer_margin_tier === 'MEDIUM' ? 'bg-yellow-100 text-yellow-700' :
-              'bg-slate-100 text-slate-600'
+                material.est_manufacturer_margin_tier === 'MEDIUM' ? 'bg-yellow-100 text-yellow-700' :
+                  'bg-slate-100 text-slate-600'
             )}>
               {material.est_manufacturer_margin_tier} margin
             </span>
@@ -748,7 +753,7 @@ function MaterialCard({ material, onRemove, onAskAgent }: { material: TrackedMat
           {onAskAgent && (
             <button
               onClick={() => onAskAgent(`Tell me about ${material.material_process_name}`)}
-              className="text-slate-400 hover:text-amber-500 transition-colors"
+              className="text-slate-400 hover:text-emerald-500 transition-colors"
               title="Ask agent about this material"
             >
               <ChevronRight size={18} />
@@ -786,7 +791,7 @@ function IndustryCard({ industry, onRemove, onAskAgent }: { industry: TrackedInd
           {onAskAgent && (
             <button
               onClick={() => onAskAgent(`Tell me about the ${industry.industry_name} industry`)}
-              className="text-slate-400 hover:text-amber-500 transition-colors"
+              className="text-slate-400 hover:text-emerald-500 transition-colors"
               title="Ask agent about this industry"
             >
               <ChevronRight size={18} />
@@ -811,7 +816,7 @@ function ChangeLogCard({ change }: { change: ChangeLogEntry }) {
       case 'company': return 'bg-emerald-100 text-emerald-700'
       case 'material': return 'bg-blue-100 text-blue-700'
       case 'industry': return 'bg-purple-100 text-purple-700'
-      case 'preference': return 'bg-amber-100 text-amber-700'
+      case 'preference': return 'bg-emerald-100 text-emerald-700'
       default: return 'bg-slate-100 text-slate-700'
     }
   }

@@ -11,7 +11,7 @@ const teamColors: Record<string, string> = {
   'Sales East': 'bg-blue-500',
   'Sales West': 'bg-emerald-500',
   'Marketing': 'bg-purple-500',
-  'Product/Supplier': 'bg-amber-500',
+  'Product/Supplier': 'bg-emerald-500',
   'All Others': 'bg-slate-500',
 }
 
@@ -20,8 +20,8 @@ const modeConfig: Record<Mode, { icon: typeof Activity; title: string; subtitle:
     icon: Activity,
     title: 'Intelligence Pulse',
     subtitle: 'Real-time industry monitoring',
-    color: 'text-amber-500',
-    bg: 'bg-amber-100',
+    color: 'text-emerald-500',
+    bg: 'bg-emerald-100',
   },
   research: {
     icon: Search,
@@ -142,7 +142,7 @@ export default function AppHeader({ activeMode, onRefresh, isRefreshing = false 
 
         <button className="relative p-2 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors">
           <Bell size={20} />
-          <span className="absolute top-1 right-1 w-2 h-2 bg-amber-500 rounded-full" />
+          <span className="absolute top-1 right-1 w-2 h-2 bg-emerald-500 rounded-full" />
         </button>
 
         {/* User indicator with dropdown */}

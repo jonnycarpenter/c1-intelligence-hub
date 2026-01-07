@@ -124,7 +124,7 @@ function InsightItem({ insight, companiesWithLogos, isHeadline = false, isSneakP
         return (
           <sup
             key={idx}
-            className="text-amber-600 font-semibold ml-0.5 cursor-help"
+            className="text-emerald-600 font-semibold ml-0.5 cursor-help"
             title={`Source ${num}`}
           >
             {num}
@@ -160,7 +160,7 @@ function InsightItem({ insight, companiesWithLogos, isHeadline = false, isSneakP
       isSneakPeak ? "opacity-60 scale-[0.98] origin-top" : ""
     )}>
       {!isHeadline && (
-        <div className="mt-2 w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+        <div className="mt-2 w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
       )}
       <div className="flex-1">
         <div className={cn(
@@ -200,11 +200,11 @@ function SectionCard({ section, isFirst = false }: SectionCardProps) {
   return (
     <div className={cn(
       "bg-white border rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-200",
-      isFirst ? "border-amber-200 ring-1 ring-amber-50" : "border-slate-200"
+      isFirst ? "border-emerald-200 ring-1 ring-emerald-50" : "border-slate-200"
     )}>
       {/* Section Header */}
       <div className="p-5">
-        <div className="flex items-center justify-between mb-4 bg-amber-400/10 p-3 rounded-lg border border-amber-400/5">
+        <div className="flex items-center justify-between mb-4 bg-emerald-400/10 p-3 rounded-lg border border-emerald-400/5">
           <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
             {section.header}
           </h3>
@@ -249,7 +249,7 @@ function SectionCard({ section, isFirst = false }: SectionCardProps) {
         {insights.length > 0 && (
           <button
             onClick={() => setIsExpanded(!isExpanded)}
-            className="flex items-center gap-1 text-xs text-amber-600 font-medium hover:text-amber-700 transition-colors mt-1 relative z-10"
+            className="flex items-center gap-1 text-xs text-emerald-600 font-medium hover:text-emerald-700 transition-colors mt-1 relative z-10"
           >
             {isExpanded ? (
               <>
@@ -293,7 +293,7 @@ function SectionCard({ section, isFirst = false }: SectionCardProps) {
                 href={article.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-slate-600 hover:text-amber-600 transition-colors"
+                className="inline-flex items-center gap-1 text-xs text-slate-600 hover:text-emerald-600 transition-colors"
                 title={article.title}
               >
                 <span className="font-medium">[{idx + 1}]</span>
@@ -367,12 +367,12 @@ export default function WeeklyBriefingSection({
       {/* Need to Know Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <div className="p-3 bg-gradient-to-br from-amber-100 to-amber-50 rounded-xl shadow-sm border border-amber-200/60">
-            <Zap size={24} className="text-amber-600" fill="currentColor" />
+          <div className="p-3 bg-gradient-to-br from-emerald-100 to-emerald-50 rounded-xl shadow-sm border border-emerald-200/60">
+            <Zap size={24} className="text-emerald-600" fill="currentColor" />
           </div>
           <div>
             <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight leading-none">Need to Know</h2>
-            <p className="text-xs text-amber-600/80 font-bold uppercase tracking-widest mt-1">Executive Briefing</p>
+            <p className="text-xs text-emerald-600/80 font-bold uppercase tracking-widest mt-1">Executive Briefing</p>
           </div>
         </div>
         <div className="flex items-center gap-4">
@@ -383,7 +383,7 @@ export default function WeeklyBriefingSection({
           {onHistoryClick && (
             <button
               onClick={onHistoryClick}
-              className="text-xs text-amber-600 hover:text-amber-700 font-medium transition-colors"
+              className="text-xs text-emerald-600 hover:text-emerald-700 font-medium transition-colors"
             >
               View History →
             </button>
@@ -392,12 +392,12 @@ export default function WeeklyBriefingSection({
       </div>
 
       {/* Briefing Title + BLUF */}
-      <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-100 rounded-xl p-4">
+      <div className="bg-gradient-to-r from-emerald-50 to-emerald-50 border border-emerald-100 rounded-xl p-4">
         <h3 className="text-lg font-bold text-slate-900">{briefing.briefing_title}</h3>
         {briefing.bluf && (
-          <div className="mt-3 p-3 bg-white/60 rounded-lg border border-amber-200/50">
+          <div className="mt-3 p-3 bg-white/60 rounded-lg border border-emerald-200/50">
             <div className="flex items-start gap-2">
-              <span className="text-xs font-bold text-amber-700 uppercase tracking-wider shrink-0 mt-0.5">BLUF</span>
+              <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider shrink-0 mt-0.5">BLUF</span>
               <p className="text-sm font-medium text-slate-800 leading-relaxed">{briefing.bluf}</p>
             </div>
           </div>

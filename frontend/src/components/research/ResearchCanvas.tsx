@@ -70,7 +70,7 @@ const RESEARCH_TEMPLATES: ResearchTemplate[] = [
     description: 'Analyze regulatory changes and compliance',
     icon: 'FileText',
     prompt: 'Analyze the impact of [regulation/policy] on the composites industry. Include compliance requirements, timeline, and affected segments.',
-    color: 'bg-amber-500',
+    color: 'bg-emerald-500',
   },
   {
     id: 'competitive-landscape',
@@ -354,23 +354,23 @@ export default function ResearchCanvas({
 
           {/* Research Timeout */}
           {isTimeout && (
-            <div className="bg-amber-50 rounded-xl border border-amber-200 p-6 shadow-sm">
+            <div className="bg-emerald-50 rounded-xl border border-emerald-200 p-6 shadow-sm">
               <div className="flex items-start gap-3">
-                <Clock className="text-amber-500 shrink-0 mt-0.5" size={20} />
+                <Clock className="text-emerald-500 shrink-0 mt-0.5" size={20} />
                 <div className="flex-1">
-                  <h3 className="font-semibold text-amber-800 mb-1">Research Timed Out</h3>
-                  <p className="text-sm text-amber-600 mb-3">
+                  <h3 className="font-semibold text-emerald-800 mb-1">Research Timed Out</h3>
+                  <p className="text-sm text-emerald-600 mb-3">
                     The research took longer than expected ({timeoutInfo?.elapsed_seconds || 300}s). 
                     This can happen with complex queries or when external data sources are slow.
                   </p>
                   {timeoutInfo?.completed_nodes && timeoutInfo.completed_nodes.length > 0 && (
-                    <div className="text-xs text-amber-700 mb-3">
+                    <div className="text-xs text-emerald-700 mb-3">
                       <span className="font-medium">Completed stages: </span>
                       {timeoutInfo.completed_nodes.join(', ')}
                     </div>
                   )}
                   {timeoutInfo?.active_nodes && timeoutInfo.active_nodes.length > 0 && (
-                    <div className="text-xs text-amber-700 mb-3">
+                    <div className="text-xs text-emerald-700 mb-3">
                       <span className="font-medium">Stuck at: </span>
                       {timeoutInfo.active_nodes.join(', ')}
                     </div>

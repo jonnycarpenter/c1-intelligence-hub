@@ -47,7 +47,7 @@ interface ConfidenceBadgeProps {
 function ConfidenceBadge({ confidence }: ConfidenceBadgeProps) {
   const configs = {
     high: { bg: 'bg-emerald-100', text: 'text-emerald-700', label: 'High Confidence' },
-    medium: { bg: 'bg-amber-100', text: 'text-amber-700', label: 'Medium Confidence' },
+    medium: { bg: 'bg-emerald-100', text: 'text-emerald-700', label: 'Medium Confidence' },
     low: { bg: 'bg-rose-100', text: 'text-rose-700', label: 'Limited Data' },
   }
   const config = configs[confidence]
@@ -83,7 +83,7 @@ function ProgressStepDisplay({ step, label, message, status, count }: ProgressSt
         "w-5 h-5 rounded-full flex items-center justify-center shrink-0",
         status === 'complete'
           ? "bg-emerald-100 text-emerald-600"
-          : "bg-amber-100 text-amber-600"
+          : "bg-emerald-100 text-emerald-600"
       )}>
         {status === 'complete' ? <Check size={12} /> : (
           <div className="animate-spin">
@@ -104,7 +104,7 @@ function ProgressStepDisplay({ step, label, message, status, count }: ProgressSt
           </span>
         )}
         {status === 'running' && (
-          <span className="text-xs text-amber-600 animate-pulse">
+          <span className="text-xs text-emerald-600 animate-pulse">
             {message}
           </span>
         )}
@@ -145,7 +145,7 @@ function ResponseCard({ response, onDeepResearch, onClose, onSaveToMemory }: Res
       {/* Header */}
       <div className="border-b border-slate-100 px-4 py-3 flex items-center justify-between bg-slate-50">
         <div className="flex items-center gap-2">
-          <MessageSquare size={16} className="text-amber-600" />
+          <MessageSquare size={16} className="text-emerald-600" />
           <span className="text-sm font-medium text-slate-700">Quick Briefing</span>
           <ConfidenceBadge confidence={response.confidence} />
         </div>
@@ -158,7 +158,7 @@ function ResponseCard({ response, onDeepResearch, onClose, onSaveToMemory }: Res
                 "p-1.5 rounded-lg transition-all duration-200",
                 isSaved
                   ? "text-emerald-600 bg-emerald-50"
-                  : "text-slate-400 hover:text-amber-600 hover:bg-amber-50"
+                  : "text-slate-400 hover:text-emerald-600 hover:bg-emerald-50"
               )}
               title={isSaved ? "Saved to memory" : "Save to memory"}
             >
@@ -183,7 +183,7 @@ function ResponseCard({ response, onDeepResearch, onClose, onSaveToMemory }: Res
       </div>
 
       {/* Question */}
-      <div className="px-4 py-3 bg-amber-50/50 border-b border-slate-100">
+      <div className="px-4 py-3 bg-emerald-50/50 border-b border-slate-100">
         <p className="text-sm text-slate-600">
           <span className="font-semibold text-slate-700">Q:</span> {response.question}
         </p>
@@ -209,7 +209,7 @@ function ResponseCard({ response, onDeepResearch, onClose, onSaveToMemory }: Res
                 href={source.url || '#'}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-slate-600 hover:text-amber-600 transition-colors"
+                className="inline-flex items-center gap-1 text-xs text-slate-600 hover:text-emerald-600 transition-colors"
               >
                 <span className="truncate max-w-[200px]">{source.title}</span>
                 {source.url && <ExternalLink size={10} />}
@@ -221,9 +221,9 @@ function ResponseCard({ response, onDeepResearch, onClose, onSaveToMemory }: Res
 
       {/* Deep Research Suggestion */}
       {(response.suggest_deep_research || response.redirect_to_deep_research) && (
-        <div className="border-t border-amber-100 px-4 py-3 bg-amber-50">
+        <div className="border-t border-emerald-100 px-4 py-3 bg-emerald-50">
           <div className="flex items-start gap-3">
-            <AlertCircle size={18} className="text-amber-600 shrink-0 mt-0.5" />
+            <AlertCircle size={18} className="text-emerald-600 shrink-0 mt-0.5" />
             <div className="flex-1">
               <p className="text-sm text-amber-900">
                 {response.redirect_to_deep_research
@@ -234,7 +234,7 @@ function ResponseCard({ response, onDeepResearch, onClose, onSaveToMemory }: Res
               {onDeepResearch && (
                 <button
                   onClick={() => onDeepResearch(response.deep_research_query || response.question)}
-                  className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 text-white text-xs font-medium rounded-lg hover:bg-amber-700 transition-colors"
+                  className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white text-xs font-medium rounded-lg hover:bg-emerald-700 transition-colors"
                 >
                   <Sparkles size={12} />
                   Start Deep Research
@@ -413,10 +413,10 @@ export default function AdHocBriefing({
       {/* Input Section - Always ready for questions */}
       <div className={cn(
         "bg-white border rounded-xl overflow-hidden transition-all duration-200",
-        briefings.length === 0 ? "border-amber-200 shadow-sm shadow-amber-100/50" : "border-slate-200"
+        briefings.length === 0 ? "border-emerald-200 shadow-sm shadow-emerald-100/50" : "border-slate-200"
       )}>
         <form onSubmit={handleSubmit} className="flex items-center gap-2 p-3">
-          <MessageSquare size={18} className="text-amber-500 shrink-0" />
+          <MessageSquare size={18} className="text-emerald-500 shrink-0" />
           <input
             ref={inputRef}
             type="text"
@@ -432,7 +432,7 @@ export default function AdHocBriefing({
             className={cn(
               "p-2 rounded-lg transition-all duration-200",
               question.trim() && !isLoading && !isStreaming
-                ? "bg-amber-500 text-white hover:bg-amber-600"
+                ? "bg-emerald-500 text-white hover:bg-emerald-600"
                 : "bg-slate-100 text-slate-400"
             )}
           >
@@ -446,9 +446,9 @@ export default function AdHocBriefing({
 
         {/* Gentle nudge after multiple questions */}
         {shouldNudgeDeepResearch && briefings.length > 0 && !isLoading && !isStreaming && (
-          <div className="px-3 pb-2 flex items-center gap-2 text-xs text-amber-600 border-t border-slate-100 bg-amber-50/50">
+          <div className="px-3 pb-2 flex items-center gap-2 text-xs text-emerald-600 border-t border-slate-100 bg-emerald-50/50">
             <Sparkles size={12} />
-            <span>For comprehensive analysis, try <button onClick={() => onDeepResearch?.(briefings[0]?.question || '')} className="font-medium underline hover:text-amber-700">Deep Research</button></span>
+            <span>For comprehensive analysis, try <button onClick={() => onDeepResearch?.(briefings[0]?.question || '')} className="font-medium underline hover:text-emerald-700">Deep Research</button></span>
           </div>
         )}
       </div>
@@ -457,7 +457,7 @@ export default function AdHocBriefing({
       {(isLoading || isStreaming) && (
         <div className="bg-white border border-slate-200 rounded-xl p-4">
           <div className="flex items-center gap-2 mb-3">
-            <Loader2 size={16} className="animate-spin text-amber-500" />
+            <Loader2 size={16} className="animate-spin text-emerald-500" />
             <span className="text-sm font-medium text-slate-700">Researching your question...</span>
           </div>
           {progressSteps.length > 0 ? (
@@ -483,22 +483,22 @@ export default function AdHocBriefing({
       {error && !isLoading && (
         <div className={cn(
           "border rounded-xl p-4 flex items-start gap-3",
-          isTimeout ? "bg-amber-50 border-amber-200" : "bg-rose-50 border-rose-200"
+          isTimeout ? "bg-emerald-50 border-emerald-200" : "bg-rose-50 border-rose-200"
         )}>
           <AlertCircle size={18} className={cn(
             "shrink-0 mt-0.5",
-            isTimeout ? "text-amber-500" : "text-rose-500"
+            isTimeout ? "text-emerald-500" : "text-rose-500"
           )} />
           <div>
             <p className={cn(
               "text-sm font-medium",
-              isTimeout ? "text-amber-800" : "text-rose-800"
+              isTimeout ? "text-emerald-800" : "text-rose-800"
             )}>
               {isTimeout ? 'Request timed out' : 'Failed to generate briefing'}
             </p>
             <p className={cn(
               "text-xs mt-1",
-              isTimeout ? "text-amber-600" : "text-rose-600"
+              isTimeout ? "text-emerald-600" : "text-rose-600"
             )}>
               {isTimeout
                 ? 'The request took longer than 60 seconds. Try simplifying your question or ask again.'
@@ -510,7 +510,7 @@ export default function AdHocBriefing({
               className={cn(
                 "mt-2 text-xs font-medium",
                 isTimeout
-                  ? "text-amber-700 hover:text-amber-800"
+                  ? "text-emerald-700 hover:text-emerald-800"
                   : "text-rose-700 hover:text-rose-800"
               )}
             >

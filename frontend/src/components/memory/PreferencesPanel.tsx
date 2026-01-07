@@ -247,12 +247,12 @@ export function PreferencesPanel({ className }: PreferencesPanelProps) {
 
       {/* Blocked Topics Section */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <div className="px-4 py-3 bg-amber-50 border-b border-amber-100 flex items-center justify-between">
+        <div className="px-4 py-3 bg-emerald-50 border-b border-emerald-100 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Ban className="w-5 h-5 text-amber-600" />
+            <Ban className="w-5 h-5 text-emerald-600" />
             <h3 className="font-medium text-amber-900">De-prioritized Topics</h3>
           </div>
-          <span className="text-xs text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">
+          <span className="text-xs text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">
             {preferences.blocks.length} active
           </span>
         </div>
@@ -300,7 +300,7 @@ export function PreferencesPanel({ className }: PreferencesPanelProps) {
           ) : (
             <button
               onClick={() => setIsAdding('block')}
-              className="w-full flex items-center justify-center gap-2 py-2 px-4 border-2 border-dashed border-amber-200 text-amber-600 rounded-lg hover:bg-amber-50 hover:border-amber-300 transition-colors"
+              className="w-full flex items-center justify-center gap-2 py-2 px-4 border-2 border-dashed border-emerald-200 text-emerald-600 rounded-lg hover:bg-emerald-50 hover:border-emerald-300 transition-colors"
             >
               <Plus className="w-4 h-4" />
               Add De-prioritized Topic
@@ -339,12 +339,12 @@ function PreferenceItem({ preference, type, onRemove }: PreferenceItemProps) {
   return (
     <div className={cn(
       'flex items-center justify-between px-4 py-3 rounded-lg',
-      type === 'priority' ? 'bg-emerald-50' : 'bg-amber-50'
+      type === 'priority' ? 'bg-emerald-50' : 'bg-emerald-50'
     )}>
       <div className="flex items-center gap-3 flex-1">
         <div className={cn(
           'w-2 h-2 rounded-full flex-shrink-0',
-          type === 'priority' ? 'bg-emerald-500' : 'bg-amber-500'
+          type === 'priority' ? 'bg-emerald-500' : 'bg-emerald-500'
         )} />
         
         <div className="min-w-0 flex-1">
@@ -409,7 +409,7 @@ function AddPreferenceForm({
   return (
     <div className={cn(
       'p-4 rounded-lg border-2',
-      type === 'priority' ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'
+      type === 'priority' ? 'bg-emerald-50 border-emerald-200' : 'bg-emerald-50 border-emerald-200'
     )}>
       <div className="space-y-3">
         {/* Topic Input */}
@@ -492,7 +492,7 @@ function AddPreferenceForm({
               'px-4 py-2 text-white rounded-lg transition-colors flex items-center gap-2',
               type === 'priority' 
                 ? 'bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-300' 
-                : 'bg-amber-600 hover:bg-amber-700 disabled:bg-amber-300'
+                : 'bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-300'
             )}
           >
             {submitting ? (

@@ -28,7 +28,7 @@ export function ValidationBadge({ validationOutput }: ValidationBadgeProps) {
             "rounded-2xl border-2 overflow-hidden shadow-sm transition-all",
             validation_passed 
                 ? "border-emerald-300 bg-emerald-50/50" 
-                : "border-amber-300 bg-amber-50/50"
+                : "border-emerald-300 bg-emerald-50/50"
         )}>
             {/* Header Badge */}
             <button
@@ -37,7 +37,7 @@ export function ValidationBadge({ validationOutput }: ValidationBadgeProps) {
                     "w-full px-6 py-4 flex items-center justify-between transition-colors",
                     validation_passed
                         ? "bg-emerald-500 hover:bg-emerald-600"
-                        : "bg-amber-500 hover:bg-amber-600"
+                        : "bg-emerald-500 hover:bg-emerald-600"
                 )}
             >
                 <div className="flex items-center gap-3">
@@ -99,20 +99,20 @@ export function ValidationBadge({ validationOutput }: ValidationBadgeProps) {
 
                     {/* Citation Issues */}
                     {citation_issues.length > 0 && (
-                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
                             <div className="flex items-center gap-2 mb-3">
-                                <AlertTriangle size={18} className="text-amber-600" />
-                                <h4 className="font-semibold text-amber-800">
+                                <AlertTriangle size={18} className="text-emerald-600" />
+                                <h4 className="font-semibold text-emerald-800">
                                     Citation Issues ({citation_issues.length})
                                 </h4>
                             </div>
                             <div className="space-y-3">
                                 {citation_issues.map((issue, idx) => (
-                                    <div key={idx} className="bg-white rounded-lg p-3 border border-amber-200">
+                                    <div key={idx} className="bg-white rounded-lg p-3 border border-emerald-200">
                                         <p className="text-sm text-slate-700 mb-1 font-medium">
                                             {issue.claim}
                                         </p>
-                                        <p className="text-xs text-amber-700">
+                                        <p className="text-xs text-emerald-700">
                                             Issue: {issue.issue}
                                         </p>
                                     </div>

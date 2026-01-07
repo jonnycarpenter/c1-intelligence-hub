@@ -64,7 +64,7 @@ const teamColors: Record<string, string> = {
   'Sales East': 'bg-blue-100 text-blue-700',
   'Sales West': 'bg-emerald-100 text-emerald-700',
   'Marketing': 'bg-purple-100 text-purple-700',
-  'Product/Supplier': 'bg-amber-100 text-amber-700',
+  'Product/Supplier': 'bg-emerald-100 text-emerald-700',
   'All Others': 'bg-slate-100 text-slate-700',
 }
 
@@ -142,7 +142,7 @@ export function MemoryLog({ className }: MemoryLogProps) {
       <div className="p-4 border-b border-slate-200">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <Bookmark className="w-5 h-5 text-amber-500" />
+            <Bookmark className="w-5 h-5 text-emerald-500" />
             <h2 className="font-semibold text-slate-900">Memory Log</h2>
             <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
               {total} saved
@@ -167,14 +167,14 @@ export function MemoryLog({ className }: MemoryLogProps) {
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search memories..."
               className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg
-                       focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                       focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
             />
           </div>
           <select
             value={filter}
             onChange={(e) => setFilter(e.target.value as typeof filter)}
             className="px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white
-                     focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                     focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
           >
             <option value="all">All</option>
             <option value="pinned">📌 Pinned</option>
@@ -218,10 +218,10 @@ export function MemoryLog({ className }: MemoryLogProps) {
                 <div className="flex items-start gap-3">
                   <div className={cn(
                     'w-8 h-8 rounded-lg flex items-center justify-center shrink-0',
-                    memory.source === 'briefing' ? 'bg-amber-100' : 'bg-emerald-100'
+                    memory.source === 'briefing' ? 'bg-emerald-100' : 'bg-emerald-100'
                   )}>
                     {memory.source === 'briefing' ? (
-                      <Bookmark className="w-4 h-4 text-amber-600" />
+                      <Bookmark className="w-4 h-4 text-emerald-600" />
                     ) : (
                       <FileText className="w-4 h-4 text-emerald-600" />
                     )}
@@ -255,7 +255,7 @@ export function MemoryLog({ className }: MemoryLogProps) {
                       )}
                       
                       {memory.pinned && (
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 flex items-center gap-1">
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 flex items-center gap-1">
                           <Pin className="w-3 h-3" />
                           Pinned
                         </span>
@@ -293,7 +293,7 @@ export function MemoryLog({ className }: MemoryLogProps) {
                       className={cn(
                         'p-1.5 rounded-lg transition-colors',
                         memory.pinned 
-                          ? 'text-amber-600 bg-amber-50 hover:bg-amber-100' 
+                          ? 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100' 
                           : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600'
                       )}
                       title={memory.pinned ? 'Unpin' : 'Pin'}

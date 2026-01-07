@@ -8,7 +8,7 @@ import type { DigestItem, Priority } from '@/types'
 
 const priorityColors: Record<Priority, string> = {
   critical: 'bg-red-500',
-  high: 'bg-amber-500',
+  high: 'bg-emerald-500',
   medium: 'bg-blue-500',
   low: 'bg-slate-400',
 }
@@ -101,7 +101,7 @@ export default function DigestCard({ item }: DigestCardProps) {
         {/* LLM Summary with highlighted entities - expandable */}
         <div className="relative">
           {item.title && (
-            <h3 className="text-base font-bold text-slate-900 mb-2 leading-snug group-hover:text-amber-600 transition-colors">
+            <h3 className="text-base font-bold text-slate-900 mb-2 leading-snug group-hover:text-emerald-600 transition-colors">
               {item.title}
             </h3>
           )}
@@ -115,7 +115,7 @@ export default function DigestCard({ item }: DigestCardProps) {
           {item.summary && item.summary.length > 200 && (
             <button
               onClick={() => setIsExpanded(!isExpanded)}
-              className="mt-1 inline-flex items-center gap-0.5 text-xs text-slate-500 hover:text-amber-600 transition-colors"
+              className="mt-1 inline-flex items-center gap-0.5 text-xs text-slate-500 hover:text-emerald-600 transition-colors"
             >
               {isExpanded ? (
                 <>
@@ -166,7 +166,7 @@ export default function DigestCard({ item }: DigestCardProps) {
             {item.entities.topics?.slice(0, 3).map((topic, idx) => (
               <span
                 key={`topic-${idx}`}
-                className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200"
+                className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200"
               >
                 {topic}
               </span>
@@ -181,7 +181,7 @@ export default function DigestCard({ item }: DigestCardProps) {
               // Multiple sources - show clickable "Sources" button
               <button
                 onClick={() => setShowSourcesModal(true)}
-                className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-amber-600 transition-colors"
+                className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-emerald-600 transition-colors"
               >
                 <Newspaper size={12} />
                 <span>{sources.length} Sources</span>
@@ -192,7 +192,7 @@ export default function DigestCard({ item }: DigestCardProps) {
                 href={sources[0].url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-amber-600 transition-colors"
+                className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-emerald-600 transition-colors"
               >
                 <ExternalLink size={12} />
                 {sources[0].name || sources[0].title || 'Source'}
@@ -217,20 +217,20 @@ export default function DigestCard({ item }: DigestCardProps) {
                 href={source.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-3 p-3 rounded-lg border border-slate-200 hover:border-amber-300 hover:bg-amber-50 transition-colors group"
+                className="flex items-center gap-3 p-3 rounded-lg border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50 transition-colors group"
               >
-                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center group-hover:bg-amber-100">
-                  <Newspaper size={16} className="text-slate-500 group-hover:text-amber-600" />
+                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center group-hover:bg-emerald-100">
+                  <Newspaper size={16} className="text-slate-500 group-hover:text-emerald-600" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium text-slate-900 group-hover:text-amber-600 truncate">
+                  <div className="font-medium text-slate-900 group-hover:text-emerald-600 truncate">
                     {source.name || source.title || 'Unknown Source'}
                   </div>
                   {source.published_at && (
                     <div className="text-xs text-slate-400">{source.published_at}</div>
                   )}
                 </div>
-                <ExternalLink size={14} className="text-slate-400 group-hover:text-amber-600" />
+                <ExternalLink size={14} className="text-slate-400 group-hover:text-emerald-600" />
               </a>
             ))}
           </div>

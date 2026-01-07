@@ -132,7 +132,7 @@ export default function ChatInterface({
         {/* Welcome message when empty */}
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center px-4">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-500 flex items-center justify-center mb-4 shadow-lg">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-500 flex items-center justify-center mb-4 shadow-lg">
               <Sparkles size={28} className="text-white" />
             </div>
             <h3 className="text-lg font-semibold text-slate-800 mb-2">C1 Intelligence Hub</h3>
@@ -144,7 +144,7 @@ export default function ChatInterface({
                 <button
                   key={idx}
                   onClick={() => handleSuggestionClick(suggestion)}
-                  className="px-3 py-2 text-sm text-slate-600 bg-white border border-slate-200 rounded-lg hover:border-amber-300 hover:bg-amber-50 transition-colors"
+                  className="px-3 py-2 text-sm text-slate-600 bg-white border border-slate-200 rounded-lg hover:border-emerald-300 hover:bg-emerald-50 transition-colors"
                 >
                   {suggestion}
                 </button>
@@ -161,8 +161,8 @@ export default function ChatInterface({
         {/* Streaming response with live thinking */}
         {isStreaming && (
           <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
-              <Bot size={16} className="text-amber-600" />
+            <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+              <Bot size={16} className="text-emerald-600" />
             </div>
             <div className="flex flex-col gap-2 max-w-[80%]">
               {/* Live thinking panel */}
@@ -179,7 +179,7 @@ export default function ChatInterface({
                 streamingContent ? (
                   <div className="bg-white rounded-2xl rounded-tl-sm px-4 py-3 border border-slate-200 text-slate-700">
                     <p className="text-sm whitespace-pre-wrap">{streamingContent}</p>
-                    <span className="inline-block w-2 h-4 bg-amber-500 animate-pulse ml-0.5" />
+                    <span className="inline-block w-2 h-4 bg-emerald-500 animate-pulse ml-0.5" />
                   </div>
                 ) : (
                   <div className="bg-white rounded-2xl rounded-tl-sm px-4 py-3 border border-slate-200">
@@ -195,8 +195,8 @@ export default function ChatInterface({
 
               {/* Research mode indicator - content goes to canvas */}
               {hideStreamingContent && !streamingThinking.length && (
-                <div className="bg-amber-50 rounded-2xl rounded-tl-sm px-4 py-3 border border-amber-200">
-                  <div className="flex items-center gap-2 text-amber-700">
+                <div className="bg-emerald-50 rounded-2xl rounded-tl-sm px-4 py-3 border border-emerald-200">
+                  <div className="flex items-center gap-2 text-emerald-700">
                     <Loader2 size={14} className="animate-spin" />
                     <span className="text-sm">Researching... response will appear in canvas</span>
                   </div>
@@ -209,8 +209,8 @@ export default function ChatInterface({
         {/* Loading indicator (non-streaming fallback) */}
         {isLoading && !isStreaming && (
           <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
-              <Bot size={16} className="text-amber-600" />
+            <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+              <Bot size={16} className="text-emerald-600" />
             </div>
             <div className="bg-white rounded-2xl rounded-tl-sm px-4 py-3 border border-slate-200">
               <div className="flex items-center gap-2 text-slate-500">
@@ -250,7 +250,7 @@ export default function ChatInterface({
               onKeyDown={handleKeyDown}
               placeholder="Ask about supply chain intelligence..."
               rows={1}
-              className="w-full resize-none rounded-xl border border-slate-300 px-4 py-3 pr-12 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent placeholder:text-slate-400"
+              className="w-full resize-none rounded-xl border border-slate-300 px-4 py-3 pr-12 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent placeholder:text-slate-400"
             />
           </div>
           <Button
@@ -283,12 +283,12 @@ function ChatMessage({ message }: ChatMessageProps) {
       {/* Avatar */}
       <div className={cn(
         'w-8 h-8 rounded-full flex items-center justify-center shrink-0',
-        isUser ? 'bg-slate-200' : 'bg-amber-100'
+        isUser ? 'bg-slate-200' : 'bg-emerald-100'
       )}>
         {isUser ? (
           <User size={16} className="text-slate-600" />
         ) : (
-          <Bot size={16} className="text-amber-600" />
+          <Bot size={16} className="text-emerald-600" />
         )}
       </div>
 
@@ -305,7 +305,7 @@ function ChatMessage({ message }: ChatMessageProps) {
         <div className={cn(
           'rounded-2xl px-4 py-3',
           isUser
-            ? 'bg-amber-500 text-white rounded-tr-sm'
+            ? 'bg-emerald-500 text-white rounded-tr-sm'
             : 'bg-white border border-slate-200 text-slate-700 rounded-tl-sm'
         )}>
           {isUser ? (

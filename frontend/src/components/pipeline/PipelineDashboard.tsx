@@ -153,7 +153,7 @@ export default function PipelineDashboard() {
               className={cn(
                 'flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center justify-center gap-1.5',
                 pipelineMode === 'full'
-                  ? 'bg-white text-amber-700 shadow-sm'
+                  ? 'bg-white text-emerald-700 shadow-sm'
                   : 'text-slate-500 hover:text-slate-700'
               )}
             >
@@ -162,7 +162,7 @@ export default function PipelineDashboard() {
             </button>
           </div>
           {pipelineMode === 'full' && (
-            <p className="text-xs text-amber-600 mt-2">
+            <p className="text-xs text-emerald-600 mt-2">
               Full List mode can build enriched company lists (1-5 min). Type &quot;CONFIRM&quot; to start.
             </p>
           )}
@@ -465,7 +465,7 @@ function SavedProspectCard({ prospect, onRemove, onUpdateStatus }: SavedProspect
   const statusColors: Record<PipelineProspect['status'], string> = {
     new: 'bg-slate-100 text-slate-600',
     contacted: 'bg-blue-100 text-blue-700',
-    qualified: 'bg-amber-100 text-amber-700',
+    qualified: 'bg-emerald-100 text-emerald-700',
     converted: 'bg-emerald-100 text-emerald-700',
   }
 

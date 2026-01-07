@@ -57,8 +57,8 @@ export default function ReportDrawer({
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-slate-200">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
-              <FileText size={20} className="text-amber-600" />
+            <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
+              <FileText size={20} className="text-emerald-600" />
             </div>
             <div>
               <h2 className="font-semibold text-slate-900">Report Builder</h2>

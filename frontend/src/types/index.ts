@@ -472,9 +472,9 @@ export const modeConfig = {
     title: 'Intelligence Pulse',
     subtitle: 'Real-time industry monitoring',
     description: 'Real-time intelligence',
-    color: 'text-amber-500',
-    bg: 'bg-amber-100',
-    bgDark: 'bg-amber-500',
+    color: 'text-emerald-500',
+    bg: 'bg-emerald-100',
+    bgDark: 'bg-emerald-500',
   },
   research: {
     icon: 'Search',

@@ -33,14 +33,14 @@ export function useToast() {
 const iconMap: Record<ToastType, React.ReactNode> = {
   success: <CheckCircle className="w-5 h-5 text-emerald-500" />,
   error: <AlertCircle className="w-5 h-5 text-red-500" />,
-  warning: <AlertTriangle className="w-5 h-5 text-amber-500" />,
+  warning: <AlertTriangle className="w-5 h-5 text-emerald-500" />,
   info: <Info className="w-5 h-5 text-blue-500" />,
 }
 
 const bgMap: Record<ToastType, string> = {
   success: 'bg-emerald-50 border-emerald-200',
   error: 'bg-red-50 border-red-200',
-  warning: 'bg-amber-50 border-amber-200',
+  warning: 'bg-emerald-50 border-emerald-200',
   info: 'bg-blue-50 border-blue-200',
 }
 

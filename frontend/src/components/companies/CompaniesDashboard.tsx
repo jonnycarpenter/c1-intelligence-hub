@@ -429,7 +429,7 @@ function CompanyCard({
             "inline-block px-2 py-0.5 text-xs font-medium rounded-full mb-3",
             company.type === 'OEM' ? 'bg-purple-100 text-purple-700' :
             company.type === 'Raw Material Manufacturer' ? 'bg-blue-100 text-blue-700' :
-            company.type === 'Processor/Fabricator' ? 'bg-orange-100 text-orange-700' :
+            company.type === 'Processor/Fabricator' ? 'bg-emerald-100 text-emerald-700' :
             'bg-slate-100 text-slate-700'
           )}>
             {company.type}

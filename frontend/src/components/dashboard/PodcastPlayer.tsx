@@ -120,13 +120,13 @@ export default function PodcastPlayer({ audioUrl, duration, title }: PodcastPlay
     }
 
     return (
-        <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-4 shadow-sm">
+        <div className="bg-gradient-to-r from-emerald-50 to-emerald-50 border border-emerald-200 rounded-xl p-4 shadow-sm">
             {/* Hidden audio element */}
             <audio ref={audioRef} src={audioUrl} preload="metadata" />
 
             {/* Header */}
             <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
+                <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
                     <span className="text-2xl">🎙️</span>
                 </div>
                 <div className="flex-1">
@@ -136,7 +136,7 @@ export default function PodcastPlayer({ audioUrl, duration, title }: PodcastPlay
                 <a
                     href={audioUrl}
                     download={`${title}.mp3`}
-                    className="p-2 hover:bg-amber-100 rounded-lg transition-colors"
+                    className="p-2 hover:bg-emerald-100 rounded-lg transition-colors"
                     title="Download podcast"
                 >
                     <Download size={18} className="text-slate-600" />
@@ -153,12 +153,12 @@ export default function PodcastPlayer({ audioUrl, duration, title }: PodcastPlay
                         max={audioDuration || 100}
                         value={currentTime}
                         onChange={handleSeek}
-                        className="w-full h-2 bg-amber-200 rounded-lg appearance-none cursor-pointer
+                        className="w-full h-2 bg-emerald-200 rounded-lg appearance-none cursor-pointer
                      [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 
-                     [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-amber-600 
+                     [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-emerald-600 
                      [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer
                      [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 
-                     [&::-moz-range-thumb]:bg-amber-600 [&::-moz-range-thumb]:rounded-full 
+                     [&::-moz-range-thumb]:bg-emerald-600 [&::-moz-range-thumb]:rounded-full 
                      [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:cursor-pointer"
                     />
                     <div className="flex justify-between text-xs text-slate-500">
@@ -175,7 +175,7 @@ export default function PodcastPlayer({ audioUrl, duration, title }: PodcastPlay
                         disabled={isLoading}
                         className={cn(
                             "w-10 h-10 rounded-full flex items-center justify-center transition-all",
-                            "bg-amber-600 hover:bg-amber-700 text-white shadow-md hover:shadow-lg",
+                            "bg-emerald-600 hover:bg-emerald-700 text-white shadow-md hover:shadow-lg",
                             isLoading && "opacity-50 cursor-not-allowed"
                         )}
                     >
@@ -192,7 +192,7 @@ export default function PodcastPlayer({ audioUrl, duration, title }: PodcastPlay
                     <div className="flex items-center gap-2 flex-1">
                         <button
                             onClick={toggleMute}
-                            className="p-1.5 hover:bg-amber-100 rounded transition-colors"
+                            className="p-1.5 hover:bg-emerald-100 rounded transition-colors"
                         >
                             {isMuted ? (
                                 <VolumeX size={18} className="text-slate-600" />
@@ -207,12 +207,12 @@ export default function PodcastPlayer({ audioUrl, duration, title }: PodcastPlay
                             step={0.1}
                             value={isMuted ? 0 : volume}
                             onChange={handleVolumeChange}
-                            className="w-20 h-1.5 bg-amber-200 rounded-lg appearance-none cursor-pointer
+                            className="w-20 h-1.5 bg-emerald-200 rounded-lg appearance-none cursor-pointer
                        [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 
-                       [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-amber-600 
+                       [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-emerald-600 
                        [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer
                        [&::-moz-range-thumb]:w-3 [&::-moz-range-thumb]:h-3 
-                       [&::-moz-range-thumb]:bg-amber-600 [&::-moz-range-thumb]:rounded-full 
+                       [&::-moz-range-thumb]:bg-emerald-600 [&::-moz-range-thumb]:rounded-full 
                        [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:cursor-pointer"
                         />
                     </div>

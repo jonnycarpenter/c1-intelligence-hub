@@ -144,8 +144,8 @@ export function ImportYetiDashboard() {
                             title="Tracked Shipments"
                             value={stats?.tracked_shipments || 0}
                             icon={Package}
-                            color="text-amber-600"
-                            bg="bg-amber-50"
+                            color="text-emerald-600"
+                            bg="bg-emerald-50"
                         />
                     </div>
 
@@ -189,7 +189,7 @@ export function ImportYetiDashboard() {
                                                 <span className={cn(
                                                     "px-2 py-0.5 rounded-full text-[10px] font-medium uppercase",
                                                     s.supplier_tier === 'raw_material' ? "bg-purple-100 text-purple-700" :
-                                                        s.supplier_tier === 'intermediate' ? "bg-amber-100 text-amber-700" :
+                                                        s.supplier_tier === 'intermediate' ? "bg-emerald-100 text-emerald-700" :
                                                             "bg-slate-100 text-slate-600"
                                                 )}>
                                                     {s.supplier_tier?.replace('_', ' ') || 'Unknown'}

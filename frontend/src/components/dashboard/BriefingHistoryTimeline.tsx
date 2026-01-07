@@ -53,7 +53,7 @@ function TimelineItemCard({ item, onSelect, isSelected }: TimelineItemCardProps)
       className={cn(
         "w-full text-left p-3 rounded-lg border transition-all duration-200",
         isSelected
-          ? "border-amber-300 bg-amber-50"
+          ? "border-emerald-300 bg-emerald-50"
           : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
       )}
     >
@@ -62,7 +62,7 @@ function TimelineItemCard({ item, onSelect, isSelected }: TimelineItemCardProps)
         <div className={cn(
           "p-1.5 rounded-lg shrink-0",
           item.type === 'weekly' 
-            ? "bg-amber-100 text-amber-600"
+            ? "bg-emerald-100 text-emerald-600"
             : "bg-blue-100 text-blue-600"
         )}>
           {item.type === 'weekly' ? (
@@ -79,7 +79,7 @@ function TimelineItemCard({ item, onSelect, isSelected }: TimelineItemCardProps)
               className={cn(
                 "text-[9px] uppercase tracking-wider bg-white",
                 item.type === 'weekly' 
-                  ? "border-amber-200 text-amber-700"
+                  ? "border-emerald-200 text-emerald-700"
                   : "border-blue-200 text-blue-700"
               )}
             >
@@ -126,7 +126,7 @@ function WeeklyDetail({ briefing, onClose }: WeeklyDetailProps) {
       <div className="flex items-start justify-between mb-6">
         <div>
           <div className="flex items-center gap-2 mb-2">
-            <Badge className="bg-amber-100 text-amber-700">Weekly Briefing</Badge>
+            <Badge className="bg-emerald-100 text-emerald-700">Weekly Briefing</Badge>
             <span className="text-xs text-slate-400">{periodStart} - {periodEnd}</span>
           </div>
           <h2 className="text-xl font-bold text-slate-900">{briefing.briefing_title}</h2>
@@ -196,7 +196,7 @@ function AdHocDetail({ briefing, onClose }: AdHocDetailProps) {
               className={cn(
                 "text-[10px] bg-white",
                 briefing.confidence === 'high' && "border-emerald-200 text-emerald-700",
-                briefing.confidence === 'medium' && "border-amber-200 text-amber-700",
+                briefing.confidence === 'medium' && "border-emerald-200 text-emerald-700",
                 briefing.confidence === 'low' && "border-rose-200 text-rose-700",
               )}
             >
@@ -231,7 +231,7 @@ function AdHocDetail({ briefing, onClose }: AdHocDetailProps) {
                 href={source.url || '#'}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs text-slate-600 hover:text-amber-600 transition-colors"
+                className="text-xs text-slate-600 hover:text-emerald-600 transition-colors"
               >
                 {source.title}
               </a>
@@ -318,7 +318,7 @@ export default function BriefingHistoryTimeline({ isOpen, onClose }: BriefingHis
           <div className="p-4 border-b border-slate-100">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <Clock size={20} className="text-amber-600" />
+                <Clock size={20} className="text-emerald-600" />
                 <h2 className="text-lg font-bold text-slate-900">Briefing History</h2>
               </div>
               {!selectedItem && (

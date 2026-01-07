@@ -41,7 +41,7 @@ const entityConfig: Record<EntityType, { icon: typeof Building2; label: string; 
   topics: {
     icon: Tag,
     label: 'Topics',
-    color: 'text-amber-600',
+    color: 'text-emerald-600',
     tooltipPrefix: 'topics',
   },
   highPriority: {
@@ -185,7 +185,7 @@ export default function EntityAggregator({
         {hasFilters && (
           <button
             onClick={onClearFilters}
-            className="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-md transition-colors"
+            className="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-md transition-colors"
           >
             <X size={12} />
             Clear filters ({selectedEntities.size})
