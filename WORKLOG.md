@@ -1183,7 +1183,6 @@ python -c "from app.mcp.server import get_all_mcp_tools; print(f'MCP Tools: {len
 | Location | Item | Priority |
 |----------|------|----------|
 | `grounding.py:375` | Create user_preferences table in BigQuery | Low |
-| `orchestrator.py:951` | Re-enable FMP premium when acquired | Low |
 | `gcp_storage.py:2449` | Track tools_used in deep_research_reports | Low |
 | `reports.py:71` | Implement actual report generation | Medium |
 
