@@ -196,32 +196,35 @@ async def query_grooming_node(state: DeepResearchState) -> DeepResearchState:
         }
     
     # =========================================================================
-    # Context Injection: Fetch related prior research
-    # This enriches the groomer's understanding of what we've already researched
+    # Context Injection: Fetch related prior research (DISABLED for debugging)
+    # This was causing workflow hangs - disabled until root cause identified
+    # TODO: Re-enable once workflow is stable
     # =========================================================================
-    emit_progress_sync(ToolProgress(
-        tool_name="prior_research",
-        message="Checking for related prior research...",
-        status="running"
-    ))
-    prior_context = await _get_prior_research_context(user_query)
+    # emit_progress_sync(ToolProgress(
+    #     tool_name="prior_research",
+    #     message="Checking for related prior research...",
+    #     status="running"
+    # ))
+    # prior_context = await _get_prior_research_context(user_query)
+    prior_context = ""  # DISABLED - skip prior research lookup
+    logger.info("[GROOMER] Prior research context injection DISABLED for debugging")
     
     # Build system prompt with optional prior context
     system_content = GROOMER_SYSTEM_PROMPT
     if prior_context:
         system_content = f"{GROOMER_SYSTEM_PROMPT}\n\n{prior_context}"
         logger.info("Injected prior research context into groomer prompt")
-        emit_progress_sync(ToolProgress(
-            tool_name="prior_research",
-            message="Found related prior research",
-            status="complete"
-        ))
-    else:
-        emit_progress_sync(ToolProgress(
-            tool_name="prior_research",
-            message="No related prior research found",
-            status="complete"
-        ))
+        # emit_progress_sync(ToolProgress(
+        #     tool_name="prior_research",
+        #     message="Found related prior research",
+        #     status="complete"
+        # ))
+    # else:
+    #     emit_progress_sync(ToolProgress(
+    #         tool_name="prior_research",
+    #         message="No related prior research found",
+    #         status="complete"
+    #     ))
     
     # Build messages from state
     messages = [SystemMessage(content=system_content)]
