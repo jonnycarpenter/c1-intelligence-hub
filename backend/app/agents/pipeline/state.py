@@ -183,6 +183,9 @@ class SearchBlock(BaseModel):
     apollo_contact_revealed: Optional[ApolloContactRevealedResult] = Field(default=None, description="For apollo_contact_revealed")
     apollo_credits: Optional[ApolloCreditStatus] = Field(default=None, description="For apollo_credits")
     
+    # Company enrichment for contact searches (firmographics - FREE)
+    company_enrichment: Optional[ApolloEnrichmentResult] = Field(default=None, description="Company context for contact searches")
+    
     # Webset fields (for block_type="webset_building")
     webset_id: Optional[str] = Field(default=None, description="Webset ID for polling status")
     webset_name: Optional[str] = Field(default=None, description="Display name for the webset")

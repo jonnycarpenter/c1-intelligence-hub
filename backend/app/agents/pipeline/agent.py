@@ -616,12 +616,34 @@ class PipelineAgent:
                 
                 company = tool_args.get("company_name") or tool_args.get("company_domain") or "company"
                 
+                # Parse company enrichment if available (FREE firmographics)
+                company_enrichment = None
+                enrichment_data = result_data.get("company_enrichment")
+                if enrichment_data:
+                    company_enrichment = ApolloEnrichmentResult(
+                        name=enrichment_data.get("name", ""),
+                        domain=enrichment_data.get("domain", ""),
+                        description=enrichment_data.get("description"),
+                        logo_url=enrichment_data.get("logo_url"),
+                        employee_count=enrichment_data.get("employee_count"),
+                        founded_year=enrichment_data.get("founded_year"),
+                        industry=enrichment_data.get("industry"),
+                        revenue_printed=enrichment_data.get("revenue_printed"),
+                        city=enrichment_data.get("city"),
+                        state=enrichment_data.get("state"),
+                        country=enrichment_data.get("country"),
+                        linkedin_url=enrichment_data.get("linkedin_url"),
+                        technologies=enrichment_data.get("technologies", []),
+                        keywords=enrichment_data.get("keywords", []),
+                    )
+                
                 return SearchBlock(
                     id=block_id,
                     block_type="apollo_contacts",
                     title=f"Contacts at {company}",
                     query_context=user_query,
                     apollo_contacts=contacts,
+                    company_enrichment=company_enrichment,  # NEW: Include firmographics
                     result_count=len(contacts),
                 )
             

@@ -472,6 +472,8 @@ async def find_company_contacts(
     Shows first name, obfuscated last name, title, and whether email is available.
     Use reveal_contact to get full details (costs 1 credit).
     
+    Also includes company enrichment (firmographics) for context - this is FREE.
+    
     Args:
         company_name: Company name (e.g., "Hexcel Corporation")
         company_domain: Company domain (e.g., "hexcel.com") - more accurate than name
@@ -481,7 +483,7 @@ async def find_company_contacts(
         num_results: Number of contacts to find (max 25)
     
     Returns:
-        JSON list of contact teasers with has_email flag.
+        JSON with contact teasers and company enrichment data.
     
     Example:
     - find_company_contacts(company_domain="hexcel.com", department="purchasing")
@@ -518,12 +520,44 @@ async def find_company_contacts(
             for c in contacts
         ]
         
+        # Fetch company enrichment (FREE - no credits) for context
+        company_enrichment = None
+        enrich_domain = company_domain
+        if not enrich_domain and contacts and contacts[0].company_domain:
+            enrich_domain = contacts[0].company_domain
+        
+        if enrich_domain:
+            try:
+                org = await apollo_service.enrich_organization(enrich_domain)
+                if org:
+                    company_enrichment = {
+                        "name": org.name,
+                        "domain": org.domain,
+                        "description": org.description,
+                        "logo_url": org.logo_url,
+                        "employee_count": org.employee_count,
+                        "founded_year": org.founded_year,
+                        "industry": org.industry,
+                        "revenue_printed": org.revenue_printed,
+                        "city": org.city,
+                        "state": org.state,
+                        "country": org.country,
+                        "linkedin_url": org.linkedin_url,
+                        "technologies": org.technologies[:5] if org.technologies else [],
+                        "keywords": org.keywords[:5] if org.keywords else [],
+                    }
+                    logger.info(f"[Pipeline Tool] Company enrichment loaded for {enrich_domain}")
+            except Exception as e:
+                logger.warning(f"[Pipeline Tool] Company enrichment failed for {enrich_domain}: {e}")
+                # Continue without enrichment - contacts are still valuable
+        
         return json.dumps({
             "status": "success",
             "query_type": "apollo_contacts",
             "company": company_name or company_domain,
             "count": len(formatted),
             "results": formatted,
+            "company_enrichment": company_enrichment,  # NEW: Free company firmographics
             "note": "These are contact previews. Use reveal_contact with the ID to get full email (costs 1 credit).",
         }, indent=2)
         

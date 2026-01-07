@@ -45,20 +45,24 @@ The Pipeline tab is an AI-powered sales prospecting engine that combines neural 
 #### Exa.ai Search (Creates SearchBlocks)
 1. `find_similar_companies` - Lookalike targeting
 2. `search_companies` - Natural language company search
-3. `find_contacts` - Decision maker discovery
-4. `find_trigger_events` - Expansion/funding/contract signals
-5. `build_company_webset` - Deep enrichment (Full mode only)
+3. `find_trigger_events` - Expansion/funding/contract signals
+4. `build_company_webset` - Deep enrichment (Full mode only)
+
+> **Note:** `find_contacts` (Exa) is deprecated for contact search. Use `find_company_contacts` (Apollo) instead for revealable email/phone data.
 
 #### Apollo.io Enrichment (Creates SearchBlocks for contacts)
-6. `enrich_company` - FREE firmographics (employees, revenue, tech stack)
-7. `find_company_contacts` - FREE contact discovery by department
-8. `reveal_contact` - COSTS 1 CREDIT (verified email/phone)
-9. `get_apollo_credits` - Check usage
+5. `enrich_company` - FREE firmographics (employees, revenue, tech stack)
+6. `find_company_contacts` - PRIMARY contact search tool (FREE teasers + FREE company enrichment)
+   - Returns contact previews with `person_id` for reveal
+   - **Auto-includes company firmographics** (employee count, revenue, industry, location)
+   - Frontend displays company context header above contacts
+7. `reveal_contact` - COSTS 1 CREDIT (verified email/phone)
+8. `get_apollo_credits` - Check usage
 
 #### BigQuery Corpus (Chat insights only)
-10. `query_corpus` - Semantic search across article_chunk_embeddings
-11. `get_entity_mentions` - Company news from corpus
-12. `get_competitor_activity` - Competitor intelligence
+9. `query_corpus` - Semantic search across article_chunk_embeddings
+10. `get_entity_mentions` - Company news from corpus
+11. `get_competitor_activity` - Competitor intelligence
 
 ---
 
@@ -90,6 +94,31 @@ The Pipeline tab is an AI-powered sales prospecting engine that combines neural 
 
 ---
 
+## Contact Search UX Flow
+
+### User Request
+"Find contacts at Hexcel in purchasing"
+
+### Agent Processing
+1. Uses `find_company_contacts` (Apollo) with department="purchasing"
+2. Automatically fetches company enrichment (FREE)
+3. Returns SearchBlock with `apollo_contacts` + `company_enrichment`
+
+### Frontend Display
+**Company Context Header:**
+- Company logo, name, industry badge
+- Description (1-line preview)
+- Key metrics: employees, revenue, location
+- LinkedIn link
+
+**Contact Cards (below header):**
+- Name, title, seniority badge
+- "Email available" / "Phone available" badges
+- "Reveal" button (costs 1 credit on click)
+- LinkedIn link
+
+---
+
 ## Example Workflows
 
 ### 1. Basic Company Search
@@ -107,10 +136,14 @@ Agent:
 Result: SearchBlocks with employee count, revenue, industry
 ```
 
-### 3. Contact Discovery
+### 3. Contact Discovery (Apollo - Recommended)
 ```
-User: "Find purchasing managers at aerospace suppliers"
-Agent: Uses find_contacts() → Contact SearchBlocks displayed
+User: "Find purchasing managers at Hexcel"
+Agent: Uses find_company_contacts(company_name="Hexcel", department="purchasing")
+Result: 
+- Company header with Hexcel firmographics
+- Contact cards with has_email/has_phone flags
+- Reveal button to get verified contact info
 ```
 
 ### 4. Intelligence Query (Chat Only)
@@ -149,9 +182,10 @@ python scripts/testing/test_pipeline_agent.py --query "Find companies similar to
 ### Production Testing
 Navigate to Pipeline tab and test:
 1. **Search**: "Find aerospace suppliers" → Verify SearchBlocks
-2. **Insights**: "What's in the news about composites?" → Verify chat response
-3. **Apollo**: Click "Enrich with Apollo" → Verify enrichment displays
-4. **Combined**: "Find suppliers + check news" → Verify both
+2. **Contacts**: "Find purchasing managers at Boeing" → Verify company header + contact cards
+3. **Insights**: "What's in the news about composites?" → Verify chat response
+4. **Apollo Enrich**: Click "Enrich with Apollo" → Verify enrichment displays
+5. **Reveal**: Hover contact → Click "Reveal" → Verify email/phone displayed
 
 ---
 
@@ -172,6 +206,16 @@ Navigate to Pipeline tab and test:
 - Verify Apollo credits available
 - Check browser console for frontend errors
 
+### Issue: Contact search returns no results
+- Check `APOLLO_API_KEY` is valid and has credits
+- Try searching by domain instead of company name
+- Verify the company exists in Apollo's database
+
+### Issue: Company header not showing on contact results
+- Ensure `company_enrichment` is present in SearchBlock
+- Check that Apollo could enrich the company domain
+- Frontend gracefully degrades if enrichment unavailable
+
 ### Issue: Corpus tools return no results
 - Normal! Agent should say "No recent intel found"
 - Verify BigQuery vector store is populated
@@ -180,6 +224,16 @@ Navigate to Pipeline tab and test:
 ---
 
 ## Recent Updates (Jan 2026)
+
+### Session 62: Contact Card Enrichment
+- `find_company_contacts` now auto-fetches FREE company firmographics
+- Frontend displays company context header (logo, name, employees, revenue, industry)
+- Contact cards appear below company header with reveal capability
+
+### Session 61: Apollo Contact Search Fix
+- Deprecated Exa.ai `find_contacts` tool (returns LinkedIn profiles without `person_id`)
+- Made Apollo `find_company_contacts` the PRIMARY contact search tool
+- Contacts now have `person_id` for email/phone reveal functionality
 
 ### BigQuery Corpus Integration
 - Added 3 corpus tools to Pipeline agent
@@ -197,3 +251,4 @@ Navigate to Pipeline tab and test:
 - **Sales Prospecting Pipeline KI**: Knowledge item with comprehensive architecture docs
 - **Corpus Query Tools**: See `backend/app/mcp/tools/corpus_query.py`
 - **Agent Implementation**: See `backend/app/agents/pipeline/agent.py`
+- **Apollo Service**: See `backend/app/services/apollo_service.py`

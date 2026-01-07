@@ -17,9 +17,48 @@ Without reliable daily ingestion:
 **Always verify scheduler jobs are running before working on features.**
 
 ---
+## 📅 SESSION 62: Pipeline Contact Card Enrichment (January 7, 2026)
+
+**Status**: ✅ COMPLETE - Ready for Production Deploy
+
+### 🎯 Goal
+Enrich Apollo contact "hunting cards" with company firmographics, similar to how company search results show enriched data.
+
+### ✅ Changes Implemented
+
+**Backend - `pipeline_search.py`**
+- `find_company_contacts` tool now automatically fetches company enrichment (FREE via Apollo `enrich_organization`)
+- Returns `company_enrichment` with: employee count, revenue, industry, location, LinkedIn, description
+
+**Backend - `state.py`**
+- Added `company_enrichment: Optional[ApolloEnrichmentResult]` to `SearchBlock` model
+
+**Backend - `agent.py`**
+- Agent now parses `company_enrichment` from tool response and includes in SearchBlock
+
+**Frontend - `types/index.ts`**
+- Added `company_enrichment` field to `SearchBlock` interface
+
+**Frontend - `SearchBlockCard.tsx`**
+- Added company context header above Apollo contacts list
+- Displays: company logo, name, industry, description, employee count, revenue, location, LinkedIn link
+- Uses cyan gradient styling consistent with Apollo contacts theme
+
+### 📋 Files Modified
+- `backend/app/mcp/tools/pipeline_search.py` - Company enrichment in tool response
+- `backend/app/agents/pipeline/state.py` - SearchBlock model update
+- `backend/app/agents/pipeline/agent.py` - Parse and pass company enrichment
+- `frontend/src/types/index.ts` - TypeScript type update
+- `frontend/src/components/pipeline/SearchBlockCard.tsx` - Company header UI
+
+### 🔍 Verification Note
+- Local testing blocked due to missing `APOLLO_API_KEY` in local `.env`
+- Production has API keys in Secret Manager - will work after deploy
+
+---
 ## 📅 SESSION 61: Pipeline Contact Search Fix - Apollo vs Exa (January 7, 2026)
 
-**Status**: 🚧 IN PROGRESS - Needs Verification After Backend Restart
+**Status**: ✅ COMPLETE - Deployed with Session 62
 
 ### 🎯 Issue Reported
 **"Get list of contact information" functionality in Pipeline tab is not working.**

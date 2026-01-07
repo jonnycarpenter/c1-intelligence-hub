@@ -427,6 +427,9 @@ export interface SearchBlock {
   apollo_contact_revealed?: ApolloContactRevealedResult
   apollo_credits?: ApolloCreditStatus
 
+  // Company enrichment for contact searches (firmographics)
+  company_enrichment?: ApolloEnrichmentResult
+
   // Webset fields for Full List mode
   webset_id?: string
   webset_name?: string
@@ -633,7 +636,7 @@ export interface DeepResearchReport {
 }
 
 /** Workflow node types */
-export type DeepResearchNode = 
+export type DeepResearchNode =
   | 'groom'
   | 'financial_research'
   | 'industry_research'

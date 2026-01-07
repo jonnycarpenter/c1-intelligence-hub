@@ -309,14 +309,85 @@ export function SearchBlockCard({
           )}
 
           {/* Apollo.io Contact Teasers */}
-          {isApolloContacts && block.apollo_contacts && block.apollo_contacts.map((contact, idx) => (
-            <ApolloContactTeaserItem
-              key={`${contact.id}-${idx}`}
-              contact={contact}
-              onReveal={onRevealContact}
-              isRevealing={isRevealing}
-            />
-          ))}
+          {isApolloContacts && block.apollo_contacts && (
+            <>
+              {/* Company Context Header (if enrichment available) */}
+              {block.company_enrichment && (
+                <div className="mb-4 p-4 rounded-xl border border-cyan-100 bg-gradient-to-br from-cyan-50/50 to-white">
+                  <div className="flex items-center gap-4">
+                    <CompanyLogo
+                      domain={block.company_enrichment.domain}
+                      logoUrl={block.company_enrichment.logo_url}
+                      size={56}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="text-lg font-semibold text-slate-900">
+                          {block.company_enrichment.name}
+                        </h4>
+                        {block.company_enrichment.industry && (
+                          <span className="px-2 py-0.5 text-xs bg-slate-100 text-slate-600 rounded-full">
+                            {block.company_enrichment.industry}
+                          </span>
+                        )}
+                      </div>
+                      {block.company_enrichment.description && (
+                        <p className="text-sm text-slate-500 line-clamp-1 mt-0.5">
+                          {block.company_enrichment.description}
+                        </p>
+                      )}
+                      {/* Key Metrics Row */}
+                      <div className="flex items-center gap-4 mt-2 text-xs text-slate-500">
+                        {block.company_enrichment.employee_count && (
+                          <span className="flex items-center gap-1">
+                            <Users className="w-3.5 h-3.5 text-cyan-600" />
+                            <span className="font-medium text-slate-700">
+                              {block.company_enrichment.employee_count.toLocaleString()}
+                            </span> employees
+                          </span>
+                        )}
+                        {block.company_enrichment.revenue_printed && (
+                          <span className="flex items-center gap-1">
+                            <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
+                            <span className="font-medium text-slate-700">
+                              {block.company_enrichment.revenue_printed}
+                            </span> revenue
+                          </span>
+                        )}
+                        {(block.company_enrichment.city || block.company_enrichment.state) && (
+                          <span className="flex items-center gap-1">
+                            <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                            {[block.company_enrichment.city, block.company_enrichment.state]
+                              .filter(Boolean).join(', ')}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {block.company_enrichment.linkedin_url && (
+                      <a
+                        href={block.company_enrichment.linkedin_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-blue-600 transition-colors"
+                        title="View company LinkedIn"
+                      >
+                        <Linkedin className="w-5 h-5" />
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
+              {/* Contact Cards */}
+              {block.apollo_contacts.map((contact, idx) => (
+                <ApolloContactTeaserItem
+                  key={`${contact.id}-${idx}`}
+                  contact={contact}
+                  onReveal={onRevealContact}
+                  isRevealing={isRevealing}
+                />
+              ))}
+            </>
+          )}
 
           {/* Apollo.io Revealed Contact */}
           {isApolloRevealed && block.apollo_contact_revealed && (
