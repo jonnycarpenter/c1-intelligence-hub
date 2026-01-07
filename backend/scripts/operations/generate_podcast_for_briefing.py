@@ -61,13 +61,14 @@ async def generate_podcast_for_briefing(briefing_id: str = None):
     print("\n🎙️ Initializing podcast generator...")
     generator = WeeklyBriefingGenerator()
     
-    if not generator.elevenlabs_client:
-        print("❌ ElevenLabs client not configured!")
+    if not settings.elevenlabs_api_key:
+        print("❌ ElevenLabs API key not configured!")
         print("   Make sure ELEVENLABS_API_KEY is set in your environment.")
         return
     
-    print(f"   Voice ID: {generator.voice_id}")
-    print(f"   Model: {getattr(settings, 'elevenlabs_model', 'eleven_monolingual_v1')}")
+    print(f"   Host Voice: {generator.host_voice_id} (Rachel)")
+    print(f"   Analyst Voice: {generator.analyst_voice_id} (Josh)")
+    print(f"   Model: eleven_v3 (Text-to-Dialogue API)")
     
     # 3. Generate podcast
     print("\n🎤 Generating podcast audio...")

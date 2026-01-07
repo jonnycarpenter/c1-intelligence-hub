@@ -24,8 +24,6 @@ from collections import Counter
 from exa_py import Exa
 
 from app.utils.resilient_llm import get_resilient_async_client
-from elevenlabs import ElevenLabs
-from elevenlabs.types import VoiceSettings
 
 from app.db.vector_store import get_production_vector_store
 from app.config.settings import settings
@@ -163,20 +161,12 @@ Otherwise, respond with the final briefing JSON:
         if not self.exa_client:
             logger.warning("Exa API key not configured - peripheral search disabled")
         
-        # Initialize ElevenLabs client for podcast generation
-        elevenlabs_api_key = getattr(self.config, 'elevenlabs_api_key', None)
-        if elevenlabs_api_key:
-            self.elevenlabs_client = ElevenLabs(api_key=elevenlabs_api_key)
-            self.host_voice_id = getattr(self.config, 'elevenlabs_host_voice_id', '21m00Tcm4TlvDq8ikWAM')  # Rachel
-            self.analyst_voice_id = getattr(self.config, 'elevenlabs_analyst_voice_id', 'TxGEqnHWrfWFTfGW9XjX')  # Josh
-            self.voice_settings = VoiceSettings(
-                stability=getattr(self.config, 'elevenlabs_voice_stability', 0.5),
-                similarity_boost=getattr(self.config, 'elevenlabs_voice_similarity_boost', 0.75),
-                style=0.0,
-                use_speaker_boost=True
-            )
-        else:
-            self.elevenlabs_client = None
+        # ElevenLabs config for podcast generation (uses Text-to-Dialogue API)
+        # Voice IDs: Host=Rachel (warm, engaging), Analyst=Josh (professional, clear)
+        self.host_voice_id = getattr(self.config, 'elevenlabs_host_voice_id', '21m00Tcm4TlvDq8ikWAM')  # Rachel
+        self.analyst_voice_id = getattr(self.config, 'elevenlabs_analyst_voice_id', 'TxGEqnHWrfWFTfGW9XjX')  # Josh
+        
+        if not getattr(self.config, 'elevenlabs_api_key', None):
             logger.warning("ElevenLabs API key not configured - podcast generation disabled")
         
         # GCS client for podcast upload (lazy-loaded)
@@ -641,16 +631,20 @@ Otherwise, respond with the final briefing JSON:
     
     async def _generate_podcast(self, briefing: Dict[str, Any], briefing_id: str) -> Optional[Dict[str, Any]]:
         """
-        Generate conversational podcast audio from briefing data.
+        Generate conversational podcast audio from briefing data using ElevenLabs Text-to-Dialogue API.
         
         Uses two voices (Host: Rachel, Analyst: Josh) for a natural dialogue.
+        Single API call handles all speaker transitions smoothly.
         
         Returns:
             Dict with {podcast_url, podcast_duration_seconds, podcast_generated_at}
             or None if generation fails.
         """
-        if not self.elevenlabs_client:
-            logger.warning("ElevenLabs client not configured - skipping podcast generation")
+        import httpx
+        
+        elevenlabs_api_key = getattr(self.config, 'elevenlabs_api_key', None)
+        if not elevenlabs_api_key:
+            logger.warning("ElevenLabs API key not configured - skipping podcast generation")
             return None
         
         try:
@@ -662,63 +656,68 @@ Otherwise, respond with the final briefing JSON:
             total_words = sum(len(turn["text"].split()) for turn in dialogue)
             logger.info(f"Generated podcast dialogue ({len(dialogue)} turns, ~{total_words} words)")
             
-            # 2. Generate audio for each turn and concatenate
-            all_audio_chunks = []
-            max_retries = 3
+            # 2. Convert dialogue to ElevenLabs Text-to-Dialogue format
+            inputs = []
+            for turn in dialogue:
+                voice_id = self.host_voice_id if turn["speaker"] == "host" else self.analyst_voice_id
+                inputs.append({
+                    "text": turn["text"],
+                    "voice_id": voice_id
+                })
             
-            for turn_idx, turn in enumerate(dialogue):
-                speaker = turn["speaker"]
-                text = turn["text"]
-                voice_id = self.host_voice_id if speaker == "host" else self.analyst_voice_id
-                
-                retry_delay = 2
-                turn_audio = None
-                
-                for attempt in range(max_retries):
-                    try:
-                        logger.debug(f"Generating turn {turn_idx + 1}/{len(dialogue)} ({speaker})")
-                        
-                        # Generate speech for this turn
-                        audio_generator = self.elevenlabs_client.text_to_speech.convert(
-                            voice_id=voice_id,
-                            text=text,
-                            model_id=getattr(self.config, 'elevenlabs_model', 'eleven_monolingual_v1'),
-                            voice_settings=self.voice_settings
+            # 3. Call ElevenLabs Text-to-Dialogue API (single call for entire conversation)
+            max_retries = 3
+            retry_delay = 2
+            audio_data = None
+            
+            for attempt in range(max_retries):
+                try:
+                    logger.info(f"Calling ElevenLabs Text-to-Dialogue API (attempt {attempt + 1}/{max_retries})")
+                    
+                    async with httpx.AsyncClient(timeout=120.0) as client:
+                        response = await client.post(
+                            "https://api.elevenlabs.io/v1/text-to-dialogue",
+                            headers={
+                                "xi-api-key": elevenlabs_api_key,
+                                "Content-Type": "application/json"
+                            },
+                            json={
+                                "inputs": inputs,
+                                "model_id": "eleven_v3",
+                                "apply_text_normalization": "on"
+                            }
                         )
                         
-                        # Collect audio chunks for this turn
-                        turn_chunks = []
-                        for chunk in audio_generator:
-                            if chunk:
-                                turn_chunks.append(chunk)
-                        
-                        turn_audio = b''.join(turn_chunks)
-                        break
-                        
-                    except Exception as e:
-                        error_msg = str(e)
-                        if 'rate' in error_msg.lower() or '429' in error_msg:
-                            logger.warning(f"Rate limited by ElevenLabs on turn {turn_idx + 1}, retrying in {retry_delay}s...")
+                        if response.status_code == 200:
+                            audio_data = response.content
+                            logger.info(f"Generated dialogue audio ({len(audio_data)} bytes)")
+                            break
+                        elif response.status_code == 429:
+                            logger.warning(f"Rate limited by ElevenLabs, retrying in {retry_delay}s...")
                             if attempt < max_retries - 1:
                                 time.sleep(retry_delay)
                                 retry_delay *= 2
                                 continue
-                        raise
-                
-                if turn_audio:
-                    all_audio_chunks.append(turn_audio)
-                else:
-                    logger.warning(f"Failed to generate audio for turn {turn_idx + 1}, skipping")
+                        else:
+                            logger.error(f"ElevenLabs API error: {response.status_code} - {response.text}")
+                            if attempt < max_retries - 1:
+                                time.sleep(retry_delay)
+                                retry_delay *= 2
+                                continue
+                            
+                except Exception as e:
+                    logger.error(f"Error calling ElevenLabs API: {e}")
+                    if attempt < max_retries - 1:
+                        time.sleep(retry_delay)
+                        retry_delay *= 2
+                        continue
+                    raise
             
-            if not all_audio_chunks:
-                logger.error("Failed to generate any audio chunks")
+            if not audio_data:
+                logger.error("Failed to generate audio after all retries")
                 return None
             
-            # Concatenate all audio (simple byte concatenation works for MP3)
-            audio_data = b''.join(all_audio_chunks)
-            logger.info(f"Generated {len(all_audio_chunks)} audio segments ({len(audio_data)} bytes total)")
-            
-            # 3. Upload to Google Cloud Storage
+            # 4. Upload to Google Cloud Storage
             from google.cloud import storage
             
             if self._gcs_client is None:
@@ -735,7 +734,7 @@ Otherwise, respond with the final briefing JSON:
             podcast_url = f"https://storage.googleapis.com/{self.config.gcs_bucket_name}/{blob_name}"
             logger.info(f"Uploaded podcast to GCS: {podcast_url}")
             
-            # 4. Calculate duration (approximate: 150 words/min)
+            # 5. Calculate duration (approximate: 150 words/min)
             duration_seconds = int((total_words / 150) * 60)
             
             generation_time = time.time() - start_time
