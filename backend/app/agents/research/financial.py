@@ -17,8 +17,51 @@ from app.utils.grounding import load_companies
 import json
 import time
 import logging
+import re
 
 logger = logging.getLogger(__name__)
+
+
+def _truncate_result_content(results: list, max_chars: int = 3000) -> list:
+    """Truncate content in each result to avoid exceeding token limits."""
+    truncated = []
+    for r in results:
+        r_copy = r.copy()
+        content = r_copy.get("content", "")
+        if isinstance(content, str) and len(content) > max_chars:
+            r_copy["content"] = content[:max_chars] + "... [truncated]"
+        elif isinstance(content, (dict, list)):
+            content_str = json.dumps(content, default=str)
+            if len(content_str) > max_chars:
+                r_copy["content"] = content_str[:max_chars] + "... [truncated]"
+        truncated.append(r_copy)
+    return truncated
+
+
+def _repair_truncated_json(content: str) -> str:
+    """Attempt to repair truncated JSON by closing brackets/braces."""
+    # Count open brackets
+    open_braces = content.count('{') - content.count('}')
+    open_brackets = content.count('[') - content.count(']')
+    
+    # Check for unclosed strings (odd number of unescaped quotes)
+    # Simple heuristic: if we're in a string, close it
+    in_string = False
+    i = 0
+    while i < len(content):
+        if content[i] == '"' and (i == 0 or content[i-1] != '\\'):
+            in_string = not in_string
+        i += 1
+    
+    repaired = content
+    if in_string:
+        repaired += '"'
+    
+    # Close arrays and objects
+    repaired += ']' * open_brackets
+    repaired += '}' * open_braces
+    
+    return repaired
 
 
 def _resolve_all_tickers(queries: List[str], companies_df) -> Set[str]:
@@ -258,6 +301,7 @@ async def financial_research_node(state: DeepResearchState) -> Dict[str, Any]:
         anthropic_api_key=settings.anthropic_api_key,
         openai_api_key=settings.openai_api_key,
         temperature=0,
+        max_tokens=8192,  # Increased from default 4096 to prevent truncation
     )
     
     brief = state["research_brief"]
@@ -437,8 +481,9 @@ async def financial_research_node(state: DeepResearchState) -> Dict[str, Any]:
     # =========================================================================
     ranked_results = _rank_financial_results(raw_results, brief.original_query)
     
-    # Take top 15 results by relevance (SEC filings > earnings > analyst > news)
-    top_results = ranked_results[:15]
+    # Take top 8 results by relevance and truncate content to prevent token overflow
+    # Reduced from 15 to avoid LLM output truncation causing JSON parse errors
+    top_results = _truncate_result_content(ranked_results[:8], max_chars=3000)
     
     # Prepare research context for the extraction prompt
     research_context = f"""
@@ -524,8 +569,16 @@ IMPORTANT:
             content = content.split("```json")[1].split("```")[0].strip()
         elif "```" in content:
             content = content.split("```")[1].split("```")[0].strip()
+        
+        # Try to parse JSON, with repair attempt if truncated
+        try:
+            output_data = json.loads(content)
+        except json.JSONDecodeError as parse_err:
+            logger.warning(f"[FINANCIAL_RESEARCH] JSON parse error, attempting repair: {parse_err}")
+            repaired_content = _repair_truncated_json(content)
+            output_data = json.loads(repaired_content)
+            logger.info("[FINANCIAL_RESEARCH] JSON repair successful")
             
-        output_data = json.loads(content)
         financial_output = FinancialAgentOutput(**output_data)
         
         # Add execution metadata

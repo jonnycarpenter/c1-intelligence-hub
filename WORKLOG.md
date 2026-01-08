@@ -70,51 +70,51 @@ Also discovered: **Frontend/backend schema mismatch** - frontend expects `metric
 - Can reference prior research: "This confirms our earlier finding..."
 
 ---
-## 🐛 NEXT: Financial/Industry Agent JSON Parsing Errors
+## ✅ FIXED: Financial/Industry Agent JSON Parsing Errors (Session 66 continued)
 
-**Priority**: HIGH - Blocking Deep Research reports
-**Discovered During**: Session 66 local testing
+**Priority**: HIGH - Was blocking Deep Research reports
+**Status**: ✅ FIXED
 
 ### 🎯 Issue
-During local testing, both Financial and Industry research agents are failing to parse LLM JSON output:
+Both Financial and Industry research agents were failing to parse LLM JSON output:
 ```
 {"node": "financial_research_synthesis", "error": "Expecting value: line 236 column 73 (char 14597)"}
 {"node": "industry_research_synthesis", "error": "Unterminated string starting at: line 233 column 25 (char 14340)"}
 ```
 
-This causes `final_report` to be `None`, which cascades:
-- Category agent: "No final_report available for category analysis"
-- Validator: "No final_report available for validation"
+### 🔍 Root Cause Found
+**Token truncation!** The error positions (char 14597, 14340) = ~14-15KB of output.
+- Default `max_tokens=4096` in `ResilientChatAnthropic` ≈ 16KB
+- Both agents were hitting the token limit mid-JSON output
+- Neither agent was passing `max_tokens` parameter
 
-### 🔍 Analysis
-- **Location**: `backend/app/agents/research/financial.py` and `industry.py`
-- **Pattern**: LLM returns truncated or malformed JSON (line 233-236 suggests very long output)
-- **Likely cause**: Output exceeds max_tokens, gets truncated mid-JSON
-- **Not related to**: Session 66 synthesizer changes (these are upstream agents)
+**Input overload:**
+- Financial: `json.dumps(top_results, indent=2, default=str)[:50000]` - up to 50KB input!
+- Industry: `json.dumps(top_results, indent=2, default=str)` - no limit!
 
-### 💡 Potential Solutions
+### ✅ Fix Applied (3-layer defense)
 
-**Option 1: Increase max_tokens for research agents**
-- Check if `max_tokens` is set too low in financial.py/industry.py
-- LLM might be hitting output limit before completing JSON
+**1. Increased `max_tokens` to 8192**
+```python
+llm = create_resilient_llm_with_openai_fallback(
+    ...
+    max_tokens=8192,  # Was defaulting to 4096
+)
+```
 
-**Option 2: Add JSON repair logic**
-- Use a library like `json-repair` to fix truncated JSON
-- Or add manual repair for common truncation patterns (missing `}]`)
+**2. Reduced input size**
+- Changed `top_results = ranked_results[:15]` → `[:8]`
+- Added `_truncate_result_content()` helper to cap each result at 3000 chars
 
-**Option 3: Chunk findings**  
-- If agents find too many results, paginate or summarize before JSON serialization
-- Limit findings to top N before LLM synthesis
+**3. Added JSON repair fallback**
+- New `_repair_truncated_json()` helper attempts to close unclosed brackets/braces
+- If `json.loads()` fails, tries repair before giving up
 
-**Option 4: Use streaming/structured output**
-- Switch to Anthropic's structured output mode (tool_use pattern)
-- Guarantees valid JSON structure
-
-### 📁 Files to Investigate
-- `backend/app/agents/research/financial.py` - Find JSON parsing section
-- `backend/app/agents/research/industry.py` - Find JSON parsing section
-- Check `max_tokens` setting in both
-- Look for `json.loads()` call and add try/except with repair
+### 📁 Files Modified
+| File | Changes |
+|------|---------|
+| `backend/app/agents/research/financial.py` | max_tokens=8192, top 8 results, content truncation, JSON repair |
+| `backend/app/agents/research/industry.py` | max_tokens=8192, top 8 results, content truncation, JSON repair |
 
 ---
 ## ✅ COMPLETED: Synthesizer Prior Research Context Injection
