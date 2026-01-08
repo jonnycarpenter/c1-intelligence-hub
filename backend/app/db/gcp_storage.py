@@ -1808,14 +1808,23 @@ class BigQueryDataStorage(DataStorageInterface):
         }
         
         try:
+            logger.info(f"[BQ_SAVE] Inserting weekly briefing {row['id']} into {table_id}")
+            logger.debug(f"[BQ_SAVE] Row keys: {list(row.keys())}")
+            logger.debug(f"[BQ_SAVE] Sections length: {len(row.get('sections', ''))}")
+            
             errors = self.client.insert_rows_json(table_id, [row])
             if errors:
-                logger.error(f"BigQuery insert error for weekly briefing: {errors}")
+                logger.error(f"[BQ_SAVE] FAILED - BigQuery insert errors for {row['id']}: {errors}")
+                # Log the problematic row structure for debugging
+                for key, val in row.items():
+                    val_type = type(val).__name__
+                    val_preview = str(val)[:100] if val else 'None'
+                    logger.error(f"[BQ_SAVE]   {key}: {val_type} = {val_preview}")
                 return False
-            logger.info(f"Stored weekly briefing {briefing_data['id']} in BigQuery")
+            logger.info(f"[BQ_SAVE] SUCCESS - Stored weekly briefing {briefing_data['id']} in BigQuery")
             return True
         except Exception as e:
-            logger.error(f"Error storing weekly briefing in BigQuery: {e}")
+            logger.error(f"[BQ_SAVE] EXCEPTION storing weekly briefing: {e}", exc_info=True)
             return False
     
     async def get_latest_weekly_briefing(self) -> Optional[Dict[str, Any]]:

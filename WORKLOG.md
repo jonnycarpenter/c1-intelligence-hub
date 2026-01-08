@@ -57,7 +57,7 @@ Weekly briefing generation failing with `AttributeError: 'dict' object has no at
 - `WORKLOG.md`
 - `backend/app/ingestion/generators/README.md`
 
-### 🔴 OPEN INVESTIGATION: Briefing Generated But Not Saved
+### 🔴 INVESTIGATION: Briefing Generated But Not Saved
 
 **Symptom**: 
 - Triggered briefing at ~22:47 CST (04:47 UTC)
@@ -65,18 +65,34 @@ Weekly briefing generation failing with `AttributeError: 'dict' object has no at
 - No new row in `weekly_briefings` BigQuery table
 - Only 2 rows exist in `weekly_briefings` (both from Jan 5)
 
-**What We Know**:
-1. The `AttributeError` is fixed (no more `'dict' object has no attribute 'id'`)
-2. Agent 2 ran successfully (took ~3 minutes, returned 200)
-3. But the briefing did NOT save to `weekly_briefings` table
+**Root Cause Analysis (Session 68)**:
+The old `_save_briefing()` method was **swallowing exceptions silently**:
+- Caught exceptions, logged them, but didn't propagate
+- `generate()` would still return the briefing object even if save failed
+- Scheduler saw a valid briefing → returned 200 OK
 
-**Next Steps for Investigation**:
-1. Check Cloud Run logs around 04:48 UTC for:
-   - `Agent 2: Synthesis complete` (should appear if generation succeeded)
-   - `Saved weekly briefing to BigQuery` (likely MISSING - this is the problem)
-   - Any errors in `_save_briefing()` or `save_weekly_briefing()`
-2. Look at `_save_briefing()` method (line 977-985 in `weekly_briefing.py`)
-3. Check `bq_storage.save_weekly_briefing()` in `gcp_storage.py`
+**Verified**:
+- ✅ BigQuery schema is correct (all fields including podcast_* exist)
+- ✅ Test save with realistic data works locally
+- ✅ Pre-brief from Jan 7 (04:47 UTC) exists and is valid (50 articles)
+- ❓ Actual save failure reason unknown (need Cloud Run logs)
+
+### 🛠️ FIX: Improved Error Propagation (Session 68 - Ready to Deploy)
+
+**`weekly_briefing.py` - `_save_briefing()`**:
+- Now returns `bool` to indicate success/failure  
+- Checks return value of `save_weekly_briefing()` (was being ignored!)
+- Re-raises exceptions instead of swallowing
+- Added `[SAVE]` prefixed logs for easy Cloud Run filtering
+- If save fails, `generate()` now returns `None` (scheduler will show error)
+
+**`gcp_storage.py` - `save_weekly_briefing()`**:
+- Added `[BQ_SAVE]` prefixed logs
+- On failure: logs each field's type and value preview for debugging
+- Helps identify schema mismatches or serialization issues
+
+**Test Script Added**:
+- `backend/scripts/testing/test_agent2_save.py` - Tests save path locally
 
 **Key Tables**:
 - `briefings` = Legacy category-based briefings (MARKET, COMPETITOR, etc.) - NOT used by current Pulse

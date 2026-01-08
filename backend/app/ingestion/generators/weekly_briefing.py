@@ -964,8 +964,14 @@ Otherwise, respond with the final briefing JSON:
             else:
                 logger.warning("Podcast generation failed or skipped - briefing will be saved without podcast")
             
-            # Save to storage
-            await self._save_briefing(briefing_record)
+            # Save to storage - this MUST succeed for the briefing to be valid
+            logger.info(f"Agent 2: About to save briefing {briefing_record['id']}")
+            save_success = await self._save_briefing(briefing_record)
+            
+            if not save_success:
+                logger.error(f"Agent 2: CRITICAL - Briefing {briefing_record['id']} was NOT saved to BigQuery!")
+                # Return None to indicate failure to the scheduler
+                return None
             
             logger.info(f"Agent 2: Synthesis complete. Generated {len(processed_sections)} strategic sections.")
             return briefing_record
@@ -974,17 +980,36 @@ Otherwise, respond with the final briefing JSON:
             logger.error(f"Error in Agent 2 synthesis: {e}", exc_info=True)
             return None
     
-    async def _save_briefing(self, briefing: Dict[str, Any]):
-        """Save briefing to BigQuery."""
+    async def _save_briefing(self, briefing: Dict[str, Any]) -> bool:
+        """Save briefing to BigQuery.
+        
+        Returns:
+            True if save succeeded, False otherwise
+        
+        Raises:
+            Exception: Re-raises any BigQuery errors after logging
+        """
         try:
             bq_storage = await self._get_bq_storage()
             if bq_storage:
-                await bq_storage.save_weekly_briefing(briefing)
-                logger.info("Saved weekly briefing to BigQuery")
+                # Log briefing structure for debugging
+                logger.info(f"[SAVE] Attempting to save briefing {briefing.get('id')}")
+                logger.info(f"[SAVE] Sections count: {len(briefing.get('sections', []))}")
+                logger.info(f"[SAVE] Article count: {briefing.get('article_count')}")
+                
+                success = await bq_storage.save_weekly_briefing(briefing)
+                if success:
+                    logger.info(f"[SAVE] SUCCESS - Saved weekly briefing {briefing.get('id')} to BigQuery")
+                    return True
+                else:
+                    logger.error(f"[SAVE] FAILED - save_weekly_briefing returned False for {briefing.get('id')}")
+                    return False
             else:
-                logger.warning("BigQuery storage not available - briefing not saved")
+                logger.error("[SAVE] BigQuery storage not available - briefing NOT saved!")
+                return False
         except Exception as e:
-            logger.error(f"Failed to save briefing to BigQuery: {e}")
+            logger.error(f"[SAVE] EXCEPTION while saving briefing to BigQuery: {e}", exc_info=True)
+            raise  # Re-raise so caller knows save failed
 
 
 # Convenience function for scheduler
