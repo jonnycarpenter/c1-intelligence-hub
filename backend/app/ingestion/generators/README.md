@@ -126,7 +126,13 @@ Citations like `[1]`, `[2]` in text are linked to actual articles:
 - Pre-brief citations: `[N]` → articles from Agent 1's analysis
 - Exa citations: `[Exa:N]` → articles from peripheral intelligence search
 
+**Frontend UX (Session 67 update)**:
+- **Hover** on citation number → shows publication domain (e.g., `reuters.com`)
+- **Click** citation → opens source URL in new tab
+- **Sources Footer** → grouped by domain with citation numbers (e.g., `wsj.com [1, 3], compositeworld.com [2]`)
+
 The `_extract_citation_numbers()` method parses these from section text.
+The `_extract_domain()` method extracts publication domains from URLs.
 
 ### BLUF (Bottom Line Up Front)
 A single-sentence executive summary displayed prominently at the top of the briefing.

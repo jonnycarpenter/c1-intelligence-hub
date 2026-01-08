@@ -43,21 +43,24 @@ Read these files first:
 
 ## Deployment
 
-**CI/CD Pipeline**: Git push to `main` → GitHub → Cloud Build Trigger → Cloud Run
+**CI/CD Pipeline**: Git push to `master` → GitHub → Cloud Build Trigger → Cloud Run
 
 **Region**: `us-central1` (always)
 
-**Production Deployment** (preferred - via git):
-```bash
-git add .
-git commit -m "Description of changes"
-git push origin main
-# Cloud Build trigger auto-deploys to Cloud Run
+**Production Deployment** (via git, PowerShell):
+```powershell
+git add -A; git commit -m "Description of changes"; git push origin master
+# Cloud Build trigger auto-deploys to Cloud Run (~3-5 min)
 ```
 
-**Manual Deploy** (if needed):
-```bash
+**Manual Deploy** (if needed, PowerShell):
+```powershell
 gcloud builds submit --config=cloudbuild.yaml --region=us-central1 --project=gen-lang-client-0436975498
+```
+
+**Trigger Briefing Generation** (PowerShell):
+```powershell
+Invoke-RestMethod -Uri "https://c1-hub-4iz75bvpyq-uc.a.run.app/api/v1/scheduler/briefing" -Method POST -ContentType "application/json" -Body '{}'
 ```
 
 **Cloud Run URL**: `https://c1-hub-4iz75bvpyq-uc.a.run.app`
@@ -67,12 +70,14 @@ gcloud builds submit --config=cloudbuild.yaml --region=us-central1 --project=gen
 
 When adding a new API key/secret:
 1. Create in Secret Manager (no trailing newlines!):
-   ```bash
-   echo -n "your-key-value" | gcloud secrets create SECRET_NAME --data-file=- --project=gen-lang-client-0436975498
+   ```powershell
+   $key = "your-key-value"
+   $key | gcloud secrets create SECRET_NAME --data-file=- --project=gen-lang-client-0436975498
    ```
 2. Add to `cloudbuild.yaml` in the `--set-secrets` line
 3. Add to `backend/app/config/settings.py` 
 4. Commit and push - Cloud Build will mount the secret
+
 
 ## Key Files
 

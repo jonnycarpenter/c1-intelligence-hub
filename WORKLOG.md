@@ -17,6 +17,45 @@ Without reliable daily ingestion:
 **Always verify scheduler jobs are running before working on features.**
 
 ---
+## 📅 SESSION 67: Briefing Generation Bug Fix + Citation UX Overhaul (January 7, 2026)
+
+**Status**: ✅ COMPLETE - Deployed
+
+### 🎯 Issue
+Weekly briefing generation failing with `AttributeError: 'dict' object has no attribute 'id'`. Also, citations showed "Exa Research" instead of actual publication domains.
+
+### 🔍 Root Cause
+`_build_source_articles()` in `weekly_briefing.py` was treating articles as objects with attributes (`a.id`, `a.title`) but `get_articles_by_ids()` from BigQuery returns dicts.
+
+### ✅ Changes Made
+
+**Backend (`weekly_briefing.py`)**:
+- Fixed dict access: `a.get('id')` instead of `a.id`
+- Added `_extract_domain()` helper to extract real domains from URLs
+- Exa sources now show actual publication domain (e.g., `reuters.com`) instead of "Exa Research"
+- Unified citation numbering (no "Exa:" prefix for frontend)
+
+**Frontend (`WeeklyBriefingSection.tsx`)**:
+- Citations now clickable → opens source URL in new tab
+- Hover on citation → shows domain name (e.g., `compositeworld.com`)
+- Sources footer grouped by domain with citation numbers (e.g., `wsj.com [1, 3]`)
+- Added `extractDomain()` helper function
+
+**Types (`briefing.ts`)**:
+- Added `article_number` field to `SourceArticle` interface
+
+**Documentation (`CLAUDE.md`)**:
+- Updated deployment section with PowerShell-compatible commands
+- Fixed branch name: `master` instead of `main`
+- Added briefing generation trigger command
+
+### 📁 Files Modified
+- `backend/app/ingestion/generators/weekly_briefing.py`
+- `frontend/src/components/dashboard/WeeklyBriefingSection.tsx`
+- `frontend/src/types/briefing.ts`
+- `CLAUDE.md`
+
+---
 ## 📅 SESSION 66: Synthesizer Brevity Refactor + Prior Research Context (January 7, 2026)
 
 **Status**: ✅ COMPLETE - Ready for deploy
