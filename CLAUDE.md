@@ -129,6 +129,9 @@ When adding a new API key/secret:
 | **Article images table** | BigQuery `article_images` - classified images from ingestion |
 | **Podcast streaming endpoint** | `app/api/routes/podcast.py` |
 | **Podcast generation (weekly)** | `app/ingestion/generators/weekly_briefing.py` *(uses ElevenLabs Text-to-Dialogue API)* |
+| **Pipeline agent** | `app/agents/pipeline/agent.py` |
+| **Pipeline search tools** | `app/mcp/tools/pipeline_search.py` |
+| **Pipeline filters (post-enrichment)** | `app/agents/pipeline/filters.py` |
 
 ## README Documentation Index
 
@@ -145,6 +148,7 @@ When adding a new API key/secret:
 | `backend/app/utils/README.md` | Shared utilities | Adding utility modules |
 | `backend/app/ingestion/generators/README.md` | Briefing generators (2-agent pipeline) | Briefing logic changes |
 | **`backend/app/agents/research/README.md`** | **Deep Research workflow (7-node, parallel)** | **Modifying research pipeline** |
+| **`backend/app/agents/pipeline/README.md`** | **Pipeline (sales prospecting) tab** | **Modifying pipeline tools/filters** |
 | `frontend/README.md` | Frontend architecture, components, hooks | Adding/modifying frontend features |
 | `backend/scripts/README.md` | Script directory index | Adding new scripts |
 | `backend/scripts/monitoring/README.md` | Production monitoring scripts | Adding monitoring scripts |

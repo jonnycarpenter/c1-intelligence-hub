@@ -1,9 +1,10 @@
 from typing import Dict, Any, List, Optional
 from langchain_core.messages import SystemMessage, HumanMessage
-from app.agents.research.state import DeepResearchState, SynthesisAgentOutput, FindingSection, FieldSalesSection, SupportingVisual
+from app.agents.research.state import DeepResearchState, SynthesisAgentOutput, FindingSection, FieldSalesSection, SupportingVisual, CompanyWithLogo
 from app.agents.research.memory import get_research_memory
 from app.config.settings import settings
 from app.utils.resilient_llm import create_resilient_llm_with_openai_fallback
+from app.services.logo_service import logo_service, company_name_to_domain
 import json
 import time
 import logging
@@ -77,6 +78,35 @@ def _extract_entities_from_findings(financial, industry) -> set:
                 entities.update(f['entities_mentioned'][:5])
     
     return entities
+
+
+def _enrich_companies_with_logos(companies: List[str]) -> List[CompanyWithLogo]:
+    """
+    Add logo URLs for mentioned companies.
+    
+    Following the same pattern as weekly_briefing.py _enrich_with_logos().
+    """
+    enriched = []
+    seen = set()  # Deduplicate by lowercase name
+    
+    for company in companies:
+        if not company:
+            continue
+        company_lower = company.lower().strip()
+        if company_lower in seen:
+            continue
+        seen.add(company_lower)
+        
+        domain = company_name_to_domain(company)
+        logo_url = logo_service.get_logo_url(domain) if domain else None
+        
+        enriched.append(CompanyWithLogo(
+            name=company,
+            domain=domain,
+            logo_url=logo_url
+        ))
+    
+    return enriched[:15]  # Limit to top 15 companies
 
 
 def _generate_planning_scratchpad(
@@ -426,6 +456,19 @@ REMEMBER: 2-3 sections max. No fluff. Lead with insights."""
             section.setdefault("citations", [])
             section.setdefault("supporting_visuals", [])
             section.setdefault("confidence", "medium")
+        
+        # Enrich companies with logos
+        # Extract all entities mentioned across findings
+        all_entities = list(_extract_entities_from_findings(financial, industry))
+        
+        # Also include entities from research brief if available
+        if research_brief and research_brief.entities_to_track:
+            all_entities.extend(research_brief.entities_to_track)
+        
+        # Enrich with logo URLs
+        companies_with_logos = _enrich_companies_with_logos(all_entities)
+        output_data["companies_with_logos"] = [c.model_dump() for c in companies_with_logos]
+        logger.info(f"[SYNTHESIZER] Enriched {len(companies_with_logos)} companies with logos")
         
         final_report = SynthesisAgentOutput(**output_data)
         final_report.research_time_seconds = time.time() - start_time

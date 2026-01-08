@@ -13,13 +13,120 @@ import {
     Bookmark,
     CheckCircle,
     Loader2,
+    ExternalLink,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import ReactMarkdown from 'react-markdown'
 import { api } from '@/lib/api'
+import { API_BASE } from '@/lib/config'
 
 interface DeepResearchReportProps {
     report: any
+}
+
+// =============================================================================
+// Helper: Extract domain from URL
+// =============================================================================
+const extractDomain = (url: string): string => {
+    try {
+        if (!url) return 'Unknown'
+        const parsed = new URL(url)
+        return parsed.hostname.replace('www.', '')
+    } catch {
+        return 'Unknown'
+    }
+}
+
+// =============================================================================
+// Company Logo Component
+// =============================================================================
+interface CompanyWithLogo {
+    name: string
+    domain?: string
+    logo_url?: string
+}
+
+function CompanyLogo({ company }: { company: CompanyWithLogo }) {
+    const [imageError, setImageError] = useState(false)
+    
+    // Use logo.dev API via our backend proxy
+    const logoUrl = company.domain
+        ? `${API_BASE}/api/pipeline/logo/${company.domain}`
+        : null
+
+    if (!logoUrl || imageError) {
+        // Fallback to initials
+        const initials = company.name
+            .split(' ')
+            .map(w => w[0])
+            .slice(0, 2)
+            .join('')
+            .toUpperCase()
+
+        return (
+            <div
+                className="w-6 h-6 rounded bg-slate-200 flex items-center justify-center text-[9px] font-bold text-slate-500"
+                title={company.name}
+            >
+                {initials}
+            </div>
+        )
+    }
+
+    return (
+        <img
+            src={logoUrl}
+            alt={company.name}
+            title={company.name}
+            className="w-6 h-6 rounded object-contain"
+            onError={() => setImageError(true)}
+        />
+    )
+}
+
+// =============================================================================
+// Citation Component - Shows domain, links to full URL
+// =============================================================================
+interface Citation {
+    source_type?: string
+    source_title: string
+    source_url?: string | null
+    source_date?: string | null
+}
+
+function CitationList({ citations }: { citations: Citation[] }) {
+    if (!citations || citations.length === 0) return null
+
+    // Filter to only citations with URLs
+    const linkedCitations = citations.filter(c => c.source_url)
+    if (linkedCitations.length === 0) return null
+
+    return (
+        <div className="mt-4 pt-4 border-t border-slate-100">
+            <p className="text-xs font-medium text-slate-500 mb-2 flex items-center gap-1">
+                <ExternalLink size={12} />
+                Sources
+            </p>
+            <div className="flex flex-wrap gap-2">
+                {linkedCitations.map((citation, idx) => {
+                    const domain = citation.source_url ? extractDomain(citation.source_url) : 'Unknown'
+                    return (
+                        <a
+                            key={idx}
+                            href={citation.source_url || '#'}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-600 hover:text-slate-900 transition-colors group"
+                            title={citation.source_title}
+                        >
+                            <span className="font-medium">{domain}</span>
+                            <ExternalLink size={10} className="opacity-50 group-hover:opacity-100" />
+                        </a>
+                    )
+                })}
+            </div>
+        </div>
+    )
 }
 
 export default function ResearchReport({ report }: DeepResearchReportProps) {
@@ -27,7 +134,7 @@ export default function ResearchReport({ report }: DeepResearchReportProps) {
 
     if (!report) return null
 
-    const { executive_summary, sections, field_sales } = report
+    const { executive_summary, sections, field_sales, companies_with_logos } = report
 
     const handleSaveToMemory = async () => {
         if (saveStatus === 'saving' || saveStatus === 'saved') return
@@ -112,6 +219,24 @@ export default function ResearchReport({ report }: DeepResearchReportProps) {
                             </div>
                         ))}
                     </div>
+                    
+                    {/* Company Logos */}
+                    {companies_with_logos && companies_with_logos.length > 0 && (
+                        <div className="mt-6 pt-4 border-t border-slate-100">
+                            <p className="text-xs font-medium text-slate-500 mb-3">Companies Mentioned</p>
+                            <div className="flex flex-wrap gap-2">
+                                {companies_with_logos.map((company: CompanyWithLogo, idx: number) => (
+                                    <div
+                                        key={idx}
+                                        className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg"
+                                    >
+                                        <CompanyLogo company={company} />
+                                        <span className="text-sm font-medium text-slate-700">{company.name}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
             </section>
 
@@ -172,6 +297,9 @@ export default function ResearchReport({ report }: DeepResearchReportProps) {
                                 ))}
                             </div>
                         )}
+                        
+                        {/* Section Citations */}
+                        <CitationList citations={section.citations} />
                     </div>
                 </section>
             ))}

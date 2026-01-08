@@ -205,6 +205,8 @@ LIMIT 10
 - Generates brief field sales angles (1-2 offensive, 1 defensive)
 - **Places relevant visuals** in appropriate report sections
 - **Prior Research Context**: Can reference past findings ("Building on our Jan 3rd analysis...")
+- **Company Logo Enrichment** (Session 75): Extracts entities from findings, enriches with Logo.dev URLs via `_enrich_companies_with_logos()`
+- **Clickable Citations**: Section citations include `source_url` for frontend rendering as clickable links
 
 **Anti-Patterns (LLM is instructed to avoid):**
 - ❌ "It's worth noting..." / "Interestingly..." filler
@@ -558,14 +560,21 @@ validation = result["validator_output"]
 - [x] Frontend timeout UI with retry option
 - [x] Per-tool timeout utility (`sync_tool_with_timeout` decorator)
 
-### Phase 6 (In Progress - Visual Agent)
-- [ ] **Visual Research Agent** - New parallel agent for charts/graphs
-  - [ ] Create `corpus_visuals_search` MCP tool (`app/mcp/tools/corpus_visuals.py`)
-  - [ ] Create Visual agent (`app/agents/research/visual.py`)
-  - [ ] Add `VisualAgentOutput` to state schema
-  - [ ] Update workflow for 3-way parallel fan-out
-  - [ ] Update Synthesizer to place visuals in sections
-  - [ ] Add SSE streaming for visual_research node
+### Phase 6 (Complete - Visual Agent + Report Enrichments)
+- [x] **Visual Research Agent** - Parallel agent for charts/graphs
+  - [x] Create `corpus_visuals_search` MCP tool (`app/mcp/tools/corpus_visuals.py`)
+  - [x] Create Visual agent (`app/agents/research/visual.py`)
+  - [x] Add `VisualAgentOutput` to state schema
+  - [x] Update workflow for 3-way parallel fan-out
+  - [ ] Update Synthesizer to place visuals in sections (pending: visual data pass-through)
+  - [x] Add SSE streaming for visual_research node
+- [x] **Company Logo Enrichment** (Session 75)
+  - [x] Add `CompanyWithLogo` model to state.py
+  - [x] Add `_enrich_companies_with_logos()` to synthesizer.py
+  - [x] Add `companies_with_logos` to `SynthesisAgentOutput`
+- [x] **Clickable Citations** (Session 75)
+  - [x] Frontend renders `source_url` as clickable domain links
+  - [x] Citations displayed as pill-style badges under each section
 
 ### Phase 7 (Planned)
 - [ ] **Chart Generation** - Generate visuals from BigQuery trend data

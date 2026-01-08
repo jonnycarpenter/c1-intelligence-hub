@@ -52,6 +52,8 @@ src/
 - **SavedReportsPanel** - Accessed via button in results header (upper-right)
 - **ResearchProgress** - Real-time progress visualization during research
 - **ResearchReport** - Renders completed research reports
+  - **Clickable Citations** (Session 75): Section citations render as pill-style badges showing domain (e.g., `compositesworld.com`) with links to full source URL
+  - **Company Logos** (Session 75): Companies mentioned in research display in Executive Summary with Logo.dev integration (fallback to initials)
 
 ### Pulse Tab
 - **PulseDashboard** - Weekly briefing + ad-hoc briefing layout

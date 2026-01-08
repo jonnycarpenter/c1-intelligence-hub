@@ -76,10 +76,44 @@ The Pipeline tab is an AI-powered sales prospecting engine that combines neural 
 |-------------|------|-----|
 | Broad semantic search ("aerospace suppliers") | `search_companies` (Exa) | Neural search understands intent |
 | Find lookalikes ("companies like Hexcel") | `find_similar_companies` (Exa) | Automated lookalike targeting |
-| **Location filter** ("companies in Florida") | `search_companies_filtered` (Apollo) | Structured geo filter |
-| **Employee count** ("companies with >500 employees") | `search_companies_filtered` (Apollo) | Structured size filter |
-| **Revenue threshold** ("companies with >$100M revenue") | `search_companies_filtered` (Apollo) | Structured revenue filter |
+| **Semantic + filters** ("carbon fiber suppliers in FL with >$50M revenue") | `search_companies` with filter params | Best of both worlds |
+| **Pure structured filter** ("companies in Florida with 500+ employees") | `search_companies_filtered` (Apollo) | No semantic context needed |
 | Contact search ("purchasing managers at Boeing") | `find_company_contacts` (Apollo) | Returns revealable contacts |
+
+### Post-Enrichment Filtering (Session 74)
+
+Both `search_companies` and `find_similar_companies` now support **post-enrichment filters**:
+
+```python
+# Example: Semantic search + firmographic filters
+search_companies(
+    query="carbon fiber suppliers to automotive OEMs",
+    filter_min_revenue=50000000,     # $50M+
+    filter_states=["Florida", "Texas"],
+    filter_min_employees=200
+)
+```
+
+**Flow:**
+1. Exa semantic search finds conceptually relevant companies
+2. Apollo enrichment adds rich firmographic data
+3. Filters applied programmatically (fast, accurate)
+4. Results include filter metadata for smart feedback
+
+**Available Filters:**
+- `filter_min_revenue` / `filter_max_revenue` - Annual revenue in USD
+- `filter_min_employees` / `filter_max_employees` - Employee count
+- `filter_states` - US state names (e.g., `["Florida", "California"]`)
+- `filter_countries` - Country names
+- `filter_industries` - Industry substring matching
+
+**Sparse Results Handling:**
+When filtered results are sparse, the tool returns:
+- `filter_metadata.original_count` - Companies before filtering
+- `filter_metadata.filtered_count` - Companies after filtering
+- `filter_metadata.expansion_suggestions` - Recommendations to relax filters
+
+The agent is instructed to inform users about filter impact and offer alternatives.
 
 ---
 

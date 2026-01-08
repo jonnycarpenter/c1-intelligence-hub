@@ -17,6 +17,255 @@ Without reliable daily ingestion:
 **Always verify scheduler jobs are running before working on features.**
 
 ---
+## 📅 SESSION 75: Deep Research Citations & Logo Integration (January 8, 2026)
+
+**Status**: ✅ COMPLETE (Citations + Logos) | 📋 PLANNED (Visuals)
+
+### 🎯 What Was Done
+
+Enhanced Deep Research reports with **clickable citations** and **company logos**:
+
+1. **Clickable Citations** - Section citations now display as clickable source links
+   - Shows domain (e.g., `compositesworld.com`) 
+   - Clicking opens full source URL in new tab
+   - Styled as pill-style badges with external link icon
+
+2. **Logo.dev Integration** - Companies mentioned in research get logo enrichment
+   - Entities extracted from Financial + Industry agent findings
+   - Logos fetched via existing logo.dev proxy
+   - Displayed in Executive Summary as company pills with logos
+
+### 📁 Files Modified
+
+**Backend:**
+- `backend/app/agents/research/state.py`
+  - Added `CompanyWithLogo` model
+  - Added `companies_with_logos` field to `SynthesisAgentOutput`
+  
+- `backend/app/agents/research/synthesizer.py`
+  - Added imports for `logo_service`, `company_name_to_domain`
+  - Added `_enrich_companies_with_logos()` helper function
+  - Called enrichment in `synthesis_node` before creating final report
+
+**Frontend:**
+- `frontend/src/components/research/ResearchReport.tsx`
+  - Added `extractDomain()` helper
+  - Added `CompanyLogo` component with image fallback to initials
+  - Added `CitationList` component showing source domains as clickable pills
+  - Added company logos display in Executive Summary section
+
+### 🧪 Verification
+
+```powershell
+cd backend
+python -c "from app.agents.research.state import SynthesisAgentOutput, CompanyWithLogo; print('OK')"
+python -c "from app.agents.research.synthesizer import synthesis_node, _enrich_companies_with_logos; print('OK')"
+
+cd frontend
+npm run build  # ✓ Compiled successfully
+```
+
+---
+
+## 📋 PLANNED: Deep Research Visual Agent Integration
+
+**Status**: 📋 PLANNED (Not Implementing Yet)
+
+### 🎯 Overview
+
+The Visual Agent is already running in parallel and producing `VisualAgentOutput` with `supporting_visuals`. The synthesizer receives this data but doesn't use it. This plan connects visual output to the final report and frontend.
+
+### 🏗️ Implementation Approach
+
+#### Option A: Simple Pass-Through (Recommended for MVP)
+
+**Backend Changes:**
+1. In `synthesizer.py`, access `visual_output` from state (already retrieved at line 271)
+2. Pass `visual_output.supporting_visuals` directly to `output_data["all_visuals"]`
+3. No LLM placement logic needed initially
+
+```python
+# In synthesis_node, after processing sections:
+if visual and visual.supporting_visuals:
+    output_data["all_visuals"] = [v.model_dump() for v in visual.supporting_visuals]
+    logger.info(f"[SYNTHESIZER] Added {len(visual.supporting_visuals)} visuals to report")
+```
+
+**Frontend Changes:**
+1. Add `SupportingVisual` interface matching backend schema
+2. Add `VisualCard` component for rendering images with captions
+3. Add "Supporting Visuals" section at bottom of report OR after Field Sales
+
+```tsx
+// SupportingVisual interface
+interface SupportingVisual {
+    visual_id: string
+    image_url: string
+    caption: string
+    placement: string  // financial_section, market_section, etc.
+    size: 'small' | 'medium' | 'large'
+    data_summary?: string
+}
+
+// Render in a grid after Field Sales section
+{report.all_visuals?.length > 0 && (
+    <section className="bg-white rounded-2xl border p-6">
+        <h2>Supporting Visuals</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {report.all_visuals.map((visual) => (
+                <VisualCard key={visual.visual_id} visual={visual} />
+            ))}
+        </div>
+    </section>
+)}
+```
+
+#### Option B: Section-Level Placement (Future Enhancement)
+
+**Additional Backend Changes:**
+1. Modify synthesis prompt to include visual candidates
+2. Have LLM assign visuals to specific sections
+3. Parse LLM response to populate `section.supporting_visuals`
+
+**Additional Frontend Changes:**
+1. Render `section.supporting_visuals` within each section
+2. Position images inline or at section bottom
+3. Handle different sizes (small inline, medium sidebar, large full-width)
+
+### 📊 Data Dependency
+
+Visual agent queries `article_images` BigQuery table:
+- If table is empty → `supporting_visuals` will be empty (graceful)
+- Images must be pre-ingested via image classification pipeline
+- Current status: Table may be empty - visuals will appear once populated
+
+### 🔧 Files to Modify
+
+| File | Changes |
+|------|---------|
+| `backend/app/agents/research/synthesizer.py` | Pass visual_output to all_visuals |
+| `frontend/src/components/research/ResearchReport.tsx` | Add VisualCard, render all_visuals |
+| `frontend/src/types/research.ts` (optional) | Add SupportingVisual interface |
+
+### ⏱️ Estimated Effort
+
+- **Option A (Simple)**: ~30-45 minutes
+- **Option B (Section placement)**: ~2-3 hours (requires prompt changes, parsing, testing)
+
+---
+## 📅 SESSION 74: Post-Enrichment Filtering for Pipeline Search (January 8, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 What Was Done
+
+Added **post-enrichment filtering** to the Pipeline search tools, enabling users to combine semantic search with firmographic filters:
+
+```
+User: "Find carbon fiber suppliers with >$50M revenue in Florida"
+  ↓
+1. Exa semantic search → finds conceptually relevant companies
+2. Apollo enrichment → adds rich firmographic data (revenue, employees, location)
+3. Post-enrichment filter → applies revenue/state filters to enriched data
+4. Agent → returns filtered results + filter metadata + expansion suggestions
+```
+
+### 💡 Key Design Decisions
+
+1. **Why post-enrichment?** Apollo's search endpoint (`/organizations/search`) filters correctly but returns **sparse data** (often `revenue=null`). The enrich endpoint returns **complete data**. So: search broad, enrich all, then filter.
+
+2. **Programmatic filtering** instead of LLM filtering - faster, more consistent, deterministic.
+
+3. **Smart feedback** - When filtered results are sparse, agent explains impact and suggests alternatives.
+
+### 📁 Files Created/Modified
+
+1. **`backend/app/agents/pipeline/filters.py`** (NEW - ~350 lines)
+   - `CompanyFilters` dataclass - structured filter criteria
+   - `FilterResult` dataclass - includes metadata for smart feedback
+   - `apply_filters()` - applies all filter criteria to enriched companies
+   - `parse_revenue_string()` / `parse_employee_string()` - helper parsers
+   - Per-filter rejection tracking for expansion suggestions
+
+2. **`backend/app/mcp/tools/pipeline_search.py`** (~100 lines modified)
+   - `search_companies` - Added 7 optional filter parameters
+   - `find_similar_companies` - Added 7 optional filter parameters
+   - Both return `filter_metadata` when filters applied
+
+3. **`backend/app/agents/pipeline/agent.py`** (~50 lines added to prompt)
+   - Tool selection guidance for filters vs. no filters
+   - Sparse results handling instructions
+   - Example response format for filter feedback
+
+4. **`backend/app/agents/pipeline/README.md`** - Documented new capability
+
+### 🔧 Filter Parameters Available
+
+| Parameter | Type | Example |
+|-----------|------|---------|
+| `filter_min_revenue` | int (USD) | `50000000` for $50M+ |
+| `filter_max_revenue` | int (USD) | `100000000` for <$100M |
+| `filter_min_employees` | int | `200` |
+| `filter_max_employees` | int | `500` |
+| `filter_states` | List[str] | `["Florida", "Texas"]` |
+| `filter_countries` | List[str] | `["United States"]` |
+| `filter_industries` | List[str] | `["Manufacturing"]` |
+
+### 🧪 Verification
+
+```powershell
+cd backend
+python -c "from app.agents.pipeline.filters import CompanyFilters, apply_filters; print('OK')"
+python -c "from app.mcp.server import get_all_mcp_tools; print(len(get_all_mcp_tools()))"
+# ✓ 54 tools
+```
+
+### 📋 Example Usage
+
+```python
+# Semantic search with revenue filter
+search_companies(
+    query="carbon fiber suppliers to automotive OEMs",
+    filter_min_revenue=50000000,
+    filter_states=["Florida", "Texas"]
+)
+
+# Lookalike with geographic filter
+find_similar_companies(
+    reference="hexcel.com",
+    filter_states=["California"],
+    filter_min_employees=200
+)
+```
+
+### 🔑 Sparse Results Response
+
+When filters produce few results, response includes:
+```json
+{
+  "sparse_results_warning": "Only 2 of 18 companies matched all filters...",
+  "filter_metadata": {
+    "original_count": 18,
+    "filtered_count": 2,
+    "filter_impact": "revenue: 12 companies excluded; location: 4 companies excluded",
+    "expansion_suggestions": [
+      "Removing the revenue filter would include 12 more companies (14 total).",
+      "Expanding to additional states would include 4 more companies (6 total)."
+    ]
+  }
+}
+```
+
+Agent is instructed to communicate this to users and offer alternatives.
+
+### 📋 Future Enhancements
+
+- [ ] Technology/keyword filtering (`filter_technologies`, `filter_keywords`)
+- [ ] Founded year filtering (`filter_min_founded_year`)
+- [ ] SIC/NAICS code filtering
+- [ ] Frontend filter UI (explicit filter inputs)
+
+---
 ## 📅 SESSION 73: Overall Trend Formatting + Podcast Query Fix (January 8, 2026)
 
 **Status**: ✅ COMPLETE

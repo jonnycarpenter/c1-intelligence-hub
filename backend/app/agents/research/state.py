@@ -105,6 +105,12 @@ class DataCompletenessLevel(str, Enum):
     PARTIAL = "partial"
     LIMITED = "limited"
 
+class CompanyWithLogo(BaseModel):
+    """Company enriched with logo URL for display."""
+    name: str
+    domain: Optional[str] = None
+    logo_url: Optional[str] = None
+
 class SupportingVisual(BaseModel):
     visual_id: str
     image_url: str
@@ -273,6 +279,7 @@ class SynthesisAgentOutput(BaseModel):
     sections: List[FindingSection]
     field_sales: FieldSalesSection
     all_visuals: List[SupportingVisual]
+    companies_with_logos: List[CompanyWithLogo] = Field(default_factory=list)
     sources_used: List[Citation]
     source_breakdown: Dict[str, int]
     data_gaps: List[str]
