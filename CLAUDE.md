@@ -10,6 +10,11 @@
 
 **At start of session**: Read `WORKLOG.md` for recent context.
 
+**⚠️ Parallel Development Warning**: The user may be working in multiple IDEs/agents simultaneously. Before pushing:
+1. Run `git pull origin master` to get latest changes
+2. Check for merge conflicts, especially in frontend components
+3. If conflicts exist, coordinate with user before resolving
+
 ## Before Making Structural Changes
 
 Read these files first:
