@@ -35,8 +35,8 @@ ANTHROPIC_TO_OPENAI_MODEL_MAP = {
     "claude-sonnet-4-5": "gpt-4o",
     "claude-3-5-sonnet-20241022": "gpt-4o",
     "claude-opus-4-5": "gpt-4o",  # Opus -> GPT-4o (best available)
-    "claude-3-5-haiku-20241022": "gpt-4o-mini",
-    "claude-sonnet-4-20250514": "gpt-4o",  # Vision model
+    "claude-haiku-4-5": "gpt-4o-mini",  # Haiku alias
+    "claude-3-5-haiku-20241022": "gpt-4o-mini",  # Legacy haiku
 }
 
 

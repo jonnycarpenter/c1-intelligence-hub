@@ -25,7 +25,12 @@ If you are building a data collector for the ingestion pipeline, use `app/tools/
 ### Specialized Research
 - `api_ninja_earnings.py` - Earnings transcript search
 - `product_intelligence.py` - Product catalog queries
-- `pipeline_search.py` - Pipeline prospect search
+- `pipeline_search.py` - Pipeline prospect search tools:
+  - `search_companies` - Exa.ai semantic/broad company search
+  - `find_similar_companies` - Exa.ai lookalike targeting
+  - `search_companies_filtered` - **Apollo.io structured firmographic search** (location, employees, revenue filters)
+  - `find_company_contacts` - Apollo.io contact discovery
+  - `reveal_contact` - Apollo.io contact email reveal (1 credit)
 - `document_extraction.py` - PDF/document extraction
 - `image_extraction.py` - Visual content search
 - `datasheets.py` - Product spec sheets from BigQuery

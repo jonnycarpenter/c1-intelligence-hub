@@ -165,6 +165,48 @@ Briefings always reference **this week's Monday** as the period_end date:
 
 This ensures the briefing title remains consistent whether run on Monday morning (scheduled) or manually on other days.
 
+**Forced Title Override (Session 72)**:
+The LLM was found to sometimes ignore the `{period_end_short}` placeholder and generate wrong dates (e.g., "Week of Jan 12" when it should be "Week of Jan 5"). As a fix, the title is now **force-overridden** after LLM response:
+```python
+# Title is always: "Weekly Briefing: Week of {target_monday_formatted}"
+# LLM-generated title is ignored
+```
+
+### Citation Cleanup
+The `_clean_citation_text()` method normalizes citations before final output:
+- `[37]` → renumbered to sequential `[1]`, `[2]`, etc.
+- `[Exa:6]` → same renumbering (Exa prefix stripped)
+- `[37, Exa:6]` → split and renumbered (handles mixed citations)
+- Final output contains only clean `[N]` references
+
+**Session 72 Fix**: Previously, comma-separated mixed citations like `[37, Exa:6]` weren't properly processed. The regex now parses each bracket's contents, splitting on commas.
+
+### Backfilling Historical Briefings
+To rebuild historical context chain (needed for net_new vs continuing classification):
+
+```bash
+cd backend
+
+# Backfill all 3 historical weeks
+python scripts/operations/backfill_briefings.py
+
+# Single week only (1=oldest, 3=newest)
+python scripts/operations/backfill_briefings.py --week 1
+
+# Verify results
+python scripts/operations/backfill_briefings.py --verify
+
+# Include podcast generation
+python scripts/operations/backfill_briefings.py --with-podcast
+```
+
+**Backfill Order** (chronological, establishes context chain):
+1. Week 1: period_end = Dec 22 (Dec 8-22 articles)
+2. Week 2: period_end = Dec 29 (Dec 15-29 articles)  
+3. Week 3: period_end = Jan 5 (Dec 22-Jan 5 articles)
+
+Each week's Agent 2 looks at previous `weekly_briefings` for historical context.
+
 ## Schedule
 
 | Job | Schedule | Description |

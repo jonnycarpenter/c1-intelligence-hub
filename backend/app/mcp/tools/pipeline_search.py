@@ -664,6 +664,138 @@ async def reveal_contact(
 
 
 @tool
+async def search_companies_filtered(
+    keywords: Optional[List[str]] = None,
+    states: Optional[List[str]] = None,
+    countries: Optional[List[str]] = None,
+    employee_ranges: Optional[List[str]] = None,
+    min_revenue: Optional[int] = None,
+    max_revenue: Optional[int] = None,
+    industries: Optional[List[str]] = None,
+    num_results: int = 25,
+) -> str:
+    """
+    Search for companies with structured firmographic filters using Apollo.io.
+    
+    ⚠️ USE THIS TOOL when the user specifies:
+    - Geographic requirements (state, country) - "companies in Florida"
+    - Company size by employee count - "companies with 200-500 employees"
+    - Revenue thresholds - "companies with >$100M revenue"
+    - Industry categories - "aerospace companies"
+    
+    For broad semantic searches WITHOUT specific filters, use search_companies (Exa) instead.
+    
+    This is FREE and doesn't consume credits.
+    
+    Args:
+        keywords: Keywords to search (e.g., ["aerospace", "composites", "manufacturing"])
+        states: US state names (e.g., ["Florida", "California", "Texas"])
+        countries: Country names (e.g., ["United States", "Canada"])
+        employee_ranges: Employee count ranges. Options:
+            "1,10" (1-10 employees)
+            "11,50" (11-50 employees)  
+            "51,200" (51-200 employees)
+            "201,500" (201-500 employees)
+            "501,1000" (501-1000 employees)
+            "1001,5000" (1001-5000 employees)
+            "5001,10000" (5001-10000 employees)
+            "10001+" (10000+ employees)
+        min_revenue: Minimum annual revenue in USD (e.g., 10000000 for $10M, 100000000 for $100M)
+        max_revenue: Maximum annual revenue in USD (None for no upper limit)
+        industries: Industry filters (e.g., ["Manufacturing", "Aerospace & Defense", "Automotive"])
+        num_results: Number of companies to return (max 25)
+    
+    Returns:
+        JSON with matching companies including full firmographics.
+    
+    Examples:
+    - "aerospace companies in Florida" → keywords=["aerospace"], states=["Florida"]
+    - "manufacturers with >500 employees" → keywords=["manufacturing"], employee_ranges=["501,1000", "1001,5000", "5001,10000", "10001+"]
+    - "composites suppliers with $50M+ revenue" → keywords=["composites"], min_revenue=50000000
+    """
+    logger.info(f"[Pipeline Tool] search_companies_filtered: keywords={keywords}, states={states}, "
+               f"employees={employee_ranges}, min_revenue={min_revenue}, industries={industries}")
+    
+    try:
+        organizations = await apollo_service.search_organizations(
+            q_keywords=keywords,
+            states=states,
+            countries=countries,
+            employee_ranges=employee_ranges,
+            revenue_range_min=min_revenue,
+            revenue_range_max=max_revenue,
+            industries=industries,
+            per_page=min(num_results, 25),
+        )
+        
+        # Format results for display
+        formatted = []
+        for org in organizations:
+            formatted.append({
+                "company_name": org.name,
+                "domain": org.domain,
+                "description": org.description,
+                "logo_url": org.logo_url or f"https://logo.clearbit.com/{org.domain}" if org.domain else None,
+                "employee_count": org.employee_count,
+                "founded_year": org.founded_year,
+                "industry": org.industry,
+                "revenue_printed": org.revenue_printed,
+                "annual_revenue": org.annual_revenue,
+                "city": org.city,
+                "state": org.state,
+                "country": org.country,
+                "address": org.raw_address,
+                "phone": org.phone,
+                "website": org.website_url,
+                "linkedin_url": org.linkedin_url,
+                "technologies": org.technologies[:5] if org.technologies else [],
+                "keywords": org.keywords[:5] if org.keywords else [],
+                "apollo_enrichment": {
+                    "employee_count": org.employee_count,
+                    "revenue_printed": org.revenue_printed,
+                    "industry": org.industry,
+                    "technologies": org.technologies[:5] if org.technologies else [],
+                },
+            })
+        
+        # Build filter description for UI
+        filters_applied = []
+        if keywords:
+            filters_applied.append(f"keywords: {', '.join(keywords)}")
+        if states:
+            filters_applied.append(f"states: {', '.join(states)}")
+        if countries:
+            filters_applied.append(f"countries: {', '.join(countries)}")
+        if employee_ranges:
+            filters_applied.append(f"employees: {', '.join(employee_ranges)}")
+        if min_revenue:
+            filters_applied.append(f"min revenue: ${min_revenue:,}")
+        if max_revenue:
+            filters_applied.append(f"max revenue: ${max_revenue:,}")
+        if industries:
+            filters_applied.append(f"industries: {', '.join(industries)}")
+        
+        return json.dumps({
+            "status": "success",
+            "query_type": "filtered_company_search",
+            "filters_applied": filters_applied,
+            "count": len(formatted),
+            "results": formatted,
+            "block_type": "filtered_companies",
+            "title": f"Companies matching filters ({len(formatted)} results)",
+            "note": "Results include full firmographic data from Apollo.io (FREE - no credits used)",
+        }, indent=2)
+        
+    except Exception as e:
+        logger.error(f"Error in search_companies_filtered: {e}", exc_info=True)
+        return json.dumps({
+            "status": "error",
+            "error": str(e),
+            "query_type": "filtered_company_search",
+        })
+
+
+@tool
 async def get_apollo_credits() -> str:
     """
     Check Apollo.io credit usage and remaining balance.
@@ -691,7 +823,7 @@ async def get_apollo_credits() -> str:
 # Note: PIPELINE_TOOLS_INSTANT is for quick search mode
 # PIPELINE_TOOLS_FULL includes webset building for full list mode
 PIPELINE_TOOLS_INSTANT = [
-    # Exa.ai search tools (company discovery)
+    # Exa.ai search tools (company discovery - semantic/broad search)
     find_similar_companies,
     search_companies,
     # NOTE: find_contacts (Exa) is commented out in favor of find_company_contacts (Apollo)
@@ -702,6 +834,7 @@ PIPELINE_TOOLS_INSTANT = [
     find_trigger_events,
     # Apollo.io enrichment tools (contacts + company data)
     enrich_company,
+    search_companies_filtered,  # Apollo org search with firmographic filters (location, employees, revenue)
     find_company_contacts,  # PRIMARY contact search tool - returns revealable contacts
     reveal_contact,
     get_apollo_credits,
@@ -712,7 +845,7 @@ PIPELINE_TOOLS_INSTANT = [
 ]
 
 PIPELINE_TOOLS_FULL = [
-    # Exa.ai search tools (company discovery)
+    # Exa.ai search tools (company discovery - semantic/broad search)
     find_similar_companies,
     search_companies,
     # NOTE: find_contacts (Exa) commented out - see note in PIPELINE_TOOLS_INSTANT
@@ -721,6 +854,7 @@ PIPELINE_TOOLS_FULL = [
     build_company_webset,
     # Apollo.io enrichment tools (contacts + company data)
     enrich_company,
+    search_companies_filtered,  # Apollo org search with firmographic filters (location, employees, revenue)
     find_company_contacts,  # PRIMARY contact search tool - returns revealable contacts
     reveal_contact,
     get_apollo_credits,

@@ -349,6 +349,67 @@ Otherwise, respond with the final briefing JSON:
         
         return sorted(set(pre_brief_citations)), sorted(set(exa_citations))
     
+    def _clean_citation_text(
+        self,
+        text: str,
+        max_pre_brief_articles: int,
+        exa_id_to_unified: Dict[int, int]
+    ) -> str:
+        """
+        Clean citation text for final output:
+        1. Handle comma-separated citations like [37, Exa:6] or [1, 2, Exa:3]
+        2. Remove "Exa:" prefix, converting to unified citation numbers
+        3. Filter out invalid pre-brief citation numbers (> max articles)
+        
+        Args:
+            text: Raw text with citations
+            max_pre_brief_articles: Maximum valid pre-brief article number (typically 50)
+            exa_id_to_unified: Mapping of Exa IDs to unified citation numbers
+            
+        Returns:
+            Cleaned text with unified citation numbers
+        """
+        # Handle complex bracket contents like [37, Exa:6] or [1, 2, Exa:3]
+        def process_bracket_content(match):
+            content = match.group(1)
+            # Split by comma and process each part
+            parts = [p.strip() for p in content.split(',')]
+            valid_nums = []
+            
+            for part in parts:
+                # Check if it's an Exa citation
+                exa_match = re.match(r'Exa:(\d+)', part)
+                if exa_match:
+                    exa_num = int(exa_match.group(1))
+                    unified = exa_id_to_unified.get(exa_num)
+                    if unified:
+                        valid_nums.append(str(unified))
+                    # Skip if no mapping (don't add invalid Exa refs)
+                    continue
+                
+                # Check if it's a plain number
+                num_match = re.match(r'(\d+)', part)
+                if num_match:
+                    num = int(num_match.group(1))
+                    # Keep if valid pre-brief citation OR valid unified Exa number
+                    if 1 <= num <= max_pre_brief_articles:
+                        valid_nums.append(str(num))
+                    elif num in exa_id_to_unified.values():
+                        valid_nums.append(str(num))
+                    # Skip invalid numbers
+            
+            if valid_nums:
+                return '[' + ', '.join(valid_nums) + ']'
+            return ''  # Remove empty brackets
+        
+        # Match anything in square brackets (but not [[Company]] double brackets)
+        text = re.sub(r'\[([^\[\]]+)\](?!\])', process_bracket_content, text)
+        
+        # Clean up extra whitespace
+        text = re.sub(r'\s+', ' ', text).strip()
+        
+        return text
+    
     def _extract_domain(self, url: str) -> str:
         """
         Extract domain from URL for source attribution.
@@ -372,7 +433,8 @@ Otherwise, respond with the final briefing JSON:
         articles: List, 
         article_numbers: List[int],
         peripheral_articles: List[Dict[str, Any]] = None,
-        exa_numbers: List[int] = None
+        exa_numbers: List[int] = None,
+        max_pre_brief_num: int = 50
     ) -> List[Dict[str, Any]]:
         """
         Build source article metadata for the articles used in a section.
@@ -382,6 +444,7 @@ Otherwise, respond with the final briefing JSON:
             article_numbers: List of [N] citation numbers from pre-brief (1-indexed)
             peripheral_articles: List of Exa search results (optional)
             exa_numbers: List of [Exa:N] citation numbers (1-indexed, optional)
+            max_pre_brief_num: Number of pre-brief articles for unified numbering
         
         Returns:
             List of source article dicts for the frontend
@@ -409,22 +472,25 @@ Otherwise, respond with the final briefing JSON:
                     "published_at": pub_at_str,
                 })
         
-        # Add Exa peripheral search articles
+        # Add Exa peripheral search articles with UNIFIED numbering
+        # Exa article N becomes citation [max_pre_brief_num + N]
         if peripheral_articles and exa_numbers:
-            for num in exa_numbers:
+            for exa_num in exa_numbers:
                 # Find the Exa article with this ID
                 exa_article = next(
-                    (p for p in peripheral_articles if p.get('exa_id') == num), 
+                    (p for p in peripheral_articles if p.get('exa_id') == exa_num), 
                     None
                 )
                 if exa_article:
                     exa_url = exa_article.get('url', '')
+                    # Unified citation number = max_pre_brief + exa_id
+                    unified_num = max_pre_brief_num + exa_num
                     source_articles.append({
-                        "article_number": num,  # Unified numbering, no "Exa:" prefix for frontend
-                        "id": f"exa-{num}",
+                        "article_number": unified_num,  # Unified numbering matches cleaned text
+                        "id": f"exa-{exa_num}",
                         "title": exa_article.get('title', 'Unknown'),
                         "url": exa_url,
-                        "source_name": self._extract_domain(exa_url),  # Real domain, not "Exa Research"
+                        "source_name": self._extract_domain(exa_url),  # Real domain, not "Exa"
                         "published_at": exa_article.get('published_date'),
                     })
         
@@ -778,7 +844,11 @@ Otherwise, respond with the final briefing JSON:
             logger.error(f"Failed to generate podcast: {e}", exc_info=True)
             return None
 
-    async def generate(self, pre_brief: Dict[str, Any] = None) -> Optional[Dict[str, Any]]:
+    async def generate(
+        self, 
+        pre_brief: Dict[str, Any] = None,
+        target_week_monday: datetime = None
+    ) -> Optional[Dict[str, Any]]:
         """
         Agent 2: Generate the final high-conviction executive briefing.
         
@@ -786,6 +856,9 @@ Otherwise, respond with the final briefing JSON:
         
         Args:
             pre_brief: Optional pre-brief data (if not provided, fetches latest)
+            target_week_monday: Override the "Week of" date for backfilling.
+                If provided, uses this date instead of calculating this week's Monday.
+                Should be a Monday at 12:00 UTC.
         
         Returns:
             Complete executive briefing record
@@ -816,13 +889,18 @@ Otherwise, respond with the final briefing JSON:
         if isinstance(period_end, str):
             period_end = datetime.fromisoformat(period_end)
         
-        # Calculate "this week's Monday" for the briefing title
-        # This ensures off-schedule runs show the correct week
-        today = datetime.utcnow()
-        days_since_monday = today.weekday()  # 0=Monday, 6=Sunday
-        this_weeks_monday = today - timedelta(days=days_since_monday)
-        week_of_date = this_weeks_monday.strftime("%B %d, %Y")  # e.g., "January 06, 2026"
-        logger.info(f"Agent 2: Using 'Week of {week_of_date}' for briefing title (today={today.strftime('%A %B %d')})")
+        # Determine the "Week of" date for the briefing title
+        if target_week_monday:
+            # Use explicit target date (for backfilling)
+            week_of_date = target_week_monday.strftime("%B %d, %Y")
+            logger.info(f"Agent 2: Using target 'Week of {week_of_date}' for backfill briefing")
+        else:
+            # Calculate this week's Monday for current runs
+            today = datetime.utcnow()
+            days_since_monday = today.weekday()  # 0=Monday, 6=Sunday
+            this_weeks_monday = today - timedelta(days=days_since_monday)
+            week_of_date = this_weeks_monday.strftime("%B %d, %Y")  # e.g., "January 06, 2026"
+            logger.info(f"Agent 2: Using 'Week of {week_of_date}' for briefing title (today={today.strftime('%A %B %d')})")
         
         data = None
         result_json = None
@@ -947,6 +1025,18 @@ Otherwise, respond with the final briefing JSON:
             return None
         
         try:
+            # Build unified citation mapping for Exa articles
+            # Exa citations will be renumbered starting after pre-brief articles
+            max_pre_brief_num = len(articles)  # e.g., 50
+            exa_id_to_unified = {}
+            for p in peripheral_results:
+                exa_id = p.get('exa_id')
+                if exa_id:
+                    # Assign unified number: max_pre_brief + exa_id
+                    exa_id_to_unified[exa_id] = max_pre_brief_num + exa_id
+            
+            logger.info(f"Agent 2: Citation mapping - {max_pre_brief_num} pre-brief articles, {len(exa_id_to_unified)} Exa articles")
+            
             # Process sections and add logos + source articles
             processed_sections = []
             for section in data.get("sections", []):
@@ -957,34 +1047,68 @@ Otherwise, respond with the final briefing JSON:
                 for insight in section.get("insights", []):
                     section_companies.update(insight.get("companies_mentioned", []))
                 
-                # Extract citation numbers from section text
+                # Extract citation numbers from section text (before cleanup)
                 all_section_text = headline.get("text", "")
                 for insight in section.get("insights", []):
                     all_section_text += " " + insight.get("text", "")
                 
                 pre_brief_citations, exa_citations = self._extract_citation_numbers(all_section_text)
                 
+                # Filter pre_brief_citations to only valid numbers
+                valid_pre_brief_citations = [n for n in pre_brief_citations if 1 <= n <= max_pre_brief_num]
+                if len(valid_pre_brief_citations) < len(pre_brief_citations):
+                    invalid = [n for n in pre_brief_citations if n not in valid_pre_brief_citations]
+                    logger.warning(f"Agent 2: Filtered out invalid citations {invalid} (max={max_pre_brief_num})")
+                
                 # Build source articles for this section
                 section_source_articles = self._build_source_articles(
                     articles=articles,
-                    article_numbers=pre_brief_citations,
+                    article_numbers=valid_pre_brief_citations,
                     peripheral_articles=peripheral_results,
-                    exa_numbers=exa_citations
+                    exa_numbers=exa_citations,
+                    max_pre_brief_num=max_pre_brief_num
                 )
+                
+                # Clean up citation text in headline and insights
+                # This removes "Exa:" prefix and filters invalid citations
+                cleaned_headline = headline.copy() if isinstance(headline, dict) else {"text": str(headline)}
+                if "text" in cleaned_headline:
+                    cleaned_headline["text"] = self._clean_citation_text(
+                        cleaned_headline["text"], 
+                        max_pre_brief_num, 
+                        exa_id_to_unified
+                    )
+                
+                cleaned_insights = []
+                for insight in section.get("insights", []):
+                    cleaned_insight = insight.copy() if isinstance(insight, dict) else {"text": str(insight)}
+                    if "text" in cleaned_insight:
+                        cleaned_insight["text"] = self._clean_citation_text(
+                            cleaned_insight["text"],
+                            max_pre_brief_num,
+                            exa_id_to_unified
+                        )
+                    cleaned_insights.append(cleaned_insight)
                 
                 processed_sections.append({
                     "header": section.get("header", "Update"),
-                    "headline": headline,
-                    "insights": section.get("insights", []),
+                    "headline": cleaned_headline,
+                    "insights": cleaned_insights,
                     "companies_with_logos": self._enrich_with_logos(list(section_companies)),
                     "source_articles": section_source_articles,
                 })
             
             # Build the complete briefing record
+            # ALWAYS use calculated Monday date for title (LLM often gets it wrong)
+            forced_title = f"Executive Briefing: Week of {week_of_date}"
+            llm_title = data.get("briefing_title", "")
+            if llm_title and llm_title != forced_title:
+                logger.info(f"Agent 2: Overriding LLM title '{llm_title}' with '{forced_title}'")
+            
             briefing_record = {
                 "id": str(uuid.uuid4()),
                 "briefing_type": "weekly_executive",
-                "briefing_title": data.get("briefing_title", f"Executive Briefing: Week of {week_of_date}"),
+                "briefing_title": forced_title,
                 "bluf": data.get("bluf", ""),
                 "sections": processed_sections,
                 "all_companies_mentioned": self._enrich_with_logos(data.get("all_companies_mentioned", [])),

@@ -549,6 +549,161 @@ class ApolloService:
     def can_reveal(self) -> bool:
         """Check if we have credits to reveal a contact."""
         return self.credits.can_reveal()
+    
+    # =========================================================================
+    # Organization Search (FREE)
+    # =========================================================================
+    
+    async def search_organizations(
+        self,
+        q_keywords: Optional[List[str]] = None,
+        states: Optional[List[str]] = None,
+        countries: Optional[List[str]] = None,
+        employee_ranges: Optional[List[str]] = None,
+        revenue_range_min: Optional[int] = None,
+        revenue_range_max: Optional[int] = None,
+        industries: Optional[List[str]] = None,
+        per_page: int = 25,
+        page: int = 1,
+    ) -> List[ApolloOrganization]:
+        """
+        Search for organizations with structured firmographic filters.
+        
+        This is FREE and doesn't consume credits.
+        
+        Use this when users specify:
+        - Geographic requirements (state, country)
+        - Company size (employee count ranges)
+        - Revenue thresholds
+        - Industry categories
+        
+        Args:
+            q_keywords: Keyword search terms (e.g., ["aerospace", "composites"])
+            states: US state filters (e.g., ["Florida", "California", "Texas"])
+            countries: Country filters (e.g., ["United States"])
+            employee_ranges: Employee count ranges. Format: "min,max" or use constants:
+                           "1,10", "11,50", "51,200", "201,500", "501,1000", "1001,5000", "5001,10000", "10001+"
+            revenue_range_min: Minimum annual revenue in USD (e.g., 10000000 for $10M)
+            revenue_range_max: Maximum annual revenue in USD (None for no upper limit)
+            industries: Industry filters (e.g., ["Manufacturing", "Aerospace & Defense"])
+            per_page: Results per page (max 25)
+            page: Page number (1-indexed)
+            
+        Returns:
+            List of ApolloOrganization objects matching the filters
+        """
+        self._check_configured()
+        
+        logger.info(f"[Apollo] Searching organizations: keywords={q_keywords}, states={states}, "
+                   f"employees={employee_ranges}, revenue_min={revenue_range_min}, industries={industries}")
+        
+        try:
+            payload: Dict[str, Any] = {
+                "page": page,
+                "per_page": min(per_page, 25),
+            }
+            
+            # Keyword search
+            if q_keywords:
+                payload["q_organization_keyword_tags"] = q_keywords
+            
+            # Location filters
+            if states or countries:
+                locations = []
+                if states:
+                    for state in states:
+                        # Apollo expects format like "Florida, United States"
+                        country = "United States" if not countries else countries[0]
+                        locations.append(f"{state}, {country}")
+                elif countries:
+                    locations = countries
+                payload["organization_locations"] = locations
+            
+            # Employee range filter
+            if employee_ranges:
+                # Apollo format: ["1,10", "11,50", ...] 
+                payload["organization_num_employees_ranges"] = employee_ranges
+            
+            # Revenue range filter
+            if revenue_range_min is not None or revenue_range_max is not None:
+                revenue_filter = {}
+                if revenue_range_min is not None:
+                    revenue_filter["min"] = revenue_range_min
+                if revenue_range_max is not None:
+                    revenue_filter["max"] = revenue_range_max
+                payload["revenue_range"] = revenue_filter
+            
+            # Industry filter
+            if industries:
+                payload["organization_industry_tag_ids"] = industries
+            
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.base_url}/organizations/search",
+                    headers=self.headers,
+                    json=payload,
+                    timeout=15.0,
+                )
+                
+                if response.status_code != 200:
+                    logger.warning(f"[Apollo] Organization search failed: {response.status_code} - {response.text[:200]}")
+                    return []
+                
+                data = response.json()
+                organizations = data.get("organizations", [])
+                
+                results = []
+                for org in organizations:
+                    results.append(ApolloOrganization(
+                        # Identity
+                        name=org.get("name", ""),
+                        domain=org.get("primary_domain", ""),
+                        description=org.get("short_description"),
+                        logo_url=org.get("logo_url"),
+                        
+                        # Firmographics
+                        employee_count=org.get("estimated_num_employees"),
+                        founded_year=org.get("founded_year"),
+                        industry=org.get("industry"),
+                        annual_revenue=org.get("annual_revenue"),
+                        revenue_printed=org.get("annual_revenue_printed"),
+                        
+                        # Location
+                        street_address=org.get("street_address"),
+                        city=org.get("city"),
+                        state=org.get("state"),
+                        postal_code=org.get("postal_code"),
+                        country=org.get("country"),
+                        raw_address=org.get("raw_address"),
+                        
+                        # Contact
+                        phone=org.get("phone"),
+                        website_url=org.get("website_url"),
+                        
+                        # Social
+                        linkedin_url=org.get("linkedin_url"),
+                        twitter_url=org.get("twitter_url"),
+                        facebook_url=org.get("facebook_url"),
+                        
+                        # Stock
+                        ticker=org.get("publicly_traded_symbol"),
+                        exchange=org.get("publicly_traded_exchange"),
+                        
+                        # Tech & Keywords
+                        technologies=[t.get("name") for t in org.get("current_technologies", []) if t.get("name")],
+                        keywords=org.get("keywords", [])[:20],
+                        
+                        # Codes
+                        sic_codes=org.get("sic_codes", []),
+                        naics_codes=org.get("naics_codes", []),
+                    ))
+                
+                logger.info(f"[Apollo] Found {len(results)} organizations matching filters")
+                return results
+                
+        except Exception as e:
+            logger.error(f"[Apollo] Error searching organizations: {e}", exc_info=True)
+            return []
 
 
 # =============================================================================

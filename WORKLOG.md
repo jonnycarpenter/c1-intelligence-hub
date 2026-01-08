@@ -17,6 +17,303 @@ Without reliable daily ingestion:
 **Always verify scheduler jobs are running before working on features.**
 
 ---
+## 📅 SESSION 72: Executive Briefing Fixes - Date Override, Citation Cleanup, Backfill (January 8, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Problems Fixed
+
+1. **"Week of" Date Wrong** - LLM was ignoring the date parameter and generating wrong dates like "Week of Jan 12" or "Week of Jan 19"
+2. **Exa Citations Showing** - Citations like `[37, Exa:6]` were appearing in final briefing text instead of unified numbers
+3. **No Historical Context** - Needed backfill of 3 weeks to establish net_new vs continuing context chain
+
+### 💡 Solutions Implemented
+
+1. **Force Title Override** - Post-processing now always uses calculated Monday date, ignoring LLM's title
+2. **Citation Cleanup** - New `_clean_citation_text()` handles comma-separated citations like `[37, Exa:6]` → `[37, 56]`
+3. **Backfill Script** - Created `scripts/operations/backfill_briefings.py` for historical generation
+4. **Target Week Parameter** - Added `target_week_monday` param to `generate()` for backfilling
+
+### 📁 Files Modified
+
+- `backend/app/ingestion/generators/weekly_briefing.py` - Title override, citation cleanup, target_week_monday param
+- `backend/scripts/operations/backfill_briefings.py` - New backfill script
+- `backend/scripts/operations/backup_and_cleanup_briefings.py` - Cleanup script
+- `backend/scripts/operations/restore_backup_briefing.py` - Emergency restore script
+- `backend/scripts/testing/check_briefing_citations.py` - Citation verification script
+
+### 🗓️ Backfill Schedule (All Times 12:00 UTC / 6:00 AM CST)
+
+| Week | Period Start | Period End | Briefing Title |
+|------|--------------|------------|----------------|
+| 1 | Dec 8, 2025 | Dec 22, 2025 | "Week of December 22, 2025" |
+| 2 | Dec 15, 2025 | Dec 29, 2025 | "Week of December 29, 2025" |
+| 3 | Dec 22, 2025 | Jan 5, 2026 | "Week of January 05, 2026" |
+
+### ✅ Results
+
+**BigQuery State:**
+- `pre_briefings`: 3 rows (Dec 22, Dec 29, Jan 5)
+- `weekly_briefings`: 3 rows (same weeks)
+- Podcast generated for Jan 5 briefing (226s)
+
+**Verification:**
+- ✅ Titles use correct forced dates
+- ✅ No `[Exa:N]` in briefing text - all converted to unified `[N]` format
+- ✅ Source names show real domains (not "Exa")
+- ✅ Historical context chain working - Agent 2 sees prior briefings
+
+**Backup:**
+- `backend/backup_good_briefing.json` contains the original "good" briefing if needed
+
+### 🔧 Key Code Changes
+
+**Title Override (weekly_briefing.py:~1088):**
+```python
+# ALWAYS use calculated Monday date for title (LLM often gets it wrong)
+forced_title = f"Executive Briefing: Week of {week_of_date}"
+llm_title = data.get("briefing_title", "")
+if llm_title and llm_title != forced_title:
+    logger.info(f"Agent 2: Overriding LLM title '{llm_title}' with '{forced_title}'")
+```
+
+**Citation Cleanup (weekly_briefing.py:~352):**
+```python
+def _clean_citation_text(self, text, max_pre_brief_articles, exa_id_to_unified):
+    # Handle complex bracket contents like [37, Exa:6]
+    def process_bracket_content(match):
+        # Converts Exa:N to unified numbers, filters invalid citations
+```
+
+---
+## 📅 SESSION 71: Apollo Organization Search - Structured Firmographic Filtering (January 8, 2026)
+
+**Status**: ✅ IMPLEMENTED (not yet deployed) - Ready to push
+
+### 🎯 Problem Statement
+
+When users ask for **structured queries** like:
+- "Find aerospace companies in Florida"
+- "Find composite suppliers with >$100M annual revenue"
+- "Find manufacturers with 200-500 employees"
+
+The current Pipeline agent uses **Exa.ai semantic search** which:
+- ✅ Understands natural language intent
+- ❌ Cannot filter by firmographic fields (revenue, employee count, location)
+- ❌ Returns companies that don't match the structured criteria
+
+**Root Cause:** Enrichment (Apollo) happens AFTER search (Exa), so filtering can't be applied.
+
+### 💡 Solution: New Tool `search_companies_filtered`
+
+Add a dedicated Apollo Organization Search tool that uses Apollo's native `POST /organizations/search` endpoint with structured filters:
+
+```python
+@tool
+async def search_companies_filtered(
+    query: str = None,                  # Optional semantic query
+    states: List[str] = None,           # ["FL", "CA", "TX"]
+    countries: List[str] = None,        # ["United States"]
+    employee_ranges: List[str] = None,  # ["51-200", "201-500", "501-1000"]
+    revenue_ranges: List[str] = None,   # ["10M-50M", "50M-100M", "100M-500M"]
+    industries: List[str] = None,       # ["Aerospace", "Automotive", "Manufacturing"]
+    num_results: int = 25,
+) -> str:
+    """
+    Search for companies with structured firmographic filters using Apollo.io.
+    
+    Use this tool when the user specifies:
+    - Geographic requirements (state, country)
+    - Company size (employee count ranges)
+    - Revenue thresholds
+    - Industry categories
+    
+    For broad/semantic searches without filters, use search_companies instead.
+    """
+```
+
+### ⚠️ Agent Prompt Considerations
+
+**Critical:** The Pipeline agent already chooses between:
+- `search_companies` (Exa) - broad semantic search
+- `find_company_contacts` (Apollo) - contact discovery
+
+Adding this third tool requires **careful prompt engineering** to ensure the agent picks the right tool:
+
+| User Intent | Tool | Why |
+|-------------|------|-----|
+| "Find companies similar to Hexcel" | `find_similar_companies` (Exa) | Lookalike targeting |
+| "Aerospace composites manufacturers" | `search_companies` (Exa) | Semantic search, no filters |
+| "Aerospace companies in Florida with >500 employees" | `search_companies_filtered` (Apollo) | Structured filters required |
+| "Purchasing managers at Boeing" | `find_company_contacts` (Apollo) | Contact search |
+
+**Suggested agent prompt addition:**
+```
+TOOL SELECTION GUIDE:
+- If user specifies location (state/country), employee count, or revenue → search_companies_filtered
+- If user wants conceptual/semantic matching without specific filters → search_companies
+- If user wants contacts/people at a specific company → find_company_contacts
+```
+
+### 📁 Files to Modify
+
+1. **`backend/app/services/apollo_service.py`**
+   - Add `search_organizations()` method using Apollo's organization search endpoint
+   - Map Apollo's employee/revenue range formats
+
+2. **`backend/app/mcp/tools/pipeline_search.py`**
+   - Add `search_companies_filtered` tool
+   - Add to `PIPELINE_TOOLS_INSTANT` and `PIPELINE_TOOLS_FULL`
+
+3. **`backend/app/agents/pipeline/agent.py`**
+   - Update system prompt with tool selection guidance
+
+4. **`backend/app/agents/pipeline/README.md`**
+   - Document new tool and when to use it
+
+### 🔗 Apollo API Reference
+
+**Endpoint:** `POST /organizations/search`
+
+**Key Parameters:**
+```json
+{
+  "organization_locations": ["Florida, United States"],
+  "organization_num_employees_ranges": ["51,200", "201,500", "501,1000"],
+  "revenue_range": {"min": 100000000, "max": null},
+  "q_organization_keyword_tags": ["aerospace", "composites"],
+  "page": 1,
+  "per_page": 25
+}
+```
+
+**Returns:** Array of organization objects with full firmographics (same as `enrich_organization`)
+
+**Cost:** FREE (no credits consumed)
+
+### 🧪 Test Cases
+
+```
+# Should use search_companies_filtered (Apollo)
+"Find aerospace companies in Florida"
+"Find manufacturers with more than $100M revenue"
+"Find composite suppliers in California with 200-500 employees"
+
+# Should use search_companies (Exa)
+"Find companies like Hexcel"
+"Carbon fiber suppliers to automotive OEMs"
+"Wind turbine blade manufacturers"
+
+# Should use find_company_contacts (Apollo)
+"Find purchasing managers at Spirit AeroSystems"
+"Who are the engineering leads at Toray?"
+```
+
+### 🔑 Key Risks
+
+1. **Agent confusion** - May pick wrong tool if prompt isn't clear
+2. **Result format differences** - Apollo returns different structure than Exa
+3. **Empty results** - Strict filters may return 0 companies
+
+### ✅ Definition of Done
+
+- [x] `ApolloService.search_organizations()` implemented
+- [x] `search_companies_filtered` tool added
+- [x] Agent prompt updated with tool selection guidance
+- [x] README updated
+- [x] Verified implementation compiles (`python -c "from app.mcp.server import get_all_mcp_tools; ..."` → 54 tools)
+- [ ] Test with structured filter queries (manual verification needed)
+
+### 📁 Files Modified
+
+1. **`backend/app/services/apollo_service.py`** (~130 lines added)
+   - Added `search_organizations()` method using Apollo's `POST /organizations/search` endpoint
+   - Supports: `q_keywords`, `states`, `countries`, `employee_ranges`, `revenue_range_min/max`, `industries`
+
+2. **`backend/app/mcp/tools/pipeline_search.py`** (~100 lines added)
+   - Added `search_companies_filtered` tool that wraps the Apollo service method
+   - Added to `PIPELINE_TOOLS_INSTANT` and `PIPELINE_TOOLS_FULL` lists
+
+3. **`backend/app/agents/pipeline/agent.py`** (~40 lines updated)
+   - Updated SYSTEM_PROMPT_INSTANT with tool selection guide table
+   - Updated SYSTEM_PROMPT_FULL with new tool documentation
+   - Added clear examples for when to use each tool
+
+4. **`backend/app/agents/pipeline/README.md`** - Documented new tool and selection guide
+5. **`backend/app/mcp/tools/README.md`** - Added pipeline_search.py tool breakdown
+
+### 🧪 Verification
+
+```powershell
+cd backend
+python -c "from app.mcp.server import get_all_mcp_tools; print(len(get_all_mcp_tools()))"
+# ✓ 54 tools (search_companies_filtered now included)
+
+python -c "from app.mcp.tools.pipeline_search import PIPELINE_TOOLS_INSTANT; print([t.name for t in PIPELINE_TOOLS_INSTANT])"
+# ✓ Includes 'search_companies_filtered' between 'enrich_company' and 'find_company_contacts'
+```
+
+### 🔑 Key Implementation Details
+
+**Employee Range Format** (Apollo API):
+- `"1,10"` = 1-10 employees
+- `"11,50"` = 11-50 employees
+- `"51,200"` = 51-200 employees
+- `"201,500"` = 201-500 employees
+- `"501,1000"` = 501-1000 employees
+- `"1001,5000"` = 1001-5000 employees
+- `"5001,10000"` = 5001-10000 employees
+- `"10001+"` = 10000+ employees
+
+**Revenue Filter**:
+- `min_revenue=100000000` for >$100M
+- `min_revenue=50000000, max_revenue=100000000` for $50M-$100M range
+
+**Location Filter**:
+- Apollo expects format: `"Florida, United States"`
+- Tool accepts just state names: `states=["Florida", "California"]`
+- Country defaults to "United States" if not specified
+
+### 💬 Session Discussion Summary (3 AM Architecture Review)
+
+**Scope:** This work is focused on **COMPANY search filtering**, not contacts/people (that may come later).
+
+**Current Pipeline Flow (before this change):**
+```
+User: "aerospace companies with >$100M revenue"
+  ↓
+Exa semantic search: Finds "aerospace companies" (understands concept)
+  ↓
+Apollo /organizations/enrich: Adds firmographics to each result (revenue, employees, etc.)
+  ↓
+Display: Shows enriched results - BUT filtering happened semantically, not structurally
+```
+
+**Key Discovery - Apollo Endpoint Data Differences:**
+| Endpoint | Purpose | Revenue Data | Employee Data |
+|----------|---------|--------------|---------------|
+| `/organizations/enrich` | Enrich by domain | ✅ Complete (e.g., "200M") | ✅ Complete |
+| `/organizations/search` | Search with filters | ⚠️ Often `None` | ✅ Complete |
+
+**Example:** Composites One
+- Enrich endpoint: `revenue=200M, employees=670`
+- Search endpoint: `revenue=None, employees=670` (but filter WORKED - it was returned)
+
+**Conclusion:** Apollo's search endpoint **filters correctly** but doesn't always **display** the revenue value. The filter is applied server-side even if the response field is sparse.
+
+**Alternative Approach Discussed (not implemented):**
+Instead of adding a new tool, have the LLM filter post-enrichment:
+```
+Exa search → Apollo enrich (full data) → LLM filters the enriched list → Display
+```
+Pros: Consistent data quality, simpler architecture
+Cons: Can only filter what Exa finds, limited pool (25-100 results)
+
+**Decision:** Ship the new `search_companies_filtered` tool. Gives users both options - semantic (Exa) for discovery, structured (Apollo) for filtering. Can evaluate which works better in practice.
+
+**NOT YET DEPLOYED** - Changes are local only. Ready to push.
+
+---
 ## 📅 SESSION 70: Synthesizer Planning Scratchpad (January 8, 2026)
 
 **Status**: ✅ COMPLETE

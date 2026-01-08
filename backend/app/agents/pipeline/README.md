@@ -32,37 +32,54 @@ The Pipeline tab is an AI-powered sales prospecting engine that combines neural 
 
 **Instant Mode** (~350ms):
 - Quick discovery searches
-- 11 tools available
+- 12 tools available
 - Real-time results
 
 **Full Mode** (1-5 minutes):
 - Comprehensive list building with websets
 - Requires user "CONFIRM" for expensive operations
-- 12 tools available
+- 13 tools available
 
 ### Tools Available
 
-#### Exa.ai Search (Creates SearchBlocks)
+#### Exa.ai Search (Creates SearchBlocks - Semantic/Broad)
 1. `find_similar_companies` - Lookalike targeting
-2. `search_companies` - Natural language company search
+2. `search_companies` - Natural language company search (BROAD/SEMANTIC)
 3. `find_trigger_events` - Expansion/funding/contract signals
 4. `build_company_webset` - Deep enrichment (Full mode only)
 
 > **Note:** `find_contacts` (Exa) is deprecated for contact search. Use `find_company_contacts` (Apollo) instead for revealable email/phone data.
 
-#### Apollo.io Enrichment (Creates SearchBlocks for contacts)
-5. `enrich_company` - FREE firmographics (employees, revenue, tech stack)
-6. `find_company_contacts` - PRIMARY contact search tool (FREE teasers + FREE company enrichment)
+#### Apollo.io Tools (Creates SearchBlocks for contacts & filtered companies)
+5. `search_companies_filtered` - **NEW** Structured firmographic search (FREE - no credits)
+   - Use when user specifies: location (state/country), employee count, revenue, industries
+   - Example: "aerospace companies in Florida with >500 employees"
+   - Returns full firmographics (employees, revenue, industry, tech stack, location)
+6. `enrich_company` - FREE firmographics (employees, revenue, tech stack)
+7. `find_company_contacts` - PRIMARY contact search tool (FREE teasers + FREE company enrichment)
    - Returns contact previews with `person_id` for reveal
    - **Auto-includes company firmographics** (employee count, revenue, industry, location)
    - Frontend displays company context header above contacts
-7. `reveal_contact` - COSTS 1 CREDIT (verified email/phone)
-8. `get_apollo_credits` - Check usage
+8. `reveal_contact` - COSTS 1 CREDIT (verified email/phone)
+9. `get_apollo_credits` - Check usage
 
 #### BigQuery Corpus (Chat insights only)
-9. `query_corpus` - Semantic search across article_chunk_embeddings
-10. `get_entity_mentions` - Company news from corpus
-11. `get_competitor_activity` - Competitor intelligence
+10. `query_corpus` - Semantic search across article_chunk_embeddings
+11. `get_entity_mentions` - Company news from corpus
+12. `get_competitor_activity` - Competitor intelligence
+
+---
+
+## Tool Selection Guide
+
+| User Intent | Tool | Why |
+|-------------|------|-----|
+| Broad semantic search ("aerospace suppliers") | `search_companies` (Exa) | Neural search understands intent |
+| Find lookalikes ("companies like Hexcel") | `find_similar_companies` (Exa) | Automated lookalike targeting |
+| **Location filter** ("companies in Florida") | `search_companies_filtered` (Apollo) | Structured geo filter |
+| **Employee count** ("companies with >500 employees") | `search_companies_filtered` (Apollo) | Structured size filter |
+| **Revenue threshold** ("companies with >$100M revenue") | `search_companies_filtered` (Apollo) | Structured revenue filter |
+| Contact search ("purchasing managers at Boeing") | `find_company_contacts` (Apollo) | Returns revealable contacts |
 
 ---
 

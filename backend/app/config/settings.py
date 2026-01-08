@@ -104,7 +104,7 @@ class Settings(BaseSettings):
     sec_extract_sections: list = ["1", "1A", "7", "7A"]
     
     # Deep Research Workflow models
-    deep_research_groomer_model: str = "claude-3-5-haiku-20241022"  # Haiku for faster query analysis
+    deep_research_groomer_model: str = "claude-haiku-4-5"  # Haiku for faster query analysis
     deep_research_financial_model: str = "claude-sonnet-4-5"
     deep_research_industry_model: str = "claude-sonnet-4-5"
     deep_research_synthesizer_model: str = "claude-sonnet-4-5"

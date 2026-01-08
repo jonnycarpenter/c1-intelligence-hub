@@ -29,7 +29,7 @@ logger = get_logger(__name__)
 TAVILY_SEARCH_URL = "https://api.tavily.com/search"
 
 # Vision model for chart interpretation
-VISION_MODEL = "claude-sonnet-4-20250514"
+VISION_MODEL = "claude-sonnet-4-5"
 
 # Common chart/image hosting patterns to prioritize
 CHART_URL_PATTERNS = [

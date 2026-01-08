@@ -101,7 +101,7 @@ prior_context = await _get_prior_research_context(user_query)
 system_content = f"{GROOMER_SYSTEM_PROMPT}\n\n{prior_context}"
 ```
 
-**Model**: `claude-sonnet-4-5` (configurable via `settings.deep_research_groomer_model`)
+**Model**: `claude-haiku-4-5` (configurable via `settings.deep_research_groomer_model`)
 
 ### 2. Financial Research (`financial.py`)
 **Purpose**: Financial data and corporate intelligence
@@ -338,7 +338,7 @@ class VisualAgentOutput(BaseModel):
 Model settings in `backend/app/config/settings.py`:
 
 ```python
-deep_research_groomer_model = "claude-sonnet-4-5"
+deep_research_groomer_model = "claude-haiku-4-5"
 deep_research_financial_model = "claude-sonnet-4-5"
 deep_research_industry_model = "claude-sonnet-4-5"
 deep_research_synthesizer_model = "claude-sonnet-4-5"

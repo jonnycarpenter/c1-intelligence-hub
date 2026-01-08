@@ -184,8 +184,18 @@ claude-sonnet-4-5                 claude-opus-4-5              ElevenLabs TTS
 - **Inline Logos**: `[[Company Name]]` tags render with Logo.dev images
 - **Net New vs Continuing**: Badges show if topic is new or continuing from prior weeks
 - **Exa Peripheral Search**: Agent 2 can search for adjacent intelligence
+- **Forced Title Override** (Session 72): Title always uses calculated date, LLM-generated title ignored
+- **Citation Cleanup**: `[N, Exa:M]` patterns normalized to sequential `[1]`, `[2]`, etc.
 
 **Schedule**: Monday 8:30 AM CST via Cloud Scheduler (`weekly-executive-briefing` job)
+
+**Backfill Scripts** (for rebuilding historical context):
+```bash
+cd backend
+python scripts/operations/backfill_briefings.py           # All weeks
+python scripts/operations/backfill_briefings.py --week 1  # Single week
+python scripts/operations/backfill_briefings.py --verify  # Check results
+```
 
 ## Key BigQuery Tables
 
@@ -212,8 +222,8 @@ These files have critical bug fixes - be careful editing:
 |----------|-------|----------|
 | Deep Research agents | `claude-sonnet-4-5` | `app/agents/research/*.py` |
 | Weekly Briefing synthesis | `claude-opus-4-5` | `app/ingestion/generators/weekly_briefing.py` |
-| Ad-hoc briefing (fast) | `claude-3-5-haiku-20241022` | `app/agents/adhoc_briefing/agent.py` |
-| Vision/Image extraction | `claude-sonnet-4-20250514` | `app/mcp/tools/image_extraction.py` |
+| Deep Research groomer | `claude-haiku-4-5` | `app/agents/research/groomer.py` |
+| Vision/Image extraction | `claude-sonnet-4-5` | `app/mcp/tools/image_extraction.py` |
 | Pre-briefing generation | `claude-sonnet-4-5` | `app/ingestion/generators/pre_briefing.py` |
 | Digest generation | `claude-sonnet-4-5` | `app/ingestion/generators/digest.py` |
 | Classification | `claude-sonnet-4-5` | `app/ingestion/classifier.py` |
@@ -225,7 +235,8 @@ OpenAI is ONLY used as a fallback when Anthropic fails (e.g., credit exhaustion)
 |-----------------|-----------------|
 | `claude-sonnet-4-5` | `gpt-4o` |
 | `claude-opus-4-5` | `gpt-4o` |
-| `claude-3-5-haiku-20241022` | `gpt-4o-mini` |
+| `claude-haiku-4-5` | `gpt-4o-mini` |
+| `claude-3-5-haiku-20241022` (legacy) | `gpt-4o-mini` |
 
 ### Using Resilient LLM Wrappers
 

@@ -40,7 +40,8 @@ Provides automatic fallback from Anthropic (Claude) to OpenAI (GPT) when the pri
 |-----------------|-----------------|
 | `claude-sonnet-4-5` | `gpt-4o` |
 | `claude-opus-4-5` | `gpt-4o` |
-| `claude-3-5-haiku-20241022` | `gpt-4o-mini` |
+| `claude-haiku-4-5` | `gpt-4o-mini` |
+| `claude-3-5-haiku-20241022` (legacy) | `gpt-4o-mini` |
 
 ### Quick Start
 
