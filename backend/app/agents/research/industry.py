@@ -305,7 +305,7 @@ async def industry_research_node(state: DeepResearchState) -> Dict[str, Any]:
         anthropic_api_key=settings.anthropic_api_key,
         openai_api_key=settings.openai_api_key,
         temperature=0,
-        max_tokens=8192,  # Increased from default 4096 to prevent truncation
+        max_tokens=12288,  # Increased to 12K - industry generates more findings than financial
     )
     
     brief = state["research_brief"]

@@ -174,7 +174,8 @@ def corpus_visuals_search(
 
             where_clause = " AND ".join(conditions) if conditions else "TRUE"
 
-            # Build query
+            # Build query using storage config for correct project/dataset
+            table_ref = f"{storage.config.full_dataset_id}.article_images"
             query = f"""
             SELECT
                 id,
@@ -190,7 +191,7 @@ def corpus_visuals_search(
                 relevance_score,
                 ingested_at
             FROM
-                `gen-lang-client-0436975498.c1_intelligence_hub.article_images`
+                `{table_ref}`
             WHERE
                 {where_clause}
             ORDER BY
