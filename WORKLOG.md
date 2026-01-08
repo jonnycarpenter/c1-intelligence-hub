@@ -89,6 +89,22 @@ After deploying commit `7eadc3b`, user tested and got **"Query analysis canceled
 **Service**: `c1-hub-service`
 **Log patterns to search**: `[GROOMER]`, `canceled`, `Cancelled`, `disconnect`, `CancelledError`
 
+### � IMPORTANT: Where Related Research is Queried
+
+**Confirmed**: Only ONE place in the workflow calls related research - **groomer.py**
+
+```
+grep results for "find_related_research|related_research|search_related":
+- groomer.py:38 - await memory.find_related_research() [IN WORKFLOW - NOW DISABLED]
+- deep_research.py:782 - API endpoint for UI to fetch related (NOT in workflow)
+- memory.py:109 - The memory class method definition
+- gcp_storage.py:2601 - The BQ query implementation
+```
+
+**Synthesizer does NOT check related research** - confirmed via grep (no matches).
+
+So the current theory is solid: disabling prior research in groomer should eliminate that as a cause.
+
 ### 🔜 Next Steps (For Next Session)
 1. **Check Cloud Run Logs** for the test query - look for:
    - `[GROOMER] START` - did groomer even begin?
@@ -105,6 +121,14 @@ After deploying commit `7eadc3b`, user tested and got **"Query analysis canceled
 5. **Once working**: Re-enable prior research with proper timeout wrapping around JUST the BQ call
 
 ### 📋 Technical Context for Continuation
+
+**GCP Project ID**: `gen-lang-client-0436975498`
+**Cloud Run Service**: `c1-hub-service`
+
+**Log query command**:
+```bash
+gcloud logging read "resource.type=cloud_run_revision AND resource.labels.service_name=c1-hub-service" --project=gen-lang-client-0436975498 --limit=50 --format=json
+```
 
 **Groomer code structure** (simplified after disable):
 ```python
@@ -129,6 +153,12 @@ async def groom_query(state: ResearchState) -> ResearchState:
 - `search_related_research(query)` - queries `deep_research_reports` table
 - Uses SQL LIKE with query keywords
 - Returns up to 3 matching reports' executive summaries
+
+**Files to review if issues persist**:
+- [groomer.py](backend/app/agents/research/groomer.py) - prior research disabled, LLM timeout
+- [resilient_llm.py](backend/app/utils/resilient_llm.py) - HTTP timeout 45s
+- [deep_research.py](backend/app/api/routes/deep_research.py) - SSE streaming, heartbeat, cancel handling
+- [research_workflow.py](backend/app/graph/research_workflow.py) - LangGraph workflow definition
 
 ---
 
