@@ -17,9 +17,140 @@ Without reliable daily ingestion:
 **Always verify scheduler jobs are running before working on features.**
 
 ---
+## 📅 SESSION 66: Synthesizer Brevity Refactor + Prior Research Context (January 7, 2026)
+
+**Status**: ✅ COMPLETE - Ready for deploy
+
+### 🎯 Issue
+Deep Research final reports were excessively verbose and hard to read. The LLM was filling out a massive JSON template with unnecessary details, resulting in reports that took 10+ minutes to read instead of 3-5 minutes.
+
+### 🔍 Root Cause
+Mismatch between prompt instructions ("be brief") and the JSON schema (demanded full paragraphs, multiple citations per section, verbose field sales with grounding/validation). The LLM tried to satisfy both, resulting in bloated output.
+
+Also discovered: **Frontend/backend schema mismatch** - frontend expects `metric.label` but backend defined `metric_name`; frontend expects `angle.target_segment` for offensive angles but backend had `rationale/grounding`.
+
+### ✅ Changes Made
+
+**1. Dramatically simplified synthesizer prompt** (`backend/app/agents/research/synthesizer.py`)
+- Cut system prompt from ~80 lines to ~30 lines
+- Changed instruction style: "12 words max" instead of "15 words max"
+- Explicit anti-patterns: "No 'It's worth noting...'" type filler
+- Enforced 2-3 sections max, 2-3 sentences per section
+
+**2. Simplified JSON template**
+- `key_metrics`: Just `label` + `value` (no context/confidence bloat)
+- `offensive_angles`: `angle` + `target_segment` (matches frontend)
+- `defensive_angles`: `risk` + `mitigation` (matches frontend)
+- Removed per-section verbose citations (single sources list at end)
+
+**3. Added prior research context injection** 
+- New `_get_prior_research_context()` helper fetches related past research
+- Uses `memory.find_related_research()` from `memory.py`
+- Injects into system prompt so synthesizer can say "Building on our January 3rd analysis..."
+
+**4. Added condensed findings helper**
+- New `_condense_findings()` strips verbose metadata from agent outputs before sending to LLM
+- Reduces token count, focuses LLM on actual findings
+
+**5. Fixed frontend/backend schema alignment** (`backend/app/agents/research/state.py`)
+- `KeyMetric`: Added `label` field, syncs with `metric_name`
+- `FieldSalesAngle`: Added `target_segment`, `risk`, `mitigation` fields
+
+### 📁 Files Modified
+| File | Changes |
+|------|---------|
+| `backend/app/agents/research/synthesizer.py` | Rewrote prompt, added prior research injection, added condensed findings helper |
+| `backend/app/agents/research/state.py` | Added frontend-compatible fields to `KeyMetric` and `FieldSalesAngle` |
+
+### 📋 Expected Behavior Change
+- Reports now 3-5 minute reads (vs 10+ minutes)
+- 2-3 sections max (vs 4-6)
+- Punchy headlines (12 words)
+- Field sales render correctly in frontend
+- Can reference prior research: "This confirms our earlier finding..."
+
+---
+## 🐛 NEXT: Financial/Industry Agent JSON Parsing Errors
+
+**Priority**: HIGH - Blocking Deep Research reports
+**Discovered During**: Session 66 local testing
+
+### 🎯 Issue
+During local testing, both Financial and Industry research agents are failing to parse LLM JSON output:
+```
+{"node": "financial_research_synthesis", "error": "Expecting value: line 236 column 73 (char 14597)"}
+{"node": "industry_research_synthesis", "error": "Unterminated string starting at: line 233 column 25 (char 14340)"}
+```
+
+This causes `final_report` to be `None`, which cascades:
+- Category agent: "No final_report available for category analysis"
+- Validator: "No final_report available for validation"
+
+### 🔍 Analysis
+- **Location**: `backend/app/agents/research/financial.py` and `industry.py`
+- **Pattern**: LLM returns truncated or malformed JSON (line 233-236 suggests very long output)
+- **Likely cause**: Output exceeds max_tokens, gets truncated mid-JSON
+- **Not related to**: Session 66 synthesizer changes (these are upstream agents)
+
+### 💡 Potential Solutions
+
+**Option 1: Increase max_tokens for research agents**
+- Check if `max_tokens` is set too low in financial.py/industry.py
+- LLM might be hitting output limit before completing JSON
+
+**Option 2: Add JSON repair logic**
+- Use a library like `json-repair` to fix truncated JSON
+- Or add manual repair for common truncation patterns (missing `}]`)
+
+**Option 3: Chunk findings**  
+- If agents find too many results, paginate or summarize before JSON serialization
+- Limit findings to top N before LLM synthesis
+
+**Option 4: Use streaming/structured output**
+- Switch to Anthropic's structured output mode (tool_use pattern)
+- Guarantees valid JSON structure
+
+### 📁 Files to Investigate
+- `backend/app/agents/research/financial.py` - Find JSON parsing section
+- `backend/app/agents/research/industry.py` - Find JSON parsing section
+- Check `max_tokens` setting in both
+- Look for `json.loads()` call and add try/except with repair
+
+---
+## ✅ COMPLETED: Synthesizer Prior Research Context Injection
+
+**Priority**: Medium - Enhancement
+**Prerequisite**: Deep Research workflow is now working (Session 65 fix deployed)
+
+### Goal
+Inject prior related research into the **Synthesizer** agent (not Groomer) so reports can reference past findings.
+
+### Why Synthesizer (not Groomer)
+- Lower risk - Groomer is working, don't touch it
+- Better narrative - Synthesizer can weave "as we found previously..." naturally  
+- Timing - Adds latency at "Synthesizing" phase (feels productive) vs "Analyzing" (feels slow)
+- Separation of concerns - Groomer plans, Synthesizer writes
+
+### Implementation Plan
+1. Before synthesizer LLM call, fetch related research from BigQuery:
+   - Use `memory.find_related_research(query, companies, industries)` 
+   - Already exists in `app/agents/research/memory.py`
+2. Inject into synthesizer system prompt: "You may reference these prior research findings if relevant..."
+3. Synthesizer can say things like "This confirms our January 3rd finding that..."
+
+### Files to Modify
+- `backend/app/agents/research/synthesizer.py` - Add prior research lookup + prompt injection
+- Pattern: Copy from groomer's `_get_prior_research_context()` function (disabled but still there)
+
+### Notes
+- Prior research was DISABLED in groomer during debugging (hardcoded `prior_context = ""`)
+- Can leave groomer disabled - synthesizer is better location anyway
+- BQ table: `deep_research_reports` with 24h TTL
+
+---
 ## 📅 SESSION 65: Deep Research SSE Cancellation Bug - ROOT CAUSE FOUND (January 7, 2026)
 
-**Status**: ✅ COMPLETE - Deployed
+**Status**: ✅ COMPLETE - Deployed ✅ VERIFIED WORKING
 
 **Deployed Commit**: `0eb6d36`
 

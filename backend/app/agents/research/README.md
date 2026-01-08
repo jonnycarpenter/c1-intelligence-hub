@@ -189,19 +189,37 @@ LIMIT 10
 ```
 
 ### 5. Synthesizer (`synthesizer.py`)
-**Purpose**: Merge findings into executive-ready report
+**Purpose**: Merge findings into BRIEF, executive-ready report
 
-- Deduplicates overlapping findings
-- Connects financial reality with market activity
-- Structures content into thematic sections
-- Creates executive summary with key metrics
-- Generates field sales implications
-- **Places relevant visuals** in appropriate report sections (from Visual agent output)
+**Brevity-First Design (Session 66 Refactor):**
+- **12-word max headlines** - Lead with the insight
+- **2-3 sections max** - Ruthlessly prioritize
+- **2-3 sentences per section** - No filler paragraphs
+- **3-4 key points** - One sentence each
+- **2-3 key metrics** - Just `label` + `value`
 
-**Visual Integration:**
-The synthesizer receives `visual_output` from the Visual agent and matches visuals to sections by topic. For example, a revenue growth chart is placed in the "Financial Performance" section, while a market share diagram goes in "Competitive Landscape".
+**Key Features:**
+- Deduplicates overlapping findings from Financial + Industry agents
+- Connects financial data with market trends (one sentence is enough)
+- Creates punchy executive summary with actionable metrics
+- Generates brief field sales angles (1-2 offensive, 1 defensive)
+- **Places relevant visuals** in appropriate report sections
+- **Prior Research Context**: Can reference past findings ("Building on our Jan 3rd analysis...")
 
-**Output**: `SynthesisAgentOutput` with full report structure, including `supporting_visuals` per section
+**Anti-Patterns (LLM is instructed to avoid):**
+- ❌ "It's worth noting..." / "Interestingly..." filler
+- ❌ More than 3 thematic sections
+- ❌ Paragraphs >4 sentences
+- ❌ Tables with <3 rows
+- ❌ Repeating info across sections
+
+**Prior Research Injection:**
+Before synthesis, the agent fetches related past research via `memory.find_related_research()` and injects it into the system prompt. This enables contextual references like "This confirms our earlier finding that..."
+
+**Input Condensing:**
+The `_condense_findings()` helper strips verbose metadata from agent outputs before sending to the LLM, reducing token count and keeping focus on actual insights.
+
+**Output**: `SynthesisAgentOutput` with concise report structure, `supporting_visuals` per section
 
 ### 6. Category Agent (`category.py`) *(Phase 2)*
 **Purpose**: Territory-specific sales intelligence

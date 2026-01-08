@@ -132,11 +132,20 @@ class MetricsTable(BaseModel):
     notes: Optional[str] = None  # Any caveats or footnotes
 
 class KeyMetric(BaseModel):
-    metric_name: str
+    metric_name: str = ""  # Backend schema field
+    label: Optional[str] = None  # Frontend expects this
     value: str
-    context: str
-    source: str
-    confidence: ConfidenceLevel
+    context: str = ""
+    source: str = "Research data"
+    confidence: ConfidenceLevel = ConfidenceLevel.MEDIUM
+    
+    def __init__(self, **data):
+        # Allow either metric_name or label, sync them
+        if 'label' in data and 'metric_name' not in data:
+            data['metric_name'] = data['label']
+        elif 'metric_name' in data and 'label' not in data:
+            data['label'] = data['metric_name']
+        super().__init__(**data)
 
 class ExecutiveSummary(BaseModel):
     headline: str
@@ -154,10 +163,25 @@ class FindingSection(BaseModel):
     supporting_visuals: List[SupportingVisual]
 
 class FieldSalesAngle(BaseModel):
-    angle: str
-    rationale: str
-    grounding: str
+    """Field sales angle - supports both offensive and defensive formats."""
+    angle: str = ""  # Backend schema (offensive)
+    rationale: str = ""  # Backend schema
+    grounding: str = ""  # Backend schema (optional)
     suggested_validation: Optional[str] = None
+    # Frontend-compatible fields
+    target_segment: Optional[str] = None  # Frontend expects for offensive
+    risk: Optional[str] = None  # Frontend expects for defensive
+    mitigation: Optional[str] = None  # Frontend expects for defensive
+    
+    def __init__(self, **data):
+        # Map frontend fields to backend fields
+        if 'target_segment' in data and not data.get('rationale'):
+            data['rationale'] = data['target_segment']
+        if 'risk' in data and not data.get('angle'):
+            data['angle'] = data['risk']
+        if 'mitigation' in data and not data.get('rationale'):
+            data['rationale'] = data['mitigation']
+        super().__init__(**data)
 
 class FieldSalesSection(BaseModel):
     offensive_angles: List[FieldSalesAngle]

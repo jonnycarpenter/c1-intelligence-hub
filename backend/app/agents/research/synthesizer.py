@@ -1,91 +1,103 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from langchain_core.messages import SystemMessage, HumanMessage
 from app.agents.research.state import DeepResearchState, SynthesisAgentOutput, FindingSection, FieldSalesSection, SupportingVisual
+from app.agents.research.memory import get_research_memory
 from app.config.settings import settings
 from app.utils.resilient_llm import create_resilient_llm_with_openai_fallback
 import json
 import time
+import logging
 from datetime import datetime
 
-SYNTHESIZER_SYSTEM_PROMPT = """
-You are a Lead Synthesis Agent for C1 Intelligence Hub. Your job is to take the separate findings from the Financial, Industry, and Visual agents and merge them into a CONCISE, executive-ready research report.
+logger = logging.getLogger(__name__)
 
-## CRITICAL: BREVITY IS KEY
 
-**Executives are busy. Keep it short.**
-- Total report should be readable in 3-5 minutes
-- Prioritize the TOP 3-5 most important findings
-- Cut anything that doesn't directly answer the user's question
-- Use bullet points over paragraphs where possible
-- NO filler phrases like "It's worth noting that..." or "Interestingly..."
+def _condense_findings(output) -> Dict[str, Any]:
+    """Strip verbose fields from agent output to reduce token count."""
+    if not output:
+        return None
+    
+    data = output.model_dump() if hasattr(output, 'model_dump') else output
+    
+    # Keep only essential fields, drop verbose metadata
+    condensed = {
+        "findings": [],
+        "key_metrics": data.get("key_metrics_summary"),
+        "data_gaps": data.get("data_gaps", [])[:3],  # Limit gaps
+    }
+    
+    # Condense findings to just the core content
+    for f in data.get("findings", [])[:10]:  # Limit to top 10 findings
+        condensed["findings"].append({
+            "finding": f.get("finding"),
+            "type": f.get("finding_type") or f.get("event_type"),
+            "confidence": f.get("confidence"),
+            "entities": f.get("entities_mentioned", [])[:3],
+            "source": f.get("citation", {}).get("source_title") if f.get("citation") else None,
+        })
+    
+    return condensed
 
-## Your Goal
 
-Create a FOCUSED report that answers the user's question directly. Quality over quantity.
+SYNTHESIZER_SYSTEM_PROMPT = """You are a synthesis agent. Convert research findings into a BRIEF executive report.
 
-## Synthesis Rules
+## GOLDEN RULE: Be ruthlessly concise. Every sentence must earn its place.
 
-1. PRIORITIZE RUTHLESSLY: Only include findings that directly answer the user's question. Skip tangential information.
-2. MERGE & DEDUPLICATE: Combine overlapping findings into single, concise statements.
-3. CONNECT THE DOTS: One sentence explaining how financial data connects to market trends is enough.
-4. CITE EFFICIENTLY: Include citations but don't repeat the same source multiple times.
-5. INCORPORATE VISUALS: Use visual assets (charts, graphs) from visual_assets to support key findings. Place visuals in appropriate sections based on their placement hints.
+## OUTPUT STRUCTURE (follow exactly)
 
-## Report Structure (KEEP IT TIGHT)
+1. EXECUTIVE SUMMARY
+   - headline: One sentence, 12 words max. Lead with the insight.
+   - key_metrics: 2-3 numbers max. Format: {"label": "Name", "value": "$X.XB"}
+   - key_points: 3-4 bullets. One sentence each. No fluff.
 
-### 1. EXECUTIVE SUMMARY
-- **headline**: One punchy sentence (15 words max).
-- **key_points**: 3-4 bullet points MAX. Each point should be one sentence.
-- **key_metrics**: 2-3 numbers only — the ones that matter most.
-- **data_caveat**: One sentence if needed, otherwise null.
+2. SECTIONS (2-3 max, never more)
+   - section_title: 3-5 words
+   - content: 2-3 sentences of insight. Use markdown bullets if listing items. No preamble.
+   - tables: ONLY if comparing 3+ data points. Otherwise skip.
 
-### 2. THEMATIC SECTIONS
-Create 2-3 sections MAX (not 4-6).
-- **section_title**: Short, descriptive (5 words max).
-- **content**: 1-2 SHORT paragraphs (3-4 sentences each). Get to the point.
-- **tables**: Only if there's genuine tabular data. Don't force tables.
-- **supporting_visuals**: Include relevant visuals from visual_assets that support this section. Each visual should have placement="section_name".
-- **confidence**: High, Medium, or Low.
+3. FIELD SALES (actionable, brief)
+   - offensive_angles: 1-2 max. Format: {"angle": "The opportunity", "target_segment": "Who to target"}
+   - defensive_angles: 1 max. Format: {"risk": "The threat", "mitigation": "How to counter"}
+   - questions_to_explore: 2-3 discovery questions
 
-### 3. FIELD SALES IMPLICATIONS (BRIEF)
-- **offensive_angles**: 2 MAX. One sentence each for angle + rationale.
-- **defensive_angles**: 1 MAX. One sentence.
-- **questions_to_explore**: 2-3 questions MAX.
-- **caution_note**: One standard sentence.
+4. SOURCES
+   - sources_used: List 3-5 key sources (not every article)
+   - data_gaps: What's missing (1 sentence)
 
-### 4. SOURCES
-- **sources_used**: List only the unique, key sources (not every single article).
-- **data_gaps**: 1-2 sentence summary of what's missing.
+## ANTI-PATTERNS (avoid these)
+- "It's worth noting..." / "Interestingly..." / "Additionally..."
+- Repeating findings across sections
+- Tables with <3 rows
+- More than 3 sections
+- Paragraphs >4 sentences
 
-### 5. ALL VISUALS
-- **all_visuals**: Aggregate all visual assets from visual_assets.supporting_visuals into this array for the report.
-
-## Anti-Patterns to AVOID
-- ❌ Long introductory paragraphs before getting to findings
-- ❌ Repeating the same information in different sections
-- ❌ Excessive caveats and qualifications
-- ❌ Tables with only 2 rows of data
-- ❌ More than 3 thematic sections
-- ❌ Verbose field sales angles with multiple paragraphs
-- ❌ Ignoring visual assets when they're available
-
-## Output Format
-Always respond with valid JSON matching the SynthesisAgentOutput schema.
+## PRIOR RESEARCH
+If prior research context is provided, you may reference it: "Building on our [date] analysis..." or "This confirms earlier findings that..."
 """
+
+async def _get_prior_research_context(query: str, companies: List[str] = None, industries: List[str] = None) -> str:
+    """Fetch related prior research for context injection."""
+    try:
+        memory = await get_research_memory()
+        related = await memory.find_related_research(
+            query=query,
+            companies=companies,
+            industries=industries,
+        )
+        if related:
+            return memory.format_context_for_prompt(related)
+        return ""
+    except Exception as e:
+        logger.warning(f"[SYNTHESIZER] Failed to fetch prior research: {e}")
+        return ""
+
 
 async def synthesis_node(state: DeepResearchState) -> DeepResearchState:
     """
-    Synthesis node. Merges financial, industry, and visual outputs into a final report.
+    Synthesis node. Merges financial, industry, and visual outputs into a CONCISE final report.
     """
-    import logging
-    logger = logging.getLogger(__name__)
-    
     start_time = time.time()
     logger.info(f"[SYNTHESIZER] START - query: {state.get('user_query', '')[:50]}...")
-    logger.info(f"[SYNTHESIZER] State keys: {list(state.keys())}")
-    logger.info(f"[SYNTHESIZER] Has financial_output: {state.get('financial_output') is not None}")
-    logger.info(f"[SYNTHESIZER] Has industry_output: {state.get('industry_output') is not None}")
-    logger.info(f"[SYNTHESIZER] Has visual_output: {state.get('visual_output') is not None}")
     
     llm = create_resilient_llm_with_openai_fallback(
         primary_model=settings.deep_research_synthesizer_model,
@@ -94,129 +106,98 @@ async def synthesis_node(state: DeepResearchState) -> DeepResearchState:
         temperature=0,
     )
     
-    financial = state["financial_output"]
-    industry = state["industry_output"]
+    financial = state.get("financial_output")
+    industry = state.get("industry_output")
     visual = state.get("visual_output")
+    research_brief = state.get("research_brief")
+    user_query = state.get("user_query", "")
     
     if not financial and not industry:
         state["current_status"] = "synthesis_failed_no_input"
         return state
-        
-    # Prepare input for synthesizer
-    input_data = {
-        "original_query": state["user_query"],
-        "research_brief": state["research_brief"].model_dump() if state["research_brief"] else None,
-        "financial_findings": financial.model_dump() if financial else None,
-        "industry_findings": industry.model_dump() if industry else None,
-        "visual_assets": visual.model_dump() if visual else None,  # NEW: Include visual output
+    
+    # Extract entities for prior research lookup
+    companies = research_brief.entities_to_track if research_brief else []
+    industries = []
+    if research_brief and research_brief.domain_context:
+        industries = [research_brief.domain_context]
+    
+    # Fetch prior research context
+    prior_context = await _get_prior_research_context(user_query, companies, industries)
+    if prior_context:
+        logger.info(f"[SYNTHESIZER] Injecting prior research context ({len(prior_context)} chars)")
+    
+    # Build condensed research data (strip verbose fields)
+    research_data = {
+        "query": user_query,
+        "brief": {
+            "intent": research_brief.clarified_intent if research_brief else user_query,
+            "entities": companies[:5],
+            "timeframe": research_brief.timeframe if research_brief else None,
+        } if research_brief else None,
+        "financial": _condense_findings(financial) if financial else None,
+        "industry": _condense_findings(industry) if industry else None,
+        "visuals": visual.model_dump() if visual else None,
     }
     
-    synthesis_prompt = f"""
-    Synthesize the following research findings into a comprehensive report for the user's query: '{state["user_query"]}'.
+    # Build system prompt with prior context
+    system_content = SYNTHESIZER_SYSTEM_PROMPT
+    if prior_context:
+        system_content += f"\n\n{prior_context}"
     
-    RESEARCH DATA:
-    {json.dumps(input_data, indent=2)}
-    
-    Respond ONLY with a JSON object matching this EXACT schema:
+    synthesis_prompt = f"""Synthesize into a BRIEF report for: "{user_query}"
 
+RESEARCH DATA:
+{json.dumps(research_data, indent=2, default=str)}
+
+OUTPUT FORMAT (valid JSON):
+{{
+  "report_id": "REP-{int(time.time())}",
+  "generated_at": "{datetime.now().isoformat()}",
+  "query": "{user_query}",
+  "data_completeness": "complete|partial|limited",
+  "overall_confidence": "high|medium|low",
+  "executive_summary": {{
+    "headline": "12 words max - lead with insight",
+    "key_points": ["Point 1", "Point 2", "Point 3"],
+    "key_metrics": [
+      {{"label": "Metric Name", "value": "$X.XB or X%"}}
+    ],
+    "data_caveat": null
+  }},
+  "sections": [
     {{
-      "report_id": "REP-{int(time.time())}",
-      "generated_at": "{datetime.now().isoformat()}",
-      "query": "{state["user_query"]}",
-      "data_completeness": "complete" | "partial" | "limited",
-      "overall_confidence": "high" | "medium" | "low",
-      "executive_summary": {{
-        "headline": "Single sentence capturing key takeaway",
-        "key_points": ["Point 1", "Point 2", "Point 3"],
-        "key_metrics": [
-          {{
-            "metric_name": "Name of metric",
-            "value": "$X.XB or X.X%",
-            "context": "Brief context for this metric",
-            "source": "Source of this metric (required!)",
-            "confidence": "high" | "medium" | "low"
-          }}
-        ],
-        "data_caveat": "Data caveat if incomplete, or null"
-      }},
-      "sections": [
-        {{
-          "section_id": "sec_001",
-          "section_title": "Section Title",
-          "content": "2-4 paragraphs of synthesized prose",
-          "tables": [
-            {{
-              "table_id": "tbl_001",
-              "title": "Table Title",
-              "columns": ["Column1", "Column2", "Column3"],
-              "rows": [{{"Column1": "val1", "Column2": "val2", "Column3": "val3"}}],
-              "source": "Source of table data",
-              "notes": "Optional notes or null"
-            }}
-          ],
-          "citations": [
-            {{
-              "source_type": "sec_10k|earnings_call|trade_publication|etc",
-              "source_title": "Title",
-              "source_url": "URL or null",
-              "source_date": "YYYY-MM-DD or null",
-              "page_or_section": "Section ref or null",
-              "direct_quote": "Quote or null"
-            }}
-          ],
-          "confidence": "high" | "medium" | "low",
-          "supporting_visuals": []
-        }}
-      ],
-      "field_sales": {{
-        "offensive_angles": [
-          {{
-            "angle": "Opportunity angle",
-            "rationale": "Why this is an opportunity",
-            "grounding": "Data/evidence supporting this",
-            "suggested_validation": "How to validate with customer"
-          }}
-        ],
-        "defensive_angles": [
-          {{
-            "angle": "Defensive angle",
-            "rationale": "Why this matters",
-            "grounding": "Data/evidence",
-            "suggested_validation": "How to address"
-          }}
-        ],
-        "questions_to_explore": ["Question 1", "Question 2"],
-        "caution_note": "Standard disclaimer about validating against account knowledge"
-      }},
-      "all_visuals": [],
-      "sources_used": [
-        {{
-          "source_type": "sec_10k|earnings_call|trade_publication|etc",
-          "source_title": "Title",
-          "source_url": "URL or null",
-          "source_date": "YYYY-MM-DD or null",
-          "page_or_section": "Section ref or null",
-          "direct_quote": null
-        }}
-      ],
-      "source_breakdown": {{"sec_filings": 3, "earnings_call": 2, "trade_publication": 5}},
-      "data_gaps": ["Gap 1", "Gap 2"],
-      "warnings": ["Warning 1"],
-      "research_time_seconds": 0.0
+      "section_id": "sec_001",
+      "section_title": "Short Title",
+      "content": "2-3 sentences of insight. Use markdown bullets for lists.",
+      "tables": [],
+      "citations": [{{"source_type": "type", "source_title": "Title", "source_url": null, "source_date": null}}],
+      "confidence": "high|medium|low",
+      "supporting_visuals": []
     }}
+  ],
+  "field_sales": {{
+    "offensive_angles": [
+      {{"angle": "The opportunity", "target_segment": "Who to target"}}
+    ],
+    "defensive_angles": [
+      {{"risk": "The threat", "mitigation": "Counter strategy"}}
+    ],
+    "questions_to_explore": ["Discovery Q1", "Discovery Q2"],
+    "caution_note": "Validate findings with account-specific knowledge."
+  }},
+  "all_visuals": [],
+  "sources_used": [{{"source_type": "type", "source_title": "Title", "source_url": null, "source_date": null}}],
+  "source_breakdown": {{}},
+  "data_gaps": ["What's missing"],
+  "warnings": [],
+  "research_time_seconds": 0.0
+}}
 
-    CRITICAL REQUIREMENTS:
-    - "query" field MUST be included and match the user's query
-    - "data_completeness" MUST be lowercase: "complete", "partial", or "limited"
-    - "overall_confidence" MUST be lowercase: "high", "medium", or "low"
-    - ALL KeyMetric objects MUST have "source" and "confidence" fields
-    - ALL FieldSalesAngle objects MUST have "angle", "rationale", and "grounding" fields
-    - ALL lists (sections, all_visuals, sources_used, data_gaps, warnings) MUST be arrays, even if empty []
-    - "research_time_seconds" MUST be a number (will be updated programmatically)
-    """
+REMEMBER: 2-3 sections max. No fluff. Lead with insights."""
     
     messages = [
-        SystemMessage(content=SYNTHESIZER_SYSTEM_PROMPT),
+        SystemMessage(content=system_content),
         HumanMessage(content=synthesis_prompt)
     ]
     
@@ -230,26 +211,78 @@ async def synthesis_node(state: DeepResearchState) -> DeepResearchState:
             content = content.split("```")[1].split("```")[0].strip()
             
         output_data = json.loads(content)
-        # Ensure some fields are present
+        
+        # Ensure required fields
         if "generated_at" not in output_data:
             output_data["generated_at"] = datetime.now().isoformat()
         if "report_id" not in output_data:
             output_data["report_id"] = f"REP-{int(time.time())}"
-            
+        if "query" not in output_data:
+            output_data["query"] = user_query
+        
+        # Normalize key_metrics to have both label (frontend) and metric_name (backend schema)
+        exec_summary = output_data.get("executive_summary", {})
+        if "key_metrics" in exec_summary:
+            for metric in exec_summary["key_metrics"]:
+                # Frontend expects "label", backend schema expects "metric_name"
+                if "label" in metric and "metric_name" not in metric:
+                    metric["metric_name"] = metric["label"]
+                elif "metric_name" in metric and "label" not in metric:
+                    metric["label"] = metric["metric_name"]
+                # Ensure required backend fields have defaults
+                metric.setdefault("context", "")
+                metric.setdefault("source", "Research data")
+                metric.setdefault("confidence", "medium")
+        
+        # Normalize field_sales angles for frontend compatibility
+        field_sales = output_data.get("field_sales", {})
+        
+        # Offensive: frontend expects angle + target_segment
+        for angle in field_sales.get("offensive_angles", []):
+            angle.setdefault("rationale", angle.get("target_segment", ""))
+            angle.setdefault("grounding", "")
+            angle.setdefault("target_segment", angle.get("rationale", ""))
+        
+        # Defensive: frontend expects risk + mitigation
+        for angle in field_sales.get("defensive_angles", []):
+            if "risk" in angle and "angle" not in angle:
+                angle["angle"] = angle["risk"]
+            if "mitigation" in angle and "rationale" not in angle:
+                angle["rationale"] = angle["mitigation"]
+            angle.setdefault("grounding", "")
+            # Keep frontend fields too
+            angle.setdefault("risk", angle.get("angle", ""))
+            angle.setdefault("mitigation", angle.get("rationale", ""))
+        
+        field_sales.setdefault("caution_note", "Validate findings with account-specific knowledge.")
+        
+        # Ensure arrays exist
+        output_data.setdefault("all_visuals", [])
+        output_data.setdefault("sources_used", [])
+        output_data.setdefault("source_breakdown", {})
+        output_data.setdefault("data_gaps", [])
+        output_data.setdefault("warnings", [])
+        output_data.setdefault("sections", [])
+        
+        # Ensure section fields
+        for section in output_data.get("sections", []):
+            section.setdefault("tables", [])
+            section.setdefault("citations", [])
+            section.setdefault("supporting_visuals", [])
+            section.setdefault("confidence", "medium")
+        
         final_report = SynthesisAgentOutput(**output_data)
         final_report.research_time_seconds = time.time() - start_time
         
         elapsed = time.time() - start_time
-        logger.info(f"[SYNTHESIZER] COMPLETE in {elapsed:.1f}s - sections: {len(final_report.sections)}, data_completeness: {final_report.data_completeness}")
+        logger.info(f"[SYNTHESIZER] COMPLETE in {elapsed:.1f}s - sections: {len(final_report.sections)}")
         
         state["final_report"] = final_report
         state["current_status"] = "synthesis_complete"
         
     except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f"Synthesizer failed to parse LLM output: {e}")
-        logger.error(f"Raw response content: {response.content[:500] if response else 'No response'}...")
+        logger.error(f"[SYNTHESIZER] Failed to parse LLM output: {e}")
+        logger.error(f"[SYNTHESIZER] Raw response: {response.content[:500] if response else 'None'}...")
         state["errors"].append({"node": "synthesis", "error": str(e)})
         state["current_status"] = "synthesis_failed"
         
