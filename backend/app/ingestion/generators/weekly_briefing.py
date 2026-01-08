@@ -349,6 +349,24 @@ Otherwise, respond with the final briefing JSON:
         
         return sorted(set(pre_brief_citations)), sorted(set(exa_citations))
     
+    def _extract_domain(self, url: str) -> str:
+        """
+        Extract domain from URL for source attribution.
+        
+        Examples:
+            'https://www.reuters.com/article/...' -> 'reuters.com'
+            'https://compositeworld.com/news/...' -> 'compositeworld.com'
+        """
+        from urllib.parse import urlparse
+        try:
+            if not url:
+                return 'Unknown'
+            parsed = urlparse(url)
+            domain = parsed.netloc.replace('www.', '')
+            return domain or 'Unknown'
+        except Exception:
+            return 'Unknown'
+    
     def _build_source_articles(
         self, 
         articles: List, 
@@ -360,7 +378,7 @@ Otherwise, respond with the final briefing JSON:
         Build source article metadata for the articles used in a section.
         
         Args:
-            articles: List of Article objects from pre-brief
+            articles: List of article dicts from pre-brief (BigQuery returns dicts)
             article_numbers: List of [N] citation numbers from pre-brief (1-indexed)
             peripheral_articles: List of Exa search results (optional)
             exa_numbers: List of [Exa:N] citation numbers (1-indexed, optional)
@@ -370,17 +388,25 @@ Otherwise, respond with the final briefing JSON:
         """
         source_articles = []
         
-        # Add pre-brief articles
+        # Add pre-brief articles (articles are dicts from BigQuery)
         for num in article_numbers:
             if 1 <= num <= len(articles):
                 a = articles[num - 1]  # Convert to 0-indexed
+                url = a.get('url', '')
+                # Handle published_at - may be datetime object or string
+                pub_at = a.get('published_at')
+                if pub_at and hasattr(pub_at, 'isoformat'):
+                    pub_at_str = pub_at.isoformat()
+                else:
+                    pub_at_str = str(pub_at) if pub_at else None
+                
                 source_articles.append({
                     "article_number": num,
-                    "id": a.id,
-                    "title": a.title,
-                    "url": a.url,
-                    "source_name": a.source.name if hasattr(a.source, 'name') else str(a.source),
-                    "published_at": a.published_at.isoformat() if a.published_at else None,
+                    "id": a.get('id', ''),
+                    "title": a.get('title', 'Unknown'),
+                    "url": url,
+                    "source_name": self._extract_domain(url),
+                    "published_at": pub_at_str,
                 })
         
         # Add Exa peripheral search articles
@@ -392,12 +418,13 @@ Otherwise, respond with the final briefing JSON:
                     None
                 )
                 if exa_article:
+                    exa_url = exa_article.get('url', '')
                     source_articles.append({
-                        "article_number": f"Exa:{num}",
+                        "article_number": num,  # Unified numbering, no "Exa:" prefix for frontend
                         "id": f"exa-{num}",
                         "title": exa_article.get('title', 'Unknown'),
-                        "url": exa_article.get('url', ''),
-                        "source_name": "Exa Research",
+                        "url": exa_url,
+                        "source_name": self._extract_domain(exa_url),  # Real domain, not "Exa Research"
                         "published_at": exa_article.get('published_date'),
                     })
         

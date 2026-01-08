@@ -105,22 +105,59 @@ function CompanyLogo({ company, size = 'sm' }: CompanyLogoProps) {
 // Text Rendering Helper - Handles logos and citations
 // =============================================================================
 
+// Helper to extract domain from URL
+const extractDomain = (url: string): string => {
+  try {
+    if (!url) return 'Unknown'
+    const parsed = new URL(url)
+    return parsed.hostname.replace('www.', '')
+  } catch {
+    return 'Unknown'
+  }
+}
+
 // Parse citations like [1], [2] and logos like [[Company Name]]
-const renderTextWithLogosAndCitations = (text: string, companiesWithLogos: CompanyWithLogo[]) => {
-  // Split by citations [N] and company tags [[Company]]
-  const parts = text.split(/(\[\d+\]|\[\[.*?\]\])/g)
+// Now accepts optional sourceArticles to make citations clickable with domain hover
+const renderTextWithLogosAndCitations = (
+  text: string,
+  companiesWithLogos: CompanyWithLogo[],
+  sourceArticles?: SourceArticle[]
+) => {
+  // Split by citations [N], [Exa:N] and company tags [[Company]]
+  const parts = text.split(/(\[(?:Exa:)?\d+\]|\[\[.*?\]\])/g)
 
   return parts.map((part, idx) => {
-    // Handle citations [N]
-    if (/^\[\d+\]$/.test(part)) {
-      const num = part.replace(/[\[\]]/g, '')
+    // Handle citations [N] or [Exa:N]
+    if (/^\[(?:Exa:)?\d+\]$/.test(part)) {
+      const numStr = part.replace(/[\[\]Exa:]/g, '')
+      const num = parseInt(numStr, 10)
+      const article = sourceArticles?.find(a => a.article_number === num || a.article_number === `Exa:${num}`)
+      const domain = article?.url ? extractDomain(article.url) : null
+
+      // If we have a URL, make it clickable
+      if (article?.url) {
+        return (
+          <a
+            key={idx}
+            href={article.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-emerald-600 font-semibold ml-0.5 cursor-pointer hover:underline"
+            title={domain || `Source ${num}`}
+          >
+            <sup>{numStr}</sup>
+          </a>
+        )
+      }
+
+      // Fallback to non-clickable
       return (
         <sup
           key={idx}
           className="text-emerald-600 font-semibold ml-0.5 cursor-help"
-          title={`Source ${num}`}
+          title={`Source ${numStr}`}
         >
-          {num}
+          {numStr}
         </sup>
       )
     }
@@ -285,36 +322,48 @@ function SectionCard({ section, isFirst = false }: SectionCardProps) {
         </div>
       )}
 
-      {/* Sources Footer */}
-      {articles.length > 0 && (
-        <div className="border-t border-slate-100 px-5 py-3 bg-slate-50">
-          <div className="flex items-center gap-2 text-[10px] text-slate-400 uppercase tracking-wider mb-2">
-            <span className="font-semibold">Sources</span>
-            <span>({articles.length})</span>
+      {/* Sources Footer - Grouped by Domain */}
+      {articles.length > 0 && (() => {
+        // Group articles by domain
+        const articlesByDomain = articles.reduce((acc, article) => {
+          const domain = article.url ? extractDomain(article.url) : 'unknown'
+          if (!acc[domain]) acc[domain] = []
+          acc[domain].push(article)
+          return acc
+        }, {} as Record<string, SourceArticle[]>)
+
+        return (
+          <div className="border-t border-slate-100 px-5 py-3 bg-slate-50">
+            <div className="flex items-center gap-2 text-[10px] text-slate-400 uppercase tracking-wider mb-2">
+              <span className="font-semibold">Sources</span>
+              <span>({articles.length})</span>
+            </div>
+            <div className="flex flex-wrap gap-x-4 gap-y-1">
+              {Object.entries(articlesByDomain).slice(0, 6).map(([domain, domainArticles]) => (
+                <a
+                  key={domain}
+                  href={domainArticles[0].url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs text-slate-600 hover:text-emerald-600 transition-colors"
+                  title={domainArticles.map(a => a.title).join(' | ')}
+                >
+                  <span className="font-medium">{domain}</span>
+                  <span className="text-slate-400">
+                    [{domainArticles.map(a => a.article_number).join(', ')}]
+                  </span>
+                  <ExternalLink size={10} className="shrink-0 text-slate-400" />
+                </a>
+              ))}
+              {Object.keys(articlesByDomain).length > 6 && (
+                <span className="text-xs text-slate-400">
+                  +{Object.keys(articlesByDomain).length - 6} more
+                </span>
+              )}
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {articles.slice(0, 5).map((article, idx) => (
-              <a
-                key={idx}
-                href={article.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-slate-600 hover:text-emerald-600 transition-colors"
-                title={article.title}
-              >
-                <span className="font-medium">[{idx + 1}]</span>
-                <span className="truncate max-w-[150px]">{article.source_name}</span>
-                <ExternalLink size={10} className="shrink-0" />
-              </a>
-            ))}
-            {articles.length > 5 && (
-              <span className="text-xs text-slate-400">
-                +{articles.length - 5} more
-              </span>
-            )}
-          </div>
-        </div>
-      )}
+        )
+      })()}
     </div>
   )
 }

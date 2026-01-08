@@ -25,6 +25,8 @@ export interface BriefingInsight {
 }
 
 export interface SourceArticle {
+  /** Citation number - matches [N] in insight text */
+  article_number: number | string
   id: string
   title: string
   url: string
