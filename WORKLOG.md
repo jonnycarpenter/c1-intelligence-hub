@@ -156,6 +156,54 @@ llm = create_resilient_llm_with_openai_fallback(
 | `backend/app/agents/research/industry.py` | max_tokens=8192, top 8 results, content truncation, JSON repair |
 
 ---
+## ✅ FIXED: Industry Agent Still Truncating + Visual Agent Table Reference (Session 66 continued)
+
+**Priority**: HIGH - Was blocking visuals in reports
+**Status**: ✅ FIXED - Commit `7b65ae1`
+
+### 🎯 Issues Found During Production Testing
+
+**Issue 1: Industry agent still truncating at ~15KB**
+Production test showed: `"Unterminated string starting at: line 299 column 36 (char 15255)"`
+- Financial agent (8K tokens) worked fine
+- Industry agent generates more findings, needed higher limit
+
+**Issue 2: Visual agent returning no results**
+Despite `article_images` table having 171 valid images, visual agent returned empty arrays.
+- Root cause: Hardcoded dataset name typo in `corpus_visuals.py`
+- Was: `gen-lang-client-0436975498.c1_intelligence_hub.article_images` 
+- Should be: `gen-lang-client-0436975498.c1_intelligence.article_images`
+
+### ✅ Fixes Applied
+
+**1. Industry max_tokens 8K → 12K**
+```python
+llm = create_resilient_llm_with_openai_fallback(
+    ...
+    max_tokens=12288,  # Increased - industry generates more findings than financial
+)
+```
+
+**2. Visual agent table reference fixed**
+```python
+# Now uses storage config for correct project/dataset
+table_ref = f"{storage.config.full_dataset_id}.article_images"
+```
+
+### ✅ Verified: Images Are Real
+Tested 10 image URLs from `article_images` table - all returned `200 OK` with proper `image/jpeg` or `image/png` content types:
+- Reuters trade charts
+- Grand View Research market analysis
+- Precedence Research carbon fiber data
+- Industry Experts global market charts
+
+### 📁 Files Modified
+| File | Changes |
+|------|---------|
+| `backend/app/agents/research/industry.py` | max_tokens 8192 → 12288 |
+| `backend/app/mcp/tools/corpus_visuals.py` | Fixed hardcoded dataset name, now uses `storage.config.full_dataset_id` |
+
+---
 ## ✅ COMPLETED: Synthesizer Prior Research Context Injection
 
 **Priority**: Medium - Enhancement
