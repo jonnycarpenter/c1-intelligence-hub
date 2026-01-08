@@ -26,10 +26,30 @@ Read these files first:
    - Scripts → `scripts/{monitoring,health,operations}/`
 3. **Update READMEs** when adding new modules
 4. **Add comprehensive debug logging** when building new features:
-   - Use `[MODULE_NAME]` prefixed log messages for easy Cloud Run filtering
-   - Log START/COMPLETE with timing for async operations
-   - Log state keys and key variables at entry/exit points
-   - Add LLM timeout protection (`asyncio.wait_for`) for any LLM calls
+   - **Module prefixes**: Use `[MODULE_NAME]` for Cloud Run filtering (e.g., `[PIPELINE_AGENT]`, `[ADHOC_AGENT]`)
+   - **START/COMPLETE pairs**: Log timing for all async operations
+     ```python
+     start_time = time.time()
+     logger.info(f"[MODULE] Operation START: params")
+     # ... operation ...
+     elapsed = time.time() - start_time
+     logger.info(f"[MODULE] Operation COMPLETE: {elapsed:.2f}s, result_summary")
+     ```
+   - **LLM timeout protection**: Wrap all LLM calls with `asyncio.wait_for(timeout=120.0)`
+     ```python
+     try:
+         response = await asyncio.wait_for(
+             llm.ainvoke(messages),
+             timeout=120.0
+         )
+         logger.info(f"[MODULE] LLM call COMPLETE: {elapsed:.2f}s")
+     except asyncio.TimeoutError:
+         logger.error(f"[MODULE] LLM call TIMEOUT: exceeded 120s")
+         raise Exception("User-friendly timeout message")
+     ```
+   - **Tool execution tracking**: Log START/COMPLETE/FAILED for each tool call
+   - **Enhanced error context**: Include error type, message, stack trace (`exc_info=True`), and elapsed time
+   - **Examples**: See `backend/app/agents/pipeline/agent.py` and `backend/app/agents/adhoc_briefing/agent.py`
 5. **SSE streaming best practices** (CRITICAL - Session 65 bug fix):
    - **NEVER** use `asyncio.wait_for()` on a shared async iterator without `asyncio.shield()`
    - Timeout cancellation propagates to the underlying task, killing LLM calls

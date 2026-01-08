@@ -9,6 +9,8 @@ Enhanced with Apollo.io integration for company enrichment and contact discovery
 """
 
 from typing import Optional, List
+import time
+import uuid
 from fastapi import APIRouter, Query, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
@@ -602,23 +604,47 @@ async def agent_chat(request: AgentChatRequest):
     
     The agent maintains conversation context for follow-up questions.
     """
-    logger.info(f"POST /pipeline/agent/chat: {request.message[:100]}... (mode={request.mode})")
+    request_start = time.time()
+    request_id = str(uuid.uuid4())[:8]  # Short ID for log filtering
+    history_len = len(request.conversation_history) if request.conversation_history else 0
+    message_preview = request.message[:100] + ("..." if len(request.message) > 100 else "")
+    
+    logger.info(
+        f"[PIPELINE_API] Request {request_id} START: message='{message_preview}', "
+        f"mode={request.mode}, history_len={history_len}"
+    )
     
     try:
         from app.agents.pipeline import get_pipeline_agent
         
         # Get agent for the requested mode
+        agent_init_start = time.time()
         agent = get_pipeline_agent(request.mode or "instant")
+        agent_init_elapsed = time.time() - agent_init_start
+        logger.info(
+            f"[PIPELINE_API] Request {request_id}: agent initialized, mode={request.mode}, "
+            f"{agent_init_elapsed:.3f}s"
+        )
         
         # Process the query through the agent
+        agent_exec_start = time.time()
+        logger.info(f"[PIPELINE_API] Request {request_id}: calling agent.process_query")
+        
         response = await agent.process_query(
             user_query=request.message,
             conversation_history=request.conversation_history,
         )
         
+        agent_exec_elapsed = time.time() - agent_exec_start
+        logger.info(
+            f"[PIPELINE_API] Request {request_id}: agent.process_query COMPLETE, "
+            f"{agent_exec_elapsed:.2f}s, {len(response.search_blocks)} blocks returned"
+        )
+        
         # Convert internal SearchBlock models to response models
+        convert_start = time.time()
         search_blocks_response = []
-        for block in response.search_blocks:
+        for idx, block in enumerate(response.search_blocks, 1):
             # Convert prospect results if present
             prospects = None
             if block.prospects:
@@ -686,6 +712,19 @@ async def agent_chat(request: AgentChatRequest):
                 is_expanded=block.is_expanded,
             ))
         
+        convert_elapsed = time.time() - convert_start
+        logger.info(
+            f"[PIPELINE_API] Request {request_id}: converted {len(search_blocks_response)} blocks, "
+            f"{convert_elapsed:.3f}s"
+        )
+        
+        total_elapsed = time.time() - request_start
+        logger.info(
+            f"[PIPELINE_API] Request {request_id} COMPLETE: {total_elapsed:.2f}s total, "
+            f"message_len={len(response.message)}, blocks={len(search_blocks_response)}, "
+            f"followups={len(response.suggested_followups)}"
+        )
+        
         return AgentChatResponse(
             message=response.message,
             search_blocks=search_blocks_response,
@@ -695,7 +734,12 @@ async def agent_chat(request: AgentChatRequest):
         )
         
     except Exception as e:
-        logger.error(f"Error in agent chat: {e}", exc_info=True)
+        total_elapsed = time.time() - request_start
+        logger.error(
+            f"[PIPELINE_API] Request {request_id} FAILED: {total_elapsed:.2f}s, "
+            f"error_type={type(e).__name__}, error={str(e)}",
+            exc_info=True
+        )
         raise HTTPException(
             status_code=500,
             detail=f"Error processing your request: {str(e)}"

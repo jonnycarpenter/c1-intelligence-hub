@@ -219,6 +219,101 @@ def my_tool(query: str) -> str:
         return json.dumps({"status": "error", "message": str(e)})
 ```
 
+### 4. Production Debug Logging (MANDATORY for User-Facing Features)
+
+**Use module prefixes for Cloud Run filtering:**
+
+```python
+import time
+import asyncio
+from app.utils.logger import get_logger
+
+logger = get_logger(__name__)
+
+# Use [MODULE_NAME] prefix for easy log filtering in production
+async def process_request(request):
+    start_time = time.time()
+    request_id = str(uuid.uuid4())[:8]  # Short ID for correlation
+    
+    logger.info(
+        f"[MODULE_NAME] Request {request_id} START: "
+        f"param='{request_param}', mode={mode}"
+    )
+    
+    try:
+        # ... processing ...
+        
+        elapsed = time.time() - start_time
+        logger.info(
+            f"[MODULE_NAME] Request {request_id} COMPLETE: "
+            f"{elapsed:.2f}s, results={result_count}"
+        )
+        return result
+        
+    except Exception as e:
+        elapsed = time.time() - start_time
+        logger.error(
+            f"[MODULE_NAME] Request {request_id} FAILED: "
+            f"{elapsed:.2f}s, error_type={type(e).__name__}, error={str(e)}",
+            exc_info=True  # Include stack trace
+        )
+        raise
+```
+
+**LLM timeout protection (REQUIRED for all LLM calls):**
+
+```python
+# Wrap LLM calls with timeout to prevent hanging
+try:
+    response = await asyncio.wait_for(
+        llm.ainvoke(messages),
+        timeout=120.0  # 2 minutes max
+    )
+    logger.info(f"[MODULE_NAME] LLM call COMPLETE: {elapsed:.2f}s")
+except asyncio.TimeoutError:
+    logger.error(f"[MODULE_NAME] LLM call TIMEOUT: exceeded 120s")
+    raise Exception("Request timed out waiting for AI response. Please try again.")
+```
+
+**Tool execution tracking:**
+
+```python
+# Log tool calls with START/COMPLETE/FAILED
+tool_start = time.time()
+logger.info(f"[MODULE_NAME] Tool START: {tool_name}, args={args_preview}")
+
+try:
+    result = await tool.execute(args)
+    tool_elapsed = time.time() - tool_start
+    logger.info(
+        f"[MODULE_NAME] Tool COMPLETE: {tool_name}, "
+        f"{tool_elapsed:.2f}s, result_len={len(result)}"
+    )
+except Exception as e:
+    tool_elapsed = time.time() - tool_start
+    logger.error(
+        f"[MODULE_NAME] Tool FAILED: {tool_name}, "
+        f"{tool_elapsed:.2f}s, error={str(e)}",
+        exc_info=True
+    )
+    raise
+```
+
+**Real Examples:**
+- See `backend/app/agents/pipeline/agent.py` - `[PIPELINE_AGENT]` prefix
+- See `backend/app/api/routes/exa_pipeline.py` - `[PIPELINE_API]` prefix
+- See `backend/app/agents/adhoc_briefing/agent.py` - `[ADHOC_AGENT]` prefix
+
+**Production debugging:**
+```bash
+# Filter Cloud Run logs by module
+gcloud logging read "resource.type=cloud_run_revision AND textPayload=~\"[PIPELINE_\"" --limit=50
+
+# Find timeouts
+gcloud logging read "resource.type=cloud_run_revision AND textPayload=~\"TIMEOUT\"" --limit=20
+```
+```
+
 ---
 
 ## Testing Requirements
@@ -275,4 +370,4 @@ pytest backend/test_workflow.py
 
 ---
 
-*Last updated: January 6, 2026 (Script Reorganization - See ADR-006 in ARCHITECTURE.md)*
+*Last updated: January 8, 2026 (Session 68 - Production Debug Logging Guidelines)*

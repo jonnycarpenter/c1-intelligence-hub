@@ -10,6 +10,8 @@ This agent handles natural language queries for prospect/lead discovery:
 
 import json
 import uuid
+import time
+import asyncio
 from typing import List, Dict, Any, Optional
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
@@ -338,7 +340,14 @@ class PipelineAgent:
         Returns:
             PipelineAgentResponse with message, search_blocks, and suggested_followups
         """
-        logger.info(f"[Pipeline Agent] Processing query (mode={self.mode}): {user_query}")
+        request_start = time.time()
+        history_len = len(conversation_history) if conversation_history else 0
+        query_preview = user_query[:100] + ("..." if len(user_query) > 100 else "")
+        
+        logger.info(
+            f"[PIPELINE_AGENT] Query START: mode={self.mode}, "
+            f"query='{query_preview}', history_len={history_len}"
+        )
         
         try:
             # Build message history
@@ -352,9 +361,30 @@ class PipelineAgent:
                         messages.append(AIMessage(content=msg["content"]))
             
             messages.append(HumanMessage(content=user_query))
+            logger.info(f"[PIPELINE_AGENT] Built message history: {len(messages)} messages")
             
-            # Initial LLM call with tools
-            response = await self.llm_with_tools.ainvoke(messages)
+            # Initial LLM call with tools (with timeout protection)
+            llm_start = time.time()
+            logger.info(f"[PIPELINE_AGENT] LLM call START: message_count={len(messages)}")
+            
+            try:
+                response = await asyncio.wait_for(
+                    self.llm_with_tools.ainvoke(messages),
+                    timeout=120.0  # 2 minutes
+                )
+                llm_elapsed = time.time() - llm_start
+                logger.info(
+                    f"[PIPELINE_AGENT] LLM call COMPLETE: {llm_elapsed:.2f}s, "
+                    f"has_tool_calls={bool(response.tool_calls)}, "
+                    f"tool_count={len(response.tool_calls) if response.tool_calls else 0}"
+                )
+            except asyncio.TimeoutError:
+                llm_elapsed = time.time() - llm_start
+                logger.error(f"[PIPELINE_AGENT] LLM call TIMEOUT: exceeded 120s (elapsed: {llm_elapsed:.2f}s)")
+                raise Exception(
+                    "Request timed out while waiting for AI response (120s limit). "
+                    "This may be due to high API load or network issues. Please try again."
+                )
             
             # Collect search blocks from tool calls
             search_blocks: List[SearchBlock] = []
@@ -362,17 +392,38 @@ class PipelineAgent:
             
             # Execute any tool calls
             if response.tool_calls:
-                logger.info(f"[Pipeline Agent] Executing {len(response.tool_calls)} tool calls")
+                logger.info(f"[PIPELINE_AGENT] Executing {len(response.tool_calls)} tool calls")
                 
-                for tool_call in response.tool_calls:
+                for idx, tool_call in enumerate(response.tool_calls, 1):
                     tool_name = tool_call["name"]
                     tool_args = tool_call["args"]
+                    tool_args_preview = json.dumps(tool_args, default=str)[:200]
                     
-                    logger.info(f"[Pipeline Agent] Calling {tool_name} with args: {tool_args}")
+                    logger.info(
+                        f"[PIPELINE_AGENT] Tool {idx}/{len(response.tool_calls)} START: "
+                        f"{tool_name}, args={tool_args_preview}"
+                    )
                     
                     if tool_name in self.tools:
-                        # Execute the tool
-                        tool_result = await self.tools[tool_name].ainvoke(tool_args)
+                        # Execute the tool with timing
+                        tool_start = time.time()
+                        try:
+                            tool_result = await self.tools[tool_name].ainvoke(tool_args)
+                            tool_elapsed = time.time() - tool_start
+                            logger.info(
+                                f"[PIPELINE_AGENT] Tool {idx}/{len(response.tool_calls)} COMPLETE: "
+                                f"{tool_name}, {tool_elapsed:.2f}s, result_len={len(str(tool_result))}"
+                            )
+                        except Exception as tool_error:
+                            tool_elapsed = time.time() - tool_start
+                            logger.error(
+                                f"[PIPELINE_AGENT] Tool {idx}/{len(response.tool_calls)} FAILED: "
+                                f"{tool_name}, {tool_elapsed:.2f}s, error={str(tool_error)}",
+                                exc_info=True
+                            )
+                            # Re-raise to let outer handler deal with it
+                            raise
+                        
                         tool_messages.append({
                             "tool_call_id": tool_call["id"],
                             "result": tool_result,
@@ -384,6 +435,12 @@ class PipelineAgent:
                         )
                         if search_block:
                             search_blocks.append(search_block)
+                            logger.info(
+                                f"[PIPELINE_AGENT] SearchBlock created: type={search_block.block_type}, "
+                                f"result_count={search_block.result_count}"
+                            )
+                        else:
+                            logger.warning(f"[PIPELINE_AGENT] SearchBlock creation returned None for {tool_name}")
                 
                 # Get final response with tool results
                 messages.append(response)
@@ -394,8 +451,21 @@ class PipelineAgent:
                         tool_call_id=tm["tool_call_id"],
                     ))
                 
-                # Get agent's summary response
-                final_response = await self.llm_with_tools.ainvoke(messages)
+                # Get agent's summary response (with timeout)
+                summary_start = time.time()
+                logger.info(f"[PIPELINE_AGENT] Summary LLM call START")
+                
+                try:
+                    final_response = await asyncio.wait_for(
+                        self.llm_with_tools.ainvoke(messages),
+                        timeout=120.0
+                    )
+                    summary_elapsed = time.time() - summary_start
+                    logger.info(f"[PIPELINE_AGENT] Summary LLM call COMPLETE: {summary_elapsed:.2f}s")
+                except asyncio.TimeoutError:
+                    summary_elapsed = time.time() - summary_start
+                    logger.error(f"[PIPELINE_AGENT] Summary LLM call TIMEOUT: {summary_elapsed:.2f}s")
+                    raise Exception("Request timed out while generating summary response.")
                 
                 # Handle if agent wants to call more tools (multi-turn loop)
                 max_iterations = 3  # Prevent infinite loops
@@ -403,19 +473,40 @@ class PipelineAgent:
                 
                 while final_response.tool_calls and iteration < max_iterations:
                     iteration += 1
-                    logger.info(f"[Pipeline Agent] Follow-up tool calls iteration {iteration}")
+                    logger.info(
+                        f"[PIPELINE_AGENT] Multi-turn iteration {iteration}/{max_iterations}: "
+                        f"{len(final_response.tool_calls)} additional tool calls"
+                    )
                     
                     # Append the AIMessage ONCE before processing its tool calls
                     messages.append(final_response)
                     
-                    for tool_call in final_response.tool_calls:
+                    for idx, tool_call in enumerate(final_response.tool_calls, 1):
                         tool_name = tool_call["name"]
                         tool_args = tool_call["args"]
+                        tool_args_preview = json.dumps(tool_args, default=str)[:200]
                         
-                        logger.info(f"[Pipeline Agent] Calling {tool_name} with args: {tool_args}")
+                        logger.info(
+                            f"[PIPELINE_AGENT] Follow-up tool {idx} START: {tool_name}, args={tool_args_preview}"
+                        )
                         
                         if tool_name in self.tools:
-                            tool_result = await self.tools[tool_name].ainvoke(tool_args)
+                            tool_start = time.time()
+                            try:
+                                tool_result = await self.tools[tool_name].ainvoke(tool_args)
+                                tool_elapsed = time.time() - tool_start
+                                logger.info(
+                                    f"[PIPELINE_AGENT] Follow-up tool {idx} COMPLETE: "
+                                    f"{tool_name}, {tool_elapsed:.2f}s"
+                                )
+                            except Exception as tool_error:
+                                tool_elapsed = time.time() - tool_start
+                                logger.error(
+                                    f"[PIPELINE_AGENT] Follow-up tool {idx} FAILED: "
+                                    f"{tool_name}, {tool_elapsed:.2f}s, error={str(tool_error)}",
+                                    exc_info=True
+                                )
+                                raise
                             
                             from langchain_core.messages import ToolMessage
                             messages.append(ToolMessage(
@@ -429,17 +520,49 @@ class PipelineAgent:
                             )
                             if search_block:
                                 search_blocks.append(search_block)
+                                logger.info(
+                                    f"[PIPELINE_AGENT] Follow-up SearchBlock created: "
+                                    f"type={search_block.block_type}"
+                                )
                     
-                    # Get next response
-                    final_response = await self.llm_with_tools.ainvoke(messages)
+                    # Get next response (with timeout)
+                    followup_start = time.time()
+                    try:
+                        final_response = await asyncio.wait_for(
+                            self.llm_with_tools.ainvoke(messages),
+                            timeout=120.0
+                        )
+                        followup_elapsed = time.time() - followup_start
+                        logger.info(
+                            f"[PIPELINE_AGENT] Follow-up LLM call COMPLETE: {followup_elapsed:.2f}s"
+                        )
+                    except asyncio.TimeoutError:
+                        followup_elapsed = time.time() - followup_start
+                        logger.error(
+                            f"[PIPELINE_AGENT] Follow-up LLM call TIMEOUT: {followup_elapsed:.2f}s"
+                        )
+                        raise Exception("Request timed out during follow-up processing.")
+                
+                if iteration >= max_iterations and final_response.tool_calls:
+                    logger.warning(
+                        f"[PIPELINE_AGENT] Multi-turn loop terminated: reached max iterations ({max_iterations})"
+                    )
                 
                 response_text = self._extract_text_content(final_response.content)
             else:
                 # No tool calls - just a conversational response
+                logger.info(f"[PIPELINE_AGENT] No tool calls, extracting direct response")
                 response_text = self._extract_text_content(response.content)
             
             # Generate suggested follow-ups
             suggested_followups = self._generate_followups(user_query, search_blocks)
+            
+            total_elapsed = time.time() - request_start
+            logger.info(
+                f"[PIPELINE_AGENT] Query COMPLETE: {total_elapsed:.2f}s, "
+                f"{len(search_blocks)} blocks, response_len={len(response_text)}, "
+                f"{len(suggested_followups)} followups"
+            )
             
             return PipelineAgentResponse(
                 message=response_text,
@@ -449,7 +572,12 @@ class PipelineAgent:
             )
             
         except Exception as e:
-            logger.error(f"[Pipeline Agent] Error: {e}", exc_info=True)
+            total_elapsed = time.time() - request_start
+            logger.error(
+                f"[PIPELINE_AGENT] Query FAILED: {total_elapsed:.2f}s, "
+                f"error_type={type(e).__name__}, error={str(e)}",
+                exc_info=True
+            )
             return PipelineAgentResponse(
                 message=f"I encountered an error while processing your request: {str(e)}. Please try rephrasing your query.",
                 search_blocks=[],
@@ -472,7 +600,10 @@ class PipelineAgent:
             result_data = json.loads(tool_result)
             
             if result_data.get("status") != "success":
-                logger.warning(f"Tool {tool_name} returned error: {result_data.get('error')}")
+                error_msg = result_data.get('error', 'Unknown error')
+                logger.warning(
+                    f"[PIPELINE_AGENT] SearchBlock skipped: {tool_name} returned error status: {error_msg}"
+                )
                 return None
             
             results = result_data.get("results", [])
@@ -715,7 +846,11 @@ class PipelineAgent:
             return None
             
         except Exception as e:
-            logger.error(f"Error creating SearchBlock: {e}")
+            logger.error(
+                f"[PIPELINE_AGENT] SearchBlock creation FAILED: tool={tool_name}, "
+                f"error_type={type(e).__name__}, error={str(e)}",
+                exc_info=True
+            )
             return None
     
     def _extract_text_content(self, content) -> str:

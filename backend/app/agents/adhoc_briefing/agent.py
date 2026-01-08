@@ -21,6 +21,8 @@ Design Principles:
 
 import uuid
 import json
+import time
+import asyncio
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional, AsyncIterator, TYPE_CHECKING
 from anthropic import AsyncAnthropic  # Keep for streaming support
@@ -213,13 +215,23 @@ Respond with a JSON object:
         
         This is the main tool for the agent - semantic search over embedded articles.
         """
+        search_start = time.time()
+        query_preview = query[:80] + ("..." if len(query) > 80 else "")
+        logger.info(f"[ADHOC_AGENT] Corpus search START: query='{query_preview}', limit={limit}")
+        
         vector_store = await self._get_vector_store()
         
         if not vector_store.is_available:
-            logger.warning("Vector store not available for ad hoc search")
+            logger.warning("[ADHOC_AGENT] Vector store not available for ad hoc search")
             return []
         
         results = await vector_store.search(query=query, limit=limit)
+        
+        search_elapsed = time.time() - search_start
+        logger.info(
+            f"[ADHOC_AGENT] Corpus search COMPLETE: {search_elapsed:.2f}s, "
+            f"{len(results)} results found"
+        )
         
         # Format for agent consumption
         formatted = []
@@ -274,6 +286,10 @@ Respond with a JSON object:
         Returns combined results from available external tools.
         This supplements the corpus search with live/recent sources.
         """
+        external_start = time.time()
+        query_preview = query[:60] + ("..." if len(query) > 60 else "")
+        logger.info(f"[ADHOC_AGENT] External news search START: query='{query_preview}'")
+        
         results = {
             "exa_news": [],
             "stocknews": [],
@@ -281,27 +297,44 @@ Respond with a JSON object:
         
         # Try Exa news search
         try:
+            exa_start = time.time()
             from app.mcp.tools.exa_search import news_search
             exa_result = news_search.invoke({"query": query, "max_results": 5, "time_range": "week"})
+            exa_elapsed = time.time() - exa_start
             if exa_result and isinstance(exa_result, str):
                 data = json.loads(exa_result)
                 if data.get("results"):
                     results["exa_news"] = data["results"][:5]
-                    logger.info(f"Exa news returned {len(results['exa_news'])} results")
+                    logger.info(
+                        f"[ADHOC_AGENT] Exa news COMPLETE: {exa_elapsed:.2f}s, "
+                        f"{len(results['exa_news'])} results"
+                    )
         except Exception as e:
-            logger.warning(f"Exa news search failed: {e}")
+            logger.warning(f"[ADHOC_AGENT] Exa news search FAILED: {str(e)}")
         
         # Try StockNews keyword search (more flexible than FMP - supports keyword queries)
         try:
+            sn_start = time.time()
             from app.mcp.tools.stocknews_api import search_news_keyword
             stocknews_result = search_news_keyword.invoke({"keyword": query, "days": 7, "items": 8})
+            sn_elapsed = time.time() - sn_start
             if stocknews_result and isinstance(stocknews_result, str):
                 data = json.loads(stocknews_result)
                 if data.get("articles"):
                     results["stocknews"] = data["articles"][:8]
-                    logger.info(f"StockNews returned {len(results['stocknews'])} results")
+                    logger.info(
+                        f"[ADHOC_AGENT] StockNews COMPLETE: {sn_elapsed:.2f}s, "
+                        f"{len(results['stocknews'])} results"
+                    )
         except Exception as e:
-            logger.warning(f"StockNews search failed: {e}")
+            logger.warning(f"[ADHOC_AGENT] StockNews search FAILED: {str(e)}")
+        
+        external_elapsed = time.time() - external_start
+        total_results = len(results["exa_news"]) + len(results["stocknews"])
+        logger.info(
+            f"[ADHOC_AGENT] External news search COMPLETE: {external_elapsed:.2f}s, "
+            f"{total_results} total results"
+        )
         
         return results
     
@@ -356,9 +389,25 @@ Respond with a JSON object:
         Returns:
             Briefing response with answer, sources, and metadata
         """
+        request_start = time.time()
+        question_preview = question[:100] + ("..." if len(question) > 100 else "")
+        session_id = session.session_id if session else "no-session"
+        
+        logger.info(
+            f"[ADHOC_AGENT] Briefing START: question='{question_preview}', "
+            f"is_follow_up={is_follow_up}, session={session_id}"
+        )
+        
         # Fetch memory context (preferences + relevant memories)
+        memory_start = time.time()
         memory_context = await build_agent_context(question, user_team)
         memory_prompt_addition = memory_context.prompt_addition if memory_context else ""
+        memory_elapsed = time.time() - memory_start
+        if memory_prompt_addition:
+            logger.info(
+                f"[ADHOC_AGENT] Memory context loaded: {memory_elapsed:.2f}s, "
+                f"{len(memory_prompt_addition)} chars"
+            )
         # Use session state if available, otherwise fall back to instance state
         if session:
             if is_follow_up:
@@ -473,13 +522,30 @@ Respond with a JSON object:
 }}"""
 
         try:
-            response = await self.client.messages_create(
-                model=self.model,
-                max_tokens=3000,  # Increased for richer formatting
-                temperature=0,
-                system=self.SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": full_prompt}]
-            )
+            # LLM call with timeout protection
+            llm_start = time.time()
+            logger.info(f"[ADHOC_AGENT] LLM call START: model={self.model}")
+            
+            try:
+                response = await asyncio.wait_for(
+                    self.client.messages_create(
+                        model=self.model,
+                        max_tokens=3000,  # Increased for richer formatting
+                        temperature=0,
+                        system=self.SYSTEM_PROMPT,
+                        messages=[{"role": "user", "content": full_prompt}]
+                    ),
+                    timeout=120.0  # 2 minutes
+                )
+                llm_elapsed = time.time() - llm_start
+                logger.info(f"[ADHOC_AGENT] LLM call COMPLETE: {llm_elapsed:.2f}s")
+            except asyncio.TimeoutError:
+                llm_elapsed = time.time() - llm_start
+                logger.error(f"[ADHOC_AGENT] LLM call TIMEOUT: exceeded 120s (elapsed: {llm_elapsed:.2f}s)")
+                raise Exception(
+                    "Request timed out while generating briefing (120s limit). "
+                    "Please try again or use Deep Research for complex queries."
+                )
             
             result_text = response.content[0].text.strip()
             
@@ -522,10 +588,22 @@ Respond with a JSON object:
             # Save to storage
             await self._save_adhoc_briefing(briefing_response)
             
+            total_elapsed = time.time() - request_start
+            logger.info(
+                f"[ADHOC_AGENT] Briefing COMPLETE: {total_elapsed:.2f}s, "
+                f"confidence={briefing_response['confidence']}, "
+                f"sources={len(briefing_response['sources_used'])}, "
+                f"answer_len={len(answer_text)}"
+            )
+            
             return briefing_response
             
         except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse ad hoc briefing response: {e}")
+            total_elapsed = time.time() - request_start
+            logger.error(
+                f"[ADHOC_AGENT] Briefing FAILED (JSON parse): {total_elapsed:.2f}s, error={str(e)}",
+                exc_info=True
+            )
             # Return raw response as fallback
             return {
                 "id": str(uuid.uuid4()),
@@ -536,7 +614,12 @@ Respond with a JSON object:
                 "generated_at": datetime.utcnow().isoformat(),
             }
         except Exception as e:
-            logger.error(f"Error generating ad hoc briefing: {e}", exc_info=True)
+            total_elapsed = time.time() - request_start
+            logger.error(
+                f"[ADHOC_AGENT] Briefing FAILED: {total_elapsed:.2f}s, "
+                f"error_type={type(e).__name__}, error={str(e)}",
+                exc_info=True
+            )
             return {
                 "id": str(uuid.uuid4()),
                 "question": question,
@@ -549,14 +632,20 @@ Respond with a JSON object:
     async def _save_adhoc_briefing(self, briefing: Dict[str, Any]):
         """Save ad hoc briefing to BigQuery."""
         try:
+            save_start = time.time()
             bq_storage = await self._get_bq_storage()
             if bq_storage:
                 await bq_storage.save_adhoc_briefing(briefing)
-                logger.info(f"Saved ad hoc briefing {briefing['id']} to BigQuery")
+                save_elapsed = time.time() - save_start
+                logger.info(
+                    f"[ADHOC_AGENT] Saved briefing to BigQuery: {briefing['id']}, {save_elapsed:.2f}s"
+                )
             else:
-                logger.warning(f"BigQuery storage not available - briefing {briefing['id']} not saved")
+                logger.warning(
+                    f"[ADHOC_AGENT] BigQuery storage not available - briefing {briefing['id']} not saved"
+                )
         except Exception as e:
-            logger.error(f"Failed to save ad hoc briefing: {e}")
+            logger.error(f"[ADHOC_AGENT] Failed to save briefing: {str(e)}", exc_info=True)
     
     def reset_conversation(self):
         """Reset conversation state for new session."""
@@ -586,6 +675,8 @@ class StreamingAdHocBriefingAgent(AdHocBriefingAgent):
         """
         Stream an ad hoc briefing response with progress events.
         
+        NOTE: Logging is lighter in streaming mode since progress events provide UX feedback.
+        
         Yields chunks of the response as they're generated, with progress
         events for each research phase.
         
@@ -603,6 +694,15 @@ class StreamingAdHocBriefingAgent(AdHocBriefingAgent):
             session: Optional session for stateful conversation tracking
             user_team: User's team for team-scoped memory context
         """
+        stream_start = time.time()
+        question_preview = question[:100] + ("..." if len(question) > 100 else "")
+        session_id = session.session_id if session else "no-session"
+        
+        logger.info(
+            f"[ADHOC_AGENT] Streaming briefing START: question='{question_preview}', "
+            f"is_follow_up={is_follow_up}, session={session_id}"
+        )
+        
         # Fetch memory context (preferences + relevant memories) early
         memory_context = await build_agent_context(question, user_team)
         memory_prompt_addition = memory_context.prompt_addition if memory_context else ""
@@ -740,17 +840,32 @@ Use **bold** for key insights and include clickable [Title](url) citations."""
 
         # Stream response and collect full text for history
         # Note: Streaming uses raw Anthropic client (no OpenAI fallback for streaming)
+        llm_start = time.time()
+        logger.info(f"[ADHOC_AGENT] Streaming LLM call START")
+        
         full_response = ""
-        async with self._streaming_client.messages.stream(
-            model=self.model,
-            max_tokens=3000,  # Match non-streaming version
-            temperature=0,
-            system=self.SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": full_prompt}]
-        ) as stream:
-            async for text in stream.text_stream:
-                full_response += text
-                yield json.dumps({"type": "content", "text": text})
+        try:
+            async with self._streaming_client.messages.stream(
+                model=self.model,
+                max_tokens=3000,  # Match non-streaming version
+                temperature=0,
+                system=self.SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": full_prompt}]
+            ) as stream:
+                async for text in stream.text_stream:
+                    full_response += text
+                    yield json.dumps({"type": "content", "text": text})
+            
+            llm_elapsed = time.time() - llm_start
+            logger.info(f"[ADHOC_AGENT] Streaming LLM call COMPLETE: {llm_elapsed:.2f}s")
+        except Exception as stream_error:
+            llm_elapsed = time.time() - llm_start
+            logger.error(
+                f"[ADHOC_AGENT] Streaming LLM call FAILED: {llm_elapsed:.2f}s, "
+                f"error={str(stream_error)}",
+                exc_info=True
+            )
+            raise
         
         # Mark synthesis complete
         yield json.dumps({
@@ -773,6 +888,12 @@ Use **bold** for key insights and include clickable [Title](url) citations."""
                 "follow_up_count": session.follow_up_count,
                 "turns_remaining": max(0, session.max_follow_ups - session.follow_up_count),
             })
+        
+        stream_elapsed = time.time() - stream_start
+        logger.info(
+            f"[ADHOC_AGENT] Streaming briefing COMPLETE: {stream_elapsed:.2f}s, "
+            f"response_len={len(full_response)}"
+        )
 
 
 # =============================================================================
