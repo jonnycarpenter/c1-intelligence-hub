@@ -19,15 +19,15 @@ Without reliable daily ingestion:
 ---
 ## 📅 SESSION 67: Briefing Generation Bug Fix + Citation UX Overhaul (January 7, 2026)
 
-**Status**: ✅ COMPLETE - Deployed
+**Status**: ⚠️ PARTIAL - Code deployed, but briefing not saving to BigQuery (needs investigation)
 
-### 🎯 Issue
+### 🎯 Original Issue
 Weekly briefing generation failing with `AttributeError: 'dict' object has no attribute 'id'`. Also, citations showed "Exa Research" instead of actual publication domains.
 
-### 🔍 Root Cause
+### 🔍 Root Cause (Fixed)
 `_build_source_articles()` in `weekly_briefing.py` was treating articles as objects with attributes (`a.id`, `a.title`) but `get_articles_by_ids()` from BigQuery returns dicts.
 
-### ✅ Changes Made
+### ✅ Changes Made (All Deployed)
 
 **Backend (`weekly_briefing.py`)**:
 - Fixed dict access: `a.get('id')` instead of `a.id`
@@ -54,8 +54,36 @@ Weekly briefing generation failing with `AttributeError: 'dict' object has no at
 - `frontend/src/components/dashboard/WeeklyBriefingSection.tsx`
 - `frontend/src/types/briefing.ts`
 - `CLAUDE.md`
+- `WORKLOG.md`
+- `backend/app/ingestion/generators/README.md`
+
+### 🔴 OPEN INVESTIGATION: Briefing Generated But Not Saved
+
+**Symptom**: 
+- Triggered briefing at ~22:47 CST (04:47 UTC)
+- Scheduler returned `200 OK` after ~168 seconds
+- No new row in `weekly_briefings` BigQuery table
+- Only 2 rows exist in `weekly_briefings` (both from Jan 5)
+
+**What We Know**:
+1. The `AttributeError` is fixed (no more `'dict' object has no attribute 'id'`)
+2. Agent 2 ran successfully (took ~3 minutes, returned 200)
+3. But the briefing did NOT save to `weekly_briefings` table
+
+**Next Steps for Investigation**:
+1. Check Cloud Run logs around 04:48 UTC for:
+   - `Agent 2: Synthesis complete` (should appear if generation succeeded)
+   - `Saved weekly briefing to BigQuery` (likely MISSING - this is the problem)
+   - Any errors in `_save_briefing()` or `save_weekly_briefing()`
+2. Look at `_save_briefing()` method (line 977-985 in `weekly_briefing.py`)
+3. Check `bq_storage.save_weekly_briefing()` in `gcp_storage.py`
+
+**Key Tables**:
+- `briefings` = Legacy category-based briefings (MARKET, COMPETITOR, etc.) - NOT used by current Pulse
+- `weekly_briefings` = New "Need to Know" executive briefing format - THIS powers current Pulse
 
 ---
+
 ## 📅 SESSION 66: Synthesizer Brevity Refactor + Prior Research Context (January 7, 2026)
 
 **Status**: ✅ COMPLETE - Ready for deploy
