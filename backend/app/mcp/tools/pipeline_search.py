@@ -87,26 +87,62 @@ def _format_trigger_results(results) -> List[dict]:
 async def find_similar_companies(
     reference: str,
     num_results: int = 25,
+    # Post-enrichment filter parameters (optional)
+    filter_min_revenue: Optional[int] = None,
+    filter_max_revenue: Optional[int] = None,
+    filter_min_employees: Optional[int] = None,
+    filter_max_employees: Optional[int] = None,
+    filter_states: Optional[List[str]] = None,
+    filter_countries: Optional[List[str]] = None,
+    filter_industries: Optional[List[str]] = None,
 ) -> str:
     """
-    Find companies similar to a reference company (URL or name).
+    Find companies similar to a reference company (URL or name) with optional filtering.
     
     This is the highest-value prospecting tool - automated lookalike targeting.
     Given a website URL or Name of a known good customer, find similar companies.
+    Results are enriched with Apollo firmographics, then optional filters are applied.
     
     Args:
         reference: Website URL or Company Name of a reference company (e.g., "hexcel.com", "Hexcel", "Boeing")
         num_results: Number of similar companies to find (default 25, max 100)
+        
+        # POST-ENRICHMENT FILTERS (applied after Apollo enrichment):
+        filter_min_revenue: Minimum annual revenue in USD (e.g., 50000000 for $50M+)
+        filter_max_revenue: Maximum annual revenue in USD
+        filter_min_employees: Minimum employee count (e.g., 200)
+        filter_max_employees: Maximum employee count (e.g., 500)
+        filter_states: US states to include (e.g., ["Florida", "Texas"])
+        filter_countries: Countries to include (e.g., ["United States"])
+        filter_industries: Industries to match (e.g., ["Manufacturing", "Aerospace"])
     
     Returns:
         JSON list of similar companies with domains and logo URLs for display.
+        If filters applied, includes filter metadata and expansion suggestions.
     
     Example queries this tool answers:
     - "Find companies similar to compositesone.com"
-    - "Who are Hexcel's competitors?"
-    - "Find lookalikes for our best customer Boeing"
+    - "Who are Hexcel's competitors in Florida?" → filter_states=["Florida"]
+    - "Find lookalikes for Boeing with >$100M revenue" → filter_min_revenue=100000000
     """
+    from app.agents.pipeline.filters import CompanyFilters, apply_filters
+    
     logger.info(f"Tool find_similar_companies: reference={reference}, num_results={num_results}")
+    
+    # Build filters if any are specified
+    filters = CompanyFilters(
+        min_revenue=filter_min_revenue,
+        max_revenue=filter_max_revenue,
+        min_employees=filter_min_employees,
+        max_employees=filter_max_employees,
+        states=filter_states,
+        countries=filter_countries,
+        industries=filter_industries,
+    )
+    has_filters = not filters.is_empty()
+    
+    if has_filters:
+        logger.info(f"[Pipeline Tool] Filters specified for similar companies: {filters.to_description()}")
     
     try:
         # Use the enhanced similarity search which supports names/URLs and Apollo enrichment
@@ -116,6 +152,36 @@ async def find_similar_companies(
         )
         
         formatted = _format_prospect_results(results)
+        
+        # Apply post-enrichment filters if specified
+        if has_filters:
+            filter_result = apply_filters(formatted, filters)
+            
+            response = {
+                "block_type": "similar_companies",
+                "title": f"Companies similar to {reference}",
+                "query_context": reference,
+                "prospects": filter_result.passed,
+                "result_count": filter_result.filtered_count,
+                # Filter metadata for agent feedback
+                "filter_metadata": {
+                    "filters_applied": filters.to_description(),
+                    "original_count": filter_result.original_count,
+                    "filtered_count": filter_result.filtered_count,
+                    "filter_impact": filter_result.get_filter_impact_summary(),
+                    "expansion_suggestions": filter_result.get_expansion_suggestions(),
+                },
+            }
+            
+            # If sparse results, add prominent warning for agent
+            if filter_result.filtered_count < 5 and filter_result.original_count > filter_result.filtered_count:
+                response["sparse_results_warning"] = (
+                    f"Only {filter_result.filtered_count} of {filter_result.original_count} similar companies "
+                    f"matched all filters. Consider suggesting filter relaxation to user."
+                )
+            
+            return json.dumps(response, indent=2)
+        
         return json.dumps({
             "block_type": "similar_companies",
             "title": f"Companies similar to {reference}",
@@ -139,28 +205,66 @@ async def search_companies(
     num_results: int = 25,
     include_domains: Optional[List[str]] = None,
     exclude_domains: Optional[List[str]] = None,
+    # Post-enrichment filter parameters (optional)
+    filter_min_revenue: Optional[int] = None,
+    filter_max_revenue: Optional[int] = None,
+    filter_min_employees: Optional[int] = None,
+    filter_max_employees: Optional[int] = None,
+    filter_states: Optional[List[str]] = None,
+    filter_countries: Optional[List[str]] = None,
+    filter_industries: Optional[List[str]] = None,
 ) -> str:
     """
-    Search for companies using natural language descriptions.
+    Search for companies using natural language descriptions with optional post-enrichment filtering.
     
     Semantic search that understands industry terms, locations, and company characteristics.
+    Results are enriched with Apollo firmographics, then optional filters are applied.
+    
+    USE THIS TOOL for:
+    - Broad semantic searches: "carbon fiber suppliers to automotive OEMs"
+    - Discovery with refinement: search broadly, then filter by revenue/employees/location
     
     Args:
         query: Natural language description of companies to find
         num_results: Number of results (default 25, max 100)
         include_domains: Only search these domains (optional)
         exclude_domains: Exclude these domains from results (optional)
+        
+        # POST-ENRICHMENT FILTERS (applied after Apollo enrichment):
+        filter_min_revenue: Minimum annual revenue in USD (e.g., 50000000 for $50M+)
+        filter_max_revenue: Maximum annual revenue in USD
+        filter_min_employees: Minimum employee count (e.g., 200)
+        filter_max_employees: Maximum employee count (e.g., 500)
+        filter_states: US states to include (e.g., ["Florida", "Texas"])
+        filter_countries: Countries to include (e.g., ["United States"])
+        filter_industries: Industries to match (e.g., ["Manufacturing", "Aerospace"])
     
     Returns:
-        JSON list of matching companies with domains and logo URLs.
+        JSON with matching companies, filter metadata, and expansion suggestions if results are sparse.
     
     Example queries:
-    - "fiberglass boat manufacturers in Florida"
-    - "carbon fiber suppliers to automotive OEMs"
-    - "composites manufacturers with aerospace certifications"
-    - "wind turbine blade manufacturers in the midwest"
+    - "carbon fiber suppliers" with filter_min_revenue=50000000 → $50M+ companies
+    - "aerospace manufacturers" with filter_states=["Florida", "Texas"] → in those states
+    - "composites companies" with filter_min_employees=200, filter_max_employees=1000 → mid-size
     """
+    from app.agents.pipeline.filters import CompanyFilters, apply_filters
+    
     logger.info(f"[Pipeline Tool] search_companies: {query}")
+    
+    # Build filters if any are specified
+    filters = CompanyFilters(
+        min_revenue=filter_min_revenue,
+        max_revenue=filter_max_revenue,
+        min_employees=filter_min_employees,
+        max_employees=filter_max_employees,
+        states=filter_states,
+        countries=filter_countries,
+        industries=filter_industries,
+    )
+    has_filters = not filters.is_empty()
+    
+    if has_filters:
+        logger.info(f"[Pipeline Tool] Filters specified: {filters.to_description()}")
     
     try:
         results = await exa_service.search_companies_enhanced(
@@ -172,6 +276,36 @@ async def search_companies(
         
         formatted = _format_prospect_results(results)
         
+        # Apply post-enrichment filters if specified
+        if has_filters:
+            filter_result = apply_filters(formatted, filters)
+            
+            response = {
+                "status": "success",
+                "query_type": "search_companies",
+                "query": query,
+                "count": filter_result.filtered_count,
+                "results": filter_result.passed,
+                # Filter metadata for agent feedback
+                "filter_metadata": {
+                    "filters_applied": filters.to_description(),
+                    "original_count": filter_result.original_count,
+                    "filtered_count": filter_result.filtered_count,
+                    "filter_impact": filter_result.get_filter_impact_summary(),
+                    "expansion_suggestions": filter_result.get_expansion_suggestions(),
+                },
+            }
+            
+            # If sparse results, add prominent warning for agent
+            if filter_result.filtered_count < 5 and filter_result.original_count > filter_result.filtered_count:
+                response["sparse_results_warning"] = (
+                    f"Only {filter_result.filtered_count} of {filter_result.original_count} companies "
+                    f"matched all filters. Consider suggesting filter relaxation to user."
+                )
+            
+            return json.dumps(response, indent=2)
+        
+        # No filters - return as before
         return json.dumps({
             "status": "success",
             "query_type": "search_companies",
