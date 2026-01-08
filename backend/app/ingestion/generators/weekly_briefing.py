@@ -845,6 +845,7 @@ Otherwise, respond with the final briefing JSON:
             )
             
             try:
+                logger.info(f"Agent 2: Calling LLM model={self.model}, max_tokens=4000")
                 response = await self.client.messages_create(
                     model=self.model,
                     max_tokens=4000,
@@ -852,9 +853,42 @@ Otherwise, respond with the final briefing JSON:
                     messages=[{"role": "user", "content": prompt}]
                 )
                 
+                # Log response metadata for debugging
+                stop_reason = getattr(response, 'stop_reason', 'unknown')
+                usage = getattr(response, 'usage', None)
+                logger.info(f"Agent 2: LLM response received - stop_reason={stop_reason}, usage={usage}")
+                
+                # Check if we got any content
+                if not response.content or len(response.content) == 0:
+                    logger.error(f"Agent 2: LLM returned empty content! stop_reason={stop_reason}")
+                    return None
+                
                 result_json = response.content[0].text.strip()
+                logger.info(f"Agent 2: Raw response length={len(result_json)} chars")
+                
+                # Log first/last bits for debugging (avoid logging full response)
+                if len(result_json) < 100:
+                    logger.warning(f"Agent 2: Short response - full content: {result_json}")
+                else:
+                    logger.info(f"Agent 2: Response preview: {result_json[:200]}...")
+                
+                # Extract JSON from various formats
                 if "```json" in result_json:
                     result_json = result_json.split("```json")[1].split("```")[0].strip()
+                elif "```" in result_json and "{" in result_json:
+                    # Handle ```\n{...}\n``` without json marker
+                    parts = result_json.split("```")
+                    for part in parts:
+                        part = part.strip()
+                        if part.startswith("{"):
+                            result_json = part
+                            break
+                elif not result_json.startswith("{"):
+                    # Try to find JSON object in the response
+                    start_idx = result_json.find("{")
+                    if start_idx != -1:
+                        logger.info(f"Agent 2: Found JSON starting at char {start_idx}")
+                        result_json = result_json[start_idx:]
                 
                 data = json.loads(result_json)
                 
@@ -891,7 +925,9 @@ Otherwise, respond with the final briefing JSON:
                 
             except json.JSONDecodeError as e:
                 logger.error(f"Failed to parse Agent 2 response: {e}")
-                logger.debug(f"Raw response: {result_json[:500] if result_json else 'No response'}")
+                # Log at ERROR level so it's visible in production
+                raw_preview = result_json[:1000] if result_json else 'EMPTY/NONE'
+                logger.error(f"Agent 2: Raw response that failed to parse: {raw_preview}")
                 return None
             except Exception as e:
                 logger.error(f"Error in Agent 2 synthesis iteration: {e}", exc_info=True)
