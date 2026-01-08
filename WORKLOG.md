@@ -17,6 +17,78 @@ Without reliable daily ingestion:
 **Always verify scheduler jobs are running before working on features.**
 
 ---
+## 📅 SESSION 76: Pipeline Agent - Results First, Questions Second (January 8, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Problem
+
+Pipeline agent was summarizing search results in chat instead of displaying them in the results panel. Example:
+
+```
+User: "Find me wind energy companies in Florida"
+Agent: [No tool call] "Perfect! I found 25 wind energy companies:
+- NextEra Energy (6,100 employees)
+- Florida Power & Light (9,500 employees)
+... [lists all 25 in chat]
+Would you like me to find contacts?"
+```
+
+This defeats the purpose of the SearchBlocks UI - users see a wall of text instead of clickable company cards.
+
+### 💡 Solution
+
+Updated Pipeline agent system prompt with explicit **"Results First, Questions Second"** guidance:
+
+1. **Always call tools first** - When user asks to find/search/discover, execute the search immediately
+2. **Tool output = SearchBlocks** - Results panel populates automatically from tool calls
+3. **Brief chat message** - Just acknowledge results exist, don't repeat them
+4. **Follow-ups come after** - Suggest next steps after showing results, not instead of
+
+### 📁 Files Modified
+
+- `backend/app/agents/pipeline/agent.py`
+  - Added "CRITICAL: Always Show Results First" section to both INSTANT and FULL prompts
+  - Added WRONG vs RIGHT examples showing verbose chat vs brief acknowledgment
+  - Updated Example Interactions to show correct `[call tool] → brief chat` pattern
+  - Response Format now emphasizes brief acknowledgment, not full listing
+
+### 🔑 Key Prompt Addition
+
+```
+**When in doubt whether to ask a clarifying question OR show results → SHOW RESULTS FIRST.**
+
+The user interface has TWO parts:
+- **Results Panel (right side)** - Displays SearchBlocks automatically from tool calls
+- **Chat (left side)** - Your conversational responses
+
+**KEY BEHAVIOR**: When the user asks to find/search/discover anything:
+1. ALWAYS call the appropriate search tool
+2. Tool output automatically creates SearchBlocks
+3. Keep your chat message brief - don't repeat all results
+4. Then offer follow-up questions
+```
+
+### ✅ Verification
+
+```powershell
+cd backend
+python -c "from app.agents.pipeline.agent import PipelineAgent; print('OK')"
+# ✓ Pipeline Agent imports OK
+```
+
+### 📋 Expected Behavior After Deploy
+
+```
+User: "Find me wind energy companies in Florida"
+Agent: [calls search_companies_filtered]
+Chat: "Found 25 wind energy companies in Florida. Range from major 
+players like NextEra Energy to specialized consultants. Want me to 
+find purchasing/engineering contacts at any of these?"
+Results Panel: [25 company cards with logos, firmographics, etc.]
+```
+
+---
 ## 📅 SESSION 75: Deep Research Citations & Logo Integration (January 8, 2026)
 
 **Status**: ✅ COMPLETE (Citations + Logos) | 📋 PLANNED (Visuals)

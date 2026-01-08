@@ -276,6 +276,19 @@ Navigate to Pipeline tab and test:
 
 ## Recent Updates (Jan 2026)
 
+### Session 76: Results First, Questions Second
+- Agent now **always calls search tools first** instead of asking clarifying questions
+- Tool output automatically populates SearchBlocks in results panel
+- Chat responses are brief (1-2 sentences) - don't repeat all results in chat
+- Follow-up suggestions come AFTER showing results, not instead of
+- Pattern: `[call tool] → brief acknowledgment → suggest next steps`
+
+### Session 74: Post-Enrichment Filtering
+- `search_companies` and `find_similar_companies` now accept 7 filter parameters
+- Filters applied AFTER Apollo enrichment for accurate firmographic data
+- Returns `filter_metadata` with expansion suggestions when results are sparse
+- See "Post-Enrichment Filtering" section above for details
+
 ### Session 62: Contact Card Enrichment
 - `find_company_contacts` now auto-fetches FREE company firmographics
 - Frontend displays company context header (logo, name, employees, revenue, industry)
