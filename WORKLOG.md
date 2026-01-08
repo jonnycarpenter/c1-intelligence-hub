@@ -17,9 +17,70 @@ Without reliable daily ingestion:
 **Always verify scheduler jobs are running before working on features.**
 
 ---
+## 📅 SESSION 65: Deep Research SSE Cancellation Bug - ROOT CAUSE FOUND (January 7, 2026)
+
+**Status**: ✅ COMPLETE - Deployed
+
+**Deployed Commit**: `0eb6d36`
+
+### 🎯 Issue
+Deep research queries would immediately show "Query analysis was cancelled" in the UI, despite the groomer working correctly when tested locally (21 seconds, valid output).
+
+### 🔍 Root Cause Analysis - THE SMOKING GUN
+
+Cloud Run logs showed the LLM call being cancelled after **exactly 101ms**:
+```
+00:45:09.891 - [GROOMER] LLM AWAIT START - timeout=60s
+00:45:09.891 - Async invoking primary model: claude-sonnet-4-5
+00:45:09.992 - [GROOMER] LLM task was cancelled externally   ← ONLY 101ms LATER!
+```
+
+**The bug was in the SSE event loop** (`deep_research.py`), NOT in the groomer:
+
+```python
+# OLD CODE - BROKEN
+event = await asyncio.wait_for(event_iterator.__anext__(), timeout=0.1)  # 100ms timeout
+```
+
+When `wait_for` times out, it **cancels the awaited task**. This cancellation propagated:
+1. `wait_for` timeout after 100ms
+2. Cancels `event_iterator.__anext__()`
+3. LangGraph receives cancellation, propagates to running node
+4. Groomer's LLM task gets `CancelledError`
+5. Workflow ends with "LLM call was cancelled"
+
+### ✅ Fix Applied
+
+**Use `asyncio.shield()` to protect the iterator from cancellation:**
+
+```python
+# NEW CODE - FIXED
+if pending_event_task is None:
+    pending_event_task = asyncio.create_task(event_iterator.__anext__())
+event = await asyncio.wait_for(asyncio.shield(pending_event_task), timeout=0.5)
+```
+
+**Additional changes:**
+- Switched groomer to `claude-3-5-haiku` for faster query analysis (~5-8s vs ~21s)
+- Increased poll timeout from 100ms to 500ms to reduce overhead
+- Added timing to cancellation error logging
+- Fixed frontend to properly stop spinner on abort
+
+### 📁 Files Modified
+| File | Changes |
+|------|---------||
+| `backend/app/api/routes/deep_research.py` | `asyncio.shield()` protection, reusable pending task |
+| `backend/app/config/settings.py` | Groomer model → `claude-3-5-haiku-20241022` |
+| `backend/app/agents/research/groomer.py` | Timing in cancellation logs |
+| `frontend/src/hooks/useDeepResearch.ts` | Proper spinner cleanup on abort |
+
+### 💡 Key Lesson Learned
+**NEVER use `asyncio.wait_for()` on a shared iterator without `shield()`** if you want polling behavior. The timeout will cancel the underlying operation, not just stop waiting.
+
+---
 ## 📅 SESSION 64: Pipeline Agent Parallel Execution Fix (January 7, 2026)
 
-**Status**: ✅ COMPLETE - Ready for Deploy
+**Status**: ✅ COMPLETE - Deployed
 
 ### 🎯 Issue
 User reported `invalid_request_error` (Error 400) from Anthropic API when using Pipeline contact search in production.
@@ -44,8 +105,11 @@ Error: `messages.7: tool_use ids were found without tool_result blocks immediate
 - `backend/app/agents/pipeline/agent.py`
 
 ---
+## 📅 SESSION 63: Deep Research Groomer Hang - Root Cause Analysis (January 7, 2026)
 
-**Status**: 🚧 IN PROGRESS - Deployed Fixes, Testing
+**Status**: ✅ COMPLETE - Superseded by Session 65
+
+**Note**: The actual root cause was NOT the groomer or prior research injection - it was the SSE event loop cancellation bug. See Session 65 for the real fix.
 
 **Deployed Commits**: 
 - `f4be46d` - Timeout fixes (HTTP timeout reduction, explicit task cancellation)

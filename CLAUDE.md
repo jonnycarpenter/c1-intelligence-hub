@@ -30,6 +30,11 @@ Read these files first:
    - Log START/COMPLETE with timing for async operations
    - Log state keys and key variables at entry/exit points
    - Add LLM timeout protection (`asyncio.wait_for`) for any LLM calls
+5. **SSE streaming best practices** (CRITICAL - Session 65 bug fix):
+   - **NEVER** use `asyncio.wait_for()` on a shared async iterator without `asyncio.shield()`
+   - Timeout cancellation propagates to the underlying task, killing LLM calls
+   - Pattern: `await asyncio.wait_for(asyncio.shield(task), timeout=X)`
+   - See `app/api/routes/deep_research.py` for correct SSE event loop implementation
 5. **Test before committing**:
    ```bash
    cd backend

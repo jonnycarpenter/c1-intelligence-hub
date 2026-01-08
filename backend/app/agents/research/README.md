@@ -600,6 +600,22 @@ except asyncio.TimeoutError:
 - **Cause**: Empty messages in conversation history
 - **Fix**: Filter messages before LLM call (see `groomer.py`)
 
+**"Query analysis was cancelled" / "LLM call was cancelled" immediately**
+- **Cause**: SSE event loop cancellation bug (Session 65)
+- **Symptoms**: Research fails within ~100ms with cancelled error, despite groomer working locally
+- **Root Cause**: `asyncio.wait_for(event_iterator.__anext__(), timeout=0.1)` cancels the LLM task when timeout fires
+- **Fix**: Always use `asyncio.shield()` when polling an async iterator:
+  ```python
+  # WRONG - cancels workflow!
+  event = await asyncio.wait_for(event_iterator.__anext__(), timeout=0.1)
+  
+  # CORRECT - protects from cancellation
+  if pending_task is None:
+      pending_task = asyncio.create_task(event_iterator.__anext__())
+  event = await asyncio.wait_for(asyncio.shield(pending_task), timeout=0.5)
+  ```
+- **Files**: `app/api/routes/deep_research.py` lines 355-420
+
 **Research hangs/times out**
 - **Cause**: External API (SEC, StockNews, Exa) is slow or unresponsive
 - **Symptoms**: Frontend shows "Research timed out" after 5 minutes
