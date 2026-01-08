@@ -411,6 +411,7 @@ class ResilientAsyncClient:
         # Try Anthropic first
         try:
             start = time.time()
+            logger.info(f"Async invoking primary model: {model}")
             # Build params dict - only include system if provided (SDK 0.75.0+ requires this)
             anthropic_params = {
                 "model": model,
@@ -424,7 +425,13 @@ class ResilientAsyncClient:
             
             response = await self.anthropic_client.messages.create(**anthropic_params)
             elapsed = time.time() - start
-            logger.debug(f"Anthropic ({model}) succeeded in {elapsed:.2f}s")
+            logger.info(f"Anthropic ({model}) succeeded in {elapsed:.2f}s")
+            
+            # Check for empty response (API succeeded but returned nothing)
+            if not response.content or len(response.content) == 0 or not response.content[0].text.strip():
+                logger.warning(f"Anthropic ({model}) returned empty content, falling back to OpenAI")
+                raise ValueError("Anthropic returned empty response")
+            
             return response
             
         except Exception as anthropic_error:

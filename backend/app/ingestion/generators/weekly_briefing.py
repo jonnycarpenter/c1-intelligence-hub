@@ -19,10 +19,16 @@ import json
 import re
 import asyncio
 import time
+import os
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional, Set
 from collections import Counter
 from exa_py import Exa
+from openai import AsyncOpenAI
+from dotenv import load_dotenv
+
+# Load .env file for local development
+load_dotenv()
 
 from app.utils.resilient_llm import get_resilient_async_client
 
@@ -148,12 +154,12 @@ Otherwise, respond with the final briefing JSON:
     def __init__(self, config=None):
         """Initialize the executive synthesizer (Agent 2)."""
         self.config = config or settings
-        self.client = get_resilient_async_client(
-            anthropic_api_key=self.config.anthropic_api_key,
-            openai_api_key=getattr(self.config, 'openai_api_key', None),
-        )
-        # Agent 2 uses the premium Opus model for strategic synthesis
-        self.model = "claude-opus-4-5" 
+        # TEMPORARY: Use OpenAI directly (Anthropic API unstable 2026-01-08)
+        # TODO: Switch back to claude-opus-4-5 when Anthropic is stable
+        api_key = self.config.openai_api_key or os.getenv('OPENAI_API_KEY')
+        self.client = AsyncOpenAI(api_key=api_key)
+        self.model = "gpt-4o"  # High quality, fast, reliable
+        self._use_openai = True  # Flag to use OpenAI message format 
         self._bq_storage = None
         self._vector_store = None
         # Initialize Exa client for peripheral intelligence search
@@ -845,25 +851,25 @@ Otherwise, respond with the final briefing JSON:
             )
             
             try:
-                logger.info(f"Agent 2: Calling LLM model={self.model}, max_tokens=4000")
-                response = await self.client.messages_create(
+                logger.info(f"Agent 2: Calling LLM model={self.model}, max_tokens=4000 (using OpenAI)")
+                response = await self.client.chat.completions.create(
                     model=self.model,
                     max_tokens=4000,
                     temperature=0.0,
                     messages=[{"role": "user", "content": prompt}]
                 )
                 
-                # Log response metadata for debugging
-                stop_reason = getattr(response, 'stop_reason', 'unknown')
-                usage = getattr(response, 'usage', None)
-                logger.info(f"Agent 2: LLM response received - stop_reason={stop_reason}, usage={usage}")
+                # Log response metadata for debugging (OpenAI format)
+                finish_reason = response.choices[0].finish_reason if response.choices else 'unknown'
+                usage = response.usage
+                logger.info(f"Agent 2: LLM response received - finish_reason={finish_reason}, usage={usage}")
                 
-                # Check if we got any content
-                if not response.content or len(response.content) == 0:
-                    logger.error(f"Agent 2: LLM returned empty content! stop_reason={stop_reason}")
+                # Check if we got any content (OpenAI format)
+                if not response.choices or not response.choices[0].message.content:
+                    logger.error(f"Agent 2: LLM returned empty content! finish_reason={finish_reason}")
                     return None
                 
-                result_json = response.content[0].text.strip()
+                result_json = response.choices[0].message.content.strip()
                 logger.info(f"Agent 2: Raw response length={len(result_json)} chars")
                 
                 # Log first/last bits for debugging (avoid logging full response)
