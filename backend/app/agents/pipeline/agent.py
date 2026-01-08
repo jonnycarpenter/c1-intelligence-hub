@@ -827,3 +827,4 @@ def get_pipeline_agent(mode: str = "instant") -> PipelineAgent:
 
 # Backwards compatibility - default instance
 pipeline_agent = get_pipeline_agent("instant")
+# Force rebuild for pipeline fix
