@@ -816,6 +816,14 @@ Otherwise, respond with the final briefing JSON:
         if isinstance(period_end, str):
             period_end = datetime.fromisoformat(period_end)
         
+        # Calculate "this week's Monday" for the briefing title
+        # This ensures off-schedule runs show the correct week
+        today = datetime.utcnow()
+        days_since_monday = today.weekday()  # 0=Monday, 6=Sunday
+        this_weeks_monday = today - timedelta(days=days_since_monday)
+        week_of_date = this_weeks_monday.strftime("%B %d, %Y")  # e.g., "January 06, 2026"
+        logger.info(f"Agent 2: Using 'Week of {week_of_date}' for briefing title (today={today.strftime('%A %B %d')})")
+        
         data = None
         result_json = None
         
@@ -837,8 +845,9 @@ Otherwise, respond with the final briefing JSON:
                 peripheral_results_text = "\n\n".join(formatted_results)
             
             # 5. Prepare prompt with current context
+            # Use this week's Monday for consistent title regardless of when generated
             prompt = self.EXECUTIVE_SYNTHESIZER_PROMPT.format(
-                period_end_short=period_end.strftime("%b %d") if period_end else "Current",
+                period_end_short=week_of_date,
                 historical_context=historical_context,
                 pre_brief_data=json.dumps(pre_brief.get('data', {}), indent=2),
                 peripheral_results=peripheral_results_text
@@ -975,7 +984,7 @@ Otherwise, respond with the final briefing JSON:
             briefing_record = {
                 "id": str(uuid.uuid4()),
                 "briefing_type": "weekly_executive",
-                "briefing_title": data.get("briefing_title", f"Executive Briefing: Week of {period_end.strftime('%b %d')}"),
+                "briefing_title": data.get("briefing_title", f"Executive Briefing: Week of {week_of_date}"),
                 "bluf": data.get("bluf", ""),
                 "sections": processed_sections,
                 "all_companies_mentioned": self._enrich_with_logos(data.get("all_companies_mentioned", [])),

@@ -12,6 +12,147 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 
 
+def _analyze_finding_dates(findings: list, label: str) -> list:
+    """Analyze dates in findings and return scratchpad notes."""
+    notes = []
+    if not findings:
+        notes.append(f"[DATE CHECK] {label}: No findings to analyze")
+        return notes
+    
+    dates = []
+    no_date_count = 0
+    
+    for f in findings:
+        # Try to extract date from finding or citation
+        pub_date = None
+        if hasattr(f, 'citation') and f.citation:
+            pub_date = getattr(f.citation, 'source_date', None)
+        elif isinstance(f, dict):
+            citation = f.get('citation', {})
+            if isinstance(citation, dict):
+                pub_date = citation.get('source_date')
+        
+        if pub_date:
+            try:
+                if isinstance(pub_date, str):
+                    # Parse ISO date string
+                    parsed = datetime.fromisoformat(pub_date.replace('Z', '+00:00'))
+                    dates.append(parsed)
+                elif isinstance(pub_date, datetime):
+                    dates.append(pub_date)
+            except (ValueError, AttributeError):
+                no_date_count += 1
+        else:
+            no_date_count += 1
+    
+    if dates:
+        oldest = min(dates)
+        newest = max(dates)
+        notes.append(f"[DATE CHECK] {label}: {len(findings)} items, oldest: {oldest.strftime('%Y-%m-%d')}, newest: {newest.strftime('%Y-%m-%d')}")
+        
+        # Flag stale content (>6 months old)
+        six_months_ago = datetime.now() - timedelta(days=180)
+        stale_count = sum(1 for d in dates if d < six_months_ago)
+        if stale_count > 0:
+            notes.append(f"[DATE WARN] {label}: {stale_count} items are >6 months old - consider as historical context only")
+    
+    if no_date_count > 0:
+        notes.append(f"[DATE WARN] {label}: {no_date_count} items have no publication date")
+    
+    return notes
+
+
+def _extract_entities_from_findings(financial, industry) -> set:
+    """Extract all entities mentioned across findings."""
+    entities = set()
+    
+    for output in [financial, industry]:
+        if not output:
+            continue
+        findings = output.findings if hasattr(output, 'findings') else []
+        for f in findings:
+            if hasattr(f, 'entities_mentioned') and f.entities_mentioned:
+                entities.update(f.entities_mentioned[:5])
+            elif isinstance(f, dict) and f.get('entities_mentioned'):
+                entities.update(f['entities_mentioned'][:5])
+    
+    return entities
+
+
+def _generate_planning_scratchpad(
+    financial,
+    industry,
+    visual,
+    research_brief,
+    user_query: str
+) -> list:
+    """
+    Generate a planning scratchpad to help the LLM structure the report.
+    
+    This provides:
+    1. Content inventory - what data is available
+    2. Date analysis - recency of information
+    3. Entity coverage - who/what is mentioned
+    4. Gap identification - what's missing
+    """
+    notes = []
+    
+    # === CONTENT INVENTORY ===
+    notes.append("=== CONTENT INVENTORY ===")
+    fin_count = len(financial.findings) if financial and hasattr(financial, 'findings') else 0
+    ind_count = len(industry.findings) if industry and hasattr(industry, 'findings') else 0
+    vis_count = len(visual.visuals) if visual and hasattr(visual, 'visuals') else 0
+    
+    notes.append(f"[INVENTORY] Financial findings: {fin_count}")
+    notes.append(f"[INVENTORY] Industry findings: {ind_count}")
+    notes.append(f"[INVENTORY] Visuals available: {vis_count}")
+    
+    # Demand signals from industry
+    if industry and hasattr(industry, 'demand_signals') and industry.demand_signals:
+        notes.append(f"[INVENTORY] Demand signals: {len(industry.demand_signals)}")
+    
+    # === DATE ANALYSIS ===
+    notes.append("=== DATE ANALYSIS ===")
+    if financial and hasattr(financial, 'findings'):
+        notes.extend(_analyze_finding_dates(financial.findings, "Financial"))
+    if industry and hasattr(industry, 'findings'):
+        notes.extend(_analyze_finding_dates(industry.findings, "Industry"))
+    
+    # Add timeframe instruction if available
+    if research_brief and hasattr(research_brief, 'timeframe') and research_brief.timeframe:
+        notes.append(f"[TIMEFRAME] User requested: {research_brief.timeframe}")
+        notes.append(f"[TIMEFRAME] Prioritize content matching this period; older content is context only")
+    
+    # === ENTITY COVERAGE ===
+    notes.append("=== ENTITY COVERAGE ===")
+    entities = _extract_entities_from_findings(financial, industry)
+    if entities:
+        notes.append(f"[ENTITIES] Mentioned in findings: {', '.join(list(entities)[:10])}")
+    
+    # Check if requested entities are covered
+    if research_brief and hasattr(research_brief, 'entities_to_track') and research_brief.entities_to_track:
+        requested = set(e.lower() for e in research_brief.entities_to_track)
+        found = set(e.lower() for e in entities)
+        missing = requested - found
+        if missing:
+            notes.append(f"[GAP] Requested but not found: {', '.join(missing)}")
+        else:
+            notes.append(f"[COVERAGE] All requested entities covered")
+    
+    # === DATA QUALITY ===
+    notes.append("=== DATA QUALITY ===")
+    if fin_count == 0 and ind_count == 0:
+        notes.append("[GAP] No findings from either agent - report will be limited")
+    elif fin_count == 0:
+        notes.append("[GAP] No financial data - rely on industry sources only")
+    elif ind_count == 0:
+        notes.append("[GAP] No industry data - rely on financial sources only")
+    else:
+        notes.append("[QUALITY] Both financial and industry data available")
+    
+    return notes
+
+
 def _condense_findings(output) -> Dict[str, Any]:
     """Strip verbose fields from agent output to reduce token count."""
     if not output:
@@ -140,6 +281,18 @@ async def synthesis_node(state: DeepResearchState) -> DeepResearchState:
         "visuals": visual.model_dump() if visual else None,
     }
     
+    # Generate planning scratchpad for structured pre-synthesis analysis
+    planning_notes = _generate_planning_scratchpad(
+        financial=financial,
+        industry=industry,
+        visual=visual,
+        research_brief=research_brief,
+        user_query=user_query,
+    )
+    planning_scratchpad = "\n".join(planning_notes)
+    logger.info(f"[SYNTHESIZER] Planning scratchpad: {len(planning_notes)} notes")
+    logger.debug(f"[SYNTHESIZER] Scratchpad content:\n{planning_scratchpad}")
+    
     # Build system prompt with prior context
     system_content = SYNTHESIZER_SYSTEM_PROMPT
     if prior_context:
@@ -147,7 +300,10 @@ async def synthesis_node(state: DeepResearchState) -> DeepResearchState:
     
     synthesis_prompt = f"""Synthesize into a BRIEF report for: "{user_query}"
 
-RESEARCH DATA:
+## PLANNING ANALYSIS (use this to structure your report)
+{planning_scratchpad}
+
+## RESEARCH DATA
 {json.dumps(research_data, indent=2, default=str)}
 
 OUTPUT FORMAT (valid JSON):
