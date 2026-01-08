@@ -84,6 +84,32 @@ export function ResearchProgress({
 
             {/* Pipeline Visualization */}
             <div className="px-4 py-4">
+                {/* Node labels above icons */}
+                <div className="hidden sm:flex items-end justify-between mb-2 px-1">
+                    {nodeStatuses.map(node => {
+                        // Split multi-word labels into lines
+                        const label = NODE_LABELS[node.node]
+                        const words = label.split(' ')
+
+                        return (
+                            <div key={`label-${node.node}`} className="flex-1 text-center">
+                                <div className={cn(
+                                    'text-xs leading-tight',
+                                    node.status === 'running' && 'text-emerald-600 font-medium',
+                                    node.status === 'completed' && 'text-slate-500',
+                                    node.status === 'pending' && 'text-slate-400',
+                                    node.status === 'error' && 'text-red-500',
+                                )}>
+                                    {words.map((word, idx) => (
+                                        <div key={idx}>{word}</div>
+                                    ))}
+                                </div>
+                            </div>
+                        )
+                    })}
+                </div>
+
+                {/* Icon row */}
                 <div className="flex items-center justify-between gap-1">
                     {nodeStatuses.map((node, idx) => {
                         const Icon = NODE_ICONS[node.node]
@@ -93,7 +119,7 @@ export function ResearchProgress({
                         const isPending = node.status === 'pending'
 
                         // Show parallel indicator between financial and industry
-                        const showParallelBracket = 
+                        const showParallelBracket =
                             (node.node === 'financial_research' || node.node === 'industry_research') &&
                             parallelNodes
 
@@ -144,8 +170,8 @@ export function ResearchProgress({
                                         )}
                                     </div>
 
-                                    {/* Tooltip */}
-                                    <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                                    {/* Tooltip for mobile */}
+                                    <div className="sm:hidden absolute -bottom-8 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                                         <div className="bg-slate-900 text-white text-xs px-2 py-1 rounded whitespace-nowrap">
                                             {NODE_LABELS[node.node]}
                                         </div>
@@ -154,23 +180,6 @@ export function ResearchProgress({
                             </div>
                         )
                     })}
-                </div>
-
-                {/* Node labels (mobile-friendly) */}
-                <div className="hidden sm:flex items-center justify-between mt-2 px-1">
-                    {nodeStatuses.map(node => (
-                        <div key={`label-${node.node}`} className="flex-1 text-center">
-                            <span className={cn(
-                                'text-xs',
-                                node.status === 'running' && 'text-emerald-600 font-medium',
-                                node.status === 'completed' && 'text-slate-500',
-                                node.status === 'pending' && 'text-slate-400',
-                                node.status === 'error' && 'text-red-500',
-                            )}>
-                                {NODE_LABELS[node.node]}
-                            </span>
-                        </div>
-                    ))}
                 </div>
             </div>
 
@@ -212,8 +221,8 @@ function ToolProgressItem({ tool, isLatest }: ToolProgressItemProps) {
                 className={cn(
                     'shrink-0 w-2 h-2 rounded-full',
                     tool.status === 'error' ? 'bg-red-400' :
-                    tool.status === 'completed' ? 'bg-emerald-400' :
-                    'bg-blue-400 animate-pulse'
+                        tool.status === 'completed' ? 'bg-emerald-400' :
+                            'bg-blue-400 animate-pulse'
                 )}
             />
             <span className="font-medium text-slate-700">{toolLabel}</span>

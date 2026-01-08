@@ -140,6 +140,16 @@ A single-sentence executive summary displayed prominently at the top of the brie
 ### Inline Company Logos
 `[[Company Name]]` tags in text are rendered with logos from Logo.dev.
 
+**Applies to:** Section headlines, insight text, BLUF, and `overall_trend`.
+
+### Entity Highlighting (Session 73)
+For important non-company entities in `overall_trend`, use double curly braces:
+- `{{UK LSIC}}` → renders as **bold text** (no logo)
+- `{{recycled PET}}` → bold highlighting for materials/technologies
+- `{{PCM}}` → bold highlighting for process acronyms
+
+Use for: Industry initiatives, material technologies, process names, standards, certifications, key programs.
+
 ### Net New vs Continuing
 Each insight is tagged:
 - `net_new` - First appearance of this topic

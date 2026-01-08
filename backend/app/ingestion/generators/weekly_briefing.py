@@ -91,11 +91,19 @@ REQUIREMENTS:
    - Each item must be marked "net_new" or "continuing" based on your differential analysis.
    - Include citations using the article ID or reference provided in the Pre-Brief (use [N] for pre-brief sources, [Exa:N] for peripheral search results).
 
-3. INLINE LOGOS
+3. INLINE LOGOS (applies to sections AND overall_trend)
    - Wrap company names in double brackets: [[Company Name]].
+   - Use this in headline text, insight text, AND the overall_trend field.
 
-4. OVERALL TREND
-   - Provide a 1-sentence "Bottom Line Up Front" (BLUF) for the week.
+4. ENTITY HIGHLIGHTING (for overall_trend)
+   - Wrap important NON-company entities in double curly braces: {{Entity Name}}.
+   - Use this for: industry initiatives ({{UK LSIC}}), material technologies ({{recycled PET}}), process acronyms ({{PCM}}), standards/certifications, key programs.
+   - This creates bold highlighting without logos.
+
+5. OVERALL TREND
+   - Provide a detailed 2-3 sentence analysis of the week's strategic shift.
+   - Use [[Company]] tags for companies mentioned and {{Entity}} tags for important non-company terms.
+   - This is the executive summary paragraph, make it substantive.
 
 If you need to use tools, respond with:
 {{
@@ -131,7 +139,7 @@ Otherwise, respond with the final briefing JSON:
     ],
     "all_companies_mentioned": ["Company A", "Company B"],
     "key_topics_this_week": ["Topic 1", "Topic 2"],
-    "overall_trend": "Detailed analysis of the week's strategic shift"
+    "overall_trend": "[[Company A]] is driving the {{fast-cure prepreg}} transition while {{UK LSIC}} investments signal infrastructure buildout. The [[Company B]] acquisition positions them for {{hydrogen pressure vessel}} scale."
 }}
 
 <historical_context>

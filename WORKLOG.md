@@ -17,6 +17,41 @@ Without reliable daily ingestion:
 **Always verify scheduler jobs are running before working on features.**
 
 ---
+## 📅 SESSION 73: Overall Trend Formatting + Podcast Query Fix (January 8, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Changes Made
+
+1. **Entity Highlighting in overall_trend** - New `{{Entity}}` syntax for non-company entities
+   - `[[Company]]` → bold + logo (existing)
+   - `{{Entity}}` → bold only (new) - for materials, processes, initiatives
+   - Examples: `{{UK LSIC}}`, `{{recycled PET}}`, `{{PCM}}`
+
+2. **Podcast Query Fix** - Duplicate rows in `weekly_briefings` table caused "Listen" button to not appear
+   - Root cause: Manual briefing fixes created duplicate rows (same ID, one with podcast, one without)
+   - Fix 1: Deleted duplicate row without podcast
+   - Fix 2: Updated `get_latest_weekly_briefing()` and `get_weekly_briefing_history()` to deduplicate by ID, preferring rows with `podcast_url`
+
+### 📁 Files Modified
+
+- `backend/app/ingestion/generators/weekly_briefing.py` - Updated prompt for `[[Company]]` and `{{Entity}}` in overall_trend
+- `frontend/src/components/dashboard/WeeklyBriefingSection.tsx` - Added `{{Entity}}` rendering (bold, no logo)
+- `backend/app/db/gcp_storage.py` - Deduplication queries for weekly_briefings
+- `backend/app/ingestion/generators/README.md` - Documented entity highlighting
+
+### ✅ Verification
+
+- Briefing `dd0ef6d3-19f6-4ca9-982e-47446e50eb66` now returns with podcast (226s)
+- Podcast file confirmed in GCS (5.3MB)
+- Query deduplication tested and working
+
+### 📋 Next Steps
+
+- Monday scheduled briefing will use new formatting automatically
+- Entity highlighting will appear in future overall_trend sections
+
+---
 ## 📅 SESSION 72: Executive Briefing Fixes - Date Override, Citation Cleanup, Backfill (January 8, 2026)
 
 **Status**: ✅ COMPLETE
@@ -84,6 +119,10 @@ def _clean_citation_text(self, text, max_pre_brief_articles, exa_id_to_unified):
     def process_bracket_content(match):
         # Converts Exa:N to unified numbers, filters invalid citations
 ```
+
+### 📋 Open Items (Briefing Workstream)
+
+- [ ] Confirm BLUF section Logo.dev integration and make formatting tweaks to BLUF
 
 ---
 ## 📅 SESSION 71: Apollo Organization Search - Structured Firmographic Filtering (January 8, 2026)

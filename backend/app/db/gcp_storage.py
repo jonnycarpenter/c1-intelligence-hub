@@ -1828,14 +1828,28 @@ class BigQueryDataStorage(DataStorageInterface):
             return False
     
     async def get_latest_weekly_briefing(self) -> Optional[Dict[str, Any]]:
-        """Get the most recent weekly executive briefing."""
+        """Get the most recent weekly executive briefing.
+        
+        Uses deduplication to prefer rows with podcast_url when duplicates exist.
+        """
         import json
         
         table_id = f"{self.config.full_dataset_id}.weekly_briefings"
         
+        # Deduplicate by id, preferring rows with podcast_url
         query = f"""
-            SELECT *
-            FROM `{table_id}`
+            WITH deduped AS (
+                SELECT *,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY id 
+                        ORDER BY CASE WHEN podcast_url IS NOT NULL THEN 0 ELSE 1 END,
+                                 generated_at DESC
+                    ) as rn
+                FROM `{table_id}`
+            )
+            SELECT * EXCEPT(rn)
+            FROM deduped
+            WHERE rn = 1
             ORDER BY generated_at DESC
             LIMIT 1
         """
@@ -1867,14 +1881,28 @@ class BigQueryDataStorage(DataStorageInterface):
             return None
     
     async def get_weekly_briefing_history(self, limit: int = 10) -> List[Dict[str, Any]]:
-        """Get historical weekly briefings."""
+        """Get historical weekly briefings.
+        
+        Uses deduplication to prefer rows with podcast_url when duplicates exist.
+        """
         import json
         
         table_id = f"{self.config.full_dataset_id}.weekly_briefings"
         
+        # Deduplicate by id, preferring rows with podcast_url
         query = f"""
-            SELECT *
-            FROM `{table_id}`
+            WITH deduped AS (
+                SELECT *,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY id 
+                        ORDER BY CASE WHEN podcast_url IS NOT NULL THEN 0 ELSE 1 END,
+                                 generated_at DESC
+                    ) as rn
+                FROM `{table_id}`
+            )
+            SELECT * EXCEPT(rn)
+            FROM deduped
+            WHERE rn = 1
             ORDER BY generated_at DESC
             LIMIT {limit}
         """

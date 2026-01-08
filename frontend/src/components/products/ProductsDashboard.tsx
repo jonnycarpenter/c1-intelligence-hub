@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { 
-  Package, 
-  Search, 
+import {
+  Package,
+  Search,
   Grid3X3,
   List,
   Building2,
@@ -16,7 +16,8 @@ import {
   AlertCircle,
   RefreshCw,
   X,
-  Bot
+  Bot,
+  Construction
 } from 'lucide-react'
 import { Button } from '@/components/ui'
 import { cn } from '@/lib/utils'
@@ -76,13 +77,13 @@ export default function ProductsDashboard({ onAskAboutProduct, displayProducts, 
   const [showC1Only, setShowC1Only] = useState(false)
 
   // Fetch products from API
-  const { 
-    products: apiProducts, 
+  const {
+    products: apiProducts,
     categories: apiCategories,
     suppliers,
-    isLoading, 
+    isLoading,
     error,
-    refresh 
+    refresh
   } = useProducts({
     category: selectedCategory === 'all' ? undefined : selectedCategory,
     query: searchQuery || undefined,
@@ -104,12 +105,12 @@ export default function ProductsDashboard({ onAskAboutProduct, displayProducts, 
       { id: 'prepreg', label: 'Prepregs' },
       { id: 'resin', label: 'Resins' },
     ]
-    
+
     // Add counts from API categories
     return baseCats.map(cat => ({
       ...cat,
-      count: cat.id === 'all' 
-        ? apiProducts.length 
+      count: cat.id === 'all'
+        ? apiProducts.length
         : apiProducts.filter(p => p.category === cat.id).length
     }))
   }, [apiProducts])
@@ -119,16 +120,16 @@ export default function ProductsDashboard({ onAskAboutProduct, displayProducts, 
     if (!searchQuery && selectedCategory === 'all' && !showC1Only) {
       return products
     }
-    
+
     return products.filter(product => {
-      const matchesSearch = !searchQuery || 
+      const matchesSearch = !searchQuery ||
         product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         product.supplier.toLowerCase().includes(searchQuery.toLowerCase()) ||
         product.id.toLowerCase().includes(searchQuery.toLowerCase())
-      
+
       const matchesCategory = selectedCategory === 'all' || product.category === selectedCategory
       const matchesC1 = !showC1Only || product.in_c1_catalog
-      
+
       return matchesSearch && matchesCategory && matchesC1
     })
   }, [products, searchQuery, selectedCategory, showC1Only])
@@ -152,8 +153,8 @@ export default function ProductsDashboard({ onAskAboutProduct, displayProducts, 
   }
 
   const toggleProductSelection = (productId: string) => {
-    setSelectedProducts(prev => 
-      prev.includes(productId) 
+    setSelectedProducts(prev =>
+      prev.includes(productId)
         ? prev.filter(id => id !== productId)
         : [...prev, productId]
     )
@@ -170,12 +171,12 @@ export default function ProductsDashboard({ onAskAboutProduct, displayProducts, 
       p.in_c1_catalog ? 'Yes' : 'No',
       p.industries.join('; ')
     ])
-    
+
     const csvContent = [
       headers.join(','),
       ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
     ].join('\n')
-    
+
     // Download
     const blob = new Blob([csvContent], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)
@@ -205,8 +206,8 @@ export default function ProductsDashboard({ onAskAboutProduct, displayProducts, 
           </div>
           <div className="flex items-center gap-2">
             {/* Export Button */}
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               size="sm"
               onClick={handleExportCSV}
               className="text-slate-600"
@@ -214,10 +215,10 @@ export default function ProductsDashboard({ onAskAboutProduct, displayProducts, 
               <Download size={14} />
               Export
             </Button>
-            
+
             {/* Refresh Button */}
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               size="sm"
               onClick={() => refresh()}
               disabled={isLoading}
@@ -228,8 +229,8 @@ export default function ProductsDashboard({ onAskAboutProduct, displayProducts, 
 
             {/* Compare Button */}
             {selectedProducts.length >= 2 && (
-              <Button 
-                variant="primary" 
+              <Button
+                variant="primary"
                 size="sm"
                 onClick={handleCompareSelected}
                 className="bg-blue-600 hover:bg-blue-700"
@@ -238,7 +239,7 @@ export default function ProductsDashboard({ onAskAboutProduct, displayProducts, 
                 Compare ({selectedProducts.length})
               </Button>
             )}
-            
+
             {/* View Toggle */}
             <div className="flex border border-slate-200 rounded-lg overflow-hidden">
               <button
@@ -284,6 +285,15 @@ export default function ProductsDashboard({ onAskAboutProduct, displayProducts, 
             />
             <span className="text-sm text-slate-600">C1 Only</span>
           </label>
+        </div>
+      </div>
+
+      {/* Prototype Preview Warning */}
+      <div className="mx-4 mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-3">
+        <Construction size={18} className="text-amber-600 shrink-0" />
+        <div>
+          <p className="text-sm font-medium text-amber-800">Prototype Preview</p>
+          <p className="text-xs text-amber-600">This is a sneak peek of upcoming functionality. Most features are not yet active.</p>
         </div>
       </div>
 
@@ -361,9 +371,9 @@ export default function ProductsDashboard({ onAskAboutProduct, displayProducts, 
                 <p className="text-xs text-blue-600">These results were found by the Product Maven agent</p>
               </div>
               {onClearDisplayProducts && (
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={onClearDisplayProducts}
                   className="text-blue-700 hover:text-blue-900 hover:bg-blue-100"
                 >
@@ -431,19 +441,19 @@ export default function ProductsDashboard({ onAskAboutProduct, displayProducts, 
 }
 
 // Product Card Component
-function ProductCard({ 
-  product, 
-  isSelected, 
-  onSelect, 
-  onClick 
-}: { 
+function ProductCard({
+  product,
+  isSelected,
+  onSelect,
+  onClick
+}: {
   product: Product
   isSelected: boolean
   onSelect: () => void
   onClick: () => void
 }) {
   return (
-    <div 
+    <div
       className={cn(
         "bg-white border rounded-xl overflow-hidden hover:shadow-md transition-all cursor-pointer group",
         isSelected ? "border-blue-500 ring-2 ring-blue-100" : "border-slate-200"
@@ -465,8 +475,8 @@ function ProductCard({
             onClick={(e) => { e.stopPropagation(); onSelect(); }}
             className={cn(
               "w-5 h-5 rounded border flex items-center justify-center shrink-0",
-              isSelected 
-                ? "bg-blue-500 border-blue-500 text-white" 
+              isSelected
+                ? "bg-blue-500 border-blue-500 text-white"
                 : "border-slate-300 hover:border-blue-400"
             )}
           >
@@ -515,19 +525,19 @@ function ProductCard({
 }
 
 // Product List Item Component
-function ProductListItem({ 
-  product, 
-  isSelected, 
-  onSelect, 
-  onClick 
-}: { 
+function ProductListItem({
+  product,
+  isSelected,
+  onSelect,
+  onClick
+}: {
   product: Product
   isSelected: boolean
   onSelect: () => void
   onClick: () => void
 }) {
   return (
-    <div 
+    <div
       className={cn(
         "bg-white border rounded-lg p-4 hover:shadow-md transition-all cursor-pointer group flex items-center gap-4",
         isSelected ? "border-blue-500 ring-2 ring-blue-100" : "border-slate-200"
@@ -537,8 +547,8 @@ function ProductListItem({
         onClick={(e) => { e.stopPropagation(); onSelect(); }}
         className={cn(
           "w-5 h-5 rounded border flex items-center justify-center shrink-0",
-          isSelected 
-            ? "bg-blue-500 border-blue-500 text-white" 
+          isSelected
+            ? "bg-blue-500 border-blue-500 text-white"
             : "border-slate-300 hover:border-blue-400"
         )}
       >

@@ -116,15 +116,15 @@ const extractDomain = (url: string): string => {
   }
 }
 
-// Parse citations like [1], [2] and logos like [[Company Name]]
+// Parse citations like [1], [2], logos like [[Company Name]], and entity highlights like {{Entity}}
 // Now accepts optional sourceArticles to make citations clickable with domain hover
 const renderTextWithLogosAndCitations = (
   text: string,
   companiesWithLogos: CompanyWithLogo[],
   sourceArticles?: SourceArticle[]
 ) => {
-  // Split by citations [N], [Exa:N] and company tags [[Company]]
-  const parts = text.split(/(\[(?:Exa:)?\d+\]|\[\[.*?\]\])/g)
+  // Split by citations [N], [Exa:N], company tags [[Company]], and entity tags {{Entity}}
+  const parts = text.split(/(\[(?:Exa:)?\d+\]|\[\[.*?\]\]|\{\{.*?\}\})/g)
 
   return parts.map((part, idx) => {
     // Handle citations [N] or [Exa:N]
@@ -175,6 +175,16 @@ const renderTextWithLogosAndCitations = (
               <CompanyLogo company={company} size="sm" />
             </span>
           )}
+        </span>
+      )
+    }
+
+    // Handle entity highlights {{Entity}} - bold text without logo
+    if (/^\{\{.*?\}\}$/.test(part)) {
+      const entityName = part.replace(/[\{\}]/g, '')
+      return (
+        <span key={idx} className="font-semibold text-slate-800">
+          {entityName}
         </span>
       )
     }
