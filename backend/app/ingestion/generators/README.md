@@ -205,3 +205,50 @@ Both pre-briefs and final briefings are stored in BigQuery:
 - `weekly_briefings` - Agent 2 final output
 
 See `backend/app/db/gcp_storage.py` for schema details.
+
+## Troubleshooting
+
+### Testing Locally
+
+```bash
+cd backend
+
+# Test Agent 2 with latest pre-brief (generates and saves to BigQuery)
+python scripts/testing/test_agent2_save.py
+
+# Simple LLM connectivity test
+python scripts/testing/test_llm_simple.py
+
+# Check briefings in BigQuery
+python -c "from google.cloud import bigquery; c = bigquery.Client(); \
+  r = list(c.query('SELECT briefing_title, generated_at FROM \
+  \`gen-lang-client-0436975498.c1_intelligence.weekly_briefings\` \
+  ORDER BY generated_at DESC').result()); \
+  [print(f'{x.generated_at}: {x.briefing_title}') for x in r]"
+```
+
+### Cloud Run Log Filters
+
+Use these prefixes to filter logs in Cloud Run:
+
+| Prefix | Purpose |
+|--------|---------|
+| `[BQ_SAVE]` | BigQuery save operations (success/failure) |
+| `[SAVE]` | Briefing save path in `_save_briefing()` |
+| `Agent 2:` | Executive synthesizer LLM calls and responses |
+
+### Common Issues
+
+**Briefing returns 200 but no row in BigQuery**
+- Check logs for `[BQ_SAVE]` errors
+- `_save_briefing()` now re-raises exceptions (previously swallowed)
+- Look for schema mismatches or serialization errors
+
+**Empty LLM response / JSON parse error**
+- Anthropic API can occasionally return empty content
+- Check for `stop_reason` in logs - should be `end_turn`
+- If persistent, check API status or credits
+
+**Pre-brief exists but Agent 2 fails**
+- Verify pre-brief has valid `data` field with `observations`
+- Check `article_count` > 0 and `article_ids` populated

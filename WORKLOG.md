@@ -17,6 +17,56 @@ Without reliable daily ingestion:
 **Always verify scheduler jobs are running before working on features.**
 
 ---
+## 📅 SESSION 69: Agent 2 Briefing Fix - Anthropic API Issues (January 8, 2026)
+
+**Status**: 🔄 IN PROGRESS - Switched to Opus 4.5, needs testing
+
+### 🎯 Issue
+Weekly briefing (Agent 2) was generating but returning empty LLM responses, causing JSON parse errors: `Expecting value: line 1 column 1 (char 0)`
+
+### 🔍 Root Cause Investigation
+1. **Error swallowing**: `_save_briefing()` was catching exceptions silently - fixed in Session 68
+2. **Empty LLM responses**: Anthropic API returning empty content intermittently
+3. **API instability**: Tested locally - got `CancelledError` and empty responses from Anthropic
+
+### 🛠️ Changes Made
+
+**Attempted OpenAI Workaround** (reverted):
+- Temporarily switched Agent 2 to GPT-4o
+- Generated a working briefing locally (`b1b11b20-aeb4-4ebe-a27a-d02fafd405cb`)
+- User didn't like GPT-4o quality - switched back to Opus 4.5
+
+**Final State - Opus 4.5** (`weekly_briefing.py`):
+- Uses `AsyncAnthropic` with `claude-opus-4-5-20250514` model
+- API key loaded from settings or env var fallback
+- Anthropic message format: `client.messages.create()` with `response.content[0].text`
+
+**Logging Improvements** (deployed):
+- `[BQ_SAVE]` prefix in `gcp_storage.py` for BigQuery operations
+- `[SAVE]` prefix in `_save_briefing()` for briefing save path
+- LLM response metadata: stop_reason, usage, content preview
+- Better error propagation - `generate()` returns None on save failure
+
+**Test Scripts Added**:
+- `backend/scripts/testing/test_agent2_save.py` - Full Agent 2 test
+- `backend/scripts/testing/test_llm_simple.py` - Simple LLM connectivity test
+- `backend/scripts/cleanup_test_briefings.py` - Delete test rows from BQ
+
+### 📁 Files Modified
+- `backend/app/ingestion/generators/weekly_briefing.py` - Opus 4.5 config
+- `backend/app/db/gcp_storage.py` - Enhanced logging
+- `backend/app/utils/resilient_llm.py` - Empty response detection
+
+### 🔴 TODO (Next Session)
+1. **Test Opus 4.5 locally** - Run `test_agent2_save.py` to generate a briefing
+2. **Verify quality** - Check briefing in app looks good
+3. **Deploy** - Push and deploy to Cloud Run
+4. **Delete old GPT-4o briefing** - The "Week of Jan 19" briefing from tonight
+
+### 💡 Key Insight
+The Anthropic API was temporarily unstable tonight but is now working. The ResilientAsyncClient fallback wasn't triggering on empty responses (only on exceptions). Consider improving fallback logic to detect empty content.
+
+---
 ## 📅 SESSION 67: Briefing Generation Bug Fix + Citation UX Overhaul (January 7, 2026)
 
 **Status**: ⚠️ PARTIAL - Code deployed, but briefing not saving to BigQuery (needs investigation)
