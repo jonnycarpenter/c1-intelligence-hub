@@ -137,9 +137,28 @@ export function useDeepResearch() {
         } catch (error: any) {
             if (error.name === 'AbortError') {
                 console.log('Research request aborted')
+                setState(prev => ({
+                    ...prev,
+                    isResearching: false,
+                    status: 'Research was cancelled',
+                }))
                 return
             }
             setState(prev => ({ ...prev, isResearching: false, error: error.message }))
+        } finally {
+            // Ensure isResearching is always set to false when stream ends
+            // This catches cases where the stream ends without a report/error event
+            setState(prev => {
+                // Only update if we're still in researching state and don't have a report
+                if (prev.isResearching && !prev.report) {
+                    return {
+                        ...prev,
+                        isResearching: false,
+                        status: prev.error ? prev.status : 'Research ended unexpectedly',
+                    }
+                }
+                return prev
+            })
         }
     }, [])
 

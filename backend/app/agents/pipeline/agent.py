@@ -405,6 +405,9 @@ class PipelineAgent:
                     iteration += 1
                     logger.info(f"[Pipeline Agent] Follow-up tool calls iteration {iteration}")
                     
+                    # Append the AIMessage ONCE before processing its tool calls
+                    messages.append(final_response)
+                    
                     for tool_call in final_response.tool_calls:
                         tool_name = tool_call["name"]
                         tool_args = tool_call["args"]
@@ -415,7 +418,6 @@ class PipelineAgent:
                             tool_result = await self.tools[tool_name].ainvoke(tool_args)
                             
                             from langchain_core.messages import ToolMessage
-                            messages.append(final_response)
                             messages.append(ToolMessage(
                                 content=tool_result,
                                 tool_call_id=tool_call["id"],

@@ -17,12 +17,12 @@ The data ingestion system for C1 Intelligence Hub. Collects, deduplicates, enric
 │  │  (app/tools/)    │  │   PIPELINE       │  │                          │   │
 │  │                  │  │                  │  │                          │   │
 │  │  • RSS Feeds     │  │  1. Dedup        │  │  BigQuery Tables:        │   │
-│  │  • Exa.ai (91)   │──▶│  2. Scraper     │──▶│  • articles              │   │
-│  │  • Tavily (145)  │  │  3. Classifier   │  │  • digest_items          │   │
+│  │  • Exa.ai (~100) │──▶│  2. Scraper     │──▶│  • articles              │   │
+│  │  • Tavily (75)  │  │  3. Classifier   │  │  • digest_items          │   │
 │  │  • SEC EDGAR     │  │  4. Entity Link  │  │  • article_chunk_embeddings │
-│  │  • FMP News      │  │  5. Image Enrich │  │  • ingestion_events      │   │
-│  │  • StockNews     │  │                  │  │  • freight_rates         │   │
-│  │  • Drewry (WCI)  │  │                  │  │                          │   │
+│  │  • FMP News      │  │  5. Image Enrich │  │  • article_images        │   │
+│  │  • StockNews     │  │                  │  │  • ingestion_events      │   │
+│  │  • Drewry (WCI)  │  │                  │  │  • freight_rates         │   │
 │  │  • Earnings      │  │                  │  │                          │   │
 │  │  • Press Releases│  │                  │  │                          │   │
 │  └──────────────────┘  └──────────────────┘  └──────────────────────────┘   │
@@ -42,7 +42,7 @@ The data ingestion system for C1 Intelligence Hub. Collects, deduplicates, enric
 |-----|----------------|----------------|---------|---------|---------|
 | `ingest-flash-update` | Every 4 hours | Every 4 hours | 10 min | rss, freight | Fast RSS + freight updates |
 | `ingest-exa` | 2:00 AM | 8:00 AM | 20 min | exa_queries, press_releases | Exa 91 queries + press releases |
-| `ingest-tavily` | 2:20 AM | 8:20 AM | 25 min | tavily_queries | Tavily 145 queries |
+| `ingest-tavily` | 2:20 AM | 8:20 AM | 25 min | tavily_queries | Tavily 75 queries |
 | `ingest-financial` | 2:45 AM | 8:45 AM | 30 min | sec, earnings, fmp_news, stocknews | Financial data sources |
 | `weekly-executive-briefing` | Mon 8:30 AM | Mon 14:30 | 15 min | (triggers briefing) | Weekly "Need to Know" report |
 
@@ -57,8 +57,8 @@ The data ingestion system for C1 Intelligence Hub. Collects, deduplicates, enric
 
 | Source Key | Description | API/Method | BQ source_type |
 |------------|-------------|------------|----------------|
-| `exa_queries` | Exa 91 industry queries + per-company news | Exa neural search | `web_news_exa` |
-| `tavily_queries` | Tavily 145 broadening queries | Tavily crawl | `web_news_tavily` |
+| `exa_queries` | Exa ~100 industry queries + per-company news | Exa neural search | `web_news_exa` |
+| `tavily_queries` | Tavily 75 broadening queries | Tavily crawl | `web_news_tavily` |
 | `industry_queries` | **Legacy** - runs both Exa + Tavily | Both | `web_news_exa`, `web_news_tavily` |
 | `rss` | 14 industry RSS feeds | Feed parsing | `rss` |
 | `sec` | SEC EDGAR filings (10-K, 10-Q, 8-K) | sec-api.io | `sec_filing` |
@@ -186,10 +186,15 @@ gcloud scheduler jobs run ingest-exa --location=us-central1 --project=gen-lang-c
    - Links to tracked companies from BigQuery
    - Adds company metadata (ticker, type)
 
-5. **Image Enrichment** (optional)
-   - Tavily image search
-   - Claude vision classification
-   - Limit: 20 articles/run
+5. **Image Enrichment** (`processing/image_enrichment.py`)
+   - Tavily image search for high-priority articles
+   - Claude vision classification (image_type, chart_type, topics)
+   - Limit: 20 articles/run (10 for backfill)
+   - Stored in `article_images` BigQuery table
+
+6. **Storage** (`db/gcp_storage.py`)
+   - Stores articles, digest_items, article_images to BigQuery
+   - Generates embeddings for vector search
 
 ## Feed Eligibility
 

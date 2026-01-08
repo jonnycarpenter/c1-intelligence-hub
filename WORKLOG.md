@@ -17,7 +17,33 @@ Without reliable daily ingestion:
 **Always verify scheduler jobs are running before working on features.**
 
 ---
-## 📅 SESSION 63: Deep Research Groomer Hang - Root Cause Analysis (January 7, 2026)
+## 📅 SESSION 64: Pipeline Agent Parallel Execution Fix (January 7, 2026)
+
+**Status**: ✅ COMPLETE - Ready for Deploy
+
+### 🎯 Issue
+User reported `invalid_request_error` (Error 400) from Anthropic API when using Pipeline contact search in production.
+Error: `messages.7: tool_use ids were found without tool_result blocks immediately after`.
+
+### 🔍 Root Cause
+**Protocol Violation in Message History Construction**:
+- The Pipeline Agent's multi-turn loop (lines 404+) explicitly handles follow-up tool calls.
+- In the `while` loop, the code was appending the `AIMessage` (containing the tool requests) **inside the for-loop** iterating over the tools.
+- If the agent called 3 tools in parallel:
+  - Iteration 1: Appends `AIMessage`, Appends `ToolMessage(1)`
+  - Iteration 2: Appends `AIMessage` (AGAIN), Appends `ToolMessage(2)`
+  - Iteration 3: Appends `AIMessage` (AGAIN), Appends `ToolMessage(3)`
+- The Anthropic API sees the `AIMessage` repeated, breaking the required `[AIMessage, ToolMessage, ToolMessage...]` sequence.
+
+### ✅ Fix Applied
+- Modified `backend/app/agents/pipeline/agent.py`:
+- Moved `messages.append(final_response)` **OUTSIDE** the tool execution loop.
+- Result: `[AIMessage, ToolMessage(1), ToolMessage(2), ToolMessage(3)]` (Correct Protocol).
+
+### 📁 Files Modified
+- `backend/app/agents/pipeline/agent.py`
+
+---
 
 **Status**: 🚧 IN PROGRESS - Deployed Fixes, Testing
 

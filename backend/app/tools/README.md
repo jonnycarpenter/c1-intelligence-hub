@@ -16,6 +16,7 @@ Each collector follows the pattern:
 
 ## Current Collectors
 - `earnings/` - Earnings call transcripts (API Ninjas)
+- `fmp_news/` - Premium financial news (FMP API - Benzinga, Seeking Alpha, etc.)
 - `press_releases/` - Press releases (Exa, Tavily)
 - `sec_filings/` - SEC filings (SEC EDGAR API)
 - `stocknews/` - Stock news (StockNews API)

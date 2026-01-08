@@ -264,7 +264,8 @@ async def run_deep_research(request: DeepResearchRequest):
         )
     
     # Not cached - run the full workflow
-    logger.info(f"[DEEP_RESEARCH] Starting workflow for query: {request.query[:100]}...")
+    request_start = datetime.now()
+    logger.info(f"[DEEP_RESEARCH] REQUEST START at {request_start.isoformat()} - query: {request.query[:100]}...")
     logger.info(f"[DEEP_RESEARCH] History length: {len(request.history)}")
     
     initial_state: DeepResearchState = {
@@ -356,6 +357,12 @@ async def run_deep_research(request: DeepResearchRequest):
             loop_counter = 0
             last_heartbeat = asyncio.get_event_loop().time()
             
+            # CRITICAL FIX: Track pending event task to avoid cancellation issues
+            # The previous implementation used asyncio.wait_for which cancels the task on timeout.
+            # This was causing the groomer's LLM call to be cancelled after 100ms!
+            # Solution: Use shield() and reuse the pending task across iterations.
+            pending_event_task = None
+            
             while True:
                 loop_counter += 1
                 
@@ -369,6 +376,9 @@ async def run_deep_research(request: DeepResearchRequest):
                 
                 if elapsed > workflow_timeout:
                     logger.warning(f"[DEEP_RESEARCH] WORKFLOW TIMEOUT after {elapsed:.1f}s (limit: {workflow_timeout}s)")
+                    # Cancel any pending event task
+                    if pending_event_task:
+                        pending_event_task.cancel()
                     yield _emit_event("timeout", {
                         "message": f"Research timed out after {int(elapsed)} seconds",
                         "elapsed_seconds": int(elapsed),
@@ -388,14 +398,31 @@ async def run_deep_research(request: DeepResearchRequest):
                         "ticker": progress.get("ticker"),
                     })
                 
+                # Get or reuse pending event task
+                # This prevents creating multiple __anext__ calls on the same iterator
+                if pending_event_task is None:
+                    pending_event_task = asyncio.create_task(event_iterator.__anext__())
+                
                 # Try to get next LangGraph event with short timeout for responsive polling
+                # CRITICAL: Use shield() to prevent timeout from cancelling the workflow!
                 try:
-                    event = await asyncio.wait_for(event_iterator.__anext__(), timeout=0.1)
+                    event = await asyncio.wait_for(
+                        asyncio.shield(pending_event_task), 
+                        timeout=0.5  # Increased from 0.1 to reduce polling overhead
+                    )
+                    pending_event_task = None  # Task completed, clear it for next iteration
                 except asyncio.TimeoutError:
-                    # No LangGraph event ready - continue polling for progress events
+                    # Event not ready yet - task is still running (protected by shield)
+                    # Continue loop to check timeout and poll progress events
                     continue
+                except asyncio.CancelledError:
+                    # External cancellation (e.g., client disconnect)
+                    if pending_event_task:
+                        pending_event_task.cancel()
+                    raise
                 except StopAsyncIteration:
                     # Workflow complete
+                    pending_event_task = None
                     break
                 
                 event_type = event.get("event")
@@ -563,7 +590,8 @@ async def run_deep_research(request: DeepResearchRequest):
         
         except asyncio.CancelledError:
             # This happens when the client disconnects (SSE connection closed)
-            logger.warning(f"[DEEP_RESEARCH] Client disconnected/cancelled for query: {request.query[:50]}...")
+            elapsed = (datetime.now() - request_start).total_seconds()
+            logger.warning(f"[DEEP_RESEARCH] Client disconnected/cancelled after {elapsed:.1f}s for query: {request.query[:50]}...")
             # Don't try to yield anything - the connection is already closed
             raise  # Re-raise so FastAPI can clean up
             

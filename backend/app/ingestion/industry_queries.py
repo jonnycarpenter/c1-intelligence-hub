@@ -2328,27 +2328,113 @@ def get_all_exa_queries_v2() -> List[IndustryQuery]:
 
 
 def get_all_tavily_queries_v2() -> List[IndustryQuery]:
-    """Get all Tavily queries (150 total target)"""
-    return (
-        TAVILY_INDUSTRY_VERTICAL +
-        TAVILY_MATERIALS_COVERAGE +
-        TAVILY_PROCESS_COVERAGE +
-        TAVILY_REGIONAL_MARKETS +
-        TAVILY_EVENTS_CONFERENCES +
-        TAVILY_SECONDARY_SUPPLIERS +
-        TAVILY_ADDITIONAL_EMERGING +
-        TAVILY_SUSTAINABILITY +
-        TAVILY_WORKFORCE_OPERATIONS +
-        TAVILY_ADDITIONAL_OEMS +
-        TAVILY_ADDITIONAL_CONTRACTS +
-        # Additional queries
-        TAVILY_MORE_INDUSTRIES +
-        TAVILY_MORE_MATERIALS +
-        TAVILY_MORE_SUPPLIERS +
-        TAVILY_MORE_REGIONAL +
-        TAVILY_MORE_TECHNOLOGY +
-        TAVILY_MORE_MARKET
-    )
+    """Get all Tavily queries (75 total - optimized Jan 2026)
+    
+    Reduced from 145 to 75 queries to fit within Cloud Scheduler timeout.
+    Prioritized: core industry verticals, key materials, critical suppliers.
+    """
+    return TAVILY_OPTIMIZED_75
+
+
+# =============================================================================
+# OPTIMIZED TAVILY QUERIES (75 queries) - January 2026
+# Reduced from 145 to improve ingestion reliability
+# =============================================================================
+
+TAVILY_OPTIMIZED_75 = [
+    # --- Industry Verticals (25) ---
+    IndustryQuery(query="commercial aircraft composites supply chain", category="industry_aerospace", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="helicopter rotor blade composite manufacturing", category="industry_aerospace", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="military vehicle composite armor protection", category="industry_defense", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="UAV drone composite airframe military", category="industry_defense", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="offshore wind turbine blade composites", category="industry_wind", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="wind blade recycling end-of-life composite", category="industry_wind", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="boat hull construction fiberglass infusion", category="industry_marine", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="yacht superyacht carbon fiber composite", category="industry_marine", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="pontoon boat deck composite materials", category="industry_marine", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="automotive body panel SMC carbon fiber", category="industry_automotive", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="electric vehicle structural composite battery", category="industry_automotive", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="truck trailer composite body lightweight", category="industry_automotive", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="FRP rebar concrete reinforcement construction", category="industry_construction", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="composite cladding facade building panel", category="industry_construction", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="fiberglass window door profile pultrusion", category="industry_construction", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="composite bridge deck FRP pedestrian", category="industry_infrastructure", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="utility pole composite fiberglass transmission", category="industry_infrastructure", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="pipeline composite repair rehabilitation", category="industry_infrastructure", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="train interior composite panel fire safety", category="industry_rail", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="pool spa hot tub fiberglass composite", category="industry_consumer", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="electrical enclosure composite SMC BMC", category="industry_electrical", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="water wastewater treatment composite FRP", category="industry_water", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="chemical processing tank composite corrosion", category="industry_chemical", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="telecommunications antenna radome composite", category="industry_telecom", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="rocket payload fairing composite structure", category="industry_space", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    
+    # --- Materials (15) ---
+    IndustryQuery(query="vinyl ester resin marine corrosion resistant", category="materials", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="phenolic resin fire retardant composite", category="materials", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="PVC foam core Divinycell structural", category="materials", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="balsa wood core composite marine wind", category="materials", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="E-glass fiberglass reinforcement general purpose", category="materials", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="gel coat finish marine mold release", category="materials", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="structural adhesive bonding composite assembly", category="materials", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="chopped strand mat CSM fiberglass hand layup", category="materials", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="woven roving fabric fiberglass reinforcement", category="materials", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="multiaxial fabric stitched reinforcement", category="materials", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="initiator catalyst MEKP composites curing", category="materials", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="mold release agent composites wax silicone", category="materials", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="natural fiber composite flax hemp sustainable", category="materials", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="honeycomb core aluminum Nomex aerospace", category="materials", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="S-glass high strength ballistic armor", category="materials", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    
+    # --- Processes (6) ---
+    IndustryQuery(query="vacuum infusion VARTM process marine wind", category="processes", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="resin transfer molding RTM aerospace automotive", category="processes", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="compression molding SMC BMC automotive", category="processes", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="pultrusion FRP profile window infrastructure", category="processes", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="filament winding pressure vessel tank pipe", category="processes", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="closed mold composites light RTM infusion", category="technology", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    
+    # --- Suppliers & Competitors (10) ---
+    IndustryQuery(query="Ashland specialty ingredients composites", category="suppliers", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="Strongwell pultrusion FRP structural", category="suppliers", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="Scott Bader adhesives gelcoat resins", category="suppliers", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="AGY glass fiber reinforcement S-glass", category="suppliers", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="Jushi glass fiber production capacity", category="suppliers", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="Nan Ya epoxy resin composites", category="suppliers", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="A&P Technology braided reinforcements", category="suppliers", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="Magnum Venus Products MVP composites equipment", category="suppliers", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="Creative Composites Group infrastructure", category="suppliers", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="Entropy bio-based epoxy sustainable composites", category="suppliers", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    
+    # --- OEMs & Customers (6) ---
+    IndustryQuery(query="Brunswick marine boat fiberglass composite", category="oem", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="Malibu Boats composite hull manufacturing", category="oem", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="marine boat builder composites contract", category="contracts", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="infrastructure FRP composite bridge contract", category="contracts", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="Ford GM composite pickup truck bed", category="oem", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="Textron aviation composite aircraft", category="oem", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    
+    # --- Regional Markets (4) ---
+    IndustryQuery(query="China composites manufacturing carbon fiber", category="regional", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="Mexico nearshoring composites manufacturing", category="regional", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="Europe composites industry Germany France UK", category="regional", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="India composites manufacturing growth", category="regional", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    
+    # --- Events & News (3) ---
+    IndustryQuery(query="CAMX composites trade show conference", category="events", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="JEC World composites show Paris", category="events", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="CompositesWorld news article", category="events", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    
+    # --- Sustainability (4) ---
+    IndustryQuery(query="sustainable composites bio-based resin", category="sustainability", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="composite recycling pyrolysis solvolysis", category="sustainability", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="low carbon composites manufacturing emissions", category="sustainability", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="circular economy composites end of life", category="sustainability", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    
+    # --- Market Intelligence (2) ---
+    IndustryQuery(query="composites market size forecast CAGR growth", category="market", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+    IndustryQuery(query="glass fiber market capacity demand supply", category="market", engine=SearchEngine.TAVILY, tier=QueryTier.MONITORING, search_depth="basic", max_results=5),
+]
 
 
 def get_query_stats_v2():

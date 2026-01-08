@@ -174,8 +174,10 @@ async def query_grooming_node(state: DeepResearchState) -> DeepResearchState:
     - Generate more targeted search queries
     """
     import time
+    from datetime import datetime
     start_time = time.time()
-    logger.info(f"[GROOMER] START - query: {state.get('user_query', '')[:50]}...")
+    start_timestamp = datetime.now().isoformat()
+    logger.info(f"[GROOMER] START at {start_timestamp} - query: {state.get('user_query', '')[:50]}...")
     logger.info(f"[GROOMER] State keys: {list(state.keys())}")
     
     llm = create_resilient_llm_with_openai_fallback(
@@ -281,8 +283,9 @@ async def query_grooming_node(state: DeepResearchState) -> DeepResearchState:
         ))
         return state
     except asyncio.CancelledError:
-        logger.error(f"[GROOMER] LLM task was cancelled externally")
-        state["errors"].append({"node": "groomer", "error": "LLM call was cancelled"})
+        elapsed = time.time() - start_time
+        logger.error(f"[GROOMER] LLM task was cancelled externally after {elapsed:.1f}s")
+        state["errors"].append({"node": "groomer", "error": f"LLM call was cancelled after {elapsed:.1f}s"})
         state["current_status"] = "grooming_failed"
         emit_progress_sync(ToolProgress(
             tool_name="query_analysis",
