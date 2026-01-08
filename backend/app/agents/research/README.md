@@ -219,6 +219,40 @@ Before synthesis, the agent fetches related past research via `memory.find_relat
 **Input Condensing:**
 The `_condense_findings()` helper strips verbose metadata from agent outputs before sending to the LLM, reducing token count and keeping focus on actual insights.
 
+**Planning Scratchpad (Session 70):**
+Before synthesis, the agent generates a structured planning scratchpad via `_generate_planning_scratchpad()` that analyzes:
+
+| Section | Purpose |
+|---------|---------|
+| **Content Inventory** | Counts findings, visuals, and demand signals available |
+| **Date Analysis** | Checks publication dates, flags stale content (>6 months), respects user timeframe |
+| **Entity Coverage** | Verifies requested entities appear in findings, identifies gaps |
+| **Data Quality** | Assesses whether both financial and industry data are present |
+
+This scratchpad is injected into the synthesis prompt to help the LLM:
+- Prioritize recent content over stale historical data
+- Acknowledge data gaps transparently
+- Structure the report based on available content
+- Flag when requested entities weren't found
+
+Example scratchpad output:
+```
+=== CONTENT INVENTORY ===
+[INVENTORY] Financial findings: 8
+[INVENTORY] Industry findings: 12
+[INVENTORY] Visuals available: 3
+=== DATE ANALYSIS ===
+[DATE CHECK] Financial: 8 items, oldest: 2025-10-15, newest: 2026-01-05
+[DATE WARN] Industry: 2 items are >6 months old - consider as historical context only
+[TIMEFRAME] User requested: Q4 2025
+[TIMEFRAME] Prioritize content matching this period; older content is context only
+=== ENTITY COVERAGE ===
+[ENTITIES] Mentioned in findings: Hexcel, Toray, Boeing, Airbus
+[COVERAGE] All requested entities covered
+=== DATA QUALITY ===
+[QUALITY] Both financial and industry data available
+```
+
 **Output**: `SynthesisAgentOutput` with concise report structure, `supporting_visuals` per section
 
 ### 6. Category Agent (`category.py`) *(Phase 2)*

@@ -17,6 +17,46 @@ Without reliable daily ingestion:
 **Always verify scheduler jobs are running before working on features.**
 
 ---
+## 📅 SESSION 70: Synthesizer Planning Scratchpad (January 8, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 What Was Done
+
+Added a **Planning Scratchpad** to the Deep Research Synthesizer that provides structured pre-synthesis analysis:
+
+1. **Content Inventory** - Counts findings, visuals, and demand signals
+2. **Date Analysis** - Checks publication dates, flags stale content (>6 months old), respects user timeframe
+3. **Entity Coverage** - Verifies requested entities appear in findings, identifies gaps  
+4. **Data Quality** - Assesses whether both financial and industry data are present
+
+### 💡 Why This Matters
+
+- **Date Awareness**: If user asks for "Q3 2025 supply chain issues", stale 2022 content is now flagged as historical context only
+- **Better Report Structure**: LLM sees what content is available before deciding section structure
+- **Gap Transparency**: Missing entities or data sources are explicitly noted
+
+### 📁 Files Modified
+
+- `backend/app/agents/research/synthesizer.py` - Added `_analyze_finding_dates()`, `_extract_entities_from_findings()`, `_generate_planning_scratchpad()` (~140 lines)
+- `backend/app/agents/research/README.md` - Documented the new feature
+
+### 🧪 Verification
+
+```powershell
+cd backend
+python -c "from app.agents.research.synthesizer import synthesis_node, _generate_planning_scratchpad; print('OK')"
+# ✓ Synthesizer imports OK
+```
+
+### 🔑 Key Design Decisions
+
+- **No schema changes** - Scratchpad is internal to the synthesis prompt, not persisted to state
+- **No extra LLM calls** - Just structured analysis before the existing synthesis call
+- **Graceful degradation** - If dates aren't available, it just notes "no publication date"
+- **Low risk** - Runs after parallel execution phase, doesn't touch reducer logic
+
+---
 ## 📅 SESSION 69: Agent 2 Briefing Fix - Anthropic API Issues (January 8, 2026)
 
 **Status**: ✅ COMPLETE - All fixes deployed
