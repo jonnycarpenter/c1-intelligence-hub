@@ -14,6 +14,7 @@ import {
     CheckCircle,
     Loader2,
     ExternalLink,
+    Image,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import ReactMarkdown from 'react-markdown'
@@ -48,7 +49,7 @@ interface CompanyWithLogo {
 
 function CompanyLogo({ company }: { company: CompanyWithLogo }) {
     const [imageError, setImageError] = useState(false)
-    
+
     // Use logo.dev API via our backend proxy
     const logoUrl = company.domain
         ? `${API_BASE}/api/pipeline/logo/${company.domain}`
@@ -124,6 +125,78 @@ function CitationList({ citations }: { citations: Citation[] }) {
                         </a>
                     )
                 })}
+            </div>
+        </div>
+    )
+}
+
+// =============================================================================
+// Supporting Visual Component - Charts, graphs, and visual assets
+// =============================================================================
+interface SupportingVisual {
+    visual_id: string
+    image_url: string
+    caption: string
+    placement: string
+    size: 'small' | 'medium' | 'large'
+    data_summary?: string
+}
+
+function VisualCard({ visual }: { visual: SupportingVisual }) {
+    const [imageError, setImageError] = useState(false)
+    const [isLoading, setIsLoading] = useState(true)
+
+    if (imageError) {
+        return (
+            <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 flex items-center justify-center min-h-[120px]">
+                <div className="text-center text-slate-400">
+                    <BarChart3 size={24} className="mx-auto mb-2 opacity-50" />
+                    <p className="text-xs">Image unavailable</p>
+                </div>
+            </div>
+        )
+    }
+
+    // Size-based styling
+    const sizeClasses = {
+        small: 'max-h-[200px]',
+        medium: 'max-h-[300px]',
+        large: 'max-h-[400px]',
+    }
+
+    return (
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden hover:shadow-md transition-shadow">
+            <a
+                href={visual.image_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block relative"
+            >
+                {isLoading && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-slate-50">
+                        <Loader2 size={20} className="animate-spin text-slate-400" />
+                    </div>
+                )}
+                <img
+                    src={visual.image_url}
+                    alt={visual.caption}
+                    className={cn(
+                        "w-full object-contain",
+                        sizeClasses[visual.size] || sizeClasses.medium,
+                        isLoading && "opacity-0"
+                    )}
+                    onLoad={() => setIsLoading(false)}
+                    onError={() => {
+                        setIsLoading(false)
+                        setImageError(true)
+                    }}
+                />
+            </a>
+            <div className="p-3 border-t border-slate-100">
+                <p className="text-sm text-slate-700 leading-snug">{visual.caption}</p>
+                {visual.data_summary && (
+                    <p className="text-xs text-slate-500 mt-1 italic">{visual.data_summary}</p>
+                )}
             </div>
         </div>
     )
@@ -219,7 +292,7 @@ export default function ResearchReport({ report }: DeepResearchReportProps) {
                             </div>
                         ))}
                     </div>
-                    
+
                     {/* Company Logos */}
                     {companies_with_logos && companies_with_logos.length > 0 && (
                         <div className="mt-6 pt-4 border-t border-slate-100">
@@ -297,12 +370,44 @@ export default function ResearchReport({ report }: DeepResearchReportProps) {
                                 ))}
                             </div>
                         )}
-                        
+
+                        {/* Section Visuals */}
+                        {section.supporting_visuals && section.supporting_visuals.length > 0 && (
+                            <div className="mt-6 pt-6 border-t border-slate-100">
+                                <p className="text-xs font-medium text-slate-500 mb-3 flex items-center gap-1">
+                                    <Image size={12} />
+                                    Supporting Charts
+                                </p>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {section.supporting_visuals.map((visual: SupportingVisual) => (
+                                        <VisualCard key={visual.visual_id} visual={visual} />
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
                         {/* Section Citations */}
                         <CitationList citations={section.citations} />
                     </div>
                 </section>
             ))}
+
+            {/* Supporting Visuals Footer Gallery */}
+            {report.all_visuals && report.all_visuals.length > 0 && (
+                <section className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                    <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex items-center gap-2">
+                        <BarChart3 size={20} className="text-slate-600" />
+                        <h2 className="font-semibold text-slate-800">Additional Charts & Data</h2>
+                    </div>
+                    <div className="p-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {report.all_visuals.map((visual: SupportingVisual) => (
+                                <VisualCard key={visual.visual_id} visual={visual} />
+                            ))}
+                        </div>
+                    </div>
+                </section>
+            )}
 
             {/* Field Sales Implications */}
             <section className="bg-emerald-50 rounded-2xl border border-emerald-100 overflow-hidden shadow-sm">

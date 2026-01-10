@@ -299,6 +299,20 @@ async def synthesis_node(state: DeepResearchState) -> DeepResearchState:
         logger.info(f"[SYNTHESIZER] Injecting prior research context ({len(prior_context)} chars)")
     
     # Build condensed research data (strip verbose fields)
+    # Format available visuals for LLM to place in sections
+    available_visuals = []
+    if visual and visual.supporting_visuals:
+        for v in visual.supporting_visuals:
+            available_visuals.append({
+                "visual_id": v.visual_id,
+                "image_url": v.image_url,
+                "caption": v.caption,
+                "placement": v.placement,  # e.g., financial_section, market_section
+                "size": v.size,
+                "data_summary": v.data_summary,
+            })
+        logger.info(f"[SYNTHESIZER] {len(available_visuals)} visuals available for section placement")
+    
     research_data = {
         "query": user_query,
         "brief": {
@@ -308,7 +322,7 @@ async def synthesis_node(state: DeepResearchState) -> DeepResearchState:
         } if research_brief else None,
         "financial": _condense_findings(financial) if financial else None,
         "industry": _condense_findings(industry) if industry else None,
-        "visuals": visual.model_dump() if visual else None,
+        "available_visuals": available_visuals,  # For LLM to place in sections
     }
     
     # Generate planning scratchpad for structured pre-synthesis analysis
@@ -328,11 +342,36 @@ async def synthesis_node(state: DeepResearchState) -> DeepResearchState:
     if prior_context:
         system_content += f"\n\n{prior_context}"
     
+    # Visual placement instructions for the LLM
+    visual_placement_instructions = ""
+    if available_visuals:
+        visual_placement_instructions = f"""
+## VISUAL PLACEMENT INSTRUCTIONS
+
+You have {len(available_visuals)} curated visuals from the Visual Research agent. Place them in sections where they add value:
+
+1. Match the visual's `placement` field to section themes:
+   - "financial_section" → sections about revenue, earnings, margins
+   - "competitive_section" → sections about market share, competitors
+   - "market_section" → sections about trends, forecasts, demand/supply
+   - "technology_section" → sections about products, R&D, innovation
+   - "supporting_evidence" → general supporting data
+
+2. Include at most 2 visuals per section in `supporting_visuals`
+
+3. For each visual you place, copy the EXACT visual_id, image_url, caption, size, and data_summary
+
+4. Any visuals you don't place in sections will appear in the footer gallery
+
+Available visuals to place:
+{json.dumps(available_visuals, indent=2)}
+"""
+    
     synthesis_prompt = f"""Synthesize into a BRIEF report for: "{user_query}"
 
 ## PLANNING ANALYSIS (use this to structure your report)
 {planning_scratchpad}
-
+{visual_placement_instructions}
 ## RESEARCH DATA
 {json.dumps(research_data, indent=2, default=str)}
 
@@ -449,6 +488,24 @@ REMEMBER: 2-3 sections max. No fluff. Lead with insights."""
         output_data.setdefault("data_gaps", [])
         output_data.setdefault("warnings", [])
         output_data.setdefault("sections", [])
+        
+        # Populate all_visuals with any unplaced visuals from Visual Agent
+        if available_visuals:
+            # Collect visual IDs that were placed in sections
+            placed_visual_ids = set()
+            for section in output_data.get("sections", []):
+                for sv in section.get("supporting_visuals", []):
+                    if sv.get("visual_id"):
+                        placed_visual_ids.add(sv["visual_id"])
+            
+            # Add unplaced visuals to all_visuals footer gallery
+            for v in available_visuals:
+                if v["visual_id"] not in placed_visual_ids:
+                    output_data["all_visuals"].append(v)
+            
+            placed_count = len(placed_visual_ids)
+            unplaced_count = len(output_data["all_visuals"])
+            logger.info(f"[SYNTHESIZER] Visuals: {placed_count} placed in sections, {unplaced_count} in footer gallery")
         
         # Ensure section fields
         for section in output_data.get("sections", []):

@@ -17,6 +17,70 @@ Without reliable daily ingestion:
 **Always verify scheduler jobs are running before working on features.**
 
 ---
+## 📅 SESSION 77: Visual Agent Integration - LLM-Assisted Section Placement (January 10, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 What Was Done
+
+Completed the **Visual Agent Integration** that was parked in Session 52. The Visual Agent already runs in parallel and finds relevant charts/graphs from the `article_images` BigQuery table. This session connected that output to the final report.
+
+**Key Feature: LLM-Assisted Section Placement**
+
+Instead of simple pass-through, the synthesizer now uses LLM reasoning to place visuals in appropriate report sections:
+
+1. Visual Agent finds candidate visuals (3-8) with `placement` hints (financial_section, market_section, etc.)
+2. Synthesizer receives these in its prompt with placement instructions
+3. LLM assigns visuals to sections where they add value (max 2 per section)
+4. Unplaced visuals go to `all_visuals` footer gallery
+
+### 📁 Files Modified
+
+**Backend:**
+- `backend/app/agents/research/synthesizer.py`
+  - Added visual formatting for LLM prompt (`available_visuals` array)
+  - Added `## VISUAL PLACEMENT INSTRUCTIONS` prompt section
+  - Post-processing populates `all_visuals` with unplaced visuals
+  - Logging for placement stats
+
+**Frontend:**
+- `frontend/src/components/research/ResearchReport.tsx`
+  - Added `SupportingVisual` interface
+  - Added `VisualCard` component with loading/error states, size-aware styling
+  - Section-level visual grid (after tables, before citations)
+  - "Additional Charts & Data" footer gallery section
+
+**Documentation:**
+- `backend/app/agents/research/README.md` - Updated Phase 6 roadmap
+
+### 🧪 Verification
+
+```powershell
+cd backend
+python -c "from app.agents.research.synthesizer import synthesis_node; print('OK')"
+# ✓ Synthesizer OK
+
+cd frontend
+npm run build
+# ✓ Compiled successfully
+```
+
+### 🔑 Key Design Decisions
+
+1. **LLM decides placement** - More intelligent than simple rule matching
+2. **Max 2 visuals per section** - Keeps reports concise
+3. **Footer gallery** - Ensures all visuals are shown (none discarded)
+4. **Graceful degradation** - Empty `article_images` = no visual sections (no errors)
+
+### 📋 Note on Data Dependencies
+
+The `article_images` BigQuery table must be populated for visuals to appear. If the table is empty:
+- Visual Agent returns empty `supporting_visuals`
+- Synthesizer notes "No visuals available"
+- Sections render without visual cards
+- Footer gallery is hidden
+
+---
 ## 📅 SESSION 76: Pipeline Agent - Results First, Questions Second (January 8, 2026)
 
 **Status**: ✅ COMPLETE
