@@ -475,7 +475,7 @@ export default function WeeklyBriefingSection({
       </div>
 
       {/* Briefing Title + BLUF */}
-      <div className="bg-gradient-to-r from-emerald-50 to-emerald-50 border border-emerald-100 rounded-xl p-4">
+      <div className="bg-gradient-to-r from-emerald-100 to-emerald-100 border border-emerald-200 rounded-xl p-4">
         <h3 className="text-lg font-bold text-slate-900">{briefing.briefing_title}</h3>
         {briefing.bluf && (
           <div className="mt-3 p-3 bg-white/60 rounded-lg border border-emerald-200/50">
