@@ -188,6 +188,7 @@ The script:
 
 | Table | Purpose |
 |-------|---------|
+| `user_logins` | **Login tracking** - name, team, timestamp, user-agent for usage analytics |
 | `user_preferences` | User settings and preferences |
 | `org_preferences` | Organization-level settings |
 | `memory_log` | Agent memory/context storage |
@@ -209,4 +210,4 @@ The hardcoded defaults ensure the system works even if env vars are missing.
 
 ---
 
-*Last updated: January 5, 2026*
+*Last updated: January 10, 2026*

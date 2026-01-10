@@ -90,7 +90,11 @@ export function PasswordGate({ children }: PasswordGateProps) {
       const response = await fetch('/api/verify-access', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password })
+        body: JSON.stringify({
+          password,
+          user_name: userName.trim(),
+          user_team: userTeam
+        })
       })
 
       if (response.ok) {

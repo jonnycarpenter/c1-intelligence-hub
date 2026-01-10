@@ -754,7 +754,7 @@ class BigQueryDataStorage(DataStorageInterface):
         await self._create_adhoc_briefings_table()
         await self._create_freight_rates_table()
         await self._create_pre_briefings_table()
-        await self._create_ingestion_events_table()
+        await self._create_user_logins_table()
         
         self._initialized = True
         logger.info("BigQuery storage initialized")
@@ -3391,6 +3391,87 @@ class BigQueryDataStorage(DataStorageInterface):
             }
         
         return {"total_items": 0, "by_priority": {}, "category_count": 0}
+
+    # =========================================================================
+    # User Login Tracking
+    # =========================================================================
+    
+    async def _create_user_logins_table(self):
+        """Create user_logins table for basic usage analytics.
+        
+        Records each login event (name, team, timestamp) to track
+        engagement from C1 team members. Not for session tracking,
+        just a signal of "they logged in".
+        """
+        from google.cloud import bigquery
+        
+        table_id = f"{self.config.full_dataset_id}.user_logins"
+        schema = [
+            bigquery.SchemaField("id", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("user_name", "STRING"),  # What they entered
+            bigquery.SchemaField("user_team", "STRING"),  # Sales East, Sales West, Marketing, etc.
+            bigquery.SchemaField("logged_in_at", "TIMESTAMP", mode="REQUIRED"),
+            bigquery.SchemaField("user_agent", "STRING"),  # Browser info for debugging
+        ]
+        
+        table = bigquery.Table(table_id, schema=schema)
+        table.time_partitioning = bigquery.TimePartitioning(
+            field="logged_in_at",
+            type_=bigquery.TimePartitioningType.MONTH,
+        )
+        table.clustering_fields = ["user_team"]
+        
+        try:
+            self.client.create_table(table)
+            logger.info(f"Created table {table_id}")
+        except Exception as e:
+            if "Already Exists" in str(e):
+                logger.info(f"Table {table_id} already exists")
+            else:
+                raise
+    
+    async def log_user_login(
+        self,
+        user_name: str,
+        user_team: str,
+        user_agent: Optional[str] = None,
+    ) -> bool:
+        """Log a user login event to BigQuery.
+        
+        Called after successful password verification to track engagement.
+        Fire-and-forget - failures should not block the login flow.
+        
+        Args:
+            user_name: Name entered by user
+            user_team: Team selection (Sales East, Sales West, etc.)
+            user_agent: Browser user-agent string (optional)
+            
+        Returns:
+            True if logged successfully, False otherwise
+        """
+        try:
+            table_id = f"{self.config.full_dataset_id}.user_logins"
+            
+            row = {
+                "id": str(uuid.uuid4()),
+                "user_name": user_name.strip() if user_name else "Unknown",
+                "user_team": user_team if user_team else "Unknown",
+                "logged_in_at": datetime.utcnow().isoformat(),
+                "user_agent": user_agent[:500] if user_agent else None,  # Truncate long UAs
+            }
+            
+            errors = self.client.insert_rows_json(table_id, [row])
+            if errors:
+                logger.warning(f"[LOGIN_TRACKING] Failed to log login: {errors}")
+                return False
+            
+            logger.info(f"[LOGIN_TRACKING] Logged login for '{user_name}' ({user_team})")
+            return True
+            
+        except Exception as e:
+            # Never fail the login flow due to tracking errors
+            logger.warning(f"[LOGIN_TRACKING] Error logging login: {e}")
+            return False
 
 
 # =============================================================================
