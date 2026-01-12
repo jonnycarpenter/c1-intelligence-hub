@@ -11,6 +11,10 @@ export const metadata: Metadata = {
   description: 'Real-time supply chain intelligence for the composites industry',
 }
 
+import { PulseProvider } from '@/contexts/PulseContext'
+import { DeepResearchProvider } from '@/contexts/DeepResearchContext'
+import { PipelineProvider } from '@/contexts/PipelineContext'
+
 export default function RootLayout({
   children,
 }: {
@@ -21,7 +25,13 @@ export default function RootLayout({
       <body className={`${inter.className} bg-slate-100 text-slate-900 min-h-screen antialiased`}>
         <ToastProvider>
           <PasswordGate>
-            {children}
+            <PulseProvider>
+              <DeepResearchProvider>
+                <PipelineProvider>
+                  {children}
+                </PipelineProvider>
+              </DeepResearchProvider>
+            </PulseProvider>
           </PasswordGate>
         </ToastProvider>
       </body>

@@ -8,7 +8,8 @@ import WeeklyBriefingSection from './WeeklyBriefingSection'
 import AdHocBriefing from './AdHocBriefing'
 import BriefingHistoryTimeline from './BriefingHistoryTimeline'
 import { useBriefing, useWeeklyBriefing } from '@/hooks'
-import { Calendar, Activity } from 'lucide-react'
+import { Calendar, Activity, Search, X } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 import type { DigestItem } from '@/types'
 import type { AdHocBriefingContext } from '@/types/briefing'
@@ -42,6 +43,11 @@ export default function PulseDashboard({
   // Entity filter state
   const [selectedEntities, setSelectedEntities] = useState<Set<string>>(new Set())
 
+  // State for search and filters
+  const [searchQuery, setSearchQuery] = useState('')
+  const [sortBy, setSortBy] = useState<'newest' | 'priority'>('newest')
+  const [timeFilter, setTimeFilter] = useState<'24h' | '3d' | '7d' | 'all'>('all')
+
   // Toggle entity selection
   const handleEntityToggle = useCallback((entity: string) => {
     setSelectedEntities(prev => {
@@ -58,27 +64,59 @@ export default function PulseDashboard({
   // Clear all filters
   const handleClearFilters = useCallback(() => {
     setSelectedEntities(new Set())
+    setSearchQuery('')
+    setTimeFilter('all')
   }, [])
 
-  // Filter digest items based on selected entities
+  // Filter digest items based on selected entities, search query, and time
   const filteredItems = useMemo(() => {
-    const items = digestItems || []
-    if (selectedEntities.size === 0) return items
+    let items = digestItems || []
 
-    return items.filter(item => {
-      if (!item.entities) return false
+    // 1. Filter by Entity
+    if (selectedEntities.size > 0) {
+      items = items.filter(item => {
+        if (!item.entities) return false
+        const allItemEntities = [
+          ...(item.entities.companies || []),
+          ...(item.entities.materials || []),
+          ...(item.entities.topics || []),
+          ...(item.entities.industries || []),
+        ]
+        return allItemEntities.some(entity => selectedEntities.has(entity))
+      })
+    }
 
-      // Check if item contains ANY of the selected entities
-      const allItemEntities = [
-        ...(item.entities.companies || []),
-        ...(item.entities.materials || []),
-        ...(item.entities.topics || []),
-        ...(item.entities.industries || []),
-      ]
+    // 2. Filter by Search Query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase()
+      items = items.filter(item =>
+        (item.title && item.title.toLowerCase().includes(query)) ||
+        (item.summary && item.summary.toLowerCase().includes(query)) ||
+        (item.entities?.companies?.some(c => c.toLowerCase().includes(query)))
+      )
+    }
 
-      return allItemEntities.some(entity => selectedEntities.has(entity))
-    })
-  }, [digestItems, selectedEntities])
+    // 3. Filter by Time (Simple approximation based on timestamp string or publishedAt)
+    // Note: This assumes 'timestamp' is somewhat parseable or we have 'publishedAt'. 
+    // If strict time filtering is needed, we'd need reliable Date objects. 
+    // For now, we'll skip complex time parsing if data isn't standardized, 
+    // but here is a placeholder logic:
+    /*
+    if (timeFilter !== 'all') {
+      const now = new Date()
+      // Filter logic would go here
+    }
+    */
+
+    // 4. Sort
+    if (sortBy === 'priority') {
+      const priorityOrder = { critical: 3, high: 2, medium: 1, low: 0 }
+      items = [...items].sort((a, b) => (priorityOrder[b.priority] || 0) - (priorityOrder[a.priority] || 0))
+    }
+    // Default is 'newest' (assuming input array is already sorted by date, or we could sort by timestamp)
+
+    return items
+  }, [digestItems, selectedEntities, searchQuery, sortBy, timeFilter])
 
   // Build context for ad hoc briefing from current weekly briefing and digest
   const adHocContext: AdHocBriefingContext = useMemo(() => {
@@ -108,36 +146,90 @@ export default function PulseDashboard({
     }
 
     return context
-  }, [weeklyBriefing, digestItems])
+  }, [weeklyBriefing, digestItems, selectedEntities])
 
   return (
-    <div className="h-full flex flex-col overflow-hidden p-6 pt-4 bg-slate-200">
+    <div className="h-full flex flex-col overflow-hidden p-6 pt-4 bg-slate-100">
       {/* Main 2-Column Layout */}
       <div className="flex-1 flex gap-8 overflow-hidden min-h-0">
-        {/* Left Column: Drumbeat (Stacked Feed) */}
-        <div className="w-1/3 flex flex-col gap-1 overflow-hidden border-r border-slate-100 pr-4">
-          <div className="flex items-center justify-between shrink-0 mb-3 px-1">
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 bg-slate-100 rounded-md border border-slate-200">
-                <Activity size={14} className="text-slate-500" />
+        {/* Left Column: Intelligence Feed (Expanded) */}
+        <div className="flex-[1.2] flex flex-col gap-0 overflow-hidden border-r border-slate-200/60 pr-6">
+
+          {/* Transparent / Glassy Header */}
+          <div className="shrink-0 mb-4 space-y-3 z-10 bg-slate-100/80 backdrop-blur-sm sticky top-0 py-1">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg shadow-sm text-white">
+                  <Activity size={18} />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900 leading-none">Intelligence Feed</h2>
+                  <p className="text-xs text-slate-500 mt-1">Real-time market signals</p>
+                </div>
               </div>
-              <h2 className="text-xs font-bold text-slate-500 uppercase tracking-widest">Drumbeat Feed</h2>
+
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-1 bg-slate-200 text-slate-600 rounded-full text-xs font-semibold">
+                  {filteredItems.length} items
+                </span>
+              </div>
             </div>
-            {selectedEntities.size > 0 && (
-              <span className="text-xs text-slate-400">
-                {(filteredItems || []).length} of {(digestItems || []).length}
-              </span>
-            )}
+
+            {/* Search & Filter Bar */}
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search companies, topics..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+
+              {/* Sort Toggle */}
+              <div className="flex bg-white rounded-lg border border-slate-200 p-1 shadow-sm shrink-0">
+                <button
+                  onClick={() => setSortBy('newest')}
+                  className={cn(
+                    "px-3 py-1 text-xs font-medium rounded-md transition-colors",
+                    sortBy === 'newest' ? "bg-slate-100 text-slate-900" : "text-slate-500 hover:text-slate-900"
+                  )}
+                >
+                  Newest
+                </button>
+                <button
+                  onClick={() => setSortBy('priority')}
+                  className={cn(
+                    "px-3 py-1 text-xs font-medium rounded-md transition-colors",
+                    sortBy === 'priority' ? "bg-emerald-50 text-emerald-700" : "text-slate-500 hover:text-slate-900"
+                  )}
+                >
+                  Priority
+                </button>
+              </div>
+            </div>
           </div>
 
-          {/* Entity Aggregator / Filter - shows all 4 entity types */}
+          {/* Entity Aggregator / Filter */}
           {!digestLoading && digestItems && digestItems.length > 0 && (
-            <EntityAggregator
-              items={digestItems}
-              selectedEntities={selectedEntities}
-              onEntityToggle={handleEntityToggle}
-              onClearFilters={handleClearFilters}
-            />
+            <div className="mb-4">
+              <EntityAggregator
+                items={digestItems}
+                selectedEntities={selectedEntities}
+                onEntityToggle={handleEntityToggle}
+                onClearFilters={handleClearFilters}
+              />
+            </div>
           )}
 
           <div className="flex-1 overflow-y-auto pr-2 space-y-4 pb-10">
@@ -164,6 +256,7 @@ export default function PulseDashboard({
                 <DigestCard
                   key={item.id}
                   item={item}
+                  onAsk={onAskAbout}
                 />
               ))
             ) : selectedEntities.size > 0 ? (
