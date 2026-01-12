@@ -221,14 +221,14 @@ class IngestionOrchestrator:
                         from app.db.gcp_storage import FreightRateRecord
                         records = [
                             FreightRateRecord(
-                                date=r.as_of.strftime("%Y-%m-%d"),
+                                lane=r.lane,
+                                rate=r.rate,
+                                currency="USD",
+                                unit="40ft",
+                                change_pct=r.change_pct,
                                 source="drewry_wci",
-                                lane_code=r.lane.replace(" - ", "_").upper(),
-                                lane_display=r.lane,
-                                rate_usd=r.rate,
-                                change_wow_pct=r.change_pct,
-                                change_direction="up" if (r.change_pct or 0) > 0 else "down" if (r.change_pct or 0) < 0 else "flat",
-                                narrative=f"Spot rates for {r.lane} at ${r.rate:,.0f}"
+                                as_of=r.as_of,
+                                fetched_at=r.fetched_at,
                             )
                             for r in freight_rates
                         ]
