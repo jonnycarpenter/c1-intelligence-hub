@@ -54,6 +54,7 @@ You are provided with:
 1. A "Pre-Brief" (Agent 1 Output): This is a raw analysis of the last 14 days of news, containing categories, summaries, companies, and "Signal Types" (evolution, net_new, stalled).
 2. Historical Context: Topics and headlines from the last 2 weekly briefings.
 3. TOOL AVAILABLE: search_peripheral_intelligence - Use this to fill gaps or validate high-conviction claims.
+4. Scratchpad: Your notes from previous peripheral searches in this session.
 
 YOUR TASK: "The Differential"
 Analyze the Pre-Brief against the Historical Context to identify:
@@ -70,7 +71,7 @@ Use this tool ONLY when:
 3. You need to validate a surprising claim from the pre-briefing
 4. Adjacent signals could materially enhance the narrative (e.g., regulatory context, competing technologies, supply chain alternatives)
 
-LIMIT: Maximum 3 tool calls per briefing. Be selective and strategic.
+LIMIT: Maximum 3 tool calls per iteration. Be selective and strategic. Check the scratchpad to avoid redundant searches.
 
 Query Format Examples:
 - "Boeing 787 composites supply chain alternatives 2025"
@@ -78,6 +79,20 @@ Query Format Examples:
 - "Hydrogen pressure vessel certification requirements updates"
 
 Tool Response: You will receive 5 articles with full citations (title, URL, date, text snippets). Mark these as [Exa:N] in your final briefing.
+
+IMPORTANT: When you request tool calls, also include a "scratchpad_notes" field to record what you learned and what questions remain:
+{{
+    "tool_calls": [
+        {{
+            "tool": "search_peripheral_intelligence",
+            "query": "your strategic search query here",
+            "reason": "brief explanation of why this search is needed"
+        }}
+    ],
+    "scratchpad_notes": "Key findings so far: ... | Questions remaining: ... | Topics to validate: ..."
+}}
+
+{final_iteration_warning}
 
 REQUIREMENTS:
 
@@ -105,18 +120,7 @@ REQUIREMENTS:
    - Use [[Company]] tags for companies mentioned and {{Entity}} tags for important non-company terms.
    - This is the executive summary paragraph, make it substantive.
 
-If you need to use tools, respond with:
-{{
-    "tool_calls": [
-        {{
-            "tool": "search_peripheral_intelligence",
-            "query": "your strategic search query here",
-            "reason": "brief explanation of why this search is needed"
-        }}
-    ]
-}}
-
-Otherwise, respond with the final briefing JSON:
+FINAL BRIEFING JSON FORMAT:
 {{
     "briefing_title": "Executive Briefing: Week of {period_end_short}",
     "bluf": "Single sentence high-level summary",
@@ -153,6 +157,10 @@ Otherwise, respond with the final briefing JSON:
 <peripheral_search_results>
 {peripheral_results}
 </peripheral_search_results>
+
+<scratchpad>
+{scratchpad}
+</scratchpad>
 """
 
     def __init__(self, config=None):
@@ -890,8 +898,9 @@ Otherwise, respond with the final briefing JSON:
         
         # 4. Peripheral intelligence gathering loop
         peripheral_results = []
-        max_iterations = 2  # Prevent infinite loops
+        max_iterations = 5  # Allow thorough research while preventing infinite loops
         iteration = 0
+        scratchpad_notes = []  # Accumulates Agent 2's notes across iterations
         
         period_end = pre_brief.get('period_end')
         if isinstance(period_end, str):
@@ -915,7 +924,8 @@ Otherwise, respond with the final briefing JSON:
         
         while iteration < max_iterations:
             iteration += 1
-            logger.info(f"Agent 2: Synthesis iteration {iteration}")
+            is_final_iteration = (iteration == max_iterations)
+            logger.info(f"Agent 2: Synthesis iteration {iteration}/{max_iterations} (final={is_final_iteration})")
             
             # Format peripheral results for prompt
             peripheral_results_text = "No peripheral search conducted yet."
@@ -930,13 +940,30 @@ Otherwise, respond with the final briefing JSON:
                     )
                 peripheral_results_text = "\n\n".join(formatted_results)
             
+            # Format scratchpad notes for prompt
+            scratchpad_text = "No notes yet - this is your first iteration."
+            if scratchpad_notes:
+                scratchpad_text = "\n---\n".join([f"[Iteration {i+1}]: {note}" for i, note in enumerate(scratchpad_notes)])
+            
+            # Final iteration warning - force LLM to produce final output
+            final_iteration_warning = ""
+            if is_final_iteration:
+                final_iteration_warning = """
+**FINAL ITERATION WARNING**: This is your LAST iteration. You MUST produce the final briefing JSON now.
+Do NOT request any more tool calls. Use the peripheral search results you have gathered to produce a comprehensive briefing.
+Your response MUST be the final JSON briefing format, NOT a tool_calls request.
+"""
+                logger.info("Agent 2: Final iteration - forcing final output")
+            
             # 5. Prepare prompt with current context
             # Use this week's Monday for consistent title regardless of when generated
             prompt = self.EXECUTIVE_SYNTHESIZER_PROMPT.format(
                 period_end_short=week_of_date,
                 historical_context=historical_context,
                 pre_brief_data=json.dumps(pre_brief.get('data', {}), indent=2),
-                peripheral_results=peripheral_results_text
+                peripheral_results=peripheral_results_text,
+                scratchpad=scratchpad_text,
+                final_iteration_warning=final_iteration_warning
             )
             
             try:
@@ -986,12 +1013,17 @@ Otherwise, respond with the final briefing JSON:
                 
                 data = json.loads(result_json)
                 
-                # Check if Agent 2 wants to make tool calls
-                if "tool_calls" in data and iteration < max_iterations:
+                # Check if Agent 2 wants to make tool calls (only allow if not final iteration)
+                if "tool_calls" in data and not is_final_iteration:
                     tool_calls = data["tool_calls"]
                     logger.info(f"Agent 2: Requesting {len(tool_calls)} tool calls")
                     
-                    # Limit to 3 tool calls total
+                    # Extract and save scratchpad notes if provided
+                    if "scratchpad_notes" in data:
+                        scratchpad_notes.append(data["scratchpad_notes"])
+                        logger.info(f"Agent 2: Scratchpad updated with notes from iteration {iteration}")
+                    
+                    # Limit to 3 tool calls per iteration
                     tool_calls = tool_calls[:3]
                     
                     # Execute tool calls
@@ -1013,6 +1045,11 @@ Otherwise, respond with the final briefing JSON:
                     
                     # Continue to next iteration with enriched context
                     continue
+                elif "tool_calls" in data and is_final_iteration:
+                    # Final iteration but LLM still wants tool calls - log warning and strip them
+                    logger.warning(f"Agent 2: Final iteration but received tool_calls - stripping and proceeding with available data")
+                    del data["tool_calls"]
+                    # Fall through to break and process what we have
                 
                 # No tool calls or max iterations reached - proceed with final synthesis
                 break
@@ -1028,8 +1065,16 @@ Otherwise, respond with the final briefing JSON:
                 return None
         
         # Process final briefing data
-        if not data or "tool_calls" in data:
-            logger.error("Agent 2: Failed to generate final briefing after tool calls")
+        if not data:
+            logger.error("Agent 2: No data produced after iterations")
+            return None
+        
+        if "tool_calls" in data:
+            logger.error("Agent 2: Final data still contains tool_calls - this should have been stripped")
+            return None
+        
+        if "sections" not in data or not data["sections"]:
+            logger.error(f"Agent 2: Final data missing required 'sections' field. Keys present: {list(data.keys())}")
             return None
         
         try:
