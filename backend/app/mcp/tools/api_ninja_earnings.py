@@ -101,15 +101,15 @@ def get_earnings_transcript_ninja(
         # Include structured transcript sections if available
         transcript_split = data.get("transcript_split", [])
         if transcript_split:
-            # Include first 10 sections for context
+            # Include first 15 sections for context (increased for quote extraction)
             sections = []
-            for section in transcript_split[:10]:
+            for section in transcript_split[:15]:
                 if isinstance(section, dict):
                     sections.append({
                         "speaker": section.get("speaker"),
                         "role": section.get("role"),
                         "company": section.get("company"),
-                        "text_preview": section.get("text", "")[:500] + "..." if len(section.get("text", "")) > 500 else section.get("text", ""),
+                        "text_preview": section.get("text", "")[:1000] + "..." if len(section.get("text", "")) > 1000 else section.get("text", ""),
                     })
             result["transcript_sections"] = sections
             result["total_sections"] = len(transcript_split)

@@ -4,7 +4,7 @@ from app.agents.research.state import DeepResearchState, FinancialAgentOutput, F
 from app.agents.research.progress import emit_progress_sync, ToolProgress, get_tool_description
 from app.utils.resilient_llm import create_resilient_llm_with_openai_fallback
 from app.config.settings import settings
-from app.mcp.tools.api_ninja_earnings import get_earnings_transcript_ninja
+from app.mcp.tools.api_ninja_earnings import get_earnings_transcript_ninja, search_earnings_keywords
 from app.mcp.tools.corpus_query import query_corpus
 from app.mcp.tools.stocknews_api import (
     get_company_news,
@@ -215,6 +215,7 @@ def _rank_financial_results(raw_results: List[Dict], original_query: str) -> Lis
         "sec_10q": 10,
         "sec_8k": 9,
         "earnings_call": 9,
+        "earnings_call_quotes": 10,  # High priority for keyword-matched quotes
         "corpus_earnings": 8,
         "stocknews_analyst_ratings": 7,
         "stocknews_sentiment": 6,
@@ -240,6 +241,69 @@ def _rank_financial_results(raw_results: List[Dict], original_query: str) -> Lis
     
     return ranked
 
+
+def _extract_quote_keywords(original_query: str, financial_queries: Optional[List[str]]) -> List[str]:
+    """
+    Extract key topics from the user query for targeted earnings call keyword search.
+    
+    Returns a list of keywords that are likely to yield valuable executive quotes:
+    - Industry/market terms (aerospace, wind, automotive)
+    - Financial terms (revenue, margin, guidance)
+    - Strategic terms (expansion, acquisition, capacity)
+    - Material terms (carbon fiber, composites, resin)
+    """
+    keywords = []
+    
+    # Combine original query and financial queries for analysis
+    all_text = original_query.lower()
+    if financial_queries:
+        all_text += " " + " ".join(q.lower() for q in financial_queries)
+    
+    # High-value keyword categories for executive quote extraction
+    keyword_categories = {
+        # Industry/market terms
+        "aerospace": ["aerospace", "aircraft", "aviation", "narrowbody", "widebody", "commercial aircraft"],
+        "wind": ["wind", "wind energy", "wind turbine", "renewable"],
+        "automotive": ["automotive", "ev", "electric vehicle", "battery"],
+        "defense": ["defense", "military", "dod"],
+        # Financial terms
+        "guidance": ["guidance", "outlook", "forecast", "expect", "projection"],
+        "revenue": ["revenue", "sales", "growth", "quarterly", "annual"],
+        "margin": ["margin", "profit", "profitability", "operating income"],
+        "capex": ["capex", "capital expenditure", "investment", "capacity"],
+        # Strategic terms
+        "expansion": ["expansion", "facility", "new plant", "capacity"],
+        "demand": ["demand", "orders", "backlog", "customer"],
+        "competition": ["competition", "market share", "competitor"],
+        # Material terms
+        "carbon fiber": ["carbon fiber", "carbon fibre", "prepreg"],
+        "composites": ["composite", "composites", "advanced materials"],
+        "pricing": ["pricing", "price", "cost", "raw material"],
+        "supply chain": ["supply chain", "supply", "manufacturing"],
+    }
+    
+    # Find matching categories
+    for category, terms in keyword_categories.items():
+        if any(term in all_text for term in terms):
+            # Add the matched term(s) as keywords
+            for term in terms:
+                if term in all_text and term not in keywords:
+                    keywords.append(term)
+                    break  # One term per category is enough
+    
+    # Add any company names mentioned (single words, >3 chars)
+    words = all_text.split()
+    company_indicators = ["hexcel", "toray", "solvay", "owens", "tpi", "boeing", "airbus", "vestas"]
+    for word in words:
+        if word in company_indicators and word not in keywords:
+            keywords.append(word)
+    
+    # Fallback: If no specific keywords found, use generic financial terms
+    if not keywords:
+        keywords = ["guidance", "outlook", "demand", "growth"]
+    
+    return keywords[:8]  # Limit to 8 keywords
+
 FINANCIAL_AGENT_SYSTEM_PROMPT = """
 You are a Financial Research Agent specializing in the composites industry. Your job is to extract specific, data-driven financial insights from SEC filings, earnings calls, and financial news.
 
@@ -257,6 +321,30 @@ You are a Financial Research Agent specializing in the composites industry. Your
 6. ATTRIBUTE every finding with a precise citation
 7. EVALUATE the confidence and relevance of each finding
 
+## CRITICAL: Executive Quote Extraction
+
+When analyzing earnings call transcripts, you MUST extract **verbatim quotes** from executives:
+
+**Priority Quote Topics:**
+- Revenue/earnings guidance and outlook
+- Market demand trends and customer activity
+- Strategic priorities and capital allocation
+- Competitive positioning and market share
+- Risk factors, headwinds, and supply chain
+- Raw material costs and pricing dynamics
+
+**Quote Format:**
+Always include the `direct_quote` field in your citations with:
+- Exact words spoken (in quotation marks)
+- Speaker name and role (CEO, CFO, COO, etc.)
+- Context (what topic they were addressing)
+
+**Example:**
+```
+"We continue to see strong demand across our Aerospace platform, particularly in narrowbody production which is up 15% year-over-year."
+— Nick Stanage, CEO, Hexcel Q3 2025 Earnings Call
+```
+
 ## Key Composites Industry Tickers
 - Composites: HXL (Hexcel), OC (Owens Corning), TRYIY (Toray), SOLVY (Solvay), TPIC (TPI Composites)
 - Aerospace: BA (Boeing), EADSY (Airbus), RTX, LMT, NOC, GE, GD
@@ -269,6 +357,7 @@ You are a Financial Research Agent specializing in the composites industry. Your
 - Note RISK factors and headwinds (supply chain constraints, raw material pricing)
 - Look for industry-specific mentions (e.g., carbon fiber pricing, aerospace demand cycles)
 - Extract GUIDANCE and OUTLOOK statements from earnings calls
+- **PRIORITIZE direct executive quotes over paraphrased summaries**
 
 ## Confidence Scores
 - HIGH: Direct quote with specific metrics from an official SEC filing or earnings transcript
@@ -407,6 +496,29 @@ async def financial_research_node(state: DeepResearchState) -> Dict[str, Any]:
                     })
             except Exception as e:
                 errors.append({"node": "financial_research", "ticker": ticker, "error": f"Earnings: {str(e)}"})
+            
+            # STEP 3b: Keyword-based earnings search for targeted quote extraction
+            # Search for relevant sections with speaker attribution
+            emit_progress_sync(ToolProgress(tool_name="earnings_keywords", message=f"Searching earnings for key topics ({ticker})", ticker=ticker))
+            try:
+                # Extract key topics from the original query and brief
+                search_keywords = _extract_quote_keywords(brief.original_query, brief.financial_agent_queries)
+                if search_keywords:
+                    keyword_result = search_earnings_keywords.invoke({
+                        "ticker": ticker,
+                        "keywords": search_keywords[:5],  # Limit to top 5 keywords
+                    })
+                    if keyword_result and str(keyword_result).strip():
+                        raw_results.append({
+                            "query": f"Earnings keyword search for {ticker}",
+                            "source": "earnings_call_quotes",
+                            "content": keyword_result,
+                            "ticker": ticker,
+                            "note": "Contains speaker-attributed quotes matching key topics"
+                        })
+            except Exception as e:
+                # Non-critical - keyword search is supplementary
+                logger.debug(f"Earnings keyword search failed for {ticker}: {e}")
     
     # =========================================================================
     # STEP 4: StockNewsAPI Calls (Batched by Ticker List)
@@ -508,8 +620,14 @@ Focus on:
 3. RISK factors and headwinds mentioned in filings
 4. ANALYST perspective (ratings changes, price targets)
 5. GUIDANCE and forward-looking statements
+6. **DIRECT EXECUTIVE QUOTES**: Extract 2-3 verbatim quotes per company from earnings calls. Include:
+   - The EXACT words spoken (use quotation marks)
+   - Speaker name and role (CEO, CFO, COO)
+   - What topic/question they were addressing
+   - Put the full quote in the "direct_quote" field of the citation
 
 Prioritize findings from SEC filings and earnings calls as HIGH confidence.
+Findings with verbatim executive quotes should ALWAYS be HIGH confidence.
 Analyst ratings and news should be MEDIUM confidence unless corroborated.
 
 RAW RESULTS (ranked by source priority):
