@@ -70,6 +70,10 @@ class ApolloOrganization:
     # Industry Codes
     sic_codes: List[str] = field(default_factory=list)
     naics_codes: List[str] = field(default_factory=list)
+    
+    # Additional Firmographics
+    retail_location_count: Optional[int] = None
+    suborganizations: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -325,6 +329,10 @@ class ApolloService:
                     # Codes
                     sic_codes=org.get("sic_codes", []),
                     naics_codes=org.get("naics_codes", []),
+                    
+                    # Additional Firmographics
+                    retail_location_count=org.get("retail_location_count"),
+                    suborganizations=[s.get("name") for s in org.get("suborganizations", []) if s.get("name")],
                 )
                 
         except Exception as e:
@@ -696,6 +704,10 @@ class ApolloService:
                         # Codes
                         sic_codes=org.get("sic_codes", []),
                         naics_codes=org.get("naics_codes", []),
+                        
+                        # Additional Firmographics
+                        retail_location_count=org.get("retail_location_count"),
+                        suborganizations=[s.get("name") for s in org.get("suborganizations", []) if s.get("name")],
                     ))
                 
                 logger.info(f"[Apollo] Found {len(results)} organizations matching filters")

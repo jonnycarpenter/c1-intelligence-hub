@@ -316,6 +316,14 @@ export interface ApolloEnrichmentResult {
 
   // Stock info
   ticker?: string
+
+  // Additional Firmographics
+  retail_location_count?: number
+  suborganizations?: string[]
+
+  // Industry Codes
+  sic_codes?: string[]
+  naics_codes?: string[]
 }
 
 export interface ApolloContactTeaserResult {
