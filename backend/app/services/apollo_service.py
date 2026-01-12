@@ -394,7 +394,7 @@ class ApolloService:
             
             async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    f"{self.base_url}/mixed_people/search",
+                    f"{self.base_url}/mixed_people/api_search",
                     headers=self.headers,
                     json=payload,
                     timeout=15.0,
