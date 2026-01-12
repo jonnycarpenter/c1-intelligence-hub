@@ -158,10 +158,11 @@ async def find_similar_companies(
             filter_result = apply_filters(formatted, filters)
             
             response = {
+                "status": "success",
                 "block_type": "similar_companies",
                 "title": f"Companies similar to {reference}",
                 "query_context": reference,
-                "prospects": filter_result.passed,
+                "results": filter_result.passed,
                 "result_count": filter_result.filtered_count,
                 # Filter metadata for agent feedback
                 "filter_metadata": {
@@ -183,10 +184,11 @@ async def find_similar_companies(
             return json.dumps(response, indent=2)
         
         return json.dumps({
+            "status": "success",
             "block_type": "similar_companies",
             "title": f"Companies similar to {reference}",
             "query_context": reference,
-            "prospects": formatted,
+            "results": formatted,
             "result_count": len(formatted)
         }, indent=2)
         
@@ -710,21 +712,14 @@ async def reveal_contact(
     contact_name: Optional[str] = None,
 ) -> str:
     """
-    Reveal full contact details including verified email.
-    
-    ⚠️ COSTS 1 CREDIT - always confirm with user before using!
-    
-    Before calling this, you MUST:
-    1. Tell the user this costs 1 credit
-    2. Show them remaining credits
-    3. Get their explicit approval
+    Reveal full contact details including verified email and phone.
     
     Args:
         person_id: Apollo person ID from find_company_contacts results
-        contact_name: Optional name for logging/confirmation
+        contact_name: Optional name for logging
     
     Returns:
-        JSON with full contact profile including email and employment history.
+        JSON with full contact profile including email, phone, and employment history.
     
     Example:
     - reveal_contact("55bee9937369641588940b00", "Cameron V.")

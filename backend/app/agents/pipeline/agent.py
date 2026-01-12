@@ -65,7 +65,7 @@ You have access to powerful search and enrichment tools:
    - These contacts have IDs that allow email/phone reveal
 6. **enrich_company** - Get detailed firmographics for a company by domain (FREE - no credits)
    - Returns: employee count, revenue, industry, tech stack, social profiles, location, stock info
-7. **reveal_contact** - Get full contact email/phone (COSTS 1 CREDIT - use wisely!)
+7. **reveal_contact** - Get full contact email/phone
    - Requires person_id from find_company_contacts results
    - Returns verified email, phone, employment history
 8. **get_apollo_credits** - Check credit usage and remaining balance
@@ -176,8 +176,7 @@ Would you like me to re-run with adjusted filters?"
 **Apollo Best Practices**:
 - Use **find_company_contacts** for ANY contact search - it provides revealable contacts
 - Use **enrich_company** when you have a specific target company to get detailed firmographics
-- Only use **reveal_contact** when user explicitly wants verified email - it costs credits!
-- Always check **get_apollo_credits** before revealing multiple contacts
+- Use **reveal_contact** when user wants verified email
 
 ## Your Workflow
 
@@ -260,7 +259,7 @@ Chat: "Found 25 wind energy companies in Florida. Range from major players like 
 
 User: "Find contacts at Hexcel in purchasing"
 You: [call find_company_contacts(company_name="Hexcel", department="purchasing")]
-Chat: "Found 8 purchasing contacts at Hexcel - see results panel. Click 'Reveal' on any contact to get their verified email (costs 1 credit)."
+Chat: "Found 8 purchasing contacts at Hexcel - see results panel. Click 'Reveal' on any contact to get their verified email."
 
 User: "Get me the email for John Smith" (after seeing contact cards)
 You: [call reveal_contact(person_id="...", contact_name="John Smith")]
@@ -310,7 +309,7 @@ You are in FULL LIST MODE, which means you have access to:
    - These contacts have IDs that allow email/phone reveal
 7. **enrich_company** - Get detailed firmographics for a company by domain (FREE - no credits)
    - Returns: employee count, revenue, industry, tech stack, social profiles, location, stock info
-8. **reveal_contact** - Get full contact email/phone (COSTS 1 CREDIT - use wisely!)
+8. **reveal_contact** - Get full contact email/phone
    - Requires person_id from find_company_contacts results
    - Returns verified email, phone, employment history
 9. **get_apollo_credits** - Check credit usage and remaining balance
@@ -340,34 +339,28 @@ You are in FULL LIST MODE, which means you have access to:
 - Use **search_companies_filtered** when user specifies location, employee count, or revenue filters
 - Use **find_company_contacts** for ANY contact search - it provides revealable contacts
 - Use **enrich_company** when you have a specific target company to get detailed firmographics
-- Only use **reveal_contact** when user explicitly wants verified email - it costs credits!
-- Always check **get_apollo_credits** before revealing multiple contacts
+- Use **reveal_contact** when user wants verified email
 
 **Corpus Intelligence Best Practices**:
 - Use **get_entity_mentions** to check if webset companies have recent news/triggers
-- Use **query_corpus** to filter companies by recent activity before building expensive websets
+- Use **query_corpus** to filter companies by recent activity before building websets
 - Use **get_competitor_activity** to qualify targets before full enrichment
 
-## CRITICAL: build_company_webset Confirmation Flow
+## CRITICAL: build_company_webset Usage
 
-The `build_company_webset` tool creates detailed, verified lists but:
-- Takes 1-5 minutes to complete
-- Costs money (API credits)
-- Should only be used when the user truly needs a comprehensive list
+The `build_company_webset` tool creates detailed, verified lists:
+- Takes 1-5 minutes to complete (async background job)
+- Returns deeply enriched results
 
-**YOU MUST NOT CALL build_company_webset UNLESS the user types "CONFIRM" in their message.**
+If a user asks for a "full list" or "comprehensive list", you can build it:
 
-If a user asks for a "full list" or "comprehensive list" but hasn't typed CONFIRM, respond with:
-
-"I can build you a comprehensive, enriched company list that includes:
+"I'll build you a comprehensive, enriched company list that includes:
 - Employee count
 - Funding information  
 - Location/headquarters
 - LinkedIn profiles
 
-However, this takes 1-5 minutes and uses more credits than instant search. If you're sure you need the full enriched list, please type **CONFIRM** in your next message and repeat your request.
-
-If you just want quick results, I can do an instant search instead - just let me know!"
+This takes 1-5 minutes - results will appear when ready."
 
 ## Your Workflow
 
@@ -1045,7 +1038,7 @@ class PipelineAgent:
                 followups.append("Search for similar companies")
                 followups.append("Find recent news about this company")
             elif block.block_type == "apollo_contacts":
-                followups.append("Reveal the top contact's email (costs 1 credit)")
+                followups.append("Reveal the top contact's email")
                 followups.append("Enrich this company with firmographics")
                 followups.append("Find similar companies to reach more contacts")
             elif block.block_type == "apollo_contact_revealed":

@@ -217,8 +217,6 @@ python scripts/operations/backfill_briefings.py --verify  # Check results
 | `companies` | Tracked companies (tickers, names) |
 | `deep_research_reports` | **Saved Deep Research reports (Phase 4)** |
 | `article_images` | **Classified images from articles** - image_type, chart_type, topics, companies, industries, relevance_score. Used by Visual Research agent (Phase 6) |
-| `user_logins` | **Login tracking** - records name, team, timestamp when users log in |
-
 
 ## Don't Touch (Bug Fix Protected)
 

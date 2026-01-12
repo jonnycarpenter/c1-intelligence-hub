@@ -54,9 +54,6 @@ src/
 - **ResearchReport** - Renders completed research reports
   - **Clickable Citations** (Session 75): Section citations render as pill-style badges showing domain (e.g., `compositesworld.com`) with links to full source URL
   - **Company Logos** (Session 75): Companies mentioned in research display in Executive Summary with Logo.dev integration (fallback to initials)
-  - **VisualCard** (Session 77): Renders charts/graphs from Visual Agent with loading states, size-aware styling, and click-to-expand
-  - **Section Visuals**: Grid layout showing supporting visuals after tables (max 2 per section)
-  - **Footer Gallery**: "Additional Charts & Data" section for visuals not placed in specific sections
 
 ### Pulse Tab
 - **PulseDashboard** - Weekly briefing + ad-hoc briefing layout

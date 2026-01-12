@@ -203,7 +203,7 @@ LIMIT 10
 - Connects financial data with market trends (one sentence is enough)
 - Creates punchy executive summary with actionable metrics
 - Generates brief field sales angles (1-2 offensive, 1 defensive)
-- **LLM-Assisted Visual Placement** (Session 77): Injects Visual Agent output into prompt with placement instructions; LLM assigns visuals to sections based on `placement` field matching section themes (max 2 per section); unplaced visuals go to `all_visuals` footer gallery
+- **Places relevant visuals** in appropriate report sections
 - **Prior Research Context**: Can reference past findings ("Building on our Jan 3rd analysis...")
 - **Company Logo Enrichment** (Session 75): Extracts entities from findings, enriches with Logo.dev URLs via `_enrich_companies_with_logos()`
 - **Clickable Citations**: Section citations include `source_url` for frontend rendering as clickable links
@@ -566,15 +566,8 @@ validation = result["validator_output"]
   - [x] Create Visual agent (`app/agents/research/visual.py`)
   - [x] Add `VisualAgentOutput` to state schema
   - [x] Update workflow for 3-way parallel fan-out
-  - [x] Update Synthesizer to place visuals in sections (LLM-assisted placement)
+  - [ ] Update Synthesizer to place visuals in sections (pending: visual data pass-through)
   - [x] Add SSE streaming for visual_research node
-- [x] **LLM-Assisted Visual Placement** (Session 77)
-  - [x] Synthesizer injects available visuals into prompt with placement instructions
-  - [x] LLM assigns visuals to sections based on `placement` field matching section themes
-  - [x] Unplaced visuals pass through to `all_visuals` footer gallery
-  - [x] Frontend `VisualCard` component with loading/error states
-  - [x] Section-level visual grid (after tables, before citations)
-  - [x] "Additional Charts & Data" footer gallery for unplaced visuals
 - [x] **Company Logo Enrichment** (Session 75)
   - [x] Add `CompanyWithLogo` model to state.py
   - [x] Add `_enrich_companies_with_logos()` to synthesizer.py
