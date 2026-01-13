@@ -135,9 +135,11 @@ ENTITY EXTRACTION GUIDELINES:
 - industries: Select from ONLY these values: aerospace, wind, construction, marine, automotive, infrastructure, transportation, sporting_goods, defense_space
 
 Priority Guidelines:
-- HIGH: Direct competitor announcements, major market shifts, regulatory changes affecting composites, C1 mentions
-- MEDIUM: Industry trends, partnerships, expansions in composites space
-- LOW: Tangentially related news, general market updates
+- HIGH: Direct competitor announcements (M&A, earnings, new products, capacity expansion), significant supply chain disruptions, major market shifts or forecasts, regulatory changes with direct impact, key OEM program updates (e.g. Boeing/Airbus production rates), strategic partnerships, or ANY C1 mentions.
+- MEDIUM: General industry trends, minor expansions, technology updates without immediate commercial impact, routine announcements.
+- LOW: Tangentially related news, general market updates, financial news without specific composites angle.
+
+TIE-BREAKER: If undecided between Medium and High, choose HIGH if the article contains specific quantitative data, mentions a Tier 1 competitor, or involves a key OEM program.
 
 Relevance Score Guidelines:
 - 0.9-1.0: Directly about composites, competitors, or C1's markets
@@ -213,34 +215,45 @@ Relevance Score Guidelines:
             
             data = json.loads(result_text)
             
-            # Map to enums with validation
-            valid_categories = [e.value for e in ContentCategory]
-            valid_industries = [e.value for e in Industry]
-            valid_priorities = [e.value for e in Priority]
+            # Map to enums with validation via name lookup (robust to casing)
             
-            primary_cat = data.get("primary_category", "general")
-            if primary_cat not in valid_categories:
-                primary_cat = "general"
+            # Primary Category
+            raw_primary = data.get("primary_category", "general")
+            try:
+                primary_enum = ContentCategory[raw_primary.upper()]
+            except KeyError:
+                logger.warning(f"Invalid primary category from LLM: {raw_primary}")
+                primary_enum = ContentCategory.GENERAL
+
+            # Secondary Categories
+            secondary_enums = []
+            for c in data.get("secondary_categories", []):
+                try:
+                    secondary_enums.append(ContentCategory[c.upper()])
+                except KeyError:
+                    pass
             
-            secondary_cats = [
-                c for c in data.get("secondary_categories", [])
-                if c in valid_categories
-            ]
+            # Industries
+            industry_enums = []
+            for i in data.get("industries", []):
+                try:
+                    industry_enums.append(Industry[i.upper()])
+                except KeyError:
+                    pass
             
-            industries = [
-                i for i in data.get("industries", [])
-                if i in valid_industries
-            ]
-            
-            priority = data.get("priority", "low")
-            if priority not in valid_priorities:
-                priority = "low"
+            # Priority
+            raw_priority = data.get("priority", "low")
+            try:
+                priority_enum = Priority[raw_priority.upper()]
+            except KeyError:
+                logger.warning(f"Invalid priority from LLM: {raw_priority}")
+                priority_enum = Priority.LOW
             
             return ClassificationResult(
-                categories=[ContentCategory(c) for c in [primary_cat] + secondary_cats],
-                primary_category=ContentCategory(primary_cat),
-                industries=[Industry(i) for i in industries],
-                priority=Priority(priority),
+                categories=[primary_enum] + secondary_enums,
+                primary_category=primary_enum,
+                industries=industry_enums,
+                priority=priority_enum,
                 relevance_score=float(data.get("relevance_score", 0.5)),
                 summary=data.get("summary", article.summary[:200]),
                 key_entities=data.get("key_entities", []),
@@ -298,13 +311,19 @@ Relevance Score Guidelines:
         categories = []
         for cat, keywords in CATEGORY_KEYWORDS.items():
             if any(kw.lower() in text for kw in keywords):
-                categories.append(ContentCategory(cat))
+                try:
+                    categories.append(ContentCategory[cat.upper()])
+                except KeyError:
+                    logger.warning(f"Unknown category in keywords: {cat}")
         
         # Find matching industries
         industries = []
         for ind, keywords in INDUSTRY_KEYWORDS.items():
             if any(kw.lower() in text for kw in keywords):
-                industries.append(Industry(ind))
+                try:
+                    industries.append(Industry[ind.upper()])
+                except KeyError:
+                    logger.warning(f"Unknown industry in keywords: {ind}")
         
         # Determine priority based on category
         priority = Priority.LOW
