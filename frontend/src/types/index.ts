@@ -314,6 +314,12 @@ export interface ApolloEnrichmentResult {
   keywords?: string[]
   supply_chain_matches?: string[]
 
+  // Extended Firmographics
+  sic_codes?: string[]
+  naics_codes?: string[]
+  retail_location_count?: number
+  suborganizations?: string[]
+
   // Stock info
   ticker?: string
 }

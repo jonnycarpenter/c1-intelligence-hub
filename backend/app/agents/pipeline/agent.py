@@ -835,6 +835,10 @@ class PipelineAgent:
                     technologies=company_data.get("technologies", []),
                     keywords=company_data.get("keywords", []),
                     ticker=company_data.get("ticker"),
+                    sic_codes=company_data.get("sic_codes", []),
+                    naics_codes=company_data.get("naics_codes", []),
+                    retail_location_count=company_data.get("retail_location_count"),
+                    suborganizations=[s.get("name") for s in company_data.get("suborganizations", []) if s.get("name")],
                 )
                 
                 return SearchBlock(

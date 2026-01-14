@@ -158,11 +158,10 @@ async def find_similar_companies(
             filter_result = apply_filters(formatted, filters)
             
             response = {
-                "status": "success",
                 "block_type": "similar_companies",
                 "title": f"Companies similar to {reference}",
                 "query_context": reference,
-                "results": filter_result.passed,
+                "prospects": filter_result.passed,
                 "result_count": filter_result.filtered_count,
                 # Filter metadata for agent feedback
                 "filter_metadata": {
@@ -184,11 +183,10 @@ async def find_similar_companies(
             return json.dumps(response, indent=2)
         
         return json.dumps({
-            "status": "success",
             "block_type": "similar_companies",
             "title": f"Companies similar to {reference}",
             "query_context": reference,
-            "results": formatted,
+            "prospects": formatted,
             "result_count": len(formatted)
         }, indent=2)
         
@@ -580,8 +578,6 @@ async def enrich_company(
                 "keywords": org.keywords[:10] if org.keywords else [],
                 "sic_codes": org.sic_codes,
                 "naics_codes": org.naics_codes,
-                "retail_location_count": org.retail_location_count,
-                "suborganizations": org.suborganizations[:10] if org.suborganizations else [],
             },
         }, indent=2)
         
@@ -681,13 +677,8 @@ async def find_company_contacts(
                         "state": org.state,
                         "country": org.country,
                         "linkedin_url": org.linkedin_url,
-                        "ticker": org.ticker,
                         "technologies": org.technologies[:5] if org.technologies else [],
                         "keywords": org.keywords[:5] if org.keywords else [],
-                        "sic_codes": org.sic_codes,
-                        "naics_codes": org.naics_codes,
-                        "retail_location_count": org.retail_location_count,
-                        "suborganizations": org.suborganizations[:5] if org.suborganizations else [],
                     }
                     logger.info(f"[Pipeline Tool] Company enrichment loaded for {enrich_domain}")
             except Exception as e:
@@ -719,14 +710,21 @@ async def reveal_contact(
     contact_name: Optional[str] = None,
 ) -> str:
     """
-    Reveal full contact details including verified email and phone.
+    Reveal full contact details including verified email.
+    
+    ⚠️ COSTS 1 CREDIT - always confirm with user before using!
+    
+    Before calling this, you MUST:
+    1. Tell the user this costs 1 credit
+    2. Show them remaining credits
+    3. Get their explicit approval
     
     Args:
         person_id: Apollo person ID from find_company_contacts results
-        contact_name: Optional name for logging
+        contact_name: Optional name for logging/confirmation
     
     Returns:
-        JSON with full contact profile including email, phone, and employment history.
+        JSON with full contact profile including email and employment history.
     
     Example:
     - reveal_contact("55bee9937369641588940b00", "Cameron V.")

@@ -86,6 +86,12 @@ class ApolloEnrichmentResult(BaseModel):
     # Stock info
     ticker: Optional[str] = Field(default=None, description="Stock ticker")
 
+    # Extended Firmographics
+    sic_codes: List[str] = Field(default_factory=list, description="SIC codes")
+    naics_codes: List[str] = Field(default_factory=list, description="NAICS codes")
+    retail_location_count: Optional[int] = Field(default=None, description="Number of retail locations")
+    suborganizations: List[str] = Field(default_factory=list, description="Names of sub-organizations")
+
 
 class ApolloContactTeaserResult(BaseModel):
     """Contact preview from Apollo.io (FREE - no credits used)."""

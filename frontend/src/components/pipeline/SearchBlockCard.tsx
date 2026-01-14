@@ -620,6 +620,74 @@ function ProspectItem({
                   </div>
                 )}
 
+                {/* Sub-organizations & Locations */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  {enrichment.suborganizations && enrichment.suborganizations.length > 0 && (
+                    <div>
+                      <h5 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                        <Building2 className="w-3.5 h-3.5" />
+                        Subsidiaries
+                      </h5>
+                      <div className="flex flex-col gap-1">
+                        {enrichment.suborganizations.slice(0, 5).map((sub, i) => (
+                          <span key={i} className="text-xs text-slate-600 truncate">
+                            • {sub}
+                          </span>
+                        ))}
+                        {enrichment.suborganizations.length > 5 && (
+                          <span className="text-xs text-slate-400 pl-2">
+                            +{enrichment.suborganizations.length - 5} more
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {enrichment.retail_location_count !== undefined && enrichment.retail_location_count > 0 && (
+                    <div>
+                      <h5 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                        <MapPin className="w-3.5 h-3.5" />
+                        Retail Presence
+                      </h5>
+                      <span className="px-2 py-1 bg-amber-50 text-amber-700 rounded text-xs font-semibold border border-amber-100">
+                        {enrichment.retail_location_count.toLocaleString()} Locations
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Classification Codes */}
+                {(enrichment.sic_codes?.length || enrichment.naics_codes?.length) && (
+                  <div className="mb-4 pt-3 border-t border-slate-100">
+                    <div className="flex flex-col gap-2">
+                      {enrichment.sic_codes && enrichment.sic_codes.length > 0 && (
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className="font-semibold text-slate-500 w-12">SIC:</span>
+                          <div className="flex flex-wrap gap-1">
+                            {enrichment.sic_codes.map((code, i) => (
+                              <span key={i} className="px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded">
+                                {code}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {enrichment.naics_codes && enrichment.naics_codes.length > 0 && (
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className="font-semibold text-slate-500 w-12">NAICS:</span>
+                          <div className="flex flex-wrap gap-1">
+                            {enrichment.naics_codes.map((code, i) => (
+                              <span key={i} className="px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded">
+                                {code}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
 
 
                 {enrichment.linkedin_url && (
@@ -836,18 +904,54 @@ function ApolloEnrichmentItem({ enrichment }: { enrichment: ApolloEnrichmentResu
             </div>
           </div>
         )}
-        {enrichment.industry && (
+        <div className="bg-white rounded-lg p-2 border border-gray-100">
+          <div className="flex items-center gap-1.5 text-gray-500 text-xs">
+            <Briefcase className="w-3 h-3" />
+            Industry
+          </div>
+          <div className="font-semibold text-gray-900 mt-0.5 truncate">
+            {enrichment.industry}
+          </div>
+        </div>
+        {enrichment.retail_location_count !== undefined && enrichment.retail_location_count > 0 && (
           <div className="bg-white rounded-lg p-2 border border-gray-100">
             <div className="flex items-center gap-1.5 text-gray-500 text-xs">
-              <Briefcase className="w-3 h-3" />
-              Industry
+              <MapPin className="w-3 h-3" />
+              Retail Locations
             </div>
-            <div className="font-semibold text-gray-900 mt-0.5 truncate">
-              {enrichment.industry}
+            <div className="font-semibold text-gray-900 mt-0.5">
+              {enrichment.retail_location_count.toLocaleString()}
             </div>
           </div>
         )}
       </div>
+
+      {/* SIC/NAICS Codes - Small strip */}
+      {(enrichment.sic_codes?.length || enrichment.naics_codes?.length) && (
+        <div className="flex flex-wrap gap-3 mb-4 text-xs">
+          {enrichment.sic_codes && enrichment.sic_codes.length > 0 && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-gray-400 font-medium">SIC:</span>
+              <div className="flex gap-1">
+                {enrichment.sic_codes.slice(0, 3).map((code, i) => (
+                  <span key={i} className="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">{code}</span>
+                ))}
+              </div>
+            </div>
+          )}
+          {enrichment.naics_codes && enrichment.naics_codes.length > 0 && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-gray-400 font-medium">NAICS:</span>
+              <div className="flex gap-1">
+                {enrichment.naics_codes.slice(0, 3).map((code, i) => (
+                  <span key={i} className="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">{code}</span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
 
       {/* Location & Links */}
       <div className="flex flex-wrap items-center gap-3 text-sm">
@@ -892,6 +996,31 @@ function ApolloEnrichmentItem({ enrichment }: { enrichment: ApolloEnrichmentResu
             {enrichment.technologies.length > 8 && (
               <span className="px-2 py-0.5 text-gray-500 text-xs">
                 +{enrichment.technologies.length - 8} more
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Sub-organizations */}
+      {enrichment.suborganizations && enrichment.suborganizations.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-gray-100">
+          <div className="text-xs text-gray-500 mb-1.5 flex items-center gap-1">
+            <Building2 className="w-3 h-3" />
+            Subsidiaries & Brands
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {enrichment.suborganizations.slice(0, 5).map((sub, idx) => (
+              <span
+                key={idx}
+                className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-xs rounded border border-indigo-100"
+              >
+                {sub}
+              </span>
+            ))}
+            {enrichment.suborganizations.length > 5 && (
+              <span className="px-2 py-0.5 text-gray-500 text-xs">
+                +{enrichment.suborganizations.length - 5} more
               </span>
             )}
           </div>
