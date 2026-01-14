@@ -836,10 +836,54 @@ class ApiClient {
     }
     return response.json()
   }
+
+  // =====================================
+  // Apollo Service
+  // =====================================
+
+  /**
+   * Enrich an organization by domain
+   */
+  async enrichOrganization(domain: string): Promise<any | null> {
+    const response = await fetch(`${this.baseUrl}/api/pipeline/enrich?domain=${domain}`, {
+      headers: {
+        'X-User-Team': localStorage.getItem('userTeam') || 'All Others',
+      }
+    })
+
+    if (response.status === 404) return null
+
+    if (!response.ok) {
+      throw new Error(`Failed to enrich organization: ${response.statusText}`)
+    }
+    return response.json()
+  }
+
+  /**
+   * Reveal a contact's email
+   */
+  async revealContact(contactId: string): Promise<{ email: string | null; status: string }> {
+    const response = await fetch(`${this.baseUrl}/api/pipeline/apollo/reveal`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-User-Team': localStorage.getItem('userTeam') || 'All Others',
+      },
+      body: JSON.stringify({ contact_id: contactId })
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to reveal contact: ${response.statusText}`)
+    }
+    return response.json()
+  }
 }
 
 // Export singleton instance
 export const api = new ApiClient()
+
+// Export individual services for context usage
+export const apolloService = api
 
 // Export class for custom instances
 export { ApiClient }

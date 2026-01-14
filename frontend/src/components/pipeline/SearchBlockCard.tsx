@@ -620,90 +620,7 @@ function ProspectItem({
                   </div>
                 )}
 
-                {enrichment.retail_location_count && enrichment.retail_location_count > 0 && (
-                  <div className="mb-4">
-                    <h5 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                      <MapPin className="w-3.5 h-3.5" />
-                      Retail Locations
-                    </h5>
-                    <p className="text-sm text-slate-700 font-medium">
-                      {enrichment.retail_location_count.toLocaleString()} locations
-                    </p>
-                  </div>
-                )}
 
-                {enrichment.suborganizations && enrichment.suborganizations.length > 0 && (
-                  <div className="mb-4">
-                    <h5 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                      <Building2 className="w-3.5 h-3.5" />
-                      Subsidiaries & Divisions
-                    </h5>
-                    <div className="flex flex-wrap gap-1.5">
-                      {enrichment.suborganizations.slice(0, 12).map((sub, i) => (
-                        <span key={i} className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px]">
-                          {sub}
-                        </span>
-                      ))}
-                      {enrichment.suborganizations.length > 12 && (
-                        <span className="px-2 py-0.5 text-slate-500 text-[10px]">
-                          +{enrichment.suborganizations.length - 12} more
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {enrichment.keywords && enrichment.keywords.length > 0 && (
-                  <div className="mb-4">
-                    <h5 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                      <Hash className="w-3.5 h-3.5" />
-                      Company Keywords
-                    </h5>
-                    <div className="flex flex-wrap gap-1.5">
-                      {enrichment.keywords.map((kw, i) => (
-                        <span key={i} className="px-2 py-0.5 bg-slate-200 text-slate-700 rounded text-[10px]">
-                          {kw}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Stock Ticker */}
-                {enrichment.ticker && (
-                  <div className="mb-4">
-                    <h5 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                      <DollarSign className="w-3.5 h-3.5" />
-                      Stock Ticker
-                    </h5>
-                    <p className="text-sm font-semibold text-slate-700">
-                      {enrichment.ticker}
-                    </p>
-                  </div>
-                )}
-
-                {/* SIC/NAICS Codes */}
-                {((enrichment.sic_codes && enrichment.sic_codes.length > 0) ||
-                  (enrichment.naics_codes && enrichment.naics_codes.length > 0)) && (
-                    <div className="mb-4">
-                      <h5 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                        <Hash className="w-3.5 h-3.5" />
-                        Industry Codes
-                      </h5>
-                      <div className="flex flex-wrap gap-2">
-                        {enrichment.sic_codes && enrichment.sic_codes.slice(0, 4).map((code, i) => (
-                          <span key={`sic-${i}`} className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-[10px] font-medium">
-                            SIC: {code}
-                          </span>
-                        ))}
-                        {enrichment.naics_codes && enrichment.naics_codes.slice(0, 4).map((code, i) => (
-                          <span key={`naics-${i}`} className="px-2 py-0.5 bg-purple-50 text-purple-700 rounded text-[10px] font-medium">
-                            NAICS: {code}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
 
                 {enrichment.linkedin_url && (
                   <div className="mt-4 pt-3 border-t border-slate-200 flex justify-end">
@@ -981,37 +898,9 @@ function ApolloEnrichmentItem({ enrichment }: { enrichment: ApolloEnrichmentResu
         </div>
       )}
 
-      {/* Retail Locations */}
-      {enrichment.retail_location_count && enrichment.retail_location_count > 0 && (
-        <div className="mt-3 pt-3 border-t border-gray-100">
-          <div className="text-xs text-gray-500 mb-1.5">Retail Locations</div>
-          <div className="text-sm font-semibold text-gray-900">
-            {enrichment.retail_location_count.toLocaleString()} locations
-          </div>
-        </div>
-      )}
 
-      {/* Subsidiaries & Divisions */}
-      {enrichment.suborganizations && enrichment.suborganizations.length > 0 && (
-        <div className="mt-3 pt-3 border-t border-gray-100">
-          <div className="text-xs text-gray-500 mb-1.5">Subsidiaries & Divisions</div>
-          <div className="flex flex-wrap gap-1.5">
-            {enrichment.suborganizations.slice(0, 8).map((sub, idx) => (
-              <span
-                key={idx}
-                className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded"
-              >
-                {sub}
-              </span>
-            ))}
-            {enrichment.suborganizations.length > 8 && (
-              <span className="px-2 py-0.5 text-gray-500 text-xs">
-                +{enrichment.suborganizations.length - 8} more
-              </span>
-            )}
-          </div>
-        </div>
-      )}
+
+
     </div>
   )
 }

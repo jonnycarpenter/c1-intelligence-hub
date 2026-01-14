@@ -50,7 +50,7 @@ export default function PipelineDashboard() {
     conversationHistory,
     searchBlocks,
     suggestedFollowups,
-    pollingWebsets,
+
     sendAgentMessage,
     clearConversation,
     toggleBlockExpansion,
@@ -64,6 +64,7 @@ export default function PipelineDashboard() {
     saveContact,
     removeContact,
     enrichProspect,
+    enrichCompany,
     exportProspectsToCSV,
     exportContactsToCSV,
   } = usePipeline()
@@ -373,8 +374,8 @@ export default function PipelineDashboard() {
                       onRemove={() => removeSearchBlock(block.id)}
                       onSaveProspect={handleSaveProspect}
                       onSaveContact={handleSaveContact}
-                      onEnrichProspect={enrichProspect}
-                      isPolling={block.webset_id ? pollingWebsets.has(block.webset_id) : false}
+                      onEnrichProspect={async (blockId, domain) => enrichCompany(domain)}
+                      isPolling={false}
                     />
                   ))
                 )}
