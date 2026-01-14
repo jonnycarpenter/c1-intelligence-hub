@@ -113,9 +113,33 @@ export default function PulseDashboard({
   return (
     <div className="h-full flex flex-col overflow-hidden p-6 pt-4 bg-slate-200">
       {/* Main 2-Column Layout */}
+      {/* Main 2-Column Layout */}
       <div className="flex-1 flex gap-8 overflow-hidden min-h-0">
-        {/* Left Column: Drumbeat (Stacked Feed) */}
-        <div className="w-1/3 flex flex-col gap-1 overflow-hidden border-r border-slate-100 pr-4">
+        {/* Left Column: Need to Know (Briefings) - FIRST CLASS CITIZEN */}
+        <div className="flex-1 overflow-y-auto p-6 pb-10 bg-slate-50 rounded-2xl border border-slate-100/60 scrollbar-hide">
+          <div className="max-w-5xl mx-auto w-full space-y-4">
+            {/* Ad Hoc Quick Briefing Input */}
+            <AdHocBriefing
+              context={adHocContext}
+              onDeepResearch={onDeepResearch}
+            />
+
+            {/* Weekly Executive Briefing (new format) or Legacy Briefings (fallback) */}
+            {weeklyBriefing || weeklyLoading ? (
+              <WeeklyBriefingSection
+                briefing={weeklyBriefing}
+                isLoading={weeklyLoading}
+                onHistoryClick={() => setIsHistoryOpen(true)}
+              />
+            ) : (
+              // Fallback to legacy category-based briefings
+              <BriefingSection briefings={legacyBriefings} isLoading={legacyLoading} />
+            )}
+          </div>
+        </div>
+
+        {/* Right Column: Drumbeat (Stacked Feed) - ADDED VALUE */}
+        <div className="w-[400px] flex flex-col gap-1 overflow-hidden border-l border-slate-100 pl-4">
           <div className="flex items-center justify-between shrink-0 mb-3 px-1">
             <div className="flex items-center gap-2">
               <div className="p-1.5 bg-slate-100 rounded-md border border-slate-200">
@@ -140,7 +164,7 @@ export default function PulseDashboard({
             />
           )}
 
-          <div className="flex-1 overflow-y-auto pr-2 space-y-4 pb-10">
+          <div className="flex-1 overflow-y-auto pr-2 space-y-4 pb-10 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
             {digestLoading ? (
               [1, 2, 3].map(i => (
                 <div key={i} className="h-48 bg-slate-50 rounded-xl animate-pulse border border-slate-100" />
@@ -176,27 +200,6 @@ export default function PulseDashboard({
               </div>
             )}
           </div>
-        </div>
-
-        {/* Right Column: Need to Know (Briefings) */}
-        <div className="flex-1 overflow-y-auto p-6 pb-10 space-y-4 bg-slate-50 rounded-2xl border border-slate-100/60">
-          {/* Ad Hoc Quick Briefing Input */}
-          <AdHocBriefing
-            context={adHocContext}
-            onDeepResearch={onDeepResearch}
-          />
-
-          {/* Weekly Executive Briefing (new format) or Legacy Briefings (fallback) */}
-          {weeklyBriefing || weeklyLoading ? (
-            <WeeklyBriefingSection
-              briefing={weeklyBriefing}
-              isLoading={weeklyLoading}
-              onHistoryClick={() => setIsHistoryOpen(true)}
-            />
-          ) : (
-            // Fallback to legacy category-based briefings
-            <BriefingSection briefings={legacyBriefings} isLoading={legacyLoading} />
-          )}
         </div>
       </div>
 

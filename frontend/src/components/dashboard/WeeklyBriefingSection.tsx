@@ -201,16 +201,16 @@ interface InsightItemProps {
   insight: BriefingInsight
   companiesWithLogos: CompanyWithLogo[]
   isHeadline?: boolean
-  isSneakPeak?: boolean
+  isSneakPeek?: boolean
 }
 
-function InsightItem({ insight, companiesWithLogos, isHeadline = false, isSneakPeak = false }: InsightItemProps) {
+function InsightItem({ insight, companiesWithLogos, isHeadline = false, isSneakPeek = false }: InsightItemProps) {
 
   return (
     <div className={cn(
       "flex items-start gap-3",
       isHeadline ? "mb-3" : "",
-      isSneakPeak ? "opacity-60 scale-[0.98] origin-top" : ""
+      isSneakPeek ? "opacity-60 scale-[0.98] origin-top" : ""
     )}>
       {!isHeadline && (
         <div className="mt-2 w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
@@ -221,12 +221,12 @@ function InsightItem({ insight, companiesWithLogos, isHeadline = false, isSneakP
           isHeadline
             ? "text-base font-semibold text-slate-900"
             : "text-sm text-slate-700",
-          isSneakPeak ? "line-clamp-1 truncate" : ""
+          isSneakPeek ? "line-clamp-1 truncate" : ""
         )}>
           {renderTextWithLogosAndCitations(insight.text, companiesWithLogos)}
         </div>
         <div className="mt-1.5 flex items-center gap-2">
-          {!isSneakPeak && <StatusBadge status={insight.status} />}
+          {!isSneakPeek && <StatusBadge status={insight.status} />}
         </div>
       </div>
     </div>
@@ -286,13 +286,13 @@ function SectionCard({ section, isFirst = false }: SectionCardProps) {
           />
         )}
 
-        {/* Sneak Peak (visible when collapsed) */}
+        {/* Sneak Peek (visible when collapsed) */}
         {!isExpanded && insights.length > 0 && (
           <div className="mt-2 relative">
             <InsightItem
               insight={insights[0]}
               companiesWithLogos={companies}
-              isSneakPeak={true}
+              isSneakPeek={true}
             />
             <div className="absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-white to-transparent pointer-events-none" />
           </div>

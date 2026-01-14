@@ -83,119 +83,129 @@ export default function DigestCard({ item }: DigestCardProps) {
     [item.summary, allEntities]
   )
 
+  // Priority color map for border
+  const borderColors: Record<Priority, string> = {
+    critical: 'border-red-500',
+    high: 'border-emerald-500', // High priority is good/important usually
+    medium: 'border-blue-400',
+    low: 'border-slate-300',
+  }
+
   return (
-    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden hover:shadow-md transition-shadow group">
-      {/* Priority indicator bar */}
-      <div className={cn('h-1', priorityColors[item.priority] || 'bg-slate-400')} />
-
+    <div className={cn(
+      "group relative bg-white rounded-r-xl rounded-l-md shadow-sm border border-slate-200/60 transition-all duration-200 hover:shadow-md hover:border-emerald-200/50",
+      "border-l-4",
+      borderColors[item.priority] || 'border-slate-300'
+    )}>
       <div className="p-4 space-y-3">
-        {/* Header with badges */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <CategoryBadge category={item.category} />
-            <PriorityBadge priority={item.priority} />
-          </div>
-          <span className="text-xs text-slate-400">{item.timestamp}</span>
-        </div>
-
-        {/* LLM Summary with highlighted entities - expandable */}
-        <div className="relative">
+        {/* Header: Title & Meta */}
+        <div className="space-y-1.5">
           {item.title && (
-            <h3 className="text-base font-bold text-slate-900 mb-2 leading-snug group-hover:text-emerald-600 transition-colors">
+            <h3 className="text-base font-bold text-slate-900 leading-snug group-hover:text-emerald-700 transition-colors">
               {item.title}
             </h3>
           )}
+
+          <div className="flex items-center flex-wrap gap-2 text-xs">
+            {/* Category always shown */}
+            <span className="font-semibold text-slate-500 uppercase tracking-wider text-[10px]">
+              {item.category.replace('_', ' ')}
+            </span>
+
+            <span className="text-slate-300">•</span>
+
+            {/* Time */}
+            <span className="text-slate-400">{item.timestamp}</span>
+
+            {/* Priority (only if high/critical) */}
+            {(item.priority === 'high' || item.priority === 'critical') && (
+              <>
+                <span className="text-slate-300">•</span>
+                <span className={cn(
+                  "font-bold uppercase tracking-wider text-[10px]",
+                  item.priority === 'critical' ? 'text-red-600' : 'text-emerald-600'
+                )}>
+                  {item.priority} Priority
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* LLM Summary */}
+        <div className="relative">
           <p className={cn(
-            "text-sm text-slate-700 transition-all duration-200",
-            !isExpanded && "line-clamp-4"
+            "text-sm text-slate-600 leading-relaxed transition-all duration-200",
+            !isExpanded && "line-clamp-3"
           )}>
             {highlightedSummary}
           </p>
-          {/* Expand/Collapse button - only show if text is long enough */}
-          {item.summary && item.summary.length > 200 && (
+          {/* Expand/Collapse logic */}
+          {item.summary && item.summary.length > 180 && (
             <button
-              onClick={() => setIsExpanded(!isExpanded)}
-              className="mt-1 inline-flex items-center gap-0.5 text-xs text-slate-500 hover:text-emerald-600 transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsExpanded(!isExpanded);
+              }}
+              className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 hover:text-emerald-700 transition-colors"
             >
               {isExpanded ? (
-                <>
-                  <ChevronUp size={14} />
-                  <span>Show less</span>
-                </>
+                <>Show less <ChevronUp size={12} /></>
               ) : (
-                <>
-                  <ChevronDown size={14} />
-                  <span>Read more</span>
-                </>
+                <>Read more <ChevronDown size={12} /></>
               )}
             </button>
           )}
         </div>
 
-        {/* Entity Pills - Companies, Materials, Topics, Industries */}
+        {/* Dense Entity Pills (only showing top 3 distinct ones mixed) */}
         {item.entities && (
           <div className="flex flex-wrap gap-1.5 pt-1">
-            {/* Companies - Blue pills */}
-            {item.entities.companies?.slice(0, 3).map((company, idx) => (
+            {/* Mix specific entities for a cleaner look */}
+            {[
+              ...(item.entities.companies || []).map(e => ({ t: 'co', v: e })),
+              ...(item.entities.topics || []).map(e => ({ t: 'tp', v: e })),
+            ].slice(0, 4).map((ent, idx) => (
               <span
-                key={`company-${idx}`}
-                className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200"
+                key={idx}
+                className={cn(
+                  "inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium border",
+                  ent.t === 'co'
+                    ? "bg-slate-50 text-slate-600 border-slate-200"
+                    : "bg-emerald-50/50 text-emerald-700 border-emerald-100"
+                )}
               >
-                {company}
+                {ent.v}
               </span>
             ))}
-            {/* Materials - Green pills */}
-            {item.entities.materials?.slice(0, 3).map((material, idx) => (
-              <span
-                key={`material-${idx}`}
-                className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200"
-              >
-                {material}
-              </span>
-            ))}
-            {/* Industries - Purple pills */}
-            {item.entities.industries?.slice(0, 3).map((industry, idx) => (
-              <span
-                key={`industry-${idx}`}
-                className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200"
-              >
-                {formatLabel(industry)}
-              </span>
-            ))}
-            {/* Topics - Amber pills */}
-            {item.entities.topics?.slice(0, 3).map((topic, idx) => (
-              <span
-                key={`topic-${idx}`}
-                className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200"
-              >
-                {topic}
-              </span>
-            ))}
+            {/* Count more... */}
           </div>
         )}
 
-        {/* Source links */}
+        {/* Footer: Source Link */}
         {sources.length > 0 && (
-          <div className="flex flex-wrap gap-2 pt-1">
+          <div className="pt-2 border-t border-slate-50 flex items-center justify-between">
             {hasMultipleSources ? (
-              // Multiple sources - show clickable "Sources" button
               <button
                 onClick={() => setShowSourcesModal(true)}
-                className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-emerald-600 transition-colors"
+                className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-emerald-600 transition-colors group/src"
               >
                 <Newspaper size={12} />
-                <span>{sources.length} Sources</span>
+                <span className="group-hover/src:underline decoration-emerald-200 underline-offset-2">
+                  {sources.length} sources analyzed
+                </span>
               </button>
             ) : (
-              // Single source - show direct link with publication name
               <a
                 href={sources[0].url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-emerald-600 transition-colors"
+                className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-emerald-600 transition-colors group/src"
               >
                 <ExternalLink size={12} />
-                {sources[0].name || sources[0].title || 'Source'}
+                <span className="truncate max-w-[200px] group-hover/src:underline decoration-emerald-200 underline-offset-2">
+                  {sources[0].name || sources[0].title || 'Source'}
+                </span>
               </a>
             )}
           </div>
@@ -205,12 +215,9 @@ export default function DigestCard({ item }: DigestCardProps) {
         <Modal
           isOpen={showSourcesModal}
           onClose={() => setShowSourcesModal(false)}
-          title={`Sources (${sources.length})`}
+          title={`Coverage (${sources.length} sources)`}
         >
           <div className="space-y-3">
-            <p className="text-sm text-slate-600 mb-4">
-              This story was covered by {sources.length} publications:
-            </p>
             {sources.map((source, idx) => (
               <a
                 key={idx}
@@ -235,8 +242,6 @@ export default function DigestCard({ item }: DigestCardProps) {
             ))}
           </div>
         </Modal>
-
-
       </div>
     </div>
   )
