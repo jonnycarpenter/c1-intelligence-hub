@@ -1,9 +1,8 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { ExternalLink, Newspaper, ChevronDown, ChevronUp, Star, Copy, MessageSquare } from 'lucide-react'
+import { ExternalLink, Newspaper, ChevronDown, ChevronUp } from 'lucide-react'
 import { Badge, PriorityBadge, CategoryBadge, Modal } from '@/components/ui'
-import CompanyLogo from '../pipeline/CompanyLogo'
 import { cn } from '@/lib/utils'
 import type { DigestItem, Priority } from '@/types'
 
@@ -61,20 +60,11 @@ interface DigestCardProps {
   item: DigestItem
 }
 
-export default function DigestCard({ item, onAsk }: { item: DigestItem; onAsk?: (item: DigestItem) => void }) {
+export default function DigestCard({ item }: DigestCardProps) {
   const [showSourcesModal, setShowSourcesModal] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
-  const [isBookmarked, setIsBookmarked] = useState(false)
   const sources = item.sources || []
   const hasMultipleSources = sources.length > 1
-
-  // Determine primary company domain for logo
-  const primaryCompany = useMemo(() => {
-    if (item.entities?.companies && item.entities.companies.length > 0) {
-      return item.entities.companies[0]
-    }
-    return null
-  }, [item.entities])
 
   // Combine all entities for text highlighting
   const allEntities = useMemo(() => {
@@ -93,184 +83,161 @@ export default function DigestCard({ item, onAsk }: { item: DigestItem; onAsk?: 
     [item.summary, allEntities]
   )
 
-  // Handle copy to clipboard
-  const handleCopy = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    const text = `${item.title}\n\n${item.summary}\n\nSource: ${sources[0]?.url || 'Intelligence Hub'}`
-    navigator.clipboard.writeText(text)
-    // Could add toast here
-  }
-
-  // Handle bookmark toggle
-  const handleBookmark = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    setIsBookmarked(!isBookmarked)
-    // Persist to local storage or API in future
-  }
-
   return (
-    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden hover:shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] transition-all duration-200 group relative hover:translate-y-[-2px]">
+    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden hover:shadow-md transition-shadow group">
       {/* Priority indicator bar */}
-      <div className={cn('absolute top-0 left-0 bottom-0 w-1', priorityColors[item.priority] || 'bg-slate-400')} />
+      <div className={cn('h-1', priorityColors[item.priority] || 'bg-slate-400')} />
 
-      <div className="p-5 pl-6 space-y-4">
-        {/* Header: Logo + Meta + Acts */}
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-start gap-3 flex-1">
-            {/* Logo - visual anchor */}
-            <div className="mt-1 shrink-0">
-              <CompanyLogo
-                domain={primaryCompany ? `${primaryCompany.replace(/\s+/g, '').toLowerCase()}.com` : undefined}
-                size={36}
-                className="shadow-sm"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <CategoryBadge category={item.category} />
-                <span className="text-xs font-medium text-slate-400 flex items-center gap-1">
-                  {item.timestamp}
-                  {sources.length > 0 && (
-                    <>
-                      <span className="w-1 h-1 rounded-full bg-slate-300" />
-                      <span className="truncate max-w-[120px]">
-                        {sources[0].name || sources[0].title || 'Source'}
-                      </span>
-                    </>
-                  )}
-                </span>
-              </div>
-              {item.title && (
-                <h3 className="text-[15px] font-bold text-slate-900 leading-snug group-hover:text-emerald-700 transition-colors">
-                  {item.title}
-                </h3>
-              )}
-            </div>
-          </div>
-
-          {/* Priority Badge (Mini) */}
-          {item.priority === 'critical' || item.priority === 'high' ? (
+      <div className="p-4 space-y-3">
+        {/* Header with badges */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CategoryBadge category={item.category} />
             <PriorityBadge priority={item.priority} />
-          ) : null}
+          </div>
+          <span className="text-xs text-slate-400">{item.timestamp}</span>
         </div>
 
-        {/* Content */}
-        <div className="pl-[48px]">
+        {/* LLM Summary with highlighted entities - expandable */}
+        <div className="relative">
+          {item.title && (
+            <h3 className="text-base font-bold text-slate-900 mb-2 leading-snug group-hover:text-emerald-600 transition-colors">
+              {item.title}
+            </h3>
+          )}
           <p className={cn(
-            "text-sm text-slate-600 leading-relaxed transition-all duration-200",
-            !isExpanded && "line-clamp-3"
+            "text-sm text-slate-700 transition-all duration-200",
+            !isExpanded && "line-clamp-4"
           )}>
             {highlightedSummary}
           </p>
-
-          {item.summary && item.summary.length > 180 && (
+          {/* Expand/Collapse button - only show if text is long enough */}
+          {item.summary && item.summary.length > 200 && (
             <button
               onClick={() => setIsExpanded(!isExpanded)}
-              className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-emerald-600 hover:text-emerald-700 transition-colors"
+              className="mt-1 inline-flex items-center gap-0.5 text-xs text-slate-500 hover:text-emerald-600 transition-colors"
             >
               {isExpanded ? (
-                <>Show less <ChevronUp size={12} /></>
+                <>
+                  <ChevronUp size={14} />
+                  <span>Show less</span>
+                </>
               ) : (
-                <>Read more <ChevronDown size={12} /></>
+                <>
+                  <ChevronDown size={14} />
+                  <span>Read more</span>
+                </>
               )}
             </button>
           )}
-
-          {/* Entity Pills */}
-          {item.entities && (
-            <div className="flex flex-wrap gap-1.5 pt-3">
-              {item.entities.companies?.slice(0, 3).map((company, idx) => (
-                <span key={`c-${idx}`} className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
-                  {company}
-                </span>
-              ))}
-              {item.entities.topics?.slice(0, 2).map((topic, idx) => (
-                <span key={`t-${idx}`} className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
-                  {topic}
-                </span>
-              ))}
-            </div>
-          )}
         </div>
-      </div>
 
-      {/* Action Footer - Visible on Hover/Group Focus */}
-      <div className="bg-slate-50/50 border-t border-slate-100 px-4 py-2 flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-        <button
-          onClick={handleBookmark}
-          className={cn(
-            "p-1.5 rounded-md transition-colors",
-            isBookmarked ? "text-amber-500 bg-amber-50 hover:bg-amber-100" : "text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-          )}
-          title="Save for later"
-        >
-          <Star size={16} fill={isBookmarked ? "currentColor" : "none"} />
-        </button>
+        {/* Entity Pills - Companies, Materials, Topics, Industries */}
+        {item.entities && (
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            {/* Companies - Blue pills */}
+            {item.entities.companies?.slice(0, 3).map((company, idx) => (
+              <span
+                key={`company-${idx}`}
+                className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200"
+              >
+                {company}
+              </span>
+            ))}
+            {/* Materials - Green pills */}
+            {item.entities.materials?.slice(0, 3).map((material, idx) => (
+              <span
+                key={`material-${idx}`}
+                className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200"
+              >
+                {material}
+              </span>
+            ))}
+            {/* Industries - Purple pills */}
+            {item.entities.industries?.slice(0, 3).map((industry, idx) => (
+              <span
+                key={`industry-${idx}`}
+                className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200"
+              >
+                {formatLabel(industry)}
+              </span>
+            ))}
+            {/* Topics - Amber pills */}
+            {item.entities.topics?.slice(0, 3).map((topic, idx) => (
+              <span
+                key={`topic-${idx}`}
+                className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200"
+              >
+                {topic}
+              </span>
+            ))}
+          </div>
+        )}
 
-        <button
-          onClick={handleCopy}
-          className="p-1.5 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
-          title="Copy details"
-        >
-          <Copy size={16} />
-        </button>
-
+        {/* Source links */}
         {sources.length > 0 && (
-          <button
-            onClick={() => hasMultipleSources ? setShowSourcesModal(true) : window.open(sources[0].url, '_blank')}
-            className="p-1.5 rounded-md text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
-            title="View Source"
-          >
-            <ExternalLink size={16} />
-          </button>
+          <div className="flex flex-wrap gap-2 pt-1">
+            {hasMultipleSources ? (
+              // Multiple sources - show clickable "Sources" button
+              <button
+                onClick={() => setShowSourcesModal(true)}
+                className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-emerald-600 transition-colors"
+              >
+                <Newspaper size={12} />
+                <span>{sources.length} Sources</span>
+              </button>
+            ) : (
+              // Single source - show direct link with publication name
+              <a
+                href={sources[0].url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-emerald-600 transition-colors"
+              >
+                <ExternalLink size={12} />
+                {sources[0].name || sources[0].title || 'Source'}
+              </a>
+            )}
+          </div>
         )}
 
-        {onAsk && (
-          <button
-            onClick={() => onAsk(item)}
-            className="ml-2 flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50 text-slate-600 hover:text-emerald-700 text-xs font-medium rounded-md shadow-sm transition-all"
-          >
-            <MessageSquare size={14} />
-            Ask AI
-          </button>
-        )}
-      </div>
-
-      {/* Sources Modal */}
-      <Modal
-        isOpen={showSourcesModal}
-        onClose={() => setShowSourcesModal(false)}
-        title={`Sources (${sources.length})`}
-      >
-        <div className="space-y-3">
-          <p className="text-sm text-slate-600 mb-4">
-            This story was covered by {sources.length} publications:
-          </p>
-          {sources.map((source, idx) => (
-            <a
-              key={idx}
-              href={source.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-3 p-3 rounded-lg border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50 transition-colors group"
-            >
-              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center group-hover:bg-emerald-100">
-                <Newspaper size={16} className="text-slate-500 group-hover:text-emerald-600" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-medium text-slate-900 group-hover:text-emerald-600 truncate">
-                  {source.name || source.title || 'Unknown Source'}
+        {/* Sources Modal */}
+        <Modal
+          isOpen={showSourcesModal}
+          onClose={() => setShowSourcesModal(false)}
+          title={`Sources (${sources.length})`}
+        >
+          <div className="space-y-3">
+            <p className="text-sm text-slate-600 mb-4">
+              This story was covered by {sources.length} publications:
+            </p>
+            {sources.map((source, idx) => (
+              <a
+                key={idx}
+                href={source.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-3 p-3 rounded-lg border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50 transition-colors group"
+              >
+                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center group-hover:bg-emerald-100">
+                  <Newspaper size={16} className="text-slate-500 group-hover:text-emerald-600" />
                 </div>
-                {source.published_at && (
-                  <div className="text-xs text-slate-400">{source.published_at}</div>
-                )}
-              </div>
-              <ExternalLink size={14} className="text-slate-400 group-hover:text-emerald-600" />
-            </a>
-          ))}
-        </div>
-      </Modal>
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-slate-900 group-hover:text-emerald-600 truncate">
+                    {source.name || source.title || 'Unknown Source'}
+                  </div>
+                  {source.published_at && (
+                    <div className="text-xs text-slate-400">{source.published_at}</div>
+                  )}
+                </div>
+                <ExternalLink size={14} className="text-slate-400 group-hover:text-emerald-600" />
+              </a>
+            ))}
+          </div>
+        </Modal>
+
+
+      </div>
     </div>
   )
 }
