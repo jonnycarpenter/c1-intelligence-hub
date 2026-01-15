@@ -17,6 +17,69 @@ Without reliable daily ingestion:
 **Always verify scheduler jobs are running before working on features.**
 
 ---
+## 📅 SESSION 80: Pipeline Agent - Contact Search & Metadata Fixes (January 14, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Problems Addressed
+
+User reported three issues with the Pipeline tab:
+1. Contact cards not showing in search results panel
+2. Extra metadata fields (suborganizations, retail locations, SIC/NAICS codes) not appearing in "Show Full Profile" drawer
+3. Agent asking clarifying questions instead of showing results for contact searches (violating "when in doubt, show results" rule)
+
+### 💡 Root Cause Analysis
+
+1. **Contact cards issue**: Agent prompt was instructing LLM to ask clarifying questions for broad contact searches (e.g., "Find sourcing managers in Chicago") instead of taking action
+2. **Metadata fields missing**: 
+   - Frontend `ApolloEnrichmentResult` type was missing: `sic_codes`, `naics_codes`, `retail_location_count`, `suborganizations`
+   - Backend `enrich_company` tool was not returning `retail_location_count` and `suborganizations` fields
+3. **DigestItem type**: Also fixed unrelated build error - `is_hero` field was missing from `DigestItem` type
+
+### 📁 Files Modified
+
+**Backend:**
+- `backend/app/agents/pipeline/agent.py` - Updated system prompt to show results first for ALL search types including contacts. Replaced "COMBINED Examples" that instructed asking clarification with "BROAD CONTACT SEARCH Examples" that demonstrate action-first behavior.
+- `backend/app/mcp/tools/pipeline_search.py` - Added missing `retail_location_count` and `suborganizations` fields to `enrich_company` tool response
+
+**Frontend:**
+- `frontend/src/types/index.ts` - Added extended firmographic fields to `ApolloEnrichmentResult` type (`sic_codes`, `naics_codes`, `retail_location_count`, `suborganizations`). Also added `is_hero` to `DigestItem` type.
+
+### 🔑 Key Prompt Changes
+
+Added explicit guidance for broad contact searches:
+
+```
+**BROAD CONTACT SEARCH Examples** (When user asks for contacts without specifying a company):
+
+User: "Find purchasing managers at aerospace suppliers"
+You: [call search_companies_filtered to find companies first]
+Chat: "Found 20 aerospace suppliers. Pick any company and I'll find their purchasing contacts."
+
+**KEY RULE**: When the user asks for contacts without specifying a company:
+1. If you have relevant companies from a recent search → Search contacts at those companies
+2. If no prior context → First search for relevant companies, then offer to find contacts
+3. **NEVER just ask "which approach" without taking action**
+```
+
+### 🧪 Verification
+
+```powershell
+cd backend
+python -c "from app.agents.pipeline.agent import PipelineAgent; print('OK')"
+# ✓ Backend imports OK
+
+cd frontend
+npm run build
+# ✓ Compiled successfully
+```
+
+### 📋 What to Watch For
+
+- After deployment, verify contact search queries like "show me sourcing managers in Chicago" trigger company search first instead of asking clarifying questions
+- Verify "Show Full Profile" drawer displays subsidiaries, retail locations, and industry codes when available
+
+---
 ## 📅 SESSION 79: Pulse Tab UX Redesign (January 14, 2026)
 
 **Status**: ✅ COMPLETE

@@ -578,6 +578,8 @@ async def enrich_company(
                 "keywords": org.keywords[:10] if org.keywords else [],
                 "sic_codes": org.sic_codes,
                 "naics_codes": org.naics_codes,
+                "retail_location_count": org.retail_location_count,
+                "suborganizations": org.suborganizations[:10] if org.suborganizations else [],
             },
         }, indent=2)
         

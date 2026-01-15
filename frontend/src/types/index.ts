@@ -31,7 +31,7 @@ export interface DigestItem {
   timestamp: string
   publishedAt?: Date
   coverage_count?: number
-  is_hero?: boolean  // Flagged for hero/breaking section display
+  is_hero?: boolean
 }
 
 export interface DigestStats {
@@ -315,14 +315,14 @@ export interface ApolloEnrichmentResult {
   keywords?: string[]
   supply_chain_matches?: string[]
 
+  // Stock info
+  ticker?: string
+
   // Extended Firmographics
   sic_codes?: string[]
   naics_codes?: string[]
   retail_location_count?: number
   suborganizations?: string[]
-
-  // Stock info
-  ticker?: string
 }
 
 export interface ApolloContactTeaserResult {
