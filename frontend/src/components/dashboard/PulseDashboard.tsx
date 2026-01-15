@@ -90,11 +90,11 @@ export default function PulseDashboard({
   }, [weeklyBriefing, digestItems])
 
   return (
-    <div className="h-full flex flex-col overflow-hidden p-6 pt-4 bg-slate-300">
+    <div className="h-full flex flex-col overflow-hidden p-6 pt-4 bg-slate-200">
       {/* Main 2-Column Layout */}
       <div className="flex-1 flex gap-8 overflow-hidden min-h-0">
         {/* Left Column: Need to Know (Briefings) - FIRST CLASS CITIZEN */}
-        <div className="flex-1 overflow-y-auto p-6 pb-10 bg-white rounded-2xl border border-slate-200/80 shadow-lg ring-1 ring-slate-100 scrollbar-hide">
+        <div className="flex-1 overflow-y-auto p-6 pb-10 bg-slate-300 rounded-2xl border border-slate-400/30 shadow-lg scrollbar-hide">
           <div className="max-w-5xl mx-auto w-full space-y-4">
             {/* Ad Hoc Quick Briefing Input */}
             <AdHocBriefing
