@@ -31,6 +31,7 @@ export interface DigestItem {
   timestamp: string
   publishedAt?: Date
   coverage_count?: number
+  is_hero?: boolean  // Flagged for hero/breaking section display
 }
 
 export interface DigestStats {

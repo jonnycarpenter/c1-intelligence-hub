@@ -850,6 +850,7 @@ class BigQueryDataStorage(DataStorageInterface):
             bigquery.SchemaField("classifier_model", "STRING"),
             bigquery.SchemaField("classified_at", "TIMESTAMP", mode="REQUIRED"),
             bigquery.SchemaField("ingested_at", "TIMESTAMP", mode="REQUIRED"),
+            bigquery.SchemaField("is_hero", "BOOL"),  # Flagged for hero/breaking section
         ]
         
         table = bigquery.Table(table_id, schema=schema)
@@ -3145,9 +3146,8 @@ class BigQueryDataStorage(DataStorageInterface):
                 "classifier_model": item.get("classifier_model", ""),
                 "classified_at": item.get("classified_at", now),
                 "ingested_at": now,
-                # Feed eligibility: True if article has valid date within lookback window
-                # Used by frontend to filter what shows in Drumbeat feed
                 "feed_eligible": item.get("feed_eligible", True),
+                "is_hero": item.get("is_hero", False),
             })
         
         errors = self.client.insert_rows_json(table_id, rows)
@@ -3250,6 +3250,7 @@ class BigQueryDataStorage(DataStorageInterface):
                 "coverage_count": getattr(row, 'coverage_count', 1) or 1,
                 "duplicate_sources": _safe_parse_list(getattr(row, 'duplicate_sources', None)),
                 "all_urls": _safe_parse_list(getattr(row, 'all_urls', None)),
+                "is_hero": getattr(row, 'is_hero', False) or False,
             })
         
         return items

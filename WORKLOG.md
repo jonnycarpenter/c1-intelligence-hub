@@ -17,6 +17,37 @@ Without reliable daily ingestion:
 **Always verify scheduler jobs are running before working on features.**
 
 ---
+## 📅 SESSION 79: Pulse Tab UX Redesign (January 14, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 What Was Done
+
+Refactored the **Pulse Tab** layout to prioritize the "Need to Know" executive briefing and modernized the visual design of the news feed.
+
+1.  **Layout Flip**: Moved "Need to Know" (Briefing) to the **Left** (primary) and "Drumbeat" (Feed) to the **Right** (sidebar).
+2.  **Sidebar Standardization**: Fixed the Drumbeat feed width to `400px` for a consistent sidebar feel.
+3.  **Digest Card Redesign**: Implemented a "Subscription News" aesthetic:
+    *   Left-border priority indicators (strips) instead of top bars.
+    *   Cleaner typography with title focus.
+    *   Subtle source links in the footer.
+4.  **Readability**: Added `max-w-5xl` constraints to the briefing view to prevent line-length fatigue on large monitors.
+5.  **Fixes**: Corrected "Sneak Peak" typos in the briefing component.
+
+### 📁 Files Modified
+
+-   `frontend/src/components/dashboard/PulseDashboard.tsx` - Layout structure
+-   `frontend/src/components/digest/DigestCard.tsx` - Card styling
+-   `frontend/src/components/dashboard/WeeklyBriefingSection.tsx` - Typo fixes
+
+### 🧪 Verification
+
+-   Verified locally on port 3001.
+-   Confirmed API data flow from BigQuery remains intact.
+-   Deployed to `master`.
+
+---
+
 ## 📅 SESSION 78: Restoring Pipeline Features (January 14, 2026)
 
 **Status**: ✅ COMPLETE
@@ -3791,3 +3822,49 @@ SESSION 7 COMPLETED:
 - ✅ Cloud Scheduler jobs fixed (6 jobs, all pointed to wrong URL)
 - ✅ WORKLOG.md created for session continuity
 ```
+
+---
+
+## 📅 SESSION 91: Enhancing Pipeline Tab (January 14, 2026)
+
+**Status**: ✅ COMPLETE - Changes pushed to repo
+
+### 🎯 Objectives
+1.  **Enhance Pipeline Tab UI**: expose rich Apollo.io data (SIC/NAICS codes, retail locations, subsidiaries)
+2.  **Fix Contact Search Visibility**: Debug and fix issue where contact cards were not displaying in search results
+
+### 🏗️ Changes Implemented
+
+#### Backend
+-   **`state.py`**: Updated `ApolloEnrichmentResult` model to include:
+    -   `sic_codes`
+    -   `naics_codes`
+    -   `retail_location_count`
+    -   `suborganizations`
+-   **`agent.py`**: Updated `_create_search_block` to parse these fields from `enrich_company` tool results mapping.
+-   **`pipeline_search.py`**: Verified parsing logic.
+
+#### Frontend
+-   **`types/index.ts`**: Updated `ApolloEnrichmentResult` interface to match backend changes.
+-   **`SearchBlockCard.tsx`**:
+    -   Added rendering for **Retail Presence** (badged count).
+    -   Added rendering for **Subsidiaries** (list).
+    -   Added rendering for **SIC/NAICS** codes (tags).
+    -   Fixed syntax errors (stray brackets) that were likely causing render issues.
+
+### 🐛 Bug Fixes
+-   **Contact Search Visibility**: Addressed syntax errors in `SearchBlockCard.tsx` which likely caused the React component to fail rendering the contact items silently.
+-   **Apollo Field Parsing**: Fixed missing mapping of enrichment fields in the agent's tool output processing.
+
+### 📝 Verification
+-   **Manual Walkthrough**: Created `walkthrough.md` to guide verification.
+-   **Visual Check**:
+    -   Enriched Company -> "Profile Details" drawer now shows refined firmographic data.
+    -   Contact Search -> Listings now appear correctly under the result header.
+
+### 📁 Files Modified
+-   `backend/app/agents/pipeline/state.py`
+-   `backend/app/agents/pipeline/agent.py`
+-   `backend/app/mcp/tools/pipeline_search.py`
+-   `frontend/src/types/index.ts`
+-   `frontend/src/components/pipeline/SearchBlockCard.tsx`

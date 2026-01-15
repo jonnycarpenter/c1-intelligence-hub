@@ -282,3 +282,4 @@ class ClassificationResult(BaseModel):
     materials: List[str] = Field(default_factory=list)  # Extracted material names
     sentiment: str = "neutral"
     confidence: float = 0.7
+    is_hero: bool = False  # Flagged for hero/breaking section display

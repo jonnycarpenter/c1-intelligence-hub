@@ -120,6 +120,7 @@ Classify this article and respond with ONLY valid JSON (no markdown, no explanat
     "secondary_categories": ["category1", "category2"],
     "industries": ["aerospace", "wind", "construction", "marine", "automotive", "infrastructure", "transportation", "sporting_goods", "defense_space"],
     "priority": "high|medium|low",
+    "is_hero": true|false,
     "relevance_score": 0.0-1.0,
     "summary": "2-3 sentence summary focusing on implications for composites industry",
     "companies": ["Company1", "Company2"],
@@ -140,6 +141,17 @@ Priority Guidelines:
 - LOW: Tangentially related news, general market updates, financial news without specific composites angle.
 
 TIE-BREAKER: If undecided between Medium and High, choose HIGH if the article contains specific quantitative data, mentions a Tier 1 competitor, or involves a key OEM program.
+
+Hero Guidelines (is_hero field):
+Set is_hero=true ONLY for articles that should appear in the "Breaking News" section of the dashboard. These must be:
+- HIGH or CRITICAL priority AND one of:
+  - M&A announcements (acquisitions, mergers, divestitures)
+  - Major supply chain disruptions (plant closures, material shortages)
+  - Key competitor strategic announcements (new facilities, major capacity changes)
+  - Significant regulatory changes with direct industry impact
+  - Key OEM program updates (Boeing/Airbus production rate changes, major program wins/losses)
+- Must have high confidence and clear composites relevance
+- Default to false unless the article is truly "breaking news" level
 
 Relevance Score Guidelines:
 - 0.9-1.0: Directly about composites, competitors, or C1's markets
@@ -261,6 +273,7 @@ Relevance Score Guidelines:
                 materials=data.get("materials", []),
                 sentiment=data.get("sentiment", "neutral"),
                 confidence=float(data.get("confidence", 0.7)),
+                is_hero=bool(data.get("is_hero", False)),
             )
         
         except json.JSONDecodeError as e:

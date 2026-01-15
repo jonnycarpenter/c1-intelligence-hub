@@ -1,14 +1,13 @@
 'use client'
 
 import React, { useState, useMemo, useCallback } from 'react'
-import DigestCard from '../digest/DigestCard'
-import EntityAggregator from '../digest/EntityAggregator'
+import EnhancedDigestFeed from '../digest/EnhancedDigestFeed'
 import BriefingSection from './BriefingSection'
 import WeeklyBriefingSection from './WeeklyBriefingSection'
 import AdHocBriefing from './AdHocBriefing'
 import BriefingHistoryTimeline from './BriefingHistoryTimeline'
 import { useBriefing, useWeeklyBriefing } from '@/hooks'
-import { Calendar, Activity } from 'lucide-react'
+import { Activity } from 'lucide-react'
 
 import type { DigestItem } from '@/types'
 import type { AdHocBriefingContext } from '@/types/briefing'
@@ -60,26 +59,6 @@ export default function PulseDashboard({
     setSelectedEntities(new Set())
   }, [])
 
-  // Filter digest items based on selected entities
-  const filteredItems = useMemo(() => {
-    const items = digestItems || []
-    if (selectedEntities.size === 0) return items
-
-    return items.filter(item => {
-      if (!item.entities) return false
-
-      // Check if item contains ANY of the selected entities
-      const allItemEntities = [
-        ...(item.entities.companies || []),
-        ...(item.entities.materials || []),
-        ...(item.entities.topics || []),
-        ...(item.entities.industries || []),
-      ]
-
-      return allItemEntities.some(entity => selectedEntities.has(entity))
-    })
-  }, [digestItems, selectedEntities])
-
   // Build context for ad hoc briefing from current weekly briefing and digest
   const adHocContext: AdHocBriefingContext = useMemo(() => {
     const context: AdHocBriefingContext = {}
@@ -113,7 +92,6 @@ export default function PulseDashboard({
   return (
     <div className="h-full flex flex-col overflow-hidden p-6 pt-4 bg-slate-200">
       {/* Main 2-Column Layout */}
-      {/* Main 2-Column Layout */}
       <div className="flex-1 flex gap-8 overflow-hidden min-h-0">
         {/* Left Column: Need to Know (Briefings) - FIRST CLASS CITIZEN */}
         <div className="flex-1 overflow-y-auto p-6 pb-10 bg-slate-50 rounded-2xl border border-slate-100/60 scrollbar-hide">
@@ -138,7 +116,7 @@ export default function PulseDashboard({
           </div>
         </div>
 
-        {/* Right Column: Drumbeat (Stacked Feed) - ADDED VALUE */}
+        {/* Right Column: Enhanced Drumbeat Feed with Hero + Collections + All Updates */}
         <div className="w-[400px] flex flex-col gap-1 overflow-hidden border-l border-slate-100 pl-4">
           <div className="flex items-center justify-between shrink-0 mb-3 px-1">
             <div className="flex items-center gap-2">
@@ -147,58 +125,17 @@ export default function PulseDashboard({
               </div>
               <h2 className="text-xs font-bold text-slate-500 uppercase tracking-widest">Drumbeat Feed</h2>
             </div>
-            {selectedEntities.size > 0 && (
-              <span className="text-xs text-slate-400">
-                {(filteredItems || []).length} of {(digestItems || []).length}
-              </span>
-            )}
           </div>
 
-          {/* Entity Aggregator / Filter - shows all 4 entity types */}
-          {!digestLoading && digestItems && digestItems.length > 0 && (
-            <EntityAggregator
-              items={digestItems}
+          <div className="flex-1 overflow-y-auto pr-2 pb-10 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+            <EnhancedDigestFeed
+              items={digestItems || []}
+              isLoading={digestLoading}
+              error={error}
               selectedEntities={selectedEntities}
               onEntityToggle={handleEntityToggle}
               onClearFilters={handleClearFilters}
             />
-          )}
-
-          <div className="flex-1 overflow-y-auto pr-2 space-y-4 pb-10 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
-            {digestLoading ? (
-              [1, 2, 3].map(i => (
-                <div key={i} className="h-48 bg-slate-50 rounded-xl animate-pulse border border-slate-100" />
-              ))
-            ) : error ? (
-              <div className="bg-red-50 border border-red-100 rounded-xl p-6 text-center">
-                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                  <span className="text-xl">⚠️</span>
-                </div>
-                <h3 className="text-sm font-semibold text-red-900 mb-1">Failed to Load Feed</h3>
-                <p className="text-xs text-red-700 mb-4">{(error as any).message || 'There was a problem loading the intelligence feed.'}</p>
-                <button
-                  onClick={() => window.location.reload()}
-                  className="px-4 py-2 bg-red-600 text-white text-xs font-medium rounded-lg hover:bg-red-700 transition-colors"
-                >
-                  Retry Connection
-                </button>
-              </div>
-            ) : filteredItems.length > 0 ? (
-              filteredItems.map((item) => (
-                <DigestCard
-                  key={item.id}
-                  item={item}
-                />
-              ))
-            ) : selectedEntities.size > 0 ? (
-              <div className="text-center py-10 text-slate-400 text-sm italic">
-                No items match the selected filters.
-              </div>
-            ) : (
-              <div className="text-center py-10 text-slate-400 text-sm italic">
-                No recent activity in the last 7 days.
-              </div>
-            )}
           </div>
         </div>
       </div>

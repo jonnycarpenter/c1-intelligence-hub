@@ -108,7 +108,7 @@ if (-not $SkipBuild) {
     # Use Cloud Build to build and deploy
     # This avoids local Docker dependency and builds in GCP
     gcloud builds submit `
-        --config="deploy/cloudbuild.yaml" `
+        --config="cloudbuild.yaml" `
         --project=$ProjectId `
         --substitutions="_TAG=prod-$(Get-Date -Format 'yyyyMMdd-HHmmss'),_DATA_BUCKET=$BucketName" `
         .
