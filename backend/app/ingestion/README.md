@@ -179,8 +179,9 @@ gcloud scheduler jobs run ingest-exa --location=us-central1 --project=gen-lang-c
 3. **Classification** (`processing/classifier.py`)
    - Claude claude-sonnet-4-5 for high accuracy
    - 10 concurrent calls, 0.2s throttle
-   - Outputs: category, priority, relevance, summary
+   - Outputs: category, priority, relevance, summary, **is_hero**
    - **Uses `resilient_llm.py`** for Anthropic + OpenAI fallback
+   - **is_hero flag**: Set to `true` for breaking news (M&A, major supply disruptions, key competitor strategic announcements, regulatory changes, OEM program updates)
 
 4. **Entity Linking** (`processing/linker.py`)
    - Links to tracked companies from BigQuery
@@ -364,6 +365,6 @@ python backend/scripts/monitoring/production_dashboard.py --detailed
 
 ---
 
-*Last updated: January 7, 2026*
+*Last updated: January 14, 2026*
 
 
