@@ -1,24 +1,31 @@
-# Deep Research Workflow - Complete Implementation Guide
+# Deep Research Implementation Guide
 
-**Purpose**: Multi-agent parallel research pipeline using LangGraph for comprehensive industry intelligence reports
+**Purpose**: Complete implementation guide for building a multi-agent parallel research pipeline with real-time SSE streaming and beautiful visual progress display.
 
-**Date Created**: January 11, 2026  
-**Based On**: C1 Intelligence Hub Sessions 42-75 (Production-ready as of Jan 7, 2026)
+**This Guide Contains Everything Needed To**:
+1. Build the backend LangGraph workflow with parallel execution
+2. Implement SSE streaming with granular progress events
+3. Create the visual progress pipeline display (the impressive part!)
+4. Build the research report display components
+5. Handle errors, timeouts, and edge cases
 
 ---
 
 ## Table of Contents
 
 1. [Architecture Overview](#architecture-overview)
-2. [Prerequisites & Dependencies](#prerequisites--dependencies)
-3. [Project Structure](#project-structure)
-4. [State Management with Reducers](#state-management-with-reducers)
-5. [Agent Implementation Patterns](#agent-implementation-patterns)
-6. [LangGraph Workflow Setup](#langgraph-workflow-setup)
-7. [SSE Streaming & Progress](#sse-streaming--progress)
-8. [Testing & Debugging](#testing--debugging)
-9. [Key Learnings & Gotchas](#key-learnings--gotchas)
-10. [Production Checklist](#production-checklist)
+2. [TypeScript Types (Frontend)](#typescript-types-frontend)
+3. [React Hook: useDeepResearch](#react-hook-usedeepresearch)
+4. [Visual Components](#visual-components)
+   - [ResearchProgress](#researchprogress-component)
+   - [ResearchReport](#researchreport-component)
+   - [ResearchDashboard](#researchdashboard-component)
+   - [Supporting Components](#supporting-components)
+5. [Backend State Management](#backend-state-management)
+6. [Backend SSE API Route](#backend-sse-api-route)
+7. [Styling Utilities](#styling-utilities)
+8. [Key Implementation Details](#key-implementation-details)
+9. [Production Checklist](#production-checklist)
 
 ---
 

@@ -199,12 +199,15 @@ def _condense_findings(output) -> Dict[str, Any]:
     
     # Condense findings to just the core content
     for f in data.get("findings", [])[:10]:  # Limit to top 10 findings
+        citation = f.get("citation", {}) or {}
         condensed["findings"].append({
             "finding": f.get("finding"),
             "type": f.get("finding_type") or f.get("event_type"),
             "confidence": f.get("confidence"),
             "entities": f.get("entities_mentioned", [])[:3],
-            "source": f.get("citation", {}).get("source_title") if f.get("citation") else None,
+            "source": citation.get("source_title"),
+            "source_url": citation.get("source_url"),  # Include URL for citation linking
+            "source_date": citation.get("source_date"),
         })
     
     return condensed
@@ -231,8 +234,9 @@ SYNTHESIZER_SYSTEM_PROMPT = """You are a synthesis agent. Convert research findi
    - defensive_angles: 1 max. Format: {"risk": "The threat", "mitigation": "How to counter"}
    - questions_to_explore: 2-3 discovery questions
 
-4. SOURCES
+4. SOURCES & CITATIONS
    - sources_used: List 3-5 key sources (not every article)
+   - CRITICAL: Include source_url from findings data. Users need clickable links!
    - data_gaps: What's missing (1 sentence)
 
 ## ANTI-PATTERNS (avoid these)
@@ -396,7 +400,7 @@ OUTPUT FORMAT (valid JSON):
       "section_title": "Short Title",
       "content": "2-3 sentences of insight. Use markdown bullets for lists.",
       "tables": [],
-      "citations": [{{"source_type": "type", "source_title": "Title", "source_url": null, "source_date": null}}],
+      "citations": [{{"source_type": "type", "source_title": "Title", "source_url": "https://... (USE URL FROM FINDINGS DATA)", "source_date": "2025-01-01"}}],
       "confidence": "high|medium|low",
       "supporting_visuals": []
     }}
@@ -412,7 +416,7 @@ OUTPUT FORMAT (valid JSON):
     "caution_note": "Validate findings with account-specific knowledge."
   }},
   "all_visuals": [],
-  "sources_used": [{{"source_type": "type", "source_title": "Title", "source_url": null, "source_date": null}}],
+  "sources_used": [{{"source_type": "type", "source_title": "Title", "source_url": "https://... (USE URL FROM FINDINGS DATA)", "source_date": "2025-01-01"}}],
   "source_breakdown": {{}},
   "data_gaps": ["What's missing"],
   "warnings": [],
