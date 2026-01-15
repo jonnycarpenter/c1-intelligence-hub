@@ -15,6 +15,7 @@ import {
 import {
     apolloService
 } from '@/lib/api'
+import { getApiBaseUrl } from '@/lib/config'
 
 // Local type definitions
 export type PipelineMode = 'instant' | 'full'
@@ -255,7 +256,7 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
             }))
             historyForApi.push({ role: 'user', content: message })
 
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/api/pipeline/agent/chat`, {
+            const response = await fetch(`${getApiBaseUrl()}/api/pipeline/agent/chat`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

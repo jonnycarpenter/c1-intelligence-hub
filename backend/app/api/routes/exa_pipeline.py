@@ -551,12 +551,18 @@ class AgentChatRequest(BaseModel):
 class SearchBlockResponse(BaseModel):
     """A single search block in the agent response."""
     id: str
-    block_type: str  # similar_companies, search_companies, contacts, trigger_events, webset_building
+    block_type: str  # similar_companies, search_companies, contacts, trigger_events, webset_building, apollo_*
     title: str
     query_context: str
     prospects: Optional[List[EnhancedProspectResult]] = None
     contacts: Optional[List[EnhancedContactResult]] = None
     trigger_events: Optional[List[EnhancedTriggerEventResult]] = None
+    # Apollo.io fields
+    apollo_contacts: Optional[List[dict]] = None  # ApolloContactTeaserResult as dict
+    apollo_enrichment: Optional[dict] = None  # ApolloEnrichmentResult as dict
+    apollo_contact_revealed: Optional[dict] = None  # ApolloContactRevealedResult as dict
+    apollo_credits: Optional[dict] = None  # ApolloCreditStatus as dict
+    company_enrichment: Optional[dict] = None  # Company context for contact searches
     # Webset fields
     webset_id: Optional[str] = None
     webset_name: Optional[str] = None
@@ -705,6 +711,13 @@ async def agent_chat(request: AgentChatRequest):
                 prospects=prospects,
                 contacts=contacts,
                 trigger_events=trigger_events,
+                # Apollo.io fields - pass through as dicts
+                apollo_contacts=[c.model_dump() for c in block.apollo_contacts] if block.apollo_contacts else None,
+                apollo_enrichment=block.apollo_enrichment.model_dump() if block.apollo_enrichment else None,
+                apollo_contact_revealed=block.apollo_contact_revealed.model_dump() if block.apollo_contact_revealed else None,
+                apollo_credits=block.apollo_credits.model_dump() if block.apollo_credits else None,
+                company_enrichment=block.company_enrichment.model_dump() if block.company_enrichment else None,
+                # Webset fields
                 webset_id=block.webset_id,
                 webset_name=block.webset_name,
                 webset_status=block.webset_status,
