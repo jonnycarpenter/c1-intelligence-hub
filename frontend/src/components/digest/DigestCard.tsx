@@ -1,16 +1,39 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { ExternalLink, Newspaper, ChevronDown, ChevronUp } from 'lucide-react'
+import { 
+  ExternalLink, 
+  Newspaper, 
+  ChevronDown, 
+  ChevronUp,
+  TrendingUp,    // market
+  Truck,         // supply-chain
+  Scale,         // regulatory
+  Users,         // competitor
+  DollarSign,    // pricing
+  Package,       // product
+  Factory,       // industry
+} from 'lucide-react'
 import { Badge, PriorityBadge, CategoryBadge, Modal } from '@/components/ui'
 import { cn } from '@/lib/utils'
-import type { DigestItem, Priority } from '@/types'
+import type { DigestItem, Priority, Category } from '@/types'
 
 const priorityColors: Record<Priority, string> = {
   critical: 'bg-red-500',
   high: 'bg-emerald-500',
   medium: 'bg-blue-500',
   low: 'bg-slate-400',
+}
+
+// Category icons for visual distinction
+const categoryIcons: Record<Category, React.ReactNode> = {
+  'market': <TrendingUp size={11} />,
+  'supply-chain': <Truck size={11} />,
+  'regulatory': <Scale size={11} />,
+  'competitor': <Users size={11} />,
+  'pricing': <DollarSign size={11} />,
+  'product': <Package size={11} />,
+  'industry': <Factory size={11} />,
 }
 
 /**
@@ -91,11 +114,21 @@ export default function DigestCard({ item }: DigestCardProps) {
     low: 'border-slate-300',
   }
 
+  // Subtle background gradients based on priority for visual interest
+  const bgGradients: Record<Priority, string> = {
+    critical: 'bg-gradient-to-br from-white via-white to-red-50/30',
+    high: 'bg-gradient-to-br from-white via-white to-emerald-50/40',
+    medium: 'bg-gradient-to-br from-white via-white to-blue-50/30',
+    low: 'bg-gradient-to-br from-white to-slate-50/50',
+  }
+
   return (
     <div className={cn(
-      "group relative bg-white rounded-r-xl rounded-l-md shadow-sm border border-slate-200/60 transition-all duration-200 hover:shadow-md hover:border-emerald-200/50",
+      "group relative rounded-r-xl rounded-l-md shadow-sm border border-slate-200/60 transition-all duration-300",
+      "hover:shadow-lg hover:-translate-y-0.5 hover:border-emerald-300/60",
       "border-l-4",
-      borderColors[item.priority] || 'border-slate-300'
+      borderColors[item.priority] || 'border-slate-300',
+      bgGradients[item.priority] || 'bg-white'
     )}>
       <div className="p-4 space-y-3">
         {/* Header: Title & Meta */}
@@ -107,9 +140,10 @@ export default function DigestCard({ item }: DigestCardProps) {
           )}
 
           <div className="flex items-center flex-wrap gap-2 text-xs">
-            {/* Category always shown */}
-            <span className="font-semibold text-slate-500 uppercase tracking-wider text-[10px]">
-              {item.category.replace('_', ' ')}
+            {/* Category with icon */}
+            <span className="inline-flex items-center gap-1 font-semibold text-slate-500 uppercase tracking-wider text-[10px]">
+              <span className="text-slate-400">{categoryIcons[item.category]}</span>
+              {item.category.replace('-', ' ')}
             </span>
 
             <span className="text-slate-300">•</span>

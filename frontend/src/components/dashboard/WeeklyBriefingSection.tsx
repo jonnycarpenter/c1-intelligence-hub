@@ -116,15 +116,16 @@ const extractDomain = (url: string): string => {
   }
 }
 
-// Parse citations like [1], [2], logos like [[Company Name]], and entity highlights like {{Entity}}
+// Parse citations like [1], [2], logos like [[Company Name]], and entity highlights like {{Entity}} or {Entity}
 // Now accepts optional sourceArticles to make citations clickable with domain hover
 const renderTextWithLogosAndCitations = (
   text: string,
   companiesWithLogos: CompanyWithLogo[],
   sourceArticles?: SourceArticle[]
 ) => {
-  // Split by citations [N], [Exa:N], company tags [[Company]], and entity tags {{Entity}}
-  const parts = text.split(/(\[(?:Exa:)?\d+\]|\[\[.*?\]\]|\{\{.*?\}\})/g)
+  // Split by citations [N], [Exa:N], company tags [[Company]], entity tags {{Entity}}, and single brace {Entity}
+  // Note: Single brace {Entity} is for materials/products from the LLM
+  const parts = text.split(/(\[(?:Exa:)?\d+\]|\[\[.*?\]\]|\{\{.*?\}\}|\{[^{}]+\})/g)
 
   return parts.map((part, idx) => {
     // Handle citations [N] or [Exa:N]
@@ -179,11 +180,21 @@ const renderTextWithLogosAndCitations = (
       )
     }
 
-    // Handle entity highlights {{Entity}} - bold text without logo
+    // Handle entity highlights {{Entity}} - bold text without logo (double braces)
     if (/^\{\{.*?\}\}$/.test(part)) {
       const entityName = part.replace(/[\{\}]/g, '')
       return (
         <span key={idx} className="font-semibold text-slate-800">
+          {entityName}
+        </span>
+      )
+    }
+
+    // Handle single braces {Entity} - bold text for materials/products from LLM
+    if (/^\{[^{}]+\}$/.test(part)) {
+      const entityName = part.slice(1, -1) // Remove single braces
+      return (
+        <span key={idx} className="font-semibold text-emerald-700">
           {entityName}
         </span>
       )
@@ -394,6 +405,7 @@ export default function WeeklyBriefingSection({
   onHistoryClick
 }: WeeklyBriefingSectionProps) {
   const [isPodcastModalOpen, setIsPodcastModalOpen] = useState(false)
+  const [isOverallTrendExpanded, setIsOverallTrendExpanded] = useState(false)
 
   if (isLoading) {
     return (
@@ -474,23 +486,43 @@ export default function WeeklyBriefingSection({
         </div>
       </div>
 
-      {/* Briefing Title + BLUF */}
+      {/* Briefing Title + Summary */}
       <div className="bg-gradient-to-r from-emerald-100 to-emerald-100 border border-emerald-200 rounded-xl p-4">
         <h3 className="text-lg font-bold text-slate-900">{briefing.briefing_title}</h3>
         {briefing.bluf && (
           <div className="mt-3 p-3 bg-white/60 rounded-lg border border-emerald-200/50">
-            <div className="flex items-start gap-2">
-              <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider shrink-0 mt-0.5">BLUF</span>
-              <p className="text-sm font-medium text-slate-800 leading-relaxed">
-                {renderTextWithLogosAndCitations(briefing.bluf, allCompaniesWithLogos)}
-              </p>
-            </div>
+            <p className="text-sm font-medium text-slate-800 leading-relaxed">
+              {renderTextWithLogosAndCitations(briefing.bluf, allCompaniesWithLogos)}
+            </p>
           </div>
         )}
         {briefing.overall_trend && (
-          <p className="text-sm text-slate-600 mt-3">
-            {renderTextWithLogosAndCitations(briefing.overall_trend, allCompaniesWithLogos)}
-          </p>
+          <div className="mt-3">
+            {/* Collapsible Overall Trend */}
+            {!isOverallTrendExpanded && (
+              <div className="relative">
+                <p className="text-sm text-slate-600 line-clamp-2">
+                  {renderTextWithLogosAndCitations(briefing.overall_trend, allCompaniesWithLogos)}
+                </p>
+                <div className="absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-emerald-100 to-transparent pointer-events-none" />
+              </div>
+            )}
+            {isOverallTrendExpanded && (
+              <p className="text-sm text-slate-600 leading-relaxed">
+                {renderTextWithLogosAndCitations(briefing.overall_trend, allCompaniesWithLogos)}
+              </p>
+            )}
+            <button
+              onClick={() => setIsOverallTrendExpanded(!isOverallTrendExpanded)}
+              className="flex items-center gap-1 text-xs text-emerald-600 font-medium hover:text-emerald-700 transition-colors mt-2"
+            >
+              {isOverallTrendExpanded ? (
+                <><ChevronUp size={14} /> Show less</>
+              ) : (
+                <><ChevronDown size={14} /> Read full summary</>
+              )}
+            </button>
+          </div>
         )}
         <div className="mt-3 flex items-center gap-4 text-xs text-slate-500">
           <span>{briefing.article_count} articles analyzed</span>
