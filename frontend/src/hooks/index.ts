@@ -1,5 +1,7 @@
 export { useDigest } from './useDigest'
 export { useStreamingChat } from './useStreamingChat'
+export { useDiscoveryChat } from './useDiscoveryChat'
+export type { ChatMessage as DiscoveryChatMessage } from './useDiscoveryChat'
 export { useProducts, useProduct, useProductComparison, useProductGaps } from './useProducts'
 export type { Product, ProductFilters, ProductsResponse, ProductComparison, GapAnalysis } from './useProducts'
 export { useCompanies, useCompanyTracking } from './useCompanies'

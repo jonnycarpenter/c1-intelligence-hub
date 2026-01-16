@@ -17,6 +17,104 @@ Without reliable daily ingestion:
 **Always verify scheduler jobs are running before working on features.**
 
 ---
+## 📅 SESSION 81: Discovery Tab - Phase 1 Backend + Hook (January 16, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 What Was Done
+
+Implemented Phase 1 of the Discovery Tab feature - a new market intelligence exploration view with AI-powered chat assistant.
+
+**Discovery Tab Overview** (from `discovery_tab_guide.md`):
+- Two-column article feed: Categories (30-day) + Latest High-Priority (72h)
+- AI Assistant panel with streaming chat and tool access
+- Quick pivot: Click entities to trigger assistant searches
+
+### 📁 Files Created
+
+**Backend:**
+- `backend/app/api/routes/discovery.py` - Streaming chat API endpoint
+  - `POST /api/discovery/chat/stream` - SSE streaming with tool-use loop
+  - `POST /api/discovery/chat` - Non-streaming for testing
+  - Tools: `corpus_search` (BigQuery vector store), `exa_search` (live web)
+  - Claude 3.5 Haiku for fast responses (~2-4 sec)
+  - 60s timeout per LLM iteration, max 5 tool loops
+
+**Frontend:**
+- `frontend/src/hooks/useDiscoveryChat.ts` - SSE streaming chat hook
+  - Handles `chunk`, `tool_call`, `complete`, `error` events
+  - Tracks `activeTools` for UI indicators
+  - Message history management with abort controller
+
+**Modified:**
+- `backend/app/main.py` - Registered discovery router at `/api/discovery`
+- `backend/app/api/routes/__init__.py` - Added discovery export
+- `frontend/src/hooks/index.ts` - Exported useDiscoveryChat hook
+
+### 🧪 Verification
+
+```powershell
+# Backend compiles
+cd backend
+python -c "from app.api.routes.discovery import router; print('OK')"
+
+# Frontend TypeScript compiles
+cd frontend
+npx tsc --noEmit  # No errors
+
+# Local tool test (Exa worked, corpus needs gcloud reauth locally)
+# Production deployment triggered via git push
+```
+
+### 🚀 Deployment
+
+- Pushed to `origin/master` - Cloud Build auto-deploys
+- Test production endpoint:
+```powershell
+$body = '{"query": "What are recent competitor moves?", "history": []}'
+Invoke-RestMethod -Uri "https://c1-hub-4iz75bvpyq-uc.a.run.app/api/discovery/chat" -Method Post -Body $body -ContentType "application/json" -TimeoutSec 120
+```
+
+---
+
+## 🗺️ DISCOVERY TAB - IMPLEMENTATION PHASES
+
+**Blueprint**: See `discovery_tab_guide.md` for full spec.
+
+### Phase 1: Backend + Hook ✅ COMPLETE (Session 81)
+- [x] Backend `/api/discovery/chat/stream` endpoint
+- [x] Backend `/api/discovery/chat` non-streaming endpoint
+- [x] `useDiscoveryChat` hook with SSE streaming
+- [x] TypeScript compiles, deployed to production
+
+### Phase 2: Frontend Assembly (NEXT SESSION)
+- [ ] `DiscoveryAssistant.tsx` - Chat panel component
+  - Dark header with Sparkles icon
+  - Message bubbles (user=teal, assistant=gray)
+  - Source badges (Corpus, Web, Podcast)
+  - Quick suggestion chips
+  - Input field with loading state
+- [ ] `DiscoveryView.tsx` - Main container
+  - 2-column grid layout
+  - Left: CategoryAccordions from `groupByCategory(items)`
+  - Right: Latest high-priority (72h, relevance≥0.3)
+  - Header with "Live Intelligence" badge, dynamic greeting, stats
+- [ ] Wire `onQuickFilter` from DigestCard → open assistant
+- [ ] Export from `components/feed/index.ts`
+
+### Phase 3: Polish (Optional)
+- [ ] Keyboard shortcut: `/` to open assistant
+- [ ] Empty states and animations
+- [ ] Stats header refinements
+
+### Existing Components to Reuse
+- `DigestCard` - Already has priority colors, entity pills, expand/collapse
+- `CollectionAccordion` - Similar to CategoryAccordion spec
+- `useDigest` hook - Already transforms API data
+- Badge components (`PriorityBadge`, `CategoryBadge`)
+
+---
+
 ## 📅 SESSION 80: Pipeline Agent - Contact Search & Metadata Fixes (January 14, 2026)
 
 **Status**: ✅ COMPLETE
