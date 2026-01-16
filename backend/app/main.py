@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
 from app.config.settings import settings
-from app.api.routes import chat, reports, data, digest, briefing, podcast, ingest, products, companies, industries, data_preferences, data_ingestion, scheduler, deep_research, exa_pipeline, datasheets, memory, auth
+from app.api.routes import chat, reports, data, digest, briefing, podcast, ingest, products, companies, industries, data_preferences, data_ingestion, scheduler, deep_research, exa_pipeline, datasheets, memory, auth, discovery
 from app.utils.logger import setup_logging, get_logger
 
 # ImportYeti is optional - waiting on API access
@@ -77,6 +77,7 @@ app.include_router(exa_pipeline.router, prefix="/api/pipeline", tags=["exa-pipel
 app.include_router(datasheets.router, prefix="/api/datasheets", tags=["datasheets"])
 app.include_router(memory.router, prefix="/api/memory", tags=["memory"])
 app.include_router(auth.router, prefix="/api", tags=["auth"])
+app.include_router(discovery.router, prefix="/api/discovery", tags=["discovery"])
 
 
 @app.get("/api/health")
