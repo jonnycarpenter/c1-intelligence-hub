@@ -4,7 +4,27 @@
 export type Mode = 'pulse' | 'discovery' | 'research' | 'products' | 'field-sales' | 'pipeline' | 'companies' | 'industries' | 'data-preferences' // | 'importyeti' // ARCHIVED
 export type ViewMode = 'grid' | 'list'
 export type Priority = 'critical' | 'high' | 'medium' | 'low'
-export type Category = 'market' | 'supply-chain' | 'regulatory' | 'competitor' | 'pricing' | 'product' | 'industry'
+// Categories aligned with backend ContentCategory/DigestCategory enums
+export type Category = 
+  | 'Market'
+  | 'Supply Chain'
+  | 'Regulatory'
+  | 'Competitor'
+  | 'Product'
+  | 'Earnings'
+  | 'Partnership'
+  | 'Expansion'
+  | 'Logistics'
+  | 'C1 Mention'
+  | 'General'
+  // Legacy compatibility
+  | 'market'
+  | 'supply-chain'
+  | 'regulatory'
+  | 'competitor'
+  | 'pricing'
+  | 'product'
+  | 'industry'
 
 export interface Source {
   name: string
@@ -32,6 +52,7 @@ export interface DigestItem {
   publishedAt?: Date
   coverage_count?: number
   is_hero?: boolean
+  relevance_score?: number  // 0.0-1.0 from LLM classifier
 }
 
 export interface DigestStats {

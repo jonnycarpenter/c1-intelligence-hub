@@ -17,6 +17,66 @@ Without reliable daily ingestion:
 **Always verify scheduler jobs are running before working on features.**
 
 ---
+## 📅 SESSION 83: Discovery Tab - Phase 3 Polish (January 16, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 What Was Done
+
+Final polish for Discovery Tab - added relevance score display and company name highlighting in DigestCards, aligned categories with backend ContentCategory enum.
+
+### 📁 Files Modified
+
+**Frontend Types:**
+- `frontend/src/types/index.ts` - Updated Category type to match backend ContentCategory enum (Title Case + legacy lowercase), added `relevance_score` to DigestItem
+
+**Frontend Components:**
+- `frontend/src/components/digest/DigestCard.tsx`:
+  - Added company name highlighting in titles (bold when entity matches)
+  - Added relevance score badge in footer (color-coded: ≥70% green, ≥40% blue, <40% gray)
+  - Added icons for all backend categories (Partnership, Expansion, C1 Mention, etc.)
+
+- `frontend/src/components/feed/DiscoveryView.tsx`:
+  - Updated CATEGORY_CONFIG with all C1 categories from backend
+  - Updated CATEGORY_PRIORITY for sorting
+  - Supports both Title Case (backend) and legacy lowercase values
+
+**Frontend Hooks:**
+- `frontend/src/hooks/useDigest.ts` - Transform relevance_score from API
+- `frontend/src/lib/api.ts` - Added relevance_score to ApiDigestItem
+
+**Backend:**
+- `backend/app/api/schemas.py` - Added `relevance_score: Optional[float]` to DigestItem
+- `backend/app/services/digest_service.py` - Include relevance_score when building DigestItem
+
+### 🧪 Verification
+
+```powershell
+cd frontend
+npx tsc --noEmit  # No errors
+npm run build     # ✓ Compiled successfully
+
+cd ../backend
+python -c "from app.services.digest_service import DigestService; print('OK')"  # OK
+```
+
+### 📋 Discovery Tab Implementation Status
+
+| Feature | Status |
+|---------|--------|
+| Backend streaming endpoint | ✅ Complete |
+| useDiscoveryChat hook | ✅ Complete |
+| DiscoveryAssistant panel | ✅ Complete |
+| DiscoveryView 2-column layout | ✅ Complete |
+| Category Accordions | ✅ Complete |
+| `/` keyboard shortcut | ✅ Complete |
+| Entity pill → assistant search | ✅ Complete |
+| Company name highlighting in titles | ✅ Complete |
+| Relevance score display | ✅ Complete |
+| All C1 categories supported | ✅ Complete |
+
+---
+
 ## 📅 SESSION 82: Discovery Tab - Phase 2 Frontend Assembly (January 16, 2026)
 
 **Status**: ✅ COMPLETE
@@ -172,11 +232,11 @@ Invoke-RestMethod -Uri "https://c1-hub-4iz75bvpyq-uc.a.run.app/api/discovery/cha
 - [x] Added 'discovery' to Mode type across codebase
 - [x] Full Next.js build passes
 
-### Phase 3: Polish (Optional)
-- [ ] Keyboard shortcut: `/` to open assistant
-- [ ] Quick pivot: Wire entity pills in DigestCard → open assistant with search
-- [ ] Empty states and animations
-- [ ] Stats header refinements
+### Phase 3: Polish ✅ COMPLETE (Session 82)
+- [x] Keyboard shortcut: `/` to open assistant, `Escape` to close
+- [x] Quick pivot: Entity pills clickable → opens assistant with "Tell me more about {entity}"
+- [ ] Empty states and animations (deferred)
+- [ ] Stats header refinements (deferred)
 
 ---
 

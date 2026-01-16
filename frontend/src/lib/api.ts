@@ -34,6 +34,7 @@ export interface ApiDigestItem {
   published_at: string
   ingested_at: string
   coverage_count?: number
+  relevance_score?: number  // 0.0-1.0 from LLM classifier
 }
 
 export interface ApiDigest {

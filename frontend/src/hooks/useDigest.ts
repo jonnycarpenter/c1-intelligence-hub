@@ -25,6 +25,7 @@ function transformDigestItem(item: ApiDigestItem): DigestItem {
     },
     timestamp: formatRelativeTime(item.published_at),
     coverage_count: item.coverage_count,
+    relevance_score: item.relevance_score,
   }
 }
 

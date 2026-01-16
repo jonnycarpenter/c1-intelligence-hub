@@ -6,13 +6,16 @@ import {
   Newspaper, 
   ChevronDown, 
   ChevronUp,
-  TrendingUp,    // market
-  Truck,         // supply-chain
-  Scale,         // regulatory
-  Users,         // competitor
-  DollarSign,    // pricing
-  Package,       // product
-  Factory,       // industry
+  TrendingUp,    // Market
+  Truck,         // Supply Chain, Logistics
+  Scale,         // Regulatory
+  Users,         // Competitor
+  DollarSign,    // Earnings, pricing
+  Package,       // Product
+  Factory,       // industry, General
+  Handshake,     // Partnership
+  Building2,     // Expansion
+  Star,          // C1 Mention
 } from 'lucide-react'
 import { Badge, PriorityBadge, CategoryBadge, Modal } from '@/components/ui'
 import { cn } from '@/lib/utils'
@@ -25,8 +28,21 @@ const priorityColors: Record<Priority, string> = {
   low: 'bg-slate-400',
 }
 
-// Category icons for visual distinction
-const categoryIcons: Record<Category, React.ReactNode> = {
+// Category icons for visual distinction - supports both Title Case (backend) and legacy lowercase
+const categoryIcons: Record<string, React.ReactNode> = {
+  // Title Case (backend ContentCategory enum)
+  'Market': <TrendingUp size={11} />,
+  'Supply Chain': <Truck size={11} />,
+  'Regulatory': <Scale size={11} />,
+  'Competitor': <Users size={11} />,
+  'Product': <Package size={11} />,
+  'Earnings': <DollarSign size={11} />,
+  'Partnership': <Handshake size={11} />,
+  'Expansion': <Building2 size={11} />,
+  'Logistics': <Truck size={11} />,
+  'C1 Mention': <Star size={11} />,
+  'General': <Factory size={11} />,
+  // Legacy lowercase (backwards compatibility)
   'market': <TrendingUp size={11} />,
   'supply-chain': <Truck size={11} />,
   'regulatory': <Scale size={11} />,
@@ -107,6 +123,12 @@ export default function DigestCard({ item, onQuickFilter }: DigestCardProps) {
     [item.summary, allEntities]
   )
 
+  // Memoize highlighted title (company names only for cleaner look)
+  const highlightedTitle = useMemo(
+    () => highlightEntities(item.title, item.entities?.companies || []),
+    [item.title, item.entities?.companies]
+  )
+
   // Priority color map for border
   const borderColors: Record<Priority, string> = {
     critical: 'border-red-500',
@@ -136,7 +158,7 @@ export default function DigestCard({ item, onQuickFilter }: DigestCardProps) {
         <div className="space-y-1.5">
           {item.title && (
             <h3 className="text-base font-bold text-slate-900 leading-snug group-hover:text-emerald-700 transition-colors">
-              {item.title}
+              {highlightedTitle}
             </h3>
           )}
 
@@ -223,31 +245,53 @@ export default function DigestCard({ item, onQuickFilter }: DigestCardProps) {
           </div>
         )}
 
-        {/* Footer: Source Link */}
-        {sources.length > 0 && (
+        {/* Footer: Source Link + Relevance Score */}
+        {(sources.length > 0 || item.relevance_score !== undefined) && (
           <div className="pt-2 border-t border-slate-50 flex items-center justify-between">
-            {hasMultipleSources ? (
-              <button
-                onClick={() => setShowSourcesModal(true)}
-                className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-emerald-600 transition-colors group/src"
-              >
-                <Newspaper size={12} />
-                <span className="group-hover/src:underline decoration-emerald-200 underline-offset-2">
-                  {sources.length} sources analyzed
-                </span>
-              </button>
+            {/* Left: Source info */}
+            {sources.length > 0 ? (
+              hasMultipleSources ? (
+                <button
+                  onClick={() => setShowSourcesModal(true)}
+                  className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-emerald-600 transition-colors group/src"
+                >
+                  <Newspaper size={12} />
+                  <span className="group-hover/src:underline decoration-emerald-200 underline-offset-2">
+                    {sources.length} sources analyzed
+                  </span>
+                </button>
+              ) : (
+                <a
+                  href={sources[0].url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-emerald-600 transition-colors group/src"
+                >
+                  <ExternalLink size={12} />
+                  <span className="truncate max-w-[200px] group-hover/src:underline decoration-emerald-200 underline-offset-2">
+                    {sources[0].name || sources[0].title || 'Source'}
+                  </span>
+                </a>
+              )
             ) : (
-              <a
-                href={sources[0].url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-emerald-600 transition-colors group/src"
+              <span />
+            )}
+
+            {/* Right: Relevance Score */}
+            {item.relevance_score !== undefined && (
+              <span 
+                className={cn(
+                  "inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded",
+                  item.relevance_score >= 0.7 
+                    ? "bg-emerald-50 text-emerald-700" 
+                    : item.relevance_score >= 0.4
+                      ? "bg-blue-50 text-blue-600"
+                      : "bg-slate-100 text-slate-500"
+                )}
+                title={`Relevance: ${Math.round(item.relevance_score * 100)}%`}
               >
-                <ExternalLink size={12} />
-                <span className="truncate max-w-[200px] group-hover/src:underline decoration-emerald-200 underline-offset-2">
-                  {sources[0].name || sources[0].title || 'Source'}
-                </span>
-              </a>
+                {Math.round(item.relevance_score * 100)}% match
+              </span>
             )}
           </div>
         )}

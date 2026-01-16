@@ -70,26 +70,54 @@ function groupByCategory(items: DigestItem[]): Map<Category, DigestItem[]> {
   return grouped
 }
 
-// Category display configuration
-const CATEGORY_CONFIG: Record<Category, { label: string; color: string; bgLight: string }> = {
+// Category display configuration - aligned with backend ContentCategory enum
+// Supports both Title Case (backend) and legacy lowercase (old frontend)
+const CATEGORY_CONFIG: Record<string, { label: string; color: string; bgLight: string }> = {
+  // Backend categories (Title Case)
+  'Competitor': { label: 'Competitor Moves', color: 'border-l-rose-500', bgLight: 'bg-rose-50' },
+  'Market': { label: 'Market Dynamics', color: 'border-l-blue-500', bgLight: 'bg-blue-50' },
+  'Regulatory': { label: 'Health & Regulatory', color: 'border-l-amber-500', bgLight: 'bg-amber-50' },
+  'Product': { label: 'Product News', color: 'border-l-cyan-500', bgLight: 'bg-cyan-50' },
+  'Earnings': { label: 'Earnings & Financial', color: 'border-l-emerald-500', bgLight: 'bg-emerald-50' },
+  'Partnership': { label: 'Partnerships', color: 'border-l-violet-500', bgLight: 'bg-violet-50' },
+  'Expansion': { label: 'Expansion & Investment', color: 'border-l-teal-500', bgLight: 'bg-teal-50' },
+  'Supply Chain': { label: 'Supply Chain', color: 'border-l-orange-500', bgLight: 'bg-orange-50' },
+  'Logistics': { label: 'Logistics', color: 'border-l-yellow-500', bgLight: 'bg-yellow-50' },
+  'C1 Mention': { label: 'C1 Mentions', color: 'border-l-pink-500', bgLight: 'bg-pink-50' },
+  'General': { label: 'General', color: 'border-l-slate-400', bgLight: 'bg-slate-50' },
+  // Legacy lowercase categories (backwards compatibility)
   'market': { label: 'Market Dynamics', color: 'border-l-blue-500', bgLight: 'bg-blue-50' },
-  'supply-chain': { label: 'Supply Chain', color: 'border-l-amber-500', bgLight: 'bg-amber-50' },
-  'regulatory': { label: 'Health & Regulatory', color: 'border-l-rose-500', bgLight: 'bg-rose-50' },
-  'competitor': { label: 'Competitor Moves', color: 'border-l-purple-500', bgLight: 'bg-purple-50' },
+  'supply-chain': { label: 'Supply Chain', color: 'border-l-orange-500', bgLight: 'bg-orange-50' },
+  'regulatory': { label: 'Health & Regulatory', color: 'border-l-amber-500', bgLight: 'bg-amber-50' },
+  'competitor': { label: 'Competitor Moves', color: 'border-l-rose-500', bgLight: 'bg-rose-50' },
   'pricing': { label: 'Pricing & Financial', color: 'border-l-emerald-500', bgLight: 'bg-emerald-50' },
   'product': { label: 'Product News', color: 'border-l-cyan-500', bgLight: 'bg-cyan-50' },
   'industry': { label: 'Industry Trends', color: 'border-l-indigo-500', bgLight: 'bg-indigo-50' },
 }
 
 // Category priority for sorting (lower = shown first)
-const CATEGORY_PRIORITY: Record<Category, number> = {
+// Supports both Title Case and legacy lowercase
+const CATEGORY_PRIORITY: Record<string, number> = {
+  // Title Case (backend)
+  'C1 Mention': 0,
+  'Competitor': 1,
+  'Market': 2,
+  'Regulatory': 3,
+  'Earnings': 4,
+  'Partnership': 5,
+  'Expansion': 6,
+  'Supply Chain': 7,
+  'Logistics': 8,
+  'Product': 9,
+  'General': 10,
+  // Legacy lowercase
   'competitor': 1,
   'market': 2,
   'regulatory': 3,
   'pricing': 4,
-  'supply-chain': 5,
-  'product': 6,
-  'industry': 7,
+  'supply-chain': 7,
+  'product': 9,
+  'industry': 10,
 }
 
 // =============================================================================

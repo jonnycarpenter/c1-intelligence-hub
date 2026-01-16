@@ -175,6 +175,7 @@ class DigestItem(BaseModel):
     published_at: datetime
     ingested_at: datetime
     coverage_count: int = 1  # How many sources covered this story (virality indicator)
+    relevance_score: Optional[float] = None  # 0.0-1.0 from LLM classifier
 
 
 class DigestStats(BaseModel):

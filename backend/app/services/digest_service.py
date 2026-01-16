@@ -293,6 +293,14 @@ class DigestService:
         formatted_industries = [self._format_pill(i) for i in entities_raw["industries"]]
         formatted_topics = [self._format_pill(t) for t in entities_raw["topics"]]
         
+        # Get relevance_score, defaulting to None if not present
+        relevance_score = raw.get("relevance_score")
+        if relevance_score is not None:
+            try:
+                relevance_score = float(relevance_score)
+            except (TypeError, ValueError):
+                relevance_score = None
+
         return DigestItem(
             id=raw.get("id", str(uuid.uuid4())),
             title=raw.get("title", ""),
@@ -310,6 +318,7 @@ class DigestService:
             published_at=published_at,
             ingested_at=ingested_at,
             coverage_count=coverage_count,
+            relevance_score=relevance_score,
         )
     
     async def _generate_summary(self, items: List[DigestItem], hours: int) -> str:
