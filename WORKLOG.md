@@ -17,6 +17,82 @@ Without reliable daily ingestion:
 **Always verify scheduler jobs are running before working on features.**
 
 ---
+## 📅 SESSION 82: Discovery Tab - Phase 2 Frontend Assembly (January 16, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 What Was Done
+
+Implemented Phase 2 of the Discovery Tab feature - Complete frontend assembly with two-column layout, AI assistant panel, and category accordions.
+
+### 📁 Files Created
+
+**Frontend Components:**
+- `frontend/src/components/feed/DiscoveryAssistant.tsx` - AI chat panel component
+  - Dark header with Sparkles icon
+  - Message bubbles (user=teal, assistant=gray)
+  - Source badges (Corpus, Web, Podcast) showing which tools were used
+  - Quick suggestion chips for empty state
+  - Auto-scroll to bottom on new messages
+  - Input field with loading state
+  - Uses `useDiscoveryChat` hook for streaming
+
+- `frontend/src/components/feed/DiscoveryView.tsx` - Main container component
+  - 2-column grid layout
+  - Left: CategoryAccordions for 30-day articles grouped by category
+  - Right: Latest high-priority items from last 72h
+  - Header with "Live Intelligence" badge, dynamic greeting, stats
+  - Toggle button to show/hide AI assistant panel
+  - Uses `forwardRef` with `DiscoveryViewRef` to expose `openAssistant()` method
+
+- `frontend/src/components/feed/index.ts` - Component exports
+
+### 📁 Files Modified
+
+**Type System:**
+- `frontend/src/types/index.ts` - Added `'discovery'` to `Mode` type, `chatSuggestions`, `welcomeMessages`
+- `frontend/src/lib/api.ts` - Added `'discovery'` to `ApiQueryRequest.mode` type
+
+**Navigation:**
+- `frontend/src/components/layout/Sidebar.tsx` - Added Discovery nav item with Compass icon (teal color)
+- `frontend/src/components/layout/AppHeader.tsx` - Added discovery config to `modeConfig`
+- `frontend/src/components/chat/ChatInterface.tsx` - Added discovery to `modeSuggestions` and `welcomeMessages`
+
+**App Integration:**
+- `frontend/src/app/page.tsx` - Import DiscoveryView, render when `activeMode === 'discovery'`
+
+### 🧪 Verification
+
+```powershell
+# TypeScript compiles
+cd frontend
+npx tsc --noEmit  # No errors
+
+# Full build passes
+npm run build  # ✓ Compiled successfully
+
+# Backend still works
+cd backend
+python -c "from app.api.routes.discovery import router; print('OK')"
+```
+
+### 📋 What's Included
+
+- **Discovery nav item** appears in sidebar between Pulse and Research
+- **Two-column layout**: Categories (left) + Latest Urgent (right)
+- **Category Accordions**: Sorted by high-priority count, collapsible, shows 8 items initially with "Show all" button
+- **AI Assistant Panel**: Toggleable left panel (380px) with streaming chat, tool indicators, source badges
+- **Dynamic Header**: Time-based greeting, signal counts, toggle button for assistant
+- **Empty States**: Clean placeholders when no data or no urgent items
+
+### 📋 Open Items / Next Steps (Phase 3 - Optional Polish)
+
+- [ ] Keyboard shortcut: `/` to open assistant
+- [ ] Quick pivot: Wire `onQuickFilter` from DigestCard entity pills → open assistant with search
+- [ ] Empty states and animations
+- [ ] Stats header refinements
+
+---
 ## 📅 SESSION 81: Discovery Tab - Phase 1 Backend + Hook (January 16, 2026)
 
 **Status**: ✅ COMPLETE
@@ -87,31 +163,20 @@ Invoke-RestMethod -Uri "https://c1-hub-4iz75bvpyq-uc.a.run.app/api/discovery/cha
 - [x] `useDiscoveryChat` hook with SSE streaming
 - [x] TypeScript compiles, deployed to production
 
-### Phase 2: Frontend Assembly (NEXT SESSION)
-- [ ] `DiscoveryAssistant.tsx` - Chat panel component
-  - Dark header with Sparkles icon
-  - Message bubbles (user=teal, assistant=gray)
-  - Source badges (Corpus, Web, Podcast)
-  - Quick suggestion chips
-  - Input field with loading state
-- [ ] `DiscoveryView.tsx` - Main container
-  - 2-column grid layout
-  - Left: CategoryAccordions from `groupByCategory(items)`
-  - Right: Latest high-priority (72h, relevance≥0.3)
-  - Header with "Live Intelligence" badge, dynamic greeting, stats
-- [ ] Wire `onQuickFilter` from DigestCard → open assistant
-- [ ] Export from `components/feed/index.ts`
+### Phase 2: Frontend Assembly ✅ COMPLETE (Session 82)
+- [x] `DiscoveryAssistant.tsx` - Chat panel component
+- [x] `DiscoveryView.tsx` - Main container with 2-column layout
+- [x] Category Accordions (30-day articles grouped)
+- [x] Latest High-Priority column (72h)
+- [x] Discovery nav item in Sidebar
+- [x] Added 'discovery' to Mode type across codebase
+- [x] Full Next.js build passes
 
 ### Phase 3: Polish (Optional)
 - [ ] Keyboard shortcut: `/` to open assistant
+- [ ] Quick pivot: Wire entity pills in DigestCard → open assistant with search
 - [ ] Empty states and animations
 - [ ] Stats header refinements
-
-### Existing Components to Reuse
-- `DigestCard` - Already has priority colors, entity pills, expand/collapse
-- `CollectionAccordion` - Similar to CategoryAccordion spec
-- `useDigest` hook - Already transforms API data
-- Badge components (`PriorityBadge`, `CategoryBadge`)
 
 ---
 

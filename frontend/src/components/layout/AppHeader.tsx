@@ -23,6 +23,13 @@ const modeConfig: Record<Mode, { icon: typeof Activity; title: string; subtitle:
     color: 'text-emerald-500',
     bg: 'bg-emerald-100',
   },
+  discovery: {
+    icon: Activity, // Using Activity temporarily, could use Compass
+    title: 'Discovery',
+    subtitle: 'AI-guided market exploration',
+    color: 'text-teal-500',
+    bg: 'bg-teal-100',
+  },
   research: {
     icon: Search,
     title: 'Deep Research',

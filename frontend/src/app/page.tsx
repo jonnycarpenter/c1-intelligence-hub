@@ -15,6 +15,7 @@ import { FieldIntelDashboard } from '@/components/field-intel'
 import { PipelineDashboard } from '@/components/pipeline'
 // import { ImportYetiDashboard } from '@/components/importyeti' // ARCHIVED - Trade Intel feature
 import DataPreferencesDashboard from '@/components/data-preferences/DataPreferencesDashboard'
+import { DiscoveryView } from '@/components/feed'
 import { WelcomeTourModal } from '@/components/welcome'
 import { useDigest, useStreamingChat, useDeepResearch } from '@/hooks'
 import { useToast } from '@/components/ui'
@@ -340,7 +341,7 @@ export default function Home() {
           {/* Left panel - Dashboard/Content */}
           <div className={cn(
             "flex-1 min-w-0 overflow-hidden border-r border-slate-200",
-            activeMode === 'pulse' && "border-r-0"
+            (activeMode === 'pulse' || activeMode === 'discovery') && "border-r-0"
           )}>
             {activeMode === 'pulse' && (
               <PulseDashboard
@@ -348,6 +349,14 @@ export default function Home() {
                 stats={digestStats}
                 onAskAbout={handleAskAbout}
                 onAddToReport={handleAddToReport}
+                isLoading={digestLoading}
+                error={digestError as any}
+              />
+            )}
+            {activeMode === 'discovery' && (
+              <DiscoveryView
+                items={digestItems}
+                stats={digestStats}
                 isLoading={digestLoading}
                 error={digestError as any}
               />

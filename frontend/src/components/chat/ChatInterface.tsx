@@ -15,6 +15,11 @@ const modeSuggestions: Record<Mode, string[]> = {
     "Summarize today's critical supply chain alerts",
     "Any disruptions affecting our key suppliers?",
   ],
+  discovery: [
+    "What's trending in the market this week?",
+    "Show me recent competitor activity",
+    "Any notable supply chain news?",
+  ],
   research: [
     "Compare lithium suppliers in Chile vs Australia",
     "What are the ESG implications of rare earth mining?",
@@ -54,6 +59,7 @@ const modeSuggestions: Record<Mode, string[]> = {
 
 const welcomeMessages: Record<Mode, string> = {
   pulse: "I'm monitoring your supply chain intelligence in real-time. Ask me about any alerts, trends, or insights.",
+  discovery: "I can help you explore market intelligence. Ask me about trends, competitors, or any topic from our corpus.",
   research: "Ready to dive deep. I can analyze markets, compare suppliers, or research any supply chain topic.",
   products: "Let's explore your product intelligence. I can help with SKU analysis, alternatives, and supplier comparisons.",
   'field-sales': "Field Intel is coming soon! You'll be able to record voice memos, log competitor sightings, and share field observations.",

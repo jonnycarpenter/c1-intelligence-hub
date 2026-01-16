@@ -1,6 +1,6 @@
 'use client'
 
-import { Activity, Search, Package, Building2, Factory, FileText, Settings, ChevronLeft, ChevronRight, Database, Users, ShoppingCart, Construction, Mic, GitBranch, Ship } from 'lucide-react'
+import { Activity, Search, Package, Building2, Factory, FileText, Settings, ChevronLeft, ChevronRight, Database, Users, ShoppingCart, Construction, Mic, GitBranch, Ship, Compass } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Mode } from '@/types'
 
@@ -34,6 +34,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { id: 'pulse', label: 'Pulse', icon: Activity, description: 'Real-time intelligence', color: 'text-emerald-500', bg: 'bg-emerald-500' },
+  { id: 'discovery', label: 'Discovery', icon: Compass, description: 'AI-guided exploration', color: 'text-teal-500', bg: 'bg-teal-500', tooltip: 'Explore market intelligence with AI assistant' },
   { id: 'research', label: 'Research', icon: Search, description: 'Deep analysis', color: 'text-emerald-500', bg: 'bg-emerald-500' },
   { id: 'pipeline', label: 'Pipeline', icon: GitBranch, description: 'Prospect discovery', color: 'text-purple-500', bg: 'bg-purple-500', tooltip: 'Find similar companies and decision makers' },
   // { id: 'importyeti', label: 'Trade Intel', icon: Ship, description: 'Supply chain tracking', color: 'text-indigo-500', bg: 'bg-indigo-500' }, // ARCHIVED

@@ -1,7 +1,7 @@
 // ============================================
 // Core Types
 // ============================================
-export type Mode = 'pulse' | 'research' | 'products' | 'field-sales' | 'pipeline' | 'companies' | 'industries' | 'data-preferences' // | 'importyeti' // ARCHIVED
+export type Mode = 'pulse' | 'discovery' | 'research' | 'products' | 'field-sales' | 'pipeline' | 'companies' | 'industries' | 'data-preferences' // | 'importyeti' // ARCHIVED
 export type ViewMode = 'grid' | 'list'
 export type Priority = 'critical' | 'high' | 'medium' | 'low'
 export type Category = 'market' | 'supply-chain' | 'regulatory' | 'competitor' | 'pricing' | 'product' | 'industry'
@@ -519,6 +519,7 @@ export const modeConfig = {
 
 export const chatSuggestions: Record<Mode, string[]> = {
   pulse: ['What happened with Hexcel this week?', 'Recent carbon fiber news', 'Competitor M&A activity'],
+  discovery: ['What\'s trending this week?', 'Show me competitor activity', 'Any supply chain news?'],
   research: ['Analyze aerospace themes from recent earnings', 'Carbon fiber price trends', 'Compare Hexcel vs Toray'],
   products: ['Hexcel prepreg SKUs for aerospace', 'Compare epoxy resin options', 'T700 carbon fiber specs'],
   'field-sales': ['Record field intel', 'Voice memo from customer visit', 'Log competitor sighting'],
@@ -532,6 +533,7 @@ export const chatSuggestions: Record<Mode, string[]> = {
 
 export const welcomeMessages: Record<Mode, string> = {
   pulse: "Welcome to the Intelligence Pulse. I'm monitoring the composites industry in real-time.\n\nI can help you with:\n• **Recent news** on companies, materials, or markets\n• **Competitor movements** and announcements\n• **Supply chain** updates",
+  discovery: "Welcome to Discovery. I can help you explore market intelligence with AI assistance.\n\nI can help you with:\n• **Market trends** — what's happening in the industry\n• **Competitor moves** — recent activity and announcements\n• **Quick pivots** — click any entity to learn more",
   research: "Welcome to Deep Research. I'm ready for comprehensive analysis.\n\nI can help you with:\n• **Earnings call analysis** — themes, sentiment\n• **Financial trends** — commodities, pricing\n• **Comparative analysis** — across companies",
   products: "Welcome to Product Intelligence.\n\nI can help you with:\n• **SKU lookups** — competitor catalogs\n• **Spec comparisons** — technical specs\n• **Gap analysis** — opportunities",
   'field-sales': "Welcome to Field Intel. Coming soon!\n\nYou'll be able to:\n• **Record voice memos** — capture field intelligence\n• **Log competitor sightings** — track field observations\n• **Share insights** — distribute intel to the team",
