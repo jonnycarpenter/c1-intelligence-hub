@@ -455,8 +455,8 @@ export default function Home() {
             )}
           </div>
 
-          {/* Right panel - Chat (hidden for pulse, research, pipeline, products, field-sales, and data-preferences) */}
-          {activeMode !== 'pulse' && activeMode !== 'research' && activeMode !== 'pipeline' && activeMode !== 'products' && activeMode !== 'field-sales' && activeMode !== 'data-preferences' && (
+          {/* Right panel - Chat (hidden for pulse, discovery, research, pipeline, products, field-sales, and data-preferences) */}
+          {activeMode !== 'pulse' && activeMode !== 'discovery' && activeMode !== 'research' && activeMode !== 'pipeline' && activeMode !== 'products' && activeMode !== 'field-sales' && activeMode !== 'data-preferences' && (
             <div className="w-[400px] shrink-0 border-l border-slate-200 bg-white">
               <ChatInterface
                 mode={activeMode}

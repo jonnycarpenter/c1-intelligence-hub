@@ -43,7 +43,9 @@ function getGreeting(): string {
 }
 
 function isHighPriority(priority: Priority): boolean {
-  return priority === 'critical' || priority === 'high'
+  // Handle both lowercase (frontend type) and Title Case (backend API)
+  const p = priority?.toLowerCase()
+  return p === 'critical' || p === 'high'
 }
 
 function isWithin72Hours(timestamp: string | undefined): boolean {
