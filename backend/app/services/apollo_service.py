@@ -84,6 +84,7 @@ class ApolloContactTeaser:
     last_name_obfuscated: Optional[str] = None  # e.g., "Vo***e"
     title: Optional[str] = None
     seniority: Optional[str] = None
+    departments: List[str] = field(default_factory=list)  # e.g., ["purchasing", "operations"]
     company_name: Optional[str] = None
     company_domain: Optional[str] = None
     has_email: bool = False
@@ -418,12 +419,17 @@ class ApolloService:
                 results = []
                 for p in people:
                     org = p.get("organization", {})
+                    # Extract departments - Apollo returns as list
+                    departments = p.get("departments", [])
+                    if isinstance(departments, str):
+                        departments = [departments]
                     results.append(ApolloContactTeaser(
                         id=p.get("id", ""),
                         first_name=p.get("first_name", ""),
                         last_name_obfuscated=p.get("last_name", "")[:2] + "***" if p.get("last_name") else None,
                         title=p.get("title"),
                         seniority=p.get("seniority"),
+                        departments=departments,
                         company_name=org.get("name"),
                         company_domain=org.get("primary_domain"),
                         has_email=bool(p.get("email")),

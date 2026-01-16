@@ -353,7 +353,8 @@ export interface ApolloContactTeaserResult {
   name_display?: string
   title?: string
   seniority?: string
-  department?: string
+  departments?: string[]  // Phase 1: Full department list (e.g., ["purchasing", "operations"])
+  department?: string     // Legacy single department
   company_name?: string
   company_domain?: string
   logo_url?: string
@@ -361,6 +362,11 @@ export interface ApolloContactTeaserResult {
   has_phone: boolean
   linkedin_url?: string
   location?: string  // "City, State"
+  // Phase 1: Additional fields for richer display
+  city?: string
+  state?: string
+  country?: string
+  last_updated?: string  // ISO date string for data freshness
 }
 
 export interface ApolloContactRevealedResult {

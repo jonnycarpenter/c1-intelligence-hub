@@ -604,11 +604,14 @@ async def find_company_contacts(
     """
     Find decision makers at a specific company using Apollo.io.
     
-    This returns contact TEASERS (preview data) - no credits consumed.
-    Shows first name, obfuscated last name, title, and whether email is available.
-    Use reveal_contact to get full details (costs 1 credit).
+    Returns enriched contact profiles including:
+    - Name, title, seniority, and department
+    - Location (city, state, country)
+    - Email and phone availability indicators
+    - LinkedIn profile link
+    - Data freshness (last updated date)
     
-    Also includes company enrichment (firmographics) for context - this is FREE.
+    Also includes company enrichment (firmographics) for context.
     
     Args:
         company_name: Company name (e.g., "Hexcel Corporation")
@@ -619,7 +622,7 @@ async def find_company_contacts(
         num_results: Number of contacts to find (max 25)
     
     Returns:
-        JSON with contact teasers and company enrichment data.
+        JSON with enriched contact profiles and company firmographics.
     
     Example:
     - find_company_contacts(company_domain="hexcel.com", department="purchasing")
@@ -644,6 +647,7 @@ async def find_company_contacts(
                 "first_name": c.first_name,
                 "title": c.title,
                 "seniority": c.seniority,
+                "departments": c.departments,  # Phase 1: Show department badges
                 "company": c.company_name,
                 "company_domain": c.company_domain,
                 "has_email": c.has_email,
@@ -651,6 +655,7 @@ async def find_company_contacts(
                 "city": c.city,
                 "state": c.state,
                 "country": c.country,
+                "last_updated": c.last_updated,  # Phase 1: Data freshness indicator
                 "linkedin_url": c.linkedin_url,
             }
             for c in contacts
@@ -693,8 +698,7 @@ async def find_company_contacts(
             "company": company_name or company_domain,
             "count": len(formatted),
             "results": formatted,
-            "company_enrichment": company_enrichment,  # NEW: Free company firmographics
-            "note": "These are contact previews. Use reveal_contact with the ID to get full email (costs 1 credit).",
+            "company_enrichment": company_enrichment,
         }, indent=2)
         
     except Exception as e:
@@ -962,18 +966,11 @@ PIPELINE_TOOLS_INSTANT = [
     # Exa.ai search tools (company discovery - semantic/broad search)
     find_similar_companies,
     search_companies,
-    # NOTE: find_contacts (Exa) is commented out in favor of find_company_contacts (Apollo)
-    # Exa returns LinkedIn profiles without person_id, making reveal_contact impossible.
-    # Apollo provides structured contacts with IDs for email/phone reveal.
-    # TODO: Future enhancement - combine Exa broad search with Apollo data enrichment
-    # find_contacts,
     find_trigger_events,
     # Apollo.io enrichment tools (contacts + company data)
     enrich_company,
     search_companies_filtered,  # Apollo org search with firmographic filters (location, employees, revenue)
-    find_company_contacts,  # PRIMARY contact search tool - returns revealable contacts
-    reveal_contact,
-    get_apollo_credits,
+    find_company_contacts,      # Contact search - returns enriched profiles with departments, freshness
     # BigQuery corpus tools (intelligence integration)
     query_corpus,
     get_entity_mentions,
@@ -984,16 +981,12 @@ PIPELINE_TOOLS_FULL = [
     # Exa.ai search tools (company discovery - semantic/broad search)
     find_similar_companies,
     search_companies,
-    # NOTE: find_contacts (Exa) commented out - see note in PIPELINE_TOOLS_INSTANT
-    # find_contacts,
     find_trigger_events,
     build_company_webset,
     # Apollo.io enrichment tools (contacts + company data)
     enrich_company,
     search_companies_filtered,  # Apollo org search with firmographic filters (location, employees, revenue)
-    find_company_contacts,  # PRIMARY contact search tool - returns revealable contacts
-    reveal_contact,
-    get_apollo_credits,
+    find_company_contacts,      # Contact search - returns enriched profiles with departments, freshness
     # BigQuery corpus tools (intelligence integration)
     query_corpus,
     get_entity_mentions,

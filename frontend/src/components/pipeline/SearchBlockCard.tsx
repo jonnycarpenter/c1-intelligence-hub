@@ -382,8 +382,6 @@ export function SearchBlockCard({
                 <ApolloContactTeaserItem
                   key={`${contact.id}-${idx}`}
                   contact={contact}
-                  onReveal={onRevealContact}
-                  isRevealing={isRevealing}
                 />
               ))}
             </>
@@ -1036,86 +1034,124 @@ function ApolloEnrichmentItem({ enrichment }: { enrichment: ApolloEnrichmentResu
 
 function ApolloContactTeaserItem({
   contact,
-  onReveal,
-  isRevealing,
 }: {
   contact: ApolloContactTeaserResult
-  onReveal?: (personId: string) => Promise<void>
-  isRevealing?: boolean
 }) {
-  const handleReveal = () => {
-    if (onReveal && !isRevealing) {
-      onReveal(contact.id)
+  // Build full location string
+  const locationParts = [contact.city, contact.state, contact.country].filter(Boolean)
+  const fullLocation = contact.location || locationParts.join(', ')
+  
+  // Format data freshness
+  const formatFreshness = (dateStr?: string) => {
+    if (!dateStr) return null
+    try {
+      const date = new Date(dateStr)
+      const now = new Date()
+      const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24))
+      if (diffDays < 7) return 'Updated this week'
+      if (diffDays < 30) return `Updated ${Math.floor(diffDays / 7)} weeks ago`
+      if (diffDays < 90) return `Updated ${Math.floor(diffDays / 30)} months ago`
+      return 'Updated 3+ months ago'
+    } catch {
+      return null
     }
+  }
+  
+  const freshness = formatFreshness(contact.last_updated)
+  const isStale = contact.last_updated && new Date(contact.last_updated) < new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
+
+  // Department color mapping
+  const getDeptColor = (dept: string) => {
+    const d = dept.toLowerCase()
+    if (d.includes('purchas') || d.includes('procur') || d.includes('supply')) return 'bg-emerald-100 text-emerald-700 border-emerald-200'
+    if (d.includes('engineer') || d.includes('technical') || d.includes('r&d')) return 'bg-blue-100 text-blue-700 border-blue-200'
+    if (d.includes('exec') || d.includes('c_suite') || d.includes('leadership')) return 'bg-purple-100 text-purple-700 border-purple-200'
+    if (d.includes('sales') || d.includes('business')) return 'bg-amber-100 text-amber-700 border-amber-200'
+    if (d.includes('operations') || d.includes('manufacturing')) return 'bg-slate-100 text-slate-700 border-slate-200'
+    return 'bg-gray-100 text-gray-700 border-gray-200'
   }
 
   return (
-    <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors group">
-      <CompanyLogo domain={contact.company_domain} logoUrl={contact.logo_url} size={40} />
+    <div className="flex items-start gap-3 p-4 bg-white rounded-xl border border-slate-200 hover:border-cyan-300 hover:shadow-md transition-all group">
+      <CompanyLogo domain={contact.company_domain} logoUrl={contact.logo_url} size={48} />
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <h4 className="font-medium text-gray-900">
+        {/* Name + Seniority Row */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <h4 className="font-semibold text-slate-900">
             {contact.name_display || `${contact.first_name} ${contact.last_name_preview || ''}`}
           </h4>
           {contact.seniority && (
-            <span className="px-1.5 py-0.5 text-xs bg-cyan-100 text-cyan-700 rounded">
+            <span className="px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-cyan-100 text-cyan-700 rounded-full">
               {contact.seniority}
             </span>
           )}
         </div>
+        
+        {/* Title */}
         {contact.title && (
-          <p className="text-sm text-gray-600">{contact.title}</p>
+          <p className="text-sm text-slate-600 mt-0.5">{contact.title}</p>
         )}
+        
+        {/* Department Badges */}
+        {contact.departments && contact.departments.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-1.5">
+            {contact.departments.slice(0, 3).map((dept, i) => (
+              <span 
+                key={i} 
+                className={`px-2 py-0.5 text-[10px] font-medium rounded border ${getDeptColor(dept)}`}
+              >
+                {dept.charAt(0).toUpperCase() + dept.slice(1).replace(/_/g, ' ')}
+              </span>
+            ))}
+          </div>
+        )}
+        
+        {/* Company */}
         {contact.company_name && (
-          <p className="text-sm text-gray-500">{contact.company_name}</p>
+          <p className="text-sm text-slate-500 mt-1">{contact.company_name}</p>
         )}
-        <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-400">
-          {contact.location && (
+        
+        {/* Meta Row: Location, Contact Availability, Freshness */}
+        <div className="flex items-center gap-3 mt-2 text-xs text-slate-400 flex-wrap">
+          {fullLocation && (
             <span className="flex items-center gap-1">
               <MapPin className="w-3 h-3" />
-              {contact.location}
+              {fullLocation}
             </span>
           )}
           {contact.has_email && (
             <span className="flex items-center gap-1 text-emerald-600">
               <Mail className="w-3 h-3" />
-              Email available
+              Email
             </span>
           )}
           {contact.has_phone && (
             <span className="flex items-center gap-1 text-emerald-600">
               <Phone className="w-3 h-3" />
-              Phone available
+              Phone
+            </span>
+          )}
+          {freshness && (
+            <span className={`flex items-center gap-1 ${isStale ? 'text-amber-500' : 'text-slate-400'}`}>
+              <Calendar className="w-3 h-3" />
+              {freshness}
             </span>
           )}
         </div>
       </div>
-      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+      
+      {/* LinkedIn - always visible now */}
+      <div className="flex items-center gap-1 shrink-0">
         {contact.linkedin_url && (
           <a
             href={contact.linkedin_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="p-1.5 hover:bg-blue-50 rounded-lg text-gray-400 hover:text-blue-600 transition-colors"
+            className="p-2 hover:bg-blue-50 rounded-lg text-slate-400 hover:text-blue-600 transition-colors"
             title="View LinkedIn"
           >
-            <Linkedin className="w-4 h-4" />
+            <Linkedin className="w-5 h-5" />
           </a>
-        )}
-        {(contact.has_email || contact.has_phone) && onReveal && (
-          <button
-            onClick={handleReveal}
-            disabled={isRevealing}
-            className="flex items-center gap-1 px-2 py-1.5 bg-rose-500 hover:bg-rose-600 disabled:bg-rose-300 text-white text-xs font-medium rounded-lg transition-colors"
-            title="Reveal contact (costs 1 credit)"
-          >
-            {isRevealing ? (
-              <Loader2 className="w-3 h-3 animate-spin" />
-            ) : (
-              <Shield className="w-3 h-3" />
-            )}
-            Reveal
-          </button>
         )}
       </div>
     </div>
