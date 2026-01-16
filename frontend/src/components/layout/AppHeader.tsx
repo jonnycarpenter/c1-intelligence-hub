@@ -18,8 +18,8 @@ const teamColors: Record<string, string> = {
 const modeConfig: Record<Mode, { icon: typeof Activity; title: string; subtitle: string; color: string; bg: string }> = {
   pulse: {
     icon: Activity,
-    title: 'Intelligence Pulse',
-    subtitle: 'Real-time industry monitoring',
+    title: 'Need to Know',
+    subtitle: 'Customized headlines',
     color: 'text-emerald-500',
     bg: 'bg-emerald-100',
   },
