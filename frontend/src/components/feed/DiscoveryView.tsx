@@ -1,15 +1,13 @@
 'use client'
 
-import React, { useState, useMemo, useRef, useImperativeHandle, forwardRef, useCallback, useEffect } from 'react'
+import React, { useState, useMemo, useImperativeHandle, forwardRef, useCallback } from 'react'
 import { 
   ChevronDown, 
-  ChevronRight, 
-  Sparkles, 
+  ChevronRight,
   TrendingUp, 
   Radio, 
   Clock,
   Flame,
-  ExternalLink,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Badge, PriorityBadge, CategoryBadge } from '@/components/ui'
@@ -216,42 +214,16 @@ function CategoryAccordion({
 
 const DiscoveryView = forwardRef<DiscoveryViewRef, DiscoveryViewProps>(
   function DiscoveryView({ items, stats, isLoading, error, onSelectArticle }, ref) {
-    const [isAssistantOpen, setIsAssistantOpen] = useState(false)
     const [assistantQuery, setAssistantQuery] = useState<string | undefined>(undefined)
     
-    // Expose openAssistant method to parent
+    // Expose openAssistant method to parent (no-op now since always visible)
     useImperativeHandle(ref, () => ({
-      openAssistant: () => setIsAssistantOpen(true)
+      openAssistant: () => {} // Always visible now
     }))
-    
-    // Keyboard shortcut: '/' to open assistant
-    useEffect(() => {
-      const handleKeyDown = (e: KeyboardEvent) => {
-        // Don't trigger if user is typing in an input/textarea
-        const target = e.target as HTMLElement
-        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
-          return
-        }
-        
-        if (e.key === '/') {
-          e.preventDefault()
-          setIsAssistantOpen(true)
-        }
-        
-        if (e.key === 'Escape' && isAssistantOpen) {
-          setIsAssistantOpen(false)
-          setAssistantQuery(undefined)
-        }
-      }
-      
-      document.addEventListener('keydown', handleKeyDown)
-      return () => document.removeEventListener('keydown', handleKeyDown)
-    }, [isAssistantOpen])
     
     // Handle quick filter from entity click
     const handleQuickFilter = useCallback((query: string) => {
       setAssistantQuery(`Tell me more about ${query}`)
-      setIsAssistantOpen(true)
     }, [])
     
     // Group items by category
@@ -282,19 +254,17 @@ const DiscoveryView = forwardRef<DiscoveryViewRef, DiscoveryViewProps>(
     const highCount = items.filter(i => i.priority === 'high').length
     
     return (
-      <div className="h-full flex bg-slate-100">
-        {/* AI Assistant Panel (left side when open) */}
-        <DiscoveryAssistant 
-          isOpen={isAssistantOpen} 
-          onClose={() => {
-            setIsAssistantOpen(false)
-            setAssistantQuery(undefined)
-          }}
-          initialQuery={assistantQuery}
-        />
-        
-        {/* Main Content Area */}
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <div className="h-full flex flex-col overflow-hidden bg-slate-200 p-4 gap-4">
+        <div className="flex-1 flex gap-4 min-h-0">
+          {/* AI Assistant Panel (always visible on left, like Pipeline) */}
+          <DiscoveryAssistant 
+            isOpen={true} 
+            onClose={() => setAssistantQuery(undefined)}
+            initialQuery={assistantQuery}
+          />
+          
+          {/* Main Content Area */}
+          <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-white rounded-2xl shadow-sm border border-slate-100/60">
           {/* Header */}
           <div className="shrink-0 px-6 py-4 bg-white border-b border-slate-200">
             <div className="flex items-center justify-between">
@@ -324,19 +294,7 @@ const DiscoveryView = forwardRef<DiscoveryViewRef, DiscoveryViewProps>(
                 </div>
               </div>
               
-              {/* Assistant toggle */}
-              <button
-                onClick={() => setIsAssistantOpen(!isAssistantOpen)}
-                className={cn(
-                  "flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all",
-                  isAssistantOpen
-                    ? "bg-teal-600 text-white"
-                    : "bg-teal-50 text-teal-700 hover:bg-teal-100"
-                )}
-              >
-                <Sparkles size={16} />
-                <span className="text-sm">{isAssistantOpen ? 'Hide Assistant' : 'Ask Assistant'}</span>
-              </button>
+
             </div>
           </div>
           
@@ -426,6 +384,7 @@ const DiscoveryView = forwardRef<DiscoveryViewRef, DiscoveryViewProps>(
               </div>
             </div>
           )}
+          </div>
         </div>
       </div>
     )

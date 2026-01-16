@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useRef, useEffect, useState } from 'react'
-import { X, Sparkles, Send, Loader2, Globe, Database, Podcast } from 'lucide-react'
+import { Sparkles, Send, Loader2, Globe, Database, Podcast } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { MarkdownContent } from '@/components/ui'
 import { useDiscoveryChat, type DiscoveryChatMessage } from '@/hooks'
@@ -143,24 +143,18 @@ export default function DiscoveryAssistant({ isOpen, onClose, initialQuery }: Di
   const isEmpty = messages.length === 0
   
   return (
-    <div className="w-[380px] h-full flex flex-col bg-white border-r border-slate-200 shadow-xl">
-      {/* Header */}
-      <div className="shrink-0 bg-gradient-to-r from-slate-900 to-slate-800 px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="p-1.5 bg-teal-500/20 rounded-lg">
-            <Sparkles size={18} className="text-teal-400" />
+    <div className="w-[400px] shrink-0 h-full flex flex-col bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100/60 m-4 mr-0">
+      {/* Header - matching Pipeline style */}
+      <div className="shrink-0 px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-teal-50 to-white">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-teal-100 flex items-center justify-center">
+            <Sparkles size={20} className="text-teal-600" />
           </div>
           <div>
-            <h2 className="text-white font-semibold text-sm">Discovery Assistant</h2>
-            <p className="text-slate-400 text-xs">Ask anything about market intel</p>
+            <h2 className="text-lg font-semibold text-slate-800">Discovery Assistant</h2>
+            <p className="text-xs text-slate-500">AI-powered market intelligence</p>
           </div>
         </div>
-        <button
-          onClick={onClose}
-          className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
-        >
-          <X size={18} />
-        </button>
       </div>
       
       {/* Messages area */}

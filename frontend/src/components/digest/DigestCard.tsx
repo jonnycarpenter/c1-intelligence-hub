@@ -163,6 +163,11 @@ export default function DigestCard({ item, onQuickFilter }: DigestCardProps) {
           )}
 
           <div className="flex items-center flex-wrap gap-2 text-xs">
+            {/* Priority Badge */}
+            <PriorityBadge priority={item.priority} />
+
+            <span className="text-slate-300">•</span>
+
             {/* Category with icon */}
             <span className="inline-flex items-center gap-1 font-semibold text-slate-500 uppercase tracking-wider text-[10px]">
               <span className="text-slate-400">{categoryIcons[item.category]}</span>
@@ -173,19 +178,6 @@ export default function DigestCard({ item, onQuickFilter }: DigestCardProps) {
 
             {/* Time */}
             <span className="text-slate-400">{item.timestamp}</span>
-
-            {/* Priority (only if high/critical) */}
-            {(item.priority === 'high' || item.priority === 'critical') && (
-              <>
-                <span className="text-slate-300">•</span>
-                <span className={cn(
-                  "font-bold uppercase tracking-wider text-[10px]",
-                  item.priority === 'critical' ? 'text-red-600' : 'text-emerald-600'
-                )}>
-                  {item.priority} Priority
-                </span>
-              </>
-            )}
           </div>
         </div>
 

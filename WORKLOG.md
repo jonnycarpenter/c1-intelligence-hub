@@ -17,6 +17,46 @@ Without reliable daily ingestion:
 **Always verify scheduler jobs are running before working on features.**
 
 ---
+## 📅 SESSION 84: Discovery Tab - UI Alignment (January 16, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 What Was Done
+
+UI improvements for Discovery Tab to match Pipeline tab layout patterns:
+
+1. **Priority Badge on DigestCards** - Added `PriorityBadge` pill component to show priority (Critical/High/Medium/Low) with color-coded dots
+2. **AI Assistant always visible** - Moved from toggleable panel to always-visible left panel (400px, matching Pipeline)
+3. **Layout matching Pipeline** - Rounded cards, consistent padding (p-4 gap-4), gradient header on assistant
+
+### 📁 Files Modified
+
+**DigestCard.tsx:**
+- Added `PriorityBadge` component in meta section (shows colored dot + label)
+- Priority badge now first in the meta line, before category
+
+**DiscoveryAssistant.tsx:**
+- Changed from dark header to light gradient header (teal-50 to white, matching Pipeline's emerald theme)
+- Increased width to 400px (from 380px)
+- Removed close button (X) since always visible
+- Updated styling to match Pipeline's card style (rounded-2xl, shadow-sm)
+
+**DiscoveryView.tsx:**
+- Removed toggle state (`isAssistantOpen`) - assistant always visible
+- Removed toggle button from header
+- Removed keyboard shortcut handler (no longer needed)
+- Updated outer container to use Pipeline's layout pattern (p-4 gap-4, rounded cards)
+- Cleaned up unused imports
+
+### 🧪 Verification
+
+```powershell
+cd frontend
+npm run build  # ✓ Compiled successfully
+```
+
+---
+
 ## 📅 SESSION 83: Discovery Tab - Phase 3 Polish (January 16, 2026)
 
 **Status**: ✅ COMPLETE
