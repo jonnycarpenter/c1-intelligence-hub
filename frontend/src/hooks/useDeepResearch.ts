@@ -271,10 +271,12 @@ function handleSSEEvent(
             break
 
         case 'clarification':
+            // Backend sends { question: { question, options, default_if_skipped } }
+            // Extract the inner question object for the ClarificationPrompt component
             setState(prev => ({
                 ...prev,
                 isResearching: false,
-                clarification: data.content,
+                clarification: data.content?.question || data.content,
             }))
             break
 
