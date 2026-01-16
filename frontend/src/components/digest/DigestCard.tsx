@@ -81,9 +81,10 @@ function highlightEntities(text: string, entities: string[]): React.ReactNode {
 
 interface DigestCardProps {
   item: DigestItem
+  onQuickFilter?: (query: string) => void  // Called when entity pill is clicked
 }
 
-export default function DigestCard({ item }: DigestCardProps) {
+export default function DigestCard({ item, onQuickFilter }: DigestCardProps) {
   const [showSourcesModal, setShowSourcesModal] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
   const sources = item.sources || []
@@ -200,17 +201,23 @@ export default function DigestCard({ item }: DigestCardProps) {
               ...(item.entities.companies || []).map(e => ({ t: 'co', v: e })),
               ...(item.entities.topics || []).map(e => ({ t: 'tp', v: e })),
             ].slice(0, 4).map((ent, idx) => (
-              <span
+              <button
                 key={idx}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onQuickFilter?.(ent.v)
+                }}
                 className={cn(
-                  "inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium border",
+                  "inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium border transition-all",
                   ent.t === 'co'
-                    ? "bg-slate-50 text-slate-600 border-slate-200"
-                    : "bg-emerald-50/50 text-emerald-700 border-emerald-100"
+                    ? "bg-slate-50 text-slate-600 border-slate-200 hover:bg-teal-50 hover:text-teal-700 hover:border-teal-200"
+                    : "bg-emerald-50/50 text-emerald-700 border-emerald-100 hover:bg-teal-50 hover:text-teal-700 hover:border-teal-200",
+                  onQuickFilter && "cursor-pointer"
                 )}
+                disabled={!onQuickFilter}
               >
                 {ent.v}
-              </span>
+              </button>
             ))}
             {/* Count more... */}
           </div>

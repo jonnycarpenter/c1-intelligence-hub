@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useMemo, useRef, useImperativeHandle, forwardRef, useCallback } from 'react'
+import React, { useState, useMemo, useRef, useImperativeHandle, forwardRef, useCallback, useEffect } from 'react'
 import { 
   ChevronDown, 
   ChevronRight, 
@@ -165,7 +165,7 @@ function CategoryAccordion({
       {isOpen && (
         <div className="border-t border-slate-100 p-4 space-y-3">
           {displayItems.map((item) => (
-            <DigestCard key={item.id} item={item} />
+            <DigestCard key={item.id} item={item} onQuickFilter={onQuickFilter} />
           ))}
           
           {hasMore && !showAll && (
@@ -195,6 +195,30 @@ const DiscoveryView = forwardRef<DiscoveryViewRef, DiscoveryViewProps>(
     useImperativeHandle(ref, () => ({
       openAssistant: () => setIsAssistantOpen(true)
     }))
+    
+    // Keyboard shortcut: '/' to open assistant
+    useEffect(() => {
+      const handleKeyDown = (e: KeyboardEvent) => {
+        // Don't trigger if user is typing in an input/textarea
+        const target = e.target as HTMLElement
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+          return
+        }
+        
+        if (e.key === '/') {
+          e.preventDefault()
+          setIsAssistantOpen(true)
+        }
+        
+        if (e.key === 'Escape' && isAssistantOpen) {
+          setIsAssistantOpen(false)
+          setAssistantQuery(undefined)
+        }
+      }
+      
+      document.addEventListener('keydown', handleKeyDown)
+      return () => document.removeEventListener('keydown', handleKeyDown)
+    }, [isAssistantOpen])
     
     // Handle quick filter from entity click
     const handleQuickFilter = useCallback((query: string) => {
@@ -358,7 +382,7 @@ const DiscoveryView = forwardRef<DiscoveryViewRef, DiscoveryViewProps>(
                   {latestHighPriority.length > 0 ? (
                     <div className="space-y-3">
                       {latestHighPriority.map((item) => (
-                        <DigestCard key={item.id} item={item} />
+                        <DigestCard key={item.id} item={item} onQuickFilter={handleQuickFilter} />
                       ))}
                     </div>
                   ) : (
