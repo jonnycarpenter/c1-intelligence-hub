@@ -6,29 +6,28 @@ import type {
     ToolProgressEvent,
     NodeStatus,
     DeepResearchNode,
-    CategoryOutput,
     ValidationOutput,
 } from '@/types'
 
 // Node descriptions that match the backend
+// NOTE: 'categorize' node removed - sales intelligence no longer part of workflow
 const NODE_DESCRIPTIONS: Record<DeepResearchNode, string> = {
     groom: 'Analyzing your query...',
     financial_research: 'Researching financial data',
     industry_research: 'Researching industry intelligence',
     visual_research: 'Searching for relevant visuals',
     synthesize: 'Synthesizing findings into report',
-    categorize: 'Generating sales intelligence',
+    categorize: 'Generating sales intelligence', // Legacy - kept for backwards compatibility
     validate: 'Verifying citations and sources',
 }
 
-// All workflow nodes in order
+// All workflow nodes in order (categorize removed)
 const ALL_NODES: DeepResearchNode[] = [
     'groom',
     'financial_research',
     'industry_research',
     'visual_research',
     'synthesize',
-    'categorize',
     'validate',
 ]
 
@@ -37,7 +36,6 @@ interface DeepResearchState {
     status: string
     clarification: any | null
     report: DeepResearchReport | null
-    categoryOutput: CategoryOutput | null
     validationOutput: ValidationOutput | null
     error: string | null
     // Progress tracking
@@ -62,7 +60,6 @@ const initialState: DeepResearchState = {
     status: '',
     clarification: null,
     report: null,
-    categoryOutput: null,
     validationOutput: null,
     error: null,
     toolProgress: [],
@@ -295,10 +292,7 @@ function handleSSEEvent(
             break
 
         case 'category':
-            setState(prev => ({
-                ...prev,
-                categoryOutput: data.content,
-            }))
+            // Category agent removed from workflow - ignore this event for backwards compatibility
             break
 
         case 'validation':

@@ -124,8 +124,8 @@ When adding a new API key/secret:
 | **Deep Research progress** | `app/agents/research/progress.py` |
 | **Deep Research memory (Phase 4)** | `app/agents/research/memory.py` |
 | **Deep Research API route** | `app/api/routes/deep_research.py` |
-| **Visual Research agent (Phase 6)** | `app/agents/research/visual.py` *(to create)* |
-| **Corpus visuals search tool** | `app/mcp/tools/corpus_visuals.py` *(to create)* |
+| **Visual Research agent** | `app/agents/research/visual.py` |
+| **Corpus visuals search tool** | `app/mcp/tools/corpus_visuals.py` |
 | **Article images table** | BigQuery `article_images` - classified images from ingestion |
 | **Podcast streaming endpoint** | `app/api/routes/podcast.py` |
 | **Podcast generation (weekly)** | `app/ingestion/generators/weekly_briefing.py` *(uses ElevenLabs Text-to-Dialogue API)* |

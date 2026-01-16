@@ -17,6 +17,87 @@ Without reliable daily ingestion:
 **Always verify scheduler jobs are running before working on features.**
 
 ---
+## 📅 SESSION 85: Deep Research Streamlining (January 16, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 What Was Done
+
+Major simplification of Deep Research workflow - removed underused Category (Sales Intelligence) agent and fixed Visual Agent integration bug.
+
+#### 1. Removed Category Agent & Field Sales Output
+The Category Agent was producing marginally useful "sales intelligence" (territory insights, product recommendations, sales plays). Removed to streamline the workflow and give the Synthesizer more creative license.
+
+**Workflow Change:**
+- Before: Groomer → Financial/Industry/Visual (parallel) → Synthesizer → **Category** → Validator
+- After: Groomer → Financial/Industry/Visual (parallel) → Synthesizer → Validator
+
+**Removed from output:**
+- Territory Insights (East/West relevance scores)
+- Product Recommendations grid
+- Sales Plays (hooks, objection handlers)
+- `field_sales` section from final report
+
+#### 2. Fixed Visual Agent Bug 🐛
+Discovered why visuals were never appearing in reports - schema mismatch:
+- `VisualAgentOutput` uses `supporting_visuals` field
+- `_generate_planning_scratchpad()` was checking `visual.visuals` (wrong!)
+- Fixed to check `visual.supporting_visuals`
+
+#### 3. Enhanced Financial Agent Quote Extraction
+Updated prompts to emphasize extracting verbatim CEO/CFO quotes from earnings transcripts:
+- Added explicit instruction: "Extract VERBATIM quotes from earnings transcripts"
+- Quotes ground insights with "word for word what the CEO said"
+- Adds credibility to summaries
+
+### 📁 Files Modified
+
+**Backend - Workflow:**
+- `backend/app/graph/research_workflow.py` - Route directly from synthesize → validate, skip categorize
+- `backend/app/api/routes/deep_research.py` - Removed "categorize" from NODE_DESCRIPTIONS
+
+**Backend - Synthesizer:**
+- `backend/app/agents/research/synthesizer.py`:
+  - Removed `field_sales` from SYNTHESIS_SYSTEM_PROMPT
+  - Removed `field_sales` from JSON output schema
+  - Fixed visual bug: `visual.visuals` → `visual.supporting_visuals`
+
+**Backend - Financial Agent:**
+- `backend/app/agents/research/financial.py`:
+  - Enhanced FINANCIAL_SYSTEM_PROMPT for quote extraction
+  - Updated extraction prompt to emphasize verbatim quotes
+
+**Backend - State:**
+- `backend/app/agents/research/state.py`:
+  - Made `field_sales` optional in SynthesisAgentOutput (backwards compat)
+  - Kept CategoryAgentOutput for legacy report compatibility
+
+**Frontend:**
+- `frontend/src/components/research/ResearchDashboard.tsx` - Removed CategoryOutput section
+- `frontend/src/components/research/ResearchCanvas.tsx` - Removed TerritoryInsights/ProductRecommendations/SalesPlays
+- `frontend/src/app/research/page.tsx` - Removed categoryOutput from destructuring
+- `frontend/src/hooks/useDeepResearch.ts` - Removed categorize from workflowNodes, marked categoryOutput as deprecated
+
+**Documentation:**
+- `backend/app/agents/research/README.md` - Updated architecture diagram, marked Category as removed
+
+### 🧪 Verification
+
+```powershell
+cd backend
+python -c "from app.graph.research_workflow import research_workflow; print('Nodes:', list(research_workflow.nodes.keys()))"
+# Nodes: ['groom', 'financial_research', 'industry_research', 'visual_research', 'synthesize', 'validate']
+
+cd ../frontend
+npm run build  # ✓ Compiled successfully
+```
+
+### 🔜 Next Steps
+- Test Deep Research end-to-end to verify Visual Agent now surfaces charts
+- Monitor quote extraction quality in Financial Agent outputs
+- Consider adding chart generation from BigQuery trend data (Phase 7)
+
+---
 ## 📅 SESSION 84: Discovery Tab - UI Alignment (January 16, 2026)
 
 **Status**: ✅ COMPLETE

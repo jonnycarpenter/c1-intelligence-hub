@@ -131,7 +131,7 @@ def _generate_planning_scratchpad(
     notes.append("=== CONTENT INVENTORY ===")
     fin_count = len(financial.findings) if financial and hasattr(financial, 'findings') else 0
     ind_count = len(industry.findings) if industry and hasattr(industry, 'findings') else 0
-    vis_count = len(visual.visuals) if visual and hasattr(visual, 'visuals') else 0
+    vis_count = len(visual.supporting_visuals) if visual and hasattr(visual, 'supporting_visuals') else 0
     
     notes.append(f"[INVENTORY] Financial findings: {fin_count}")
     notes.append(f"[INVENTORY] Industry findings: {ind_count}")
@@ -224,27 +224,35 @@ SYNTHESIZER_SYSTEM_PROMPT = """You are a synthesis agent. Convert research findi
    - key_metrics: 2-3 numbers max. Format: {"label": "Name", "value": "$X.XB"}
    - key_points: 3-4 bullets. One sentence each. No fluff.
 
-2. SECTIONS (2-3 max, never more)
-   - section_title: 3-5 words
-   - content: 2-3 sentences of insight. Use markdown bullets if listing items. No preamble.
+2. SECTIONS (2-4 max, you have creative license on structure)
+   - section_title: 3-5 words - make them punchy and informative
+   - content: 2-4 sentences of insight. Use markdown bullets if listing items. No preamble.
    - tables: ONLY if comparing 3+ data points. Otherwise skip.
+   - Include relevant EXECUTIVE QUOTES from earnings calls when available - these ground the analysis
 
-3. FIELD SALES (actionable, brief)
-   - offensive_angles: 1-2 max. Format: {"angle": "The opportunity", "target_segment": "Who to target"}
-   - defensive_angles: 1 max. Format: {"risk": "The threat", "mitigation": "How to counter"}
-   - questions_to_explore: 2-3 discovery questions
-
-4. SOURCES & CITATIONS
+3. SOURCES & CITATIONS
    - sources_used: List 3-5 key sources (not every article)
    - CRITICAL: Include source_url from findings data. Users need clickable links!
    - data_gaps: What's missing (1 sentence)
+
+## EXECUTIVE QUOTES
+When financial findings include direct_quote from earnings calls, USE THEM:
+- Format as blockquote with speaker attribution
+- These verbatim CEO/CFO statements ground your analysis
+- Example: "> 'We see strong demand in narrowbody...' — Nick Stanage, CEO, Q3 2025"
+
+## YOU HAVE CREATIVE LICENSE
+Structure the report based on what the data tells you. You can:
+- Create thematic sections that make sense for THIS query
+- Highlight key quotes from executives
+- Focus on what matters most for the research question
+- Include forward-looking implications
 
 ## ANTI-PATTERNS (avoid these)
 - "It's worth noting..." / "Interestingly..." / "Additionally..."
 - Repeating findings across sections
 - Tables with <3 rows
-- More than 3 sections
-- Paragraphs >4 sentences
+- Paragraphs >5 sentences
 
 ## PRIOR RESEARCH
 If prior research context is provided, you may reference it: "Building on our [date] analysis..." or "This confirms earlier findings that..."
@@ -398,23 +406,13 @@ OUTPUT FORMAT (valid JSON):
     {{
       "section_id": "sec_001",
       "section_title": "Short Title",
-      "content": "2-3 sentences of insight. Use markdown bullets for lists.",
+      "content": "2-4 sentences of insight. Use markdown bullets for lists. Include executive quotes when relevant.",
       "tables": [],
       "citations": [{{"source_type": "type", "source_title": "Title", "source_url": "https://... (USE URL FROM FINDINGS DATA)", "source_date": "2025-01-01"}}],
       "confidence": "high|medium|low",
       "supporting_visuals": []
     }}
   ],
-  "field_sales": {{
-    "offensive_angles": [
-      {{"angle": "The opportunity", "target_segment": "Who to target"}}
-    ],
-    "defensive_angles": [
-      {{"risk": "The threat", "mitigation": "Counter strategy"}}
-    ],
-    "questions_to_explore": ["Discovery Q1", "Discovery Q2"],
-    "caution_note": "Validate findings with account-specific knowledge."
-  }},
   "all_visuals": [],
   "sources_used": [{{"source_type": "type", "source_title": "Title", "source_url": "https://... (USE URL FROM FINDINGS DATA)", "source_date": "2025-01-01"}}],
   "source_breakdown": {{}},
@@ -423,7 +421,7 @@ OUTPUT FORMAT (valid JSON):
   "research_time_seconds": 0.0
 }}
 
-REMEMBER: 2-3 sections max. No fluff. Lead with insights."""
+Structure the sections based on what the data tells you. Include executive quotes where they add value."""
     
     messages = [
         SystemMessage(content=system_content),
@@ -462,28 +460,6 @@ REMEMBER: 2-3 sections max. No fluff. Lead with insights."""
                 metric.setdefault("context", "")
                 metric.setdefault("source", "Research data")
                 metric.setdefault("confidence", "medium")
-        
-        # Normalize field_sales angles for frontend compatibility
-        field_sales = output_data.get("field_sales", {})
-        
-        # Offensive: frontend expects angle + target_segment
-        for angle in field_sales.get("offensive_angles", []):
-            angle.setdefault("rationale", angle.get("target_segment", ""))
-            angle.setdefault("grounding", "")
-            angle.setdefault("target_segment", angle.get("rationale", ""))
-        
-        # Defensive: frontend expects risk + mitigation
-        for angle in field_sales.get("defensive_angles", []):
-            if "risk" in angle and "angle" not in angle:
-                angle["angle"] = angle["risk"]
-            if "mitigation" in angle and "rationale" not in angle:
-                angle["rationale"] = angle["mitigation"]
-            angle.setdefault("grounding", "")
-            # Keep frontend fields too
-            angle.setdefault("risk", angle.get("angle", ""))
-            angle.setdefault("mitigation", angle.get("rationale", ""))
-        
-        field_sales.setdefault("caution_note", "Validate findings with account-specific knowledge.")
         
         # Ensure arrays exist
         output_data.setdefault("all_visuals", [])

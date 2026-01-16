@@ -29,17 +29,16 @@ import type {
   NodeStatus,
   ToolProgressEvent,
   DeepResearchNode,
-  CategoryOutput,
   ValidationOutput,
 } from '@/types'
 import ResearchReport from './ResearchReport'
 import ClarificationPrompt from './ClarificationPrompt'
 import ResearchProgress from './ResearchProgress'
-import TerritoryInsights from './TerritoryInsights'
-import ProductRecommendations from './ProductRecommendations'
-import SalesPlays from './SalesPlays'
 import ValidationBadge from './ValidationBadge'
 import SavedReportsPanel from './SavedReportsPanel'
+
+// NOTE: TerritoryInsights, ProductRecommendations, and SalesPlays components removed
+// Category agent (sales intelligence) has been removed from the workflow
 
 interface ResearchDashboardProps {
   // From streaming/state
@@ -65,7 +64,6 @@ interface ResearchDashboardProps {
   toolProgress?: ToolProgressEvent[]
   activeNode?: DeepResearchNode | null
   isCacheHit?: boolean
-  categoryOutput?: CategoryOutput | null
   validationOutput?: ValidationOutput | null
   researchError?: string | null
 
@@ -103,7 +101,6 @@ export default function ResearchDashboard({
   toolProgress,
   activeNode,
   isCacheHit,
-  categoryOutput,
   validationOutput,
   researchError,
   isTimeout,
@@ -498,24 +495,6 @@ export default function ResearchDashboard({
               {deepResearchReport && (
                 <div className="space-y-6">
                   <ResearchReport report={deepResearchReport} />
-
-                  {/* Territory Insights */}
-                  {categoryOutput && categoryOutput.territory_insights && (
-                    <TerritoryInsights categoryOutput={categoryOutput} />
-                  )}
-
-                  {/* Product Recommendations */}
-                  {categoryOutput && categoryOutput.product_recommendations && (
-                    <ProductRecommendations
-                      categoryOutput={categoryOutput}
-                      onAskAbout={onStartResearch}
-                    />
-                  )}
-
-                  {/* Sales Plays */}
-                  {categoryOutput && categoryOutput.sales_plays && (
-                    <SalesPlays categoryOutput={categoryOutput} />
-                  )}
 
                   {/* Validation Badge */}
                   {validationOutput && (

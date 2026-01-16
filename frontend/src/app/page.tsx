@@ -87,7 +87,6 @@ export default function Home() {
     toolProgress,
     activeNode,
     isCacheHit,
-    categoryOutput,
     validationOutput,
     error: researchError,
     // Timeout handling
@@ -381,7 +380,6 @@ export default function Home() {
                 toolProgress={toolProgress}
                 activeNode={activeNode}
                 isCacheHit={isCacheHit}
-                categoryOutput={categoryOutput}
                 validationOutput={validationOutput}
                 researchError={researchError}
                 // Timeout handling

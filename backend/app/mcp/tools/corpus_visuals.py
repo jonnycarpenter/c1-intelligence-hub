@@ -169,8 +169,9 @@ def corpus_visuals_search(
                 )
                 conditions.append(f"({chart_type_conditions})")
 
-            # Add date filter
-            conditions.append(f"DATE(ingested_at) >= DATE_SUB(CURRENT_DATE(), INTERVAL {days} DAY)")
+            # Add date filter (uses extracted_at which is the partition column)
+            # Using TIMESTAMP comparison for efficient partition pruning
+            conditions.append(f"extracted_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {days} DAY)")
 
             where_clause = " AND ".join(conditions) if conditions else "TRUE"
 
@@ -189,7 +190,7 @@ def corpus_visuals_search(
                 industries,
                 topics,
                 relevance_score,
-                ingested_at
+                extracted_at
             FROM
                 `{table_ref}`
             WHERE

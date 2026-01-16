@@ -106,13 +106,13 @@ _report_cache = ReportCache(ttl_minutes=60)
 
 
 # Human-readable descriptions for each node
+# NOTE: "categorize" (sales intelligence) has been removed from the workflow
 NODE_DESCRIPTIONS = {
     "groom": "Analyzing your query...",
     "financial_research": "Researching financial data",
     "industry_research": "Researching industry intelligence",
     "visual_research": "Searching for relevant visuals",
     "synthesize": "Synthesizing findings into report",
-    "categorize": "Generating sales intelligence",
     "validate": "Verifying citations and sources",
 }
 

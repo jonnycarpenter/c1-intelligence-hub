@@ -4,12 +4,18 @@ Multi-agent research pipeline for comprehensive industry intelligence reports.
 
 ## Overview
 
-Deep Research is an 8-node LangGraph workflow that orchestrates specialized agents to produce executive-ready research reports. It combines financial data, industry news, visual assets, and sales intelligence into a single deliverable.
+Deep Research is a **6-node** LangGraph workflow that orchestrates specialized agents to produce executive-ready research reports. It combines financial data, industry news, and visual assets into a single deliverable.
 
-**Status: ✅ PRODUCTION READY** (January 7, 2026)
+**Status: ✅ PRODUCTION READY** (January 16, 2026)
+
+**Recent Changes (Session 76):**
+- **Removed Category Agent** (sales intelligence) - Synthesizer now has full creative license
+- **Fixed Visual Agent bug** - `visual.visuals` → `visual.supporting_visuals`
+- **Enhanced Executive Quote Extraction** - Financial agent prioritizes verbatim CEO/CFO quotes
 
 **Key Features:**
 - Parallel execution of Financial + Industry + Visual agents (~60% faster)
+- **Executive Quote Extraction** - Verbatim quotes from earnings calls ground insights
 - Real-time SSE streaming with granular tool progress
 - In-memory query caching (1-hour TTL)
 - LangSmith observability for cost/latency tracking
@@ -32,27 +38,22 @@ Deep Research is an 8-node LangGraph workflow that orchestrates specialized agen
                          ┌─────────────┐
                     ┌───►│  Financial  │───┐
                     │    │  Research   │   │
-┌─────────────┐     │    └─────────────┘   │
-│   Groomer   │─────┼───►┌─────────────┐   │    ┌─────────────┐
-│   (Query)   │     │    │  Industry   │   ├───►│ Synthesizer │
-└─────────────┘     │    │  Research   │   │    │  (Report)   │
-                    │    └─────────────┘   │    └──────┬──────┘
-                    │    ┌─────────────┐   │           │
-                    └───►│   Visual    │───┘           ▼
-                         │  Research   │       ┌─────────────┐
-                         └─────────────┘       │  Category   │
-                                               │   (Sales)   │
-                                               └──────┬──────┘
-                                                      │
-                                                      ▼
-                                               ┌─────────────┐
-                                               │  Validator  │
-                                               │  (QA Gate)  │
-                                               └──────┬──────┘
-                                                      │
-                                                      ▼
-                                               [Final Report]
+┌─────────────┐     │    └─────────────┘   │    ┌─────────────┐
+│   Groomer   │─────┼───►┌─────────────┐   ├───►│ Synthesizer │
+│   (Query)   │     │    │  Industry   │   │    │  (Report)   │
+└─────────────┘     │    │  Research   │   │    └──────┬──────┘
+                    │    └─────────────┘   │           │
+                    │    ┌─────────────┐   │           ▼
+                    └───►│   Visual    │───┘    ┌─────────────┐
+                         │  Research   │        │  Validator  │
+                         └─────────────┘        │  (QA Gate)  │
+                                                └──────┬──────┘
+                                                       │
+                                                       ▼
+                                                [Final Report]
 ```
+
+**Note:** Category Agent (sales intelligence with territory insights, product recommendations, sales plays) has been **removed** from the workflow. The Synthesizer now has full creative license to structure the report.
 
 **Parallel Execution**: Financial, Industry, and Visual agents run simultaneously using LangGraph's `Send` API with custom reducer functions for state merging. Visual agent completes fastest (~10-15s) due to single BigQuery call vs multi-tool research agents (~30s).
 
@@ -257,27 +258,7 @@ Example scratchpad output:
 
 **Output**: `SynthesisAgentOutput` with concise report structure, `supporting_visuals` per section
 
-### 6. Category Agent (`category.py`) *(Phase 2)*
-**Purpose**: Territory-specific sales intelligence
-
-**Territory Focus**:
-| Territory | Primary Industries |
-|-----------|-------------------|
-| **East** | Aerospace, Wind Energy, Automotive, Defense |
-| **West** | Marine, RVs, Spas |
-
-**Tools Used**:
-- `query_datasheets` - Product spec sheet lookups
-- `get_products_by_industry` - Industry-specific products
-- `query_corpus` - Historical sales intelligence
-
-**Output**: `CategoryAgentOutput` with:
-- Territory insights (East/West relevance scores)
-- Product recommendations
-- Structured sales plays (hooks, objection handlers)
-- Industry talking points
-
-### 7. Validator (`validator.py`) *(Phase 2)*
+### 6. Validator (`validator.py`)
 **Purpose**: Citation verification and quality gate
 
 **Checks**:

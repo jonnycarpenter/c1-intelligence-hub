@@ -7,11 +7,13 @@ from app.agents.research.financial import financial_research_node
 from app.agents.research.industry import industry_research_node
 from app.agents.research.visual import visual_research_node
 from app.agents.research.synthesizer import synthesis_node
-from app.agents.research.category import category_node
 from app.agents.research.validator import validator_node
 import logging
 
 logger = logging.getLogger(__name__)
+
+# NOTE: Category agent (sales intelligence) has been removed from the workflow.
+# The synthesizer now has full creative license over report structure.
 
 
 def route_after_groom(state: DeepResearchState) -> Union[List[Send], Literal["__end__"]]:
@@ -63,19 +65,23 @@ def create_research_workflow():
     """
     Create the Deep Research LangGraph workflow.
     
-    Pipeline (Phase 3 - Parallel Execution):
-    [Groomer] → [Financial + Industry + Visual (parallel)] → [Synthesizer] → [Category] → [Validator] → END
+    Pipeline (Streamlined - Category Agent Removed):
+    [Groomer] → [Financial + Industry + Visual (parallel)] → [Synthesizer] → [Validator] → END
     
                           ┌─────────────────┐
                           │    Financial    │
                           │    Research     │
-    [Groom] ──► fan-out ──┤                 ├──► fan-in ──► [Synthesize] ──► [Category] ──► [Validate] ──► END
+    [Groom] ──► fan-out ──┤                 ├──► fan-in ──► [Synthesize] ──► [Validate] ──► END
                           │    Industry     │
                           │    Research     │
                           │                 │
                           │     Visual      │
                           │    Research     │
                           └─────────────────┘
+    
+    Note: Category agent (sales intelligence with territory insights, product recommendations,
+    sales plays) has been removed. The Synthesizer now has full creative license to structure
+    the report as it sees fit.
     
     LangGraph Send API enables true parallel execution:
     - Financial, Industry, and Visual agents run simultaneously
@@ -90,10 +96,9 @@ def create_research_workflow():
     workflow.add_node("groom", query_grooming_node)
     workflow.add_node("financial_research", financial_research_node)
     workflow.add_node("industry_research", industry_research_node)
-    workflow.add_node("visual_research", visual_research_node)  # NEW: Visual research parallel agent
+    workflow.add_node("visual_research", visual_research_node)
     workflow.add_node("synthesize", synthesis_node)
-    workflow.add_node("categorize", category_node)  # Phase 2: Sales intelligence layer
-    workflow.add_node("validate", validator_node)   # Phase 2: Citation verification
+    workflow.add_node("validate", validator_node)
     
     # Set entry point
     workflow.set_entry_point("groom")
@@ -114,11 +119,10 @@ def create_research_workflow():
     # LangGraph automatically waits for all incoming edges before proceeding
     workflow.add_edge("financial_research", "synthesize")
     workflow.add_edge("industry_research", "synthesize")
-    workflow.add_edge("visual_research", "synthesize")  # NEW: Visual agent feeds into synthesizer
+    workflow.add_edge("visual_research", "synthesize")
     
-    # Post-synthesis pipeline (sequential)
-    workflow.add_edge("synthesize", "categorize")
-    workflow.add_edge("categorize", "validate")
+    # Post-synthesis pipeline (sequential) - Category agent removed
+    workflow.add_edge("synthesize", "validate")
     workflow.add_edge("validate", END)
     
     return workflow.compile()

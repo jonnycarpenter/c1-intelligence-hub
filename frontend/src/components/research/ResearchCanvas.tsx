@@ -27,16 +27,15 @@ import type {
   NodeStatus,
   ToolProgressEvent,
   DeepResearchNode,
-  CategoryOutput,
   ValidationOutput,
 } from '@/types'
 import ResearchReport from './ResearchReport'
 import ClarificationPrompt from './ClarificationPrompt'
 import ResearchProgress from './ResearchProgress'
-import TerritoryInsights from './TerritoryInsights'
-import ProductRecommendations from './ProductRecommendations'
-import SalesPlays from './SalesPlays'
 import ValidationBadge from './ValidationBadge'
+
+// NOTE: TerritoryInsights, ProductRecommendations, and SalesPlays components removed
+// Category agent (sales intelligence) has been removed from the workflow
 
 // Research templates for empty state
 const RESEARCH_TEMPLATES: ResearchTemplate[] = [
@@ -123,7 +122,6 @@ interface ResearchCanvasProps {
   toolProgress?: ToolProgressEvent[]
   activeNode?: DeepResearchNode | null
   isCacheHit?: boolean
-  categoryOutput?: CategoryOutput | null
   validationOutput?: ValidationOutput | null
   researchError?: string | null
   
@@ -156,7 +154,6 @@ export default function ResearchCanvas({
   toolProgress,
   activeNode,
   isCacheHit,
-  categoryOutput,
   validationOutput,
   researchError,
   isTimeout,
@@ -418,24 +415,6 @@ export default function ResearchCanvas({
           {deepResearchReport && (
             <div className="space-y-6">
               <ResearchReport report={deepResearchReport} />
-              
-              {/* Territory Insights */}
-              {categoryOutput && categoryOutput.territory_insights && (
-                <TerritoryInsights categoryOutput={categoryOutput} />
-              )}
-              
-              {/* Product Recommendations */}
-              {categoryOutput && categoryOutput.product_recommendations && (
-                <ProductRecommendations 
-                  categoryOutput={categoryOutput}
-                  onAskAbout={onStartResearch}
-                />
-              )}
-              
-              {/* Sales Plays */}
-              {categoryOutput && categoryOutput.sales_plays && (
-                <SalesPlays categoryOutput={categoryOutput} />
-              )}
               
               {/* Validation Badge */}
               {validationOutput && (

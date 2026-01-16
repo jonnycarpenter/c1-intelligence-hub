@@ -277,7 +277,6 @@ class SynthesisAgentOutput(BaseModel):
     overall_confidence: ConfidenceLevel
     executive_summary: ExecutiveSummary
     sections: List[FindingSection]
-    field_sales: FieldSalesSection
     all_visuals: List[SupportingVisual]
     companies_with_logos: List[CompanyWithLogo] = Field(default_factory=list)
     sources_used: List[Citation]
@@ -285,6 +284,8 @@ class SynthesisAgentOutput(BaseModel):
     data_gaps: List[str]
     warnings: List[str]
     research_time_seconds: float
+    # Legacy field - kept for backward compatibility with cached reports
+    field_sales: Optional[FieldSalesSection] = None
 
 # --- LangGraph State Definition ---
 
