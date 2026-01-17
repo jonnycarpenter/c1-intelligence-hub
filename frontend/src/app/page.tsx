@@ -52,13 +52,19 @@ export default function Home() {
   const researchIdCounter = useRef(0)
 
   // Fetch digest data from API
+  // Discovery tab: 30 days (720h), 500 items, medium+ priority only (no low)
+  // Pulse tab: 7 days (168h), default 100 items, all priorities
+  const digestConfig = activeMode === 'discovery'
+    ? { hours: 720, limit: 500, priorities: ['Critical', 'High', 'Medium'] }
+    : { hours: activeMode === 'pulse' ? 168 : 24, limit: 100 }
+
   const {
     items: digestItems,
     stats: digestStats,
     isLoading: digestLoading,
     error: digestError,
     refresh: refreshDigest
-  } = useDigest({ hours: activeMode === 'pulse' ? 168 : 24 })
+  } = useDigest(digestConfig)
 
   // Streaming chat state
   const {

@@ -30,6 +30,7 @@ async def get_digest(
     hours: Optional[int] = Query(72, description="Number of hours to look back"),
     categories: Optional[str] = Query(None, description="Comma-separated categories to filter"),
     priorities: Optional[str] = Query(None, description="Comma-separated priorities to filter"),
+    limit: Optional[int] = Query(100, description="Max items to return (default 100, max 1000)"),
 ):
     """
     Get the current intelligence digest.
@@ -40,7 +41,7 @@ async def get_digest(
     Categories: priority, competitor, market, regulatory, product, c1_mention
     Priorities: high, medium, low
     """
-    logger.info(f"Digest request: hours={hours}, categories={categories}, priorities={priorities}")
+    logger.info(f"Digest request: hours={hours}, categories={categories}, priorities={priorities}, limit={limit}")
     
     try:
         # Parse filter parameters
@@ -62,11 +63,15 @@ async def get_digest(
         if priorities:
             priority_list = [Priority(p.strip()) for p in priorities.split(",")]
         
+        # Clamp limit to reasonable bounds
+        safe_limit = max(1, min(limit or 100, 1000))
+        
         # Get digest from service
         digest = await digest_service.get_digest(
             hours=hours,
             categories=category_list,
             priorities=priority_list,
+            limit=safe_limit,
         )
         
         return digest

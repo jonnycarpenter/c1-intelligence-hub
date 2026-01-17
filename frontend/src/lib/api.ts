@@ -104,6 +104,7 @@ class ApiClient {
     hours?: number
     categories?: string[]
     priorities?: string[]
+    limit?: number  // Max items to return (default 100, max 1000)
   }): Promise<ApiDigest> {
     const params = new URLSearchParams()
 
@@ -115,6 +116,9 @@ class ApiClient {
     }
     if (options?.priorities?.length) {
       params.set('priorities', options.priorities.join(','))
+    }
+    if (options?.limit) {
+      params.set('limit', options.limit.toString())
     }
 
     const url = `${this.baseUrl}/api/digest${params.toString() ? `?${params}` : ''}`
