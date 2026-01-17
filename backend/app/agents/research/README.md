@@ -12,6 +12,7 @@ Deep Research is a **6-node** LangGraph workflow that orchestrates specialized a
 - **Removed Category Agent** (sales intelligence) - Synthesizer now has full creative license
 - **Fixed Visual Agent bug** - `visual.visuals` → `visual.supporting_visuals`
 - **Enhanced Executive Quote Extraction** - Financial agent prioritizes verbatim CEO/CFO quotes
+- **Frontend Compatibility** - Added null safety checks for optional `field_sales` field in `ResearchReport.tsx`
 
 **Key Features:**
 - Parallel execution of Financial + Industry + Visual agents (~60% faster)

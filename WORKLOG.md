@@ -17,6 +17,75 @@ Without reliable daily ingestion:
 **Always verify scheduler jobs are running before working on features.**
 
 ---
+## 📅 SESSION 86: Deep Research Clarification UX Fix (January 17, 2026)
+
+**Status**: ✅ COMPLETE (Backend) | 📋 PLANNED (Frontend Polish)
+
+### 🎯 Problem
+
+Deep Research workflow's clarifying question modal created a poor UX:
+- Multiple repeat questions asked
+- Context lost between clarification rounds
+- Same questions asked again in different wording
+
+**Root Cause**: When users responded to clarification questions, the response triggered a fresh research session instead of continuing the conversation. The groomer LLM didn't see its own previous question, so it had no context that the user was answering something specific.
+
+### 💡 Solution
+
+Implemented conversation history tracking to preserve Q&A context:
+
+1. **State Management**: Added `last_clarification` field to track most recent question
+2. **Conversation History**: API now properly builds `AIMessage` objects for assistant responses (not just `HumanMessage` for everything)
+3. **Groomer Prompt**: Added critical instruction to check conversation history before asking questions
+4. **Anti-Duplicate Logic**: LLM now knows to look for prior `AIMessage + HumanMessage` Q&A pairs
+
+### 📁 Files Modified
+
+**Backend - State:**
+- `backend/app/agents/research/state.py` - Added `last_clarification` field to `DeepResearchState`
+
+**Backend - Groomer:**
+- `backend/app/agents/research/groomer.py`:
+  - Store clarifying question in state when asking
+  - Added "Check Conversation History First" instruction to prompt
+  - Emphasized NEVER asking same question twice
+
+**Backend - API:**
+- `backend/app/api/routes/deep_research.py`:
+  - Fixed conversation history to use `AIMessage` for assistant responses  
+  - Initialize `last_clarification` field in initial state
+
+**Frontend:**
+- `frontend/src/components/research/ResearchReport.tsx` - Added null safety checks for `field_sales` (from Session 85)
+
+**Documentation:**
+- `backend/app/agents/research/README.md` - Added frontend compatibility note for Session 76 Category Agent removal
+
+### 🔑 How It Works Now
+
+When a user responds to a clarification:
+1. Response comes back with conversation history intact
+2. History includes: `AIMessage("What timeframe?")` + `HumanMessage("2026")`  
+3. Groomer sees this exchange and knows timeframe is resolved
+4. Won't ask about timeframe again!
+
+### 🧪 Verification
+
+```powershell
+cd backend
+python -c "from app.agents.research.state import DeepResearchState; print('OK')"
+python -c "from app.agents.research.groomer import query_grooming_node; print('OK')"
+```
+
+### 📋 Open Items - Frontend Polish (Phase 3)
+
+These enhancements can be added later:
+- [ ] Add "Skip and use defaults" button to ClarificationPrompt
+- [ ] Update useDeepResearch hook to track clarification state explicitly
+- [ ] Pass explicit context markers from frontend (not just inferred from history)
+- [ ] Show clarification history in UI so users understand the conversation flow
+
+---
 ## 📅 SESSION 85: Deep Research Streamlining (January 16, 2026)
 
 **Status**: ✅ COMPLETE

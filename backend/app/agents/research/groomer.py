@@ -78,6 +78,13 @@ If a "Prior Research Context" section is provided below, use it to:
 
 ## Clarification Rules
 
+**⚠️ CRITICAL - Check Conversation History First!**
+Before asking ANY clarifying question:
+1. Review conversation_history for prior Q&A exchanges
+2. If you see an AIMessage (your question) + HumanMessage (their answer), that topic is resolved
+3. NEVER ask the same or similar question again - use the answer from history
+4. If the user has already provided context on a topic, incorporate it instead of asking again
+
 - Ask a clarifying question ONLY if:
   - Timeframe ambiguity would dramatically change results (e.g., "recent" could mean 1 week or 1 year)
   - Multiple valid interpretations exist (e.g., "carbon fiber" could mean material, companies, or applications)
@@ -341,6 +348,7 @@ async def query_grooming_node(state: DeepResearchState) -> DeepResearchState:
         if research_brief.status == QueryStatus.NEEDS_CLARIFICATION:
             state["clarification_count"] += 1
             state["current_status"] = "awaiting_clarification"
+            state["last_clarification"] = research_brief.clarifying_question  # Store for context
         else:
             state["current_status"] = "grooming_complete"
             

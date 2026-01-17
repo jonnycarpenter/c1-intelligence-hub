@@ -48,7 +48,7 @@ interface CompanyWithLogo {
 
 function CompanyLogo({ company }: { company: CompanyWithLogo }) {
     const [imageError, setImageError] = useState(false)
-    
+
     // Use logo.dev API via our backend proxy
     const logoUrl = company.domain
         ? `${API_BASE}/api/pipeline/logo/${company.domain}`
@@ -219,7 +219,7 @@ export default function ResearchReport({ report }: DeepResearchReportProps) {
                             </div>
                         ))}
                     </div>
-                    
+
                     {/* Company Logos */}
                     {companies_with_logos && companies_with_logos.length > 0 && (
                         <div className="mt-6 pt-4 border-t border-slate-100">
@@ -297,64 +297,76 @@ export default function ResearchReport({ report }: DeepResearchReportProps) {
                                 ))}
                             </div>
                         )}
-                        
+
                         {/* Section Citations */}
                         <CitationList citations={section.citations} />
                     </div>
                 </section>
             ))}
 
-            {/* Field Sales Implications */}
-            <section className="bg-emerald-50 rounded-2xl border border-emerald-100 overflow-hidden shadow-sm">
-                <div className="bg-emerald-600 px-6 py-4 flex items-center gap-2">
-                    <Target size={20} className="text-white" />
-                    <h2 className="text-white font-semibold">Field Sales Implications</h2>
-                </div>
-                <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div>
-                        <h4 className="flex items-center gap-2 text-emerald-800 font-bold mb-4">
-                            <TrendingUp size={18} />
-                            Offensive Angles
-                        </h4>
-                        <div className="space-y-4">
-                            {field_sales.offensive_angles?.map((angle: any, idx: number) => (
-                                <div key={idx} className="bg-white rounded-xl p-4 border border-emerald-100">
-                                    <p className="font-semibold text-slate-900 text-sm mb-1">{angle.angle}</p>
-                                    <p className="text-xs text-slate-600 italic">Target: {angle.target_segment}</p>
-                                </div>
-                            ))}
-                        </div>
+            {/* Field Sales Implications - Only show if data exists */}
+            {field_sales && (field_sales.offensive_angles?.length > 0 || field_sales.defensive_angles?.length > 0 || field_sales.questions_to_explore?.length > 0) && (
+                <section className="bg-emerald-50 rounded-2xl border border-emerald-100 overflow-hidden shadow-sm">
+                    <div className="bg-emerald-600 px-6 py-4 flex items-center gap-2">
+                        <Target size={20} className="text-white" />
+                        <h2 className="text-white font-semibold">Field Sales Implications</h2>
                     </div>
-                    <div>
-                        <h4 className="flex items-center gap-2 text-emerald-800 font-bold mb-4">
-                            <ShieldCheck size={18} />
-                            Defensive Watch-outs
-                        </h4>
-                        <div className="space-y-4">
-                            {field_sales.defensive_angles?.map((angle: any, idx: number) => (
-                                <div key={idx} className="bg-white rounded-xl p-4 border border-emerald-100">
-                                    <p className="font-semibold text-slate-900 text-sm mb-1">{angle.risk}</p>
-                                    <p className="text-xs text-slate-600 italic">Mitigation: {angle.mitigation}</p>
+                    <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
+                        {field_sales.offensive_angles && field_sales.offensive_angles.length > 0 && (
+                            <div>
+                                <h4 className="flex items-center gap-2 text-emerald-800 font-bold mb-4">
+                                    <TrendingUp size={18} />
+                                    Offensive Angles
+                                </h4>
+                                <div className="space-y-4">
+                                    {field_sales.offensive_angles.map((angle: any, idx: number) => (
+                                        <div key={idx} className="bg-white rounded-xl p-4 border border-emerald-100">
+                                            <p className="font-semibold text-slate-900 text-sm mb-1">{angle.angle}</p>
+                                            {angle.target_segment && (
+                                                <p className="text-xs text-slate-600 italic">Target: {angle.target_segment}</p>
+                                            )}
+                                        </div>
+                                    ))}
                                 </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-                <div className="bg-emerald-100/50 p-6 border-t border-emerald-100">
-                    <h4 className="flex items-center gap-2 text-emerald-800 font-bold mb-4">
-                        <HelpCircle size={18} />
-                        Questions to Explore
-                    </h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {field_sales.questions_to_explore?.map((q: string, idx: number) => (
-                            <div key={idx} className="flex gap-2">
-                                <ChevronRight size={14} className="mt-1 text-emerald-500 shrink-0" />
-                                <p className="text-slate-700 text-sm">{q}</p>
                             </div>
-                        ))}
+                        )}
+                        {field_sales.defensive_angles && field_sales.defensive_angles.length > 0 && (
+                            <div>
+                                <h4 className="flex items-center gap-2 text-emerald-800 font-bold mb-4">
+                                    <ShieldCheck size={18} />
+                                    Defensive Watch-outs
+                                </h4>
+                                <div className="space-y-4">
+                                    {field_sales.defensive_angles.map((angle: any, idx: number) => (
+                                        <div key={idx} className="bg-white rounded-xl p-4 border border-emerald-100">
+                                            <p className="font-semibold text-slate-900 text-sm mb-1">{angle.risk}</p>
+                                            {angle.mitigation && (
+                                                <p className="text-xs text-slate-600 italic">Mitigation: {angle.mitigation}</p>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
-                </div>
-            </section>
+                    {field_sales.questions_to_explore && field_sales.questions_to_explore.length > 0 && (
+                        <div className="bg-emerald-100/50 p-6 border-t border-emerald-100">
+                            <h4 className="flex items-center gap-2 text-emerald-800 font-bold mb-4">
+                                <HelpCircle size={18} />
+                                Questions to Explore
+                            </h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                {field_sales.questions_to_explore.map((q: string, idx: number) => (
+                                    <div key={idx} className="flex gap-2">
+                                        <ChevronRight size={14} className="mt-1 text-emerald-500 shrink-0" />
+                                        <p className="text-slate-700 text-sm">{q}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </section>
+            )}
         </div>
     )
 }

@@ -347,6 +347,7 @@ class DeepResearchState(TypedDict):
     # Grooming results - IMMUTABLE after groomer sets them
     research_brief: Annotated[Optional[ResearchBrief], _keep_first]
     clarification_count: Annotated[int, _keep_first]
+    last_clarification: Annotated[Optional[ClarifyingQuestion], _keep_last]  # Track last asked question for context
     
     # Research outputs - Each written by ONE specific branch, keep latest
     financial_output: Annotated[Optional[FinancialAgentOutput], _keep_last]

@@ -268,14 +268,21 @@ async def run_deep_research(request: DeepResearchRequest):
     logger.info(f"[DEEP_RESEARCH] REQUEST START at {request_start.isoformat()} - query: {request.query[:100]}...")
     logger.info(f"[DEEP_RESEARCH] History length: {len(request.history)}")
     
+    # Build conversation history from request with proper message types
+    from langchain_core.messages import AIMessage
+    conversation_history = []
+    for m in request.history:
+        if m["role"] == "user":
+            conversation_history.append(HumanMessage(content=m["content"]))
+        elif m["role"] == "assistant":
+            conversation_history.append(AIMessage(content=m["content"]))
+    
     initial_state: DeepResearchState = {
         "user_query": request.query,
-        "conversation_history": [
-            HumanMessage(content=m["content"]) if m["role"] == "user" else HumanMessage(content=m["content"])
-            for m in request.history
-        ],
+        "conversation_history": conversation_history,
         "research_brief": None,
         "clarification_count": 0,
+        "last_clarification": None,
         "financial_output": None,
         "industry_output": None,
         "visual_output": None,
