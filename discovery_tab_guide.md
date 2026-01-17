@@ -7,9 +7,18 @@
 ## Overview
 
 The Discovery tab is the primary market intelligence exploration view in the CPG Intelligence Hub. It provides:
-1. **Two-column article feed** - Categories (30-day) + Latest High-Priority (72h)
+1. **Two-column article feed** - Categories (30-day, 500 items, medium+ priority) + Latest High-Priority (72h)
 2. **AI Assistant panel** - Streaming chat with tool access to corpus, web, and podcast data
 3. **Quick pivot** - Click on entities to trigger assistant searches
+
+### Data Configuration (Updated Jan 17, 2026)
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| Time Window | 720 hours (30 days) | How far back to fetch articles |
+| Max Items | 500 | Up from 100; ensures comprehensive coverage |
+| Priorities | Critical, High, Medium | Excludes Low priority (noise reduction) |
+| Confidence | ≥ 0.3 | Minimum classifier confidence |
 
 ---
 
@@ -127,12 +136,19 @@ const groupedByCategory = groupByCategory(items)
 // Sort categories by: 1) high-priority count desc, 2) category priority
 const sortedCategories = Array.from(groupedByCategory.entries()).sort(...)
 
-// Right column: filter for high/critical + last 72h + relevance >= 0.3
+// Right column: filter for high/critical + last 72h (client-side from fetched items)
 const latestHighPriority = items.filter(
   item => isHighPriority(item.priority) &&
-          isWithin72Hours(item.published_at) &&
-          item.relevance_score >= 0.3
+          isWithin72Hours(item.published_at)
 )
+```
+
+**Data Fetching Configuration** (in `page.tsx`):
+```typescript
+// Discovery tab configuration
+const digestConfig = activeMode === 'discovery'
+  ? { hours: 720, limit: 500, priorities: ['Critical', 'High', 'Medium'] }
+  : { hours: activeMode === 'pulse' ? 168 : 24, limit: 100 }
 ```
 
 ---

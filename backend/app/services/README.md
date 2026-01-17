@@ -10,7 +10,7 @@ This directory contains service classes that implement business logic and orches
 
 ### `digest_service.py` - Intelligence Digest Service
 
-**Purpose**: Manages the intelligence digest (news feed/DRUMBEAT) for the Pulse tab.
+**Purpose**: Manages the intelligence digest (news feed/DRUMBEAT) for the Pulse and Discovery tabs.
 
 **Data Source**: ✅ **BigQuery** `digest_items` table (verified Jan 5, 2026)
 
@@ -19,6 +19,7 @@ This directory contains service classes that implement business logic and orches
 - LLM-generated executive summaries (Claude Sonnet 4.5)
 - 15-minute cache TTL
 - Filtering by category, priority, time range
+- **Configurable limit** (default 100, max 1000) - Added Jan 17, 2026
 - Coverage tracking (duplicate article detection)
 
 **Usage**:
@@ -26,11 +27,20 @@ This directory contains service classes that implement business logic and orches
 from app.services.digest_service import get_digest_service
 
 service = get_digest_service()
-digest = await service.get_digest(hours=72)  # Last 3 days
+
+# Default (100 items, 72h)
+digest = await service.get_digest(hours=72)
+
+# Discovery tab (500 items, 30 days, medium+ priority)
+digest = await service.get_digest(hours=720, limit=500, priorities=[...])
 ```
 
 **API Endpoints**:
 - `GET /api/digest` - Get digest with optional filters
+  - `?hours=72` - Time window (default 72)
+  - `?limit=100` - Max items (default 100, max 1000)
+  - `?categories=...` - Comma-separated categories
+  - `?priorities=...` - Comma-separated priorities (Critical,High,Medium,Low)
 - `POST /api/digest/refresh` - Force cache refresh
 - `GET /api/digest/item/{id}` - Get single item
 - `GET /api/digest/stats` - Get statistics only
@@ -39,9 +49,9 @@ digest = await service.get_digest(hours=72)  # Last 3 days
 ```
 Frontend (useDigest.ts)
     ↓
-API (/api/digest)
+API (/api/digest?hours=720&limit=500&priorities=Critical,High,Medium)
     ↓
-DigestService.get_digest()
+DigestService.get_digest(hours, categories, priorities, limit)
     ↓
 BigQueryDataStorage.get_digest_items()
     ↓
@@ -54,22 +64,18 @@ BigQuery: digest_items table
 - `published_at` not within 30 min of `classified_at` (excludes defaulted dates)
 - `ingested_at >= '2025-12-28'` (data before this has unreliable dates)
 - `confidence >= 0.3` (minimum classifier confidence)
+- **Priorities filter** (optional) - e.g., exclude Low priority
 
 **Cache Behavior**:
 - TTL: 15 minutes
-- Keyed by: `hours`, `categories`, `priorities`
+- Keyed by: `hours`, `categories`, `priorities`, `limit`
 - Clear cache: Call `refresh_digest()` or `trigger_ingestion()`
 
-**Diagnostic Scripts**:
-- `backend/scripts/testing/check_lowium_bug.py` - Check priority value distribution
-- `backend/check_digest_data.py` - Check raw BigQuery data
-- `backend/check_digest_service.py` - Test service output
-
-**Data Quality** (verified Jan 5, 2026):
-- Total items: 3,767
-- Feed eligible: 94.9%
-- Priority distribution: Healthy (high: 702, medium: 1,282, low: 1,783)
-- Known issue: 12% of items have capitalized priority values (`Low` vs `low`) - low priority fix
+**Tab-Specific Configuration** (in `page.tsx`):
+| Tab | Hours | Limit | Priorities |
+|-----|-------|-------|------------|
+| Discovery | 720 (30d) | 500 | Critical, High, Medium |
+| Pulse | 168 (7d) | 100 | All |
 
 ---
 
@@ -185,4 +191,4 @@ elevenlabs_analyst_voice_id: str = "TxGEqnHWrfWFTfGW9XjX"  # Josh
 
 ---
 
-*Last updated: January 6, 2026*
+*Last updated: January 17, 2026*
