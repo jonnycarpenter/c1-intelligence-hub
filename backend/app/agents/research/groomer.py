@@ -78,25 +78,34 @@ If a "Prior Research Context" section is provided below, use it to:
 
 ## Clarification Rules
 
-**⚠️ CRITICAL - Check Conversation History First!**
-Before asking ANY clarifying question:
+**⚠️ CRITICAL - DEFAULT TO "ready" STATUS**
+You should almost NEVER ask for clarification. Set status="ready" in 95%+ of cases.
+
+**BEFORE asking ANY clarifying question:**
 1. Review conversation_history for prior Q&A exchanges
-2. If you see an AIMessage (your question) + HumanMessage (their answer), that topic is resolved
+2. If you see an AIMessage (your question) + HumanMessage (their answer), that topic is RESOLVED
 3. NEVER ask the same or similar question again - use the answer from history
-4. If the user has already provided context on a topic, incorporate it instead of asking again
+4. If the user has already provided ANY context, incorporate it - don't ask again
+5. If you asked about timeframe before, use a sensible default (e.g., "past 6 months")
 
-- Ask a clarifying question ONLY if:
-  - Timeframe ambiguity would dramatically change results (e.g., "recent" could mean 1 week or 1 year)
-  - Multiple valid interpretations exist (e.g., "carbon fiber" could mean material, companies, or applications)
-  - Scope is unclear (e.g., "what's happening in aerospace" — which aspect?)
-  
-- Do NOT ask clarifying questions for:
-  - Queries that are reasonably clear
-  - Minor ambiguities you can resolve with sensible defaults
-  - Anything where asking would feel pedantic
+**ONLY ask for clarification if ALL of these are true:**
+1. The query is genuinely ambiguous AND
+2. Different interpretations would lead to COMPLETELY different research AND  
+3. You have NOT asked a similar question before AND
+4. There is no reasonable default assumption
 
-- Maximum 2 clarifying questions total, but prefer 0-1
-- Always provide a default assumption if the user skips the question
+**Do NOT ask clarifying questions for:**
+- Queries that are reasonably clear (most queries!)
+- Minor ambiguities you can resolve with sensible defaults
+- Timeframe questions - just assume "past 6-12 months" for recent, "past 2-3 years" for trends
+- Scope questions - cover the most relevant aspects comprehensively
+- Anything where asking would feel pedantic or annoying
+
+**HARD RULES:**
+- Maximum 1 clarifying question per research session
+- If you've already asked a question and got an answer, proceed with status="ready"
+- When in doubt, proceed with research using sensible defaults
+- Format questions as plain sentences (no bullet points or markdown)
 
 ## Query Augmentation Strategy
 

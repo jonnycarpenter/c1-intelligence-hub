@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { HelpCircle, ArrowRight, MessageSquare } from 'lucide-react'
-import { Button } from '@/components/ui'
+import { HelpCircle, ArrowRight } from 'lucide-react'
+import { Button, MarkdownContent } from '@/components/ui'
 
 interface ClarificationPromptProps {
     question: any
@@ -11,6 +11,14 @@ interface ClarificationPromptProps {
 
 export default function ClarificationPrompt({ question, onResponse }: ClarificationPromptProps) {
     const [response, setResponse] = useState('')
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        // Submit on Enter (without Shift for multiline)
+        if (e.key === 'Enter' && !e.shiftKey && response.trim()) {
+            e.preventDefault()
+            onResponse(response)
+        }
+    }
 
     return (
         <div className="bg-white rounded-2xl border-2 border-emerald-100 shadow-xl p-6 max-w-2xl mx-auto">
@@ -25,9 +33,10 @@ export default function ClarificationPrompt({ question, onResponse }: Clarificat
             </div>
 
             <div className="bg-slate-50 rounded-xl p-4 mb-6 border border-slate-100">
-                <p className="text-slate-800 font-medium leading-relaxed">
-                    {question.question}
-                </p>
+                <MarkdownContent 
+                    content={question.question || (typeof question === 'string' ? question : '')} 
+                    className="text-slate-800"
+                />
             </div>
 
             <div className="space-y-4">
@@ -52,7 +61,8 @@ export default function ClarificationPrompt({ question, onResponse }: Clarificat
                     <textarea
                         value={response}
                         onChange={(e) => setResponse(e.target.value)}
-                        placeholder="Provide more context or choose an option..."
+                        onKeyDown={handleKeyDown}
+                        placeholder="Provide more context or choose an option... (Enter to submit)"
                         className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all min-h-[100px] resize-none"
                     />
                 </div>

@@ -19,7 +19,7 @@ const modeConfig: Record<Mode, { icon: typeof Activity; title: string; subtitle:
   pulse: {
     icon: Activity,
     title: 'Need to Know',
-    subtitle: 'Customized headlines',
+    subtitle: 'Curated headlines',
     color: 'text-emerald-500',
     bg: 'bg-emerald-100',
   },

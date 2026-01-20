@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { api, ApiDigest, ApiDigestItem } from '@/lib/api'
 import { DigestItem, DigestStats } from '@/types'
 
@@ -74,8 +74,6 @@ interface UseDigestResult {
 
 interface UseDigestOptions {
   hours?: number
-  limit?: number  // Max items to return (default 100, max 1000)
-  priorities?: string[]  // Filter to specific priorities (e.g., ['Critical', 'High', 'Medium'])
   autoRefresh?: boolean
   refreshInterval?: number
 }
@@ -86,8 +84,6 @@ interface UseDigestOptions {
 export function useDigest(options: UseDigestOptions = {}): UseDigestResult {
   const {
     hours = 24,
-    limit = 100,
-    priorities: initialPriorities,
     autoRefresh = false,
     refreshInterval = 5 * 60 * 1000 // 5 minutes
   } = options
@@ -100,33 +96,34 @@ export function useDigest(options: UseDigestOptions = {}): UseDigestResult {
   const [error, setError] = useState<Error | null>(null)
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null)
   const [priorityFilter, setPriorityFilter] = useState<string | null>(null)
+  
+  // Track if we've done initial fetch to avoid loading flicker on refetches
+  const hasLoadedOnce = useRef(false)
 
   const fetchDigest = useCallback(async () => {
     try {
-      setIsLoading(true)
+      // Only show loading spinner on initial fetch, not refetches (prevents flickering)
+      if (!hasLoadedOnce.current) {
+        setIsLoading(true)
+      }
       setError(null)
 
-      const filters: { hours?: number; categories?: string[]; priorities?: string[]; limit?: number } = { hours, limit }
+      const filters: { hours?: number; categories?: string[]; priorities?: string[] } = { hours }
       if (categoryFilter) filters.categories = [categoryFilter]
-
-      // Use initial priorities from options, or dynamic filter if set
-      if (priorityFilter) {
-        filters.priorities = [priorityFilter]
-      } else if (initialPriorities?.length) {
-        filters.priorities = initialPriorities
-      }
+      if (priorityFilter) filters.priorities = [priorityFilter]
 
       const digest = await api.getDigest(filters)
       setRawDigest(digest)
       setItems(Array.isArray(digest?.items) ? digest.items.map(transformDigestItem) : [])
       setStats(transformStats(digest))
       setSummary(digest?.summary || null)
+      hasLoadedOnce.current = true
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch digest'))
     } finally {
       setIsLoading(false)
     }
-  }, [hours, limit, initialPriorities, categoryFilter, priorityFilter])
+  }, [hours, categoryFilter, priorityFilter])
 
   const refresh = useCallback(async () => {
     try {
