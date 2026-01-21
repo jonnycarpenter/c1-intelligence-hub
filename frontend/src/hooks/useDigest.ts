@@ -74,6 +74,7 @@ interface UseDigestResult {
 
 interface UseDigestOptions {
   hours?: number
+  limit?: number
   autoRefresh?: boolean
   refreshInterval?: number
 }
@@ -84,6 +85,7 @@ interface UseDigestOptions {
 export function useDigest(options: UseDigestOptions = {}): UseDigestResult {
   const {
     hours = 24,
+    limit,
     autoRefresh = false,
     refreshInterval = 5 * 60 * 1000 // 5 minutes
   } = options
@@ -96,7 +98,7 @@ export function useDigest(options: UseDigestOptions = {}): UseDigestResult {
   const [error, setError] = useState<Error | null>(null)
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null)
   const [priorityFilter, setPriorityFilter] = useState<string | null>(null)
-  
+
   // Track if we've done initial fetch to avoid loading flicker on refetches
   const hasLoadedOnce = useRef(false)
 
@@ -108,9 +110,10 @@ export function useDigest(options: UseDigestOptions = {}): UseDigestResult {
       }
       setError(null)
 
-      const filters: { hours?: number; categories?: string[]; priorities?: string[] } = { hours }
+      const filters: { hours?: number; categories?: string[]; priorities?: string[]; limit?: number } = { hours }
       if (categoryFilter) filters.categories = [categoryFilter]
       if (priorityFilter) filters.priorities = [priorityFilter]
+      if (limit) filters.limit = limit
 
       const digest = await api.getDigest(filters)
       setRawDigest(digest)
@@ -123,7 +126,7 @@ export function useDigest(options: UseDigestOptions = {}): UseDigestResult {
     } finally {
       setIsLoading(false)
     }
-  }, [hours, categoryFilter, priorityFilter])
+  }, [hours, limit, categoryFilter, priorityFilter])
 
   const refresh = useCallback(async () => {
     try {

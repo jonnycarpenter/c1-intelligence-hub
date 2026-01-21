@@ -1040,7 +1040,7 @@ function ApolloContactTeaserItem({
   // Build full location string
   const locationParts = [contact.city, contact.state, contact.country].filter(Boolean)
   const fullLocation = contact.location || locationParts.join(', ')
-
+  
   // Format data freshness
   const formatFreshness = (dateStr?: string) => {
     if (!dateStr) return null
@@ -1056,7 +1056,7 @@ function ApolloContactTeaserItem({
       return null
     }
   }
-
+  
   const freshness = formatFreshness(contact.last_updated)
   const isStale = contact.last_updated && new Date(contact.last_updated) < new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
 
@@ -1071,33 +1071,47 @@ function ApolloContactTeaserItem({
     return 'bg-gray-100 text-gray-700 border-gray-200'
   }
 
+  // Determine the display name - prefer revealed full name
+  const displayName = contact.name || contact.name_display || 
+    `${contact.first_name} ${contact.last_name || contact.last_name_preview || ''}`.trim()
+  
+  // Check if we have actual contact info (revealed)
+  const hasActualEmail = !!contact.email
+  const hasActualPhone = !!contact.phone
+  const isRevealed = contact.is_revealed || hasActualEmail || hasActualPhone
+
   return (
-    <div className="flex items-start gap-3 p-4 bg-white rounded-xl border border-slate-200 hover:border-cyan-300 hover:shadow-md transition-all group">
-      <CompanyLogo domain={contact.company_domain} logoUrl={contact.logo_url} size={48} />
+    <div className={`flex items-start gap-3 p-4 bg-white rounded-xl border ${isRevealed ? 'border-emerald-200 bg-gradient-to-r from-emerald-50/30 to-white' : 'border-slate-200'} hover:border-cyan-300 hover:shadow-md transition-all group`}>
+      <CompanyLogo domain={contact.company_domain} logoUrl={contact.photo_url || contact.logo_url} size={48} />
       <div className="flex-1 min-w-0">
-        {/* Name + Seniority Row */}
+        {/* Name + Seniority + Verified Badge Row */}
         <div className="flex items-center gap-2 flex-wrap">
           <h4 className="font-semibold text-slate-900">
-            {contact.name_display || `${contact.first_name} ${contact.last_name_preview || ''}`}
+            {displayName}
           </h4>
+          {isRevealed && (
+            <span className="px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide bg-emerald-100 text-emerald-700 rounded">
+              ✓ Verified
+            </span>
+          )}
           {contact.seniority && (
             <span className="px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-cyan-100 text-cyan-700 rounded-full">
               {contact.seniority}
             </span>
           )}
         </div>
-
+        
         {/* Title */}
         {contact.title && (
           <p className="text-sm text-slate-600 mt-0.5">{contact.title}</p>
         )}
-
+        
         {/* Department Badges */}
         {contact.departments && contact.departments.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-1.5">
             {contact.departments.slice(0, 3).map((dept, i) => (
-              <span
-                key={i}
+              <span 
+                key={i} 
                 className={`px-2 py-0.5 text-[10px] font-medium rounded border ${getDeptColor(dept)}`}
               >
                 {dept.charAt(0).toUpperCase() + dept.slice(1).replace(/_/g, ' ')}
@@ -1105,13 +1119,40 @@ function ApolloContactTeaserItem({
             ))}
           </div>
         )}
-
+        
         {/* Company */}
         {contact.company_name && (
           <p className="text-sm text-slate-500 mt-1">{contact.company_name}</p>
         )}
-
-        {/* Meta Row: Location, Contact Availability, Freshness */}
+        
+        {/* Revealed Contact Info - Email & Phone */}
+        {(hasActualEmail || hasActualPhone) && (
+          <div className="flex items-center gap-4 mt-2 text-sm">
+            {hasActualEmail && (
+              <a 
+                href={`mailto:${contact.email}`}
+                className="flex items-center gap-1.5 text-emerald-700 hover:text-emerald-800 font-medium"
+              >
+                <Mail className="w-3.5 h-3.5" />
+                {contact.email}
+                {contact.email_status === 'verified' && (
+                  <span className="text-[9px] text-emerald-600">✓</span>
+                )}
+              </a>
+            )}
+            {hasActualPhone && (
+              <a 
+                href={`tel:${contact.phone}`}
+                className="flex items-center gap-1.5 text-emerald-700 hover:text-emerald-800 font-medium"
+              >
+                <Phone className="w-3.5 h-3.5" />
+                {contact.phone}
+              </a>
+            )}
+          </div>
+        )}
+        
+        {/* Meta Row: Location, Contact Availability (legacy), Freshness */}
         <div className="flex items-center gap-3 mt-2 text-xs text-slate-400 flex-wrap">
           {fullLocation && (
             <span className="flex items-center gap-1">
@@ -1119,16 +1160,17 @@ function ApolloContactTeaserItem({
               {fullLocation}
             </span>
           )}
-          {contact.has_email && (
-            <span className="flex items-center gap-1 text-emerald-600">
+          {/* Legacy indicators - only show if no actual data */}
+          {!hasActualEmail && contact.has_email && (
+            <span className="flex items-center gap-1 text-slate-400">
               <Mail className="w-3 h-3" />
-              Email
+              Email available
             </span>
           )}
-          {contact.has_phone && (
-            <span className="flex items-center gap-1 text-emerald-600">
+          {!hasActualPhone && contact.has_phone && (
+            <span className="flex items-center gap-1 text-slate-400">
               <Phone className="w-3 h-3" />
-              Phone
+              Phone available
             </span>
           )}
           {freshness && (
@@ -1139,7 +1181,7 @@ function ApolloContactTeaserItem({
           )}
         </div>
       </div>
-
+      
       {/* LinkedIn - always visible now */}
       <div className="flex items-center gap-1 shrink-0">
         {contact.linkedin_url && (

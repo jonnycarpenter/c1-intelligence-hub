@@ -53,14 +53,16 @@ export default function Home() {
 
   // Fetch digest data from API
   // Pulse = 7 days (168 hrs), Discovery = 30 days (720 hrs), others = 24 hrs
+  // Discovery needs more items (500) for richer category groupings, Pulse can stay at 100
   const digestHours = activeMode === 'pulse' ? 168 : activeMode === 'discovery' ? 720 : 24
+  const digestLimit = activeMode === 'discovery' ? 500 : 100
   const {
     items: digestItems,
     stats: digestStats,
     isLoading: digestLoading,
     error: digestError,
     refresh: refreshDigest
-  } = useDigest({ hours: digestHours })
+  } = useDigest({ hours: digestHours, limit: digestLimit })
 
   // Streaming chat state
   const {
