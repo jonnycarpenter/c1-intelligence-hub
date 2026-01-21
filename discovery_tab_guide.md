@@ -10,6 +10,7 @@ The Discovery tab is the primary market intelligence exploration view in the CPG
 1. **Two-column article feed** - Categories (30-day, 500 items, medium+ priority) + Latest High-Priority (72h)
 2. **AI Assistant panel** - Streaming chat with tool access to corpus, web, and podcast data
 3. **Quick pivot** - Click on entities to trigger assistant searches
+4. **AI Summary** (Jan 2026) - On-demand thematic analysis for each category accordion
 
 ### Data Configuration (Updated Jan 17, 2026)
 
@@ -84,8 +85,11 @@ frontend/src/
     └── index.ts                   # DigestItem, DigestStats, etc.
 
 api/routers/
-├── discovery.py                   # Streaming chat endpoint (461 lines)
+├── discovery.py                   # Streaming chat + AI Summary endpoint
 └── articles.py                    # Article list/feed endpoints
+
+backend/app/ingestion/generators/
+└── discovery_summary.py           # LLM thematic analysis generator
 ```
 
 ---

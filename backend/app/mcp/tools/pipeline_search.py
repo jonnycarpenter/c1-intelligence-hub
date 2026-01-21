@@ -604,12 +604,11 @@ async def find_company_contacts(
     """
     Find decision makers at a specific company using Apollo.io.
     
-    Returns enriched contact profiles including:
-    - Name, title, seniority, and department
-    - Location (city, state, country)
-    - Email and phone availability indicators
+    Returns FULLY REVEALED contact profiles including:
+    - Full name (first and last), title, seniority
+    - Verified email address and phone number
     - LinkedIn profile link
-    - Data freshness (last updated date)
+    - Location (city, state, country)
     
     Also includes company enrichment (firmographics) for context.
     
@@ -622,7 +621,7 @@ async def find_company_contacts(
         num_results: Number of contacts to find (max 25)
     
     Returns:
-        JSON with enriched contact profiles and company firmographics.
+        JSON with fully revealed contact profiles and company firmographics.
     
     Example:
     - find_company_contacts(company_domain="hexcel.com", department="purchasing")
@@ -631,6 +630,7 @@ async def find_company_contacts(
     logger.info(f"[Pipeline Tool] find_company_contacts: {company_name or company_domain}")
     
     try:
+        # Step 1: Search for contacts (teaser data)
         contacts = await apollo_service.search_contacts(
             organization_name=company_name,
             organization_domain=company_domain,
@@ -640,28 +640,76 @@ async def find_company_contacts(
             per_page=min(num_results, 25),
         )
         
-        formatted = [
-            {
-                "id": c.id,
-                "name": f"{c.first_name} {c.last_name_obfuscated or ''}".strip(),
-                "first_name": c.first_name,
-                "title": c.title,
-                "seniority": c.seniority,
-                "departments": c.departments,  # Phase 1: Show department badges
-                "company": c.company_name,
-                "company_domain": c.company_domain,
-                "has_email": c.has_email,
-                "has_phone": c.has_phone,
-                "city": c.city,
-                "state": c.state,
-                "country": c.country,
-                "last_updated": c.last_updated,  # Phase 1: Data freshness indicator
-                "linkedin_url": c.linkedin_url,
-            }
-            for c in contacts
-        ]
+        # Step 2: Auto-reveal each contact to get full data (email, phone, full name)
+        revealed_contacts = []
+        for c in contacts:
+            try:
+                revealed = await apollo_service.reveal_contact(c.id)
+                if revealed:
+                    revealed_contacts.append({
+                        "id": revealed.id,
+                        "name": revealed.name,
+                        "first_name": revealed.first_name,
+                        "last_name": revealed.last_name,
+                        "title": revealed.title,
+                        "seniority": revealed.seniority,
+                        "departments": c.departments,  # Keep from teaser (reveal doesn't include)
+                        "company": revealed.company_name or c.company_name,
+                        "company_domain": revealed.company_domain or c.company_domain,
+                        "email": revealed.email,
+                        "email_status": revealed.email_status,
+                        "phone": revealed.phone,
+                        "city": revealed.city or c.city,
+                        "state": revealed.state or c.state,
+                        "country": revealed.country or c.country,
+                        "linkedin_url": revealed.linkedin_url or c.linkedin_url,
+                        "photo_url": revealed.photo_url,
+                        "is_revealed": True,
+                    })
+                    logger.info(f"[Pipeline Tool] Auto-revealed contact: {revealed.name}")
+                else:
+                    # Fallback to teaser data if reveal fails
+                    revealed_contacts.append({
+                        "id": c.id,
+                        "name": f"{c.first_name} {c.last_name_obfuscated or ''}".strip(),
+                        "first_name": c.first_name,
+                        "last_name": c.last_name_obfuscated,
+                        "title": c.title,
+                        "seniority": c.seniority,
+                        "departments": c.departments,
+                        "company": c.company_name,
+                        "company_domain": c.company_domain,
+                        "email": None,
+                        "phone": None,
+                        "city": c.city,
+                        "state": c.state,
+                        "country": c.country,
+                        "linkedin_url": c.linkedin_url,
+                        "is_revealed": False,
+                    })
+            except Exception as e:
+                logger.warning(f"[Pipeline Tool] Failed to reveal contact {c.id}: {e}")
+                # Fallback to teaser data
+                revealed_contacts.append({
+                    "id": c.id,
+                    "name": f"{c.first_name} {c.last_name_obfuscated or ''}".strip(),
+                    "first_name": c.first_name,
+                    "last_name": c.last_name_obfuscated,
+                    "title": c.title,
+                    "seniority": c.seniority,
+                    "departments": c.departments,
+                    "company": c.company_name,
+                    "company_domain": c.company_domain,
+                    "email": None,
+                    "phone": None,
+                    "city": c.city,
+                    "state": c.state,
+                    "country": c.country,
+                    "linkedin_url": c.linkedin_url,
+                    "is_revealed": False,
+                })
         
-        # Fetch company enrichment (FREE - no credits) for context
+        # Step 3: Fetch company enrichment (FREE - no credits) for context
         company_enrichment = None
         enrich_domain = company_domain
         if not enrich_domain and contacts and contacts[0].company_domain:
@@ -690,14 +738,17 @@ async def find_company_contacts(
                     logger.info(f"[Pipeline Tool] Company enrichment loaded for {enrich_domain}")
             except Exception as e:
                 logger.warning(f"[Pipeline Tool] Company enrichment failed for {enrich_domain}: {e}")
-                # Continue without enrichment - contacts are still valuable
+        
+        revealed_count = sum(1 for c in revealed_contacts if c.get("is_revealed"))
+        logger.info(f"[Pipeline Tool] find_company_contacts complete: {len(revealed_contacts)} contacts, {revealed_count} revealed")
         
         return json.dumps({
             "status": "success",
             "query_type": "apollo_contacts",
             "company": company_name or company_domain,
-            "count": len(formatted),
-            "results": formatted,
+            "count": len(revealed_contacts),
+            "revealed_count": revealed_count,
+            "results": revealed_contacts,
             "company_enrichment": company_enrichment,
         }, indent=2)
         
@@ -718,16 +769,12 @@ async def reveal_contact(
     """
     Reveal full contact details including verified email.
     
-    ⚠️ COSTS 1 CREDIT - always confirm with user before using!
-    
-    Before calling this, you MUST:
-    1. Tell the user this costs 1 credit
-    2. Show them remaining credits
-    3. Get their explicit approval
+    NOTE: Contacts from find_company_contacts are automatically revealed.
+    This tool is only needed for edge cases where auto-reveal failed.
     
     Args:
         person_id: Apollo person ID from find_company_contacts results
-        contact_name: Optional name for logging/confirmation
+        contact_name: Optional name for logging
     
     Returns:
         JSON with full contact profile including email and employment history.

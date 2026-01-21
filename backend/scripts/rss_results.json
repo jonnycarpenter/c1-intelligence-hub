@@ -1,0 +1,114 @@
+[
+  {
+    "name": "CompositesWorld",
+    "url": "https://www.compositesworld.com/rss/news",
+    "status": "OK",
+    "items": 10,
+    "latest": "2026-01-16",
+    "error": null
+  },
+  {
+    "name": "JEC Composites",
+    "url": "https://www.jeccomposites.com/feed/",
+    "status": "OK",
+    "items": 100,
+    "latest": "2026-01-20",
+    "error": null
+  },
+  {
+    "name": "Composites Manufacturing (ACMA)",
+    "url": "https://compositesmanufacturingmagazine.com/feed/",
+    "status": "OK",
+    "items": 10,
+    "latest": "2026-01-19",
+    "error": null
+  },
+  {
+    "name": "ACMA News",
+    "url": "https://acmanet.org/feed/",
+    "status": "OK",
+    "items": 10,
+    "latest": "2026-01-19",
+    "error": null
+  },
+  {
+    "name": "Plastics Today",
+    "url": "https://www.plasticstoday.com/rss.xml",
+    "status": "OK",
+    "items": 50,
+    "latest": "2026-01-20",
+    "error": null
+  },
+  {
+    "name": "Aviation Week",
+    "url": "https://aviationweek.com/rss.xml",
+    "status": "OK",
+    "items": 10,
+    "latest": "2025-03-07",
+    "error": null
+  },
+  {
+    "name": "Just Auto",
+    "url": "https://www.just-auto.com/feed/",
+    "status": "OK",
+    "items": 10,
+    "latest": "2026-01-20",
+    "error": null
+  },
+  {
+    "name": "Wind Power Engineering",
+    "url": "https://www.windpowerengineering.com/feed/",
+    "status": "OK",
+    "items": 3,
+    "latest": "2025-12-22",
+    "error": null
+  },
+  {
+    "name": "Offshore Wind",
+    "url": "https://www.offshorewind.biz/feed/",
+    "status": "OK",
+    "items": 10,
+    "latest": "2026-01-20",
+    "error": null
+  },
+  {
+    "name": "Boating Industry",
+    "url": "https://boatingindustry.com/feed/",
+    "status": "OK",
+    "items": 10,
+    "latest": "2026-01-20",
+    "error": null
+  },
+  {
+    "name": "Marine Industry News",
+    "url": "https://www.marineindustrynews.co.uk/feed/",
+    "status": "OK",
+    "items": 10,
+    "latest": "2026-01-20",
+    "error": null
+  },
+  {
+    "name": "FreightWaves",
+    "url": "https://www.freightwaves.com/feed",
+    "status": "OK",
+    "items": 50,
+    "latest": "2026-01-20",
+    "error": null
+  },
+  {
+    "name": "Supply Chain Dive",
+    "url": "https://www.supplychaindive.com/feeds/news/",
+    "status": "OK",
+    "items": 10,
+    "latest": "2026-01-20",
+    "error": null
+  },
+  {
+    "name": "Supply Chain Dive Logistics",
+    "url": "https://www.supplychaindive.com/feeds/topic/logistics/",
+    "status": "OK",
+    "items": 20,
+    "latest": "2026-01-20",
+    "error": null
+  }
+]

@@ -47,6 +47,22 @@ class DiscoveryChatRequest(BaseModel):
     history: List[ChatMessage] = []
 
 
+class DiscoveryTheme(BaseModel):
+    """A significant trend or topic identified within a category."""
+    title: str  # e.g., "M&A Surge" or "Pricing Pressures"
+    content: str  # 1-2 sentence AI summary
+
+
+class DiscoverySummaryResponse(BaseModel):
+    """Thematic summary for inline AI summary drawer."""
+    category: str
+    period_label: str = "Past 30 days"
+    themes: List[DiscoveryTheme]
+    one_off_summary: str  # e.g., "8 one-off stories about product launches and pricing"
+    article_count: int
+    generated_at: str
+
+
 # =============================================================================
 # System Prompt
 # =============================================================================
@@ -549,3 +565,108 @@ async def discovery_chat(request: DiscoveryChatRequest) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"[DISCOVERY] Non-streaming chat error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# Category Summary Endpoint (AI Summary Drawer)
+# =============================================================================
+
+@router.get("/summary/{category}", response_model=DiscoverySummaryResponse)
+async def get_discovery_category_summary(category: str):
+    """
+    Get a thematic AI summary for a specific category (last 30 days).
+    
+    Returns 2 key themes and a summary of one-off stories.
+    Used by the Discovery tab's category accordion "AI Summary" button.
+    """
+    request_start = time.time()
+    logger.info(f"[DISCOVERY_SUMMARY] Endpoint START: category={category}")
+    
+    try:
+        # Import the generator
+        from app.ingestion.generators.discovery_summary import DiscoverySummaryGenerator
+        
+        # Get the vector store for article retrieval
+        vector_store = await get_production_vector_store()
+        
+        if not vector_store.is_available:
+            logger.warning("[DISCOVERY_SUMMARY] Vector store not available")
+            raise HTTPException(status_code=503, detail="Article database temporarily unavailable")
+        
+        # Map frontend category names to search-friendly terms
+        # Handle both Title Case (frontend) and lowercase
+        category_mapping = {
+            'Competitor': 'competitor',
+            'Market': 'market',
+            'Regulatory': 'regulatory',
+            'Product': 'product',
+            'Earnings': 'earnings',
+            'Partnership': 'partnership',
+            'Expansion': 'expansion',
+            'Supply Chain': 'supply_chain',
+            'Logistics': 'logistics',
+            'C1 Mention': 'c1_mention',
+            'General': 'general',
+        }
+        
+        # Normalize the category for search
+        search_category = category_mapping.get(category, category.lower().replace(' ', '_'))
+        
+        # Fetch articles for this category (last 30 days)
+        # Using a semantic search with category filter
+        results = await vector_store.search(
+            query=f"{category} industry news updates",
+            limit=50,
+            where={"category": search_category}
+        )
+        
+        # If category filter didn't work, try without it but filter results
+        if not results:
+            logger.info(f"[DISCOVERY_SUMMARY] No results with category filter, trying semantic search")
+            results = await vector_store.search(
+                query=f"{category} industry news developments trends",
+                limit=100
+            )
+            # Filter by category in metadata
+            results = [
+                r for r in results 
+                if r.get("metadata", {}).get("category", "").lower() == search_category
+                or category.lower() in r.get("metadata", {}).get("category", "").lower()
+            ][:50]
+        
+        # Convert to article dicts for the generator
+        articles = []
+        for r in results:
+            metadata = r.get("metadata", {})
+            articles.append({
+                "title": metadata.get("title", "Untitled"),
+                "summary": r.get("document", "") or metadata.get("summary", ""),
+                "url": metadata.get("url", ""),
+                "published_at": metadata.get("published_at", ""),
+                "category": metadata.get("category", ""),
+            })
+        
+        logger.info(f"[DISCOVERY_SUMMARY] Found {len(articles)} articles for category={category}")
+        
+        # Generate the thematic summary
+        generator = DiscoverySummaryGenerator()
+        result = await generator.generate(category, articles)
+        
+        elapsed = time.time() - request_start
+        logger.info(f"[DISCOVERY_SUMMARY] Endpoint COMPLETE: {elapsed:.2f}s, themes={len(result.get('themes', []))}")
+        
+        return DiscoverySummaryResponse(
+            category=result["category"],
+            period_label=result["period_label"],
+            themes=[DiscoveryTheme(**t) for t in result.get("themes", [])],
+            one_off_summary=result.get("one_off_summary", ""),
+            article_count=result.get("article_count", 0),
+            generated_at=result.get("generated_at", datetime.utcnow().isoformat())
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        elapsed = time.time() - request_start
+        logger.error(f"[DISCOVERY_SUMMARY] Endpoint FAILED: {elapsed:.2f}s, error={str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to generate summary: {str(e)}")

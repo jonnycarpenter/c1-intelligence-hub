@@ -62,6 +62,23 @@ export interface DigestStats {
   lastUpdated: string
 }
 
+// ============================================
+// Discovery AI Summary Types
+// ============================================
+export interface DiscoveryTheme {
+  title: string
+  content: string
+}
+
+export interface DiscoverySummaryResponse {
+  category: string
+  period_label: string
+  themes: DiscoveryTheme[]
+  one_off_summary: string
+  article_count: number
+  generated_at: string
+}
+
 export interface Message {
   id: string
   role: 'user' | 'assistant' | 'system'
@@ -347,26 +364,33 @@ export interface ApolloEnrichmentResult {
 }
 
 export interface ApolloContactTeaserResult {
-  id: string  // Apollo person ID - use for reveal
+  id: string  // Apollo person ID
   first_name: string
-  last_name_preview?: string  // Obfuscated in teaser
+  last_name?: string  // Full last name (auto-revealed)
+  last_name_preview?: string  // Obfuscated (fallback if reveal failed)
   name_display?: string
+  name?: string  // Full name from reveal
   title?: string
   seniority?: string
-  departments?: string[]  // Phase 1: Full department list (e.g., ["purchasing", "operations"])
+  departments?: string[]  // Full department list (e.g., ["purchasing", "operations"])
   department?: string     // Legacy single department
   company_name?: string
   company_domain?: string
   logo_url?: string
-  has_email: boolean
-  has_phone: boolean
+  photo_url?: string  // Contact photo from reveal
+  // Contact info - now auto-revealed
+  email?: string  // Actual email address
+  email_status?: string  // "verified", "guessed", etc.
+  phone?: string  // Actual phone number
+  has_email?: boolean  // Legacy - kept for backwards compat
+  has_phone?: boolean  // Legacy - kept for backwards compat
   linkedin_url?: string
   location?: string  // "City, State"
-  // Phase 1: Additional fields for richer display
   city?: string
   state?: string
   country?: string
   last_updated?: string  // ISO date string for data freshness
+  is_revealed?: boolean  // Whether this contact was auto-revealed
 }
 
 export interface ApolloContactRevealedResult {

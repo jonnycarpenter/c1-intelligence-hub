@@ -104,7 +104,6 @@ class ApiClient {
     hours?: number
     categories?: string[]
     priorities?: string[]
-    limit?: number  // Max items to return (default 100, max 1000)
   }): Promise<ApiDigest> {
     const params = new URLSearchParams()
 
@@ -116,9 +115,6 @@ class ApiClient {
     }
     if (options?.priorities?.length) {
       params.set('priorities', options.priorities.join(','))
-    }
-    if (options?.limit) {
-      params.set('limit', options.limit.toString())
     }
 
     const url = `${this.baseUrl}/api/digest${params.toString() ? `?${params}` : ''}`
@@ -142,6 +138,28 @@ class ApiClient {
 
     if (!response.ok) {
       throw new Error(`Failed to refresh digest: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Get AI summary for a Discovery category (thematic analysis)
+   */
+  async getDiscoverySummary(category: string): Promise<{
+    category: string
+    period_label: string
+    themes: Array<{ title: string; content: string }>
+    one_off_summary: string
+    article_count: number
+    generated_at: string
+  }> {
+    const response = await fetch(
+      `${this.baseUrl}/api/discovery/summary/${encodeURIComponent(category)}`
+    )
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch discovery summary: ${response.statusText}`)
     }
 
     return response.json()

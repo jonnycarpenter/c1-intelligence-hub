@@ -56,11 +56,12 @@ The Pipeline tab is an AI-powered sales prospecting engine that combines neural 
    - Example: "aerospace companies in Florida with >500 employees"
    - Returns full firmographics (employees, revenue, industry, tech stack, location)
 6. `enrich_company` - FREE firmographics (employees, revenue, tech stack)
-7. `find_company_contacts` - PRIMARY contact search tool (FREE teasers + FREE company enrichment)
-   - Returns contact previews with `person_id` for reveal
+7. `find_company_contacts` - PRIMARY contact search tool (**AUTO-REVEALS all contacts**)
+   - Automatically reveals full contact details (name, email, phone) for all results
+   - No manual reveal step needed - data is ready to use immediately
    - **Auto-includes company firmographics** (employee count, revenue, industry, location)
-   - Frontend displays company context header above contacts
-8. `reveal_contact` - COSTS 1 CREDIT (verified email/phone)
+   - Frontend displays verified contact info with clickable email/phone links
+8. `reveal_contact` - Manual reveal (rarely needed, auto-reveal handles most cases)
 9. `get_apollo_credits` - Check usage
 
 #### BigQuery Corpus (Chat insights only)
@@ -162,10 +163,11 @@ The agent is instructed to inform users about filter impact and offer alternativ
 - Key metrics: employees, revenue, location
 - LinkedIn link
 
-**Contact Cards (below header):**
-- Name, title, seniority badge
-- "Email available" / "Phone available" badges
-- "Reveal" button (costs 1 credit on click)
+**Contact Cards (below header) - Auto-Revealed:**
+- Full name, title, seniority badge
+- "✓ Verified" badge (green accent border)
+- Actual email address (clickable mailto: link)
+- Actual phone number (clickable tel: link)
 - LinkedIn link
 
 ---
@@ -187,14 +189,15 @@ Agent:
 Result: SearchBlocks with employee count, revenue, industry
 ```
 
-### 3. Contact Discovery (Apollo - Recommended)
+### 3. Contact Discovery (Apollo - Auto-Revealed)
 ```
 User: "Find purchasing managers at Hexcel"
 Agent: Uses find_company_contacts(company_name="Hexcel", department="purchasing")
 Result: 
 - Company header with Hexcel firmographics
-- Contact cards with has_email/has_phone flags
-- Reveal button to get verified contact info
+- Contact cards with FULL details (name, email, phone) - auto-revealed
+- Clickable mailto: and tel: links ready to use
+- "✓ Verified" badge on revealed contacts
 ```
 
 ### 4. Intelligence Query (Chat Only)

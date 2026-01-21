@@ -125,3 +125,44 @@ html {
     width: 4px;
   }
 }
+
+/* =============================================================================
+   AI Summary Drawer Animations
+   ============================================================================= */
+
+/* Sparkle rotation animation for AI Summary button icon */
+@keyframes sparkle-rotate {
+  0% {
+    transform: scale(1) rotate(0deg);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.2) rotate(180deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(360deg);
+    opacity: 0.8;
+  }
+}
+
+/* Subtle float animation for glassmorphism drawer */
+@keyframes float-subtle {
+  0% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+  100% {
+    transform: translateY(0px);
+  }
+}
+
+.animate-sparkle {
+  animation: sparkle-rotate 2s ease-in-out infinite;
+}
+
+.animate-float {
+  animation: float-subtle 3s ease-in-out infinite;
+}

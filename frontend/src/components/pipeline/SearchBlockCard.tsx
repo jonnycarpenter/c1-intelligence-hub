@@ -1040,7 +1040,7 @@ function ApolloContactTeaserItem({
   // Build full location string
   const locationParts = [contact.city, contact.state, contact.country].filter(Boolean)
   const fullLocation = contact.location || locationParts.join(', ')
-  
+
   // Format data freshness
   const formatFreshness = (dateStr?: string) => {
     if (!dateStr) return null
@@ -1056,7 +1056,7 @@ function ApolloContactTeaserItem({
       return null
     }
   }
-  
+
   const freshness = formatFreshness(contact.last_updated)
   const isStale = contact.last_updated && new Date(contact.last_updated) < new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
 
@@ -1086,18 +1086,18 @@ function ApolloContactTeaserItem({
             </span>
           )}
         </div>
-        
+
         {/* Title */}
         {contact.title && (
           <p className="text-sm text-slate-600 mt-0.5">{contact.title}</p>
         )}
-        
+
         {/* Department Badges */}
         {contact.departments && contact.departments.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-1.5">
             {contact.departments.slice(0, 3).map((dept, i) => (
-              <span 
-                key={i} 
+              <span
+                key={i}
                 className={`px-2 py-0.5 text-[10px] font-medium rounded border ${getDeptColor(dept)}`}
               >
                 {dept.charAt(0).toUpperCase() + dept.slice(1).replace(/_/g, ' ')}
@@ -1105,12 +1105,12 @@ function ApolloContactTeaserItem({
             ))}
           </div>
         )}
-        
+
         {/* Company */}
         {contact.company_name && (
           <p className="text-sm text-slate-500 mt-1">{contact.company_name}</p>
         )}
-        
+
         {/* Meta Row: Location, Contact Availability, Freshness */}
         <div className="flex items-center gap-3 mt-2 text-xs text-slate-400 flex-wrap">
           {fullLocation && (
@@ -1139,7 +1139,7 @@ function ApolloContactTeaserItem({
           )}
         </div>
       </div>
-      
+
       {/* LinkedIn - always visible now */}
       <div className="flex items-center gap-1 shrink-0">
         {contact.linkedin_url && (

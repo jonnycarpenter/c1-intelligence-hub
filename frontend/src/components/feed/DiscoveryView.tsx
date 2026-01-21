@@ -8,12 +8,18 @@ import {
   Radio, 
   Clock,
   Flame,
+  Sparkles,
+  Loader2,
+  X,
+  Zap,
+  Target,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Badge, PriorityBadge, CategoryBadge } from '@/components/ui'
 import DigestCard from '@/components/digest/DigestCard'
 import DiscoveryAssistant from './DiscoveryAssistant'
-import type { DigestItem, DigestStats, Category, Priority } from '@/types'
+import { api } from '@/lib/api'
+import type { DigestItem, DigestStats, Category, Priority, DiscoverySummaryResponse } from '@/types'
 
 // =============================================================================
 // Types
@@ -142,6 +148,11 @@ function CategoryAccordion({
   const [isOpen, setIsOpen] = useState(defaultOpen)
   const [showAll, setShowAll] = useState(false)
   
+  // AI Summary state
+  const [summary, setSummary] = useState<DiscoverySummaryResponse | null>(null)
+  const [isLoadingSummary, setIsLoadingSummary] = useState(false)
+  const [isSummaryVisible, setIsSummaryVisible] = useState(false)
+  
   const config = CATEGORY_CONFIG[category] || { 
     label: category, 
     color: 'border-l-slate-400', 
@@ -163,6 +174,32 @@ function CategoryAccordion({
   const highPriorityCount = items.filter(i => isHighPriority(i.priority)).length
   const displayItems = showAll ? sortedItems : sortedItems.slice(0, 8)
   const hasMore = sortedItems.length > 8
+
+  // Fetch AI Summary
+  const handleFetchSummary = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation() // Don't toggle accordion
+
+    // Toggle visibility if already loaded
+    if (isSummaryVisible) {
+      setIsSummaryVisible(false)
+      return
+    }
+
+    setIsSummaryVisible(true)
+
+    // Only fetch if not cached
+    if (!summary) {
+      setIsLoadingSummary(true)
+      try {
+        const data = await api.getDiscoverySummary(category)
+        setSummary(data)
+      } catch (err) {
+        console.error('Failed to fetch summary:', err)
+      } finally {
+        setIsLoadingSummary(false)
+      }
+    }
+  }, [category, isSummaryVisible, summary])
   
   return (
     <div className={cn(
@@ -184,10 +221,141 @@ function CategoryAccordion({
           )}
         </div>
         <div className="flex items-center gap-3">
+          {/* AI Summary Button */}
+          <button
+            onClick={handleFetchSummary}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border shadow-sm",
+              isSummaryVisible
+                ? "bg-gradient-to-r from-teal-500 to-emerald-500 text-white border-white/20 ring-2 ring-teal-500/20 shadow-lg scale-105"
+                : "bg-white text-teal-600 border-teal-500/30 hover:bg-teal-50 hover:border-teal-500/50 active:scale-95"
+            )}
+          >
+            {isLoadingSummary ? (
+              <Loader2 size={12} className="animate-spin" />
+            ) : (
+              <Sparkles 
+                size={12} 
+                className={cn(
+                  "animate-sparkle",
+                  isSummaryVisible ? "text-white" : "text-teal-500"
+                )} 
+              />
+            )}
+            AI Summary
+          </button>
+          
           <span className="text-sm text-slate-500">{items.length} items</span>
           {isOpen ? <ChevronDown size={18} className="text-slate-400" /> : <ChevronRight size={18} className="text-slate-400" />}
         </div>
       </button>
+
+      {/* ⭐ GLASSMORPHISM AI SUMMARY DRAWER */}
+      {isSummaryVisible && (
+        <div className="mx-4 mb-4 relative z-10 animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="bg-slate-900/95 text-white rounded-xl p-6 shadow-2xl border border-white/10 backdrop-blur-xl relative overflow-hidden animate-float">
+            {/* Ambient background glows */}
+            <div className="absolute -top-24 -right-24 w-48 h-48 bg-teal-500/20 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-blue-500/20 rounded-full blur-3xl pointer-events-none" />
+
+            {/* Close button */}
+            <button
+              onClick={() => setIsSummaryVisible(false)}
+              className="absolute top-4 right-4 p-1.5 hover:bg-white/10 rounded-full transition-colors z-10"
+            >
+              <X size={14} />
+            </button>
+
+            {isLoadingSummary ? (
+              /* Loading State */
+              <div className="flex flex-col items-center justify-center py-10 space-y-4">
+                <div className="relative">
+                  <Loader2 size={32} className="animate-spin text-teal-500 opacity-80" />
+                  <Sparkles size={14} className="absolute -top-1 -right-1 text-yellow-400 animate-pulse" />
+                </div>
+                <div className="text-center space-y-1">
+                  <p className="text-sm font-bold tracking-tight">Synthesizing {config.label} Insights</p>
+                  <p className="text-[10px] uppercase tracking-widest opacity-50 font-bold">LLM Thematic Analysis</p>
+                </div>
+              </div>
+            ) : summary ? (
+              /* Summary Content */
+              <div className="space-y-6 relative z-10">
+                {/* Header */}
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <Sparkles size={14} className="text-yellow-400" />
+                      <h4 className="text-sm font-bold tracking-tight uppercase">
+                        {config.label} — Strategic Themes
+                      </h4>
+                    </div>
+                    <p className="text-[10px] uppercase tracking-widest opacity-60 font-black">
+                      {summary.period_label} • {summary.article_count} Signals Processed
+                    </p>
+                  </div>
+                </div>
+
+                {/* Theme Cards Grid */}
+                {summary.themes.length > 0 && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {summary.themes.map((theme, idx) => (
+                      <div 
+                        key={idx} 
+                        className="group p-4 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all duration-300"
+                      >
+                        <div className="flex items-start gap-3">
+                          {/* Icon anchor */}
+                          <div className="w-8 h-8 shrink-0 flex items-center justify-center rounded-lg bg-gradient-to-br from-white/10 to-white/5 border border-white/10 group-hover:from-teal-500/20 group-hover:to-blue-500/20 transition-colors">
+                            {idx === 0 ? (
+                              <TrendingUp size={16} className="text-teal-400" />
+                            ) : (
+                              <Zap size={16} className="text-blue-400" />
+                            )}
+                          </div>
+                          <div className="space-y-1">
+                            <h5 className="text-sm font-bold leading-tight group-hover:text-teal-400 transition-colors">
+                              {theme.title}
+                            </h5>
+                            <p className="text-xs leading-relaxed opacity-70 font-medium italic">
+                              &quot;{theme.content}&quot;
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* One-off Summary Footer */}
+                <div className="pt-4 border-t border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <Target size={14} className="text-pink-400" />
+                    <p className="text-[11px] font-bold opacity-80 italic leading-snug">
+                      {summary.one_off_summary}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setIsOpen(true)}
+                    className="shrink-0 flex items-center gap-1.5 text-[10px] uppercase font-black tracking-widest text-teal-400 hover:text-white transition-colors"
+                  >
+                    Explore all signals
+                    <ChevronRight size={12} />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* Error State */
+              <div className="py-6 text-center">
+                <p className="text-sm opacity-60 italic">Failed to generate summary. Please try again.</p>
+              </div>
+            )}
+          </div>
+
+          {/* Stem connector triangle */}
+          <div className="absolute -top-2 left-8 w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-b-[8px] border-b-slate-900/95" />
+        </div>
+      )}
       
       {/* Content */}
       {isOpen && (

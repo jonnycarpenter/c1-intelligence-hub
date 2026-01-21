@@ -81,7 +81,7 @@ class ApolloContactTeaser:
     """Contact teaser (preview) from Apollo people search - no credits used."""
     id: str  # Needed for reveal
     first_name: str
-    last_name_obfuscated: Optional[str] = None  # e.g., "Vo***e"
+    last_name: Optional[str] = None  # Full last name from Apollo API
     title: Optional[str] = None
     seniority: Optional[str] = None
     departments: List[str] = field(default_factory=list)  # e.g., ["purchasing", "operations"]
@@ -426,7 +426,7 @@ class ApolloService:
                     results.append(ApolloContactTeaser(
                         id=p.get("id", ""),
                         first_name=p.get("first_name", ""),
-                        last_name_obfuscated=p.get("last_name", "")[:2] + "***" if p.get("last_name") else None,
+                        last_name=p.get("last_name"),
                         title=p.get("title"),
                         seniority=p.get("seniority"),
                         departments=departments,

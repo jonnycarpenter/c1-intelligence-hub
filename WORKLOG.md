@@ -17,73 +17,73 @@ Without reliable daily ingestion:
 **Always verify scheduler jobs are running before working on features.**
 
 ---
-## 📅 SESSION 86: Deep Research Clarification UX Fix (January 17, 2026)
+## 📅 SESSION 86: Discovery AI Summary + Apollo Auto-Reveal (January 20, 2026)
 
-**Status**: ✅ COMPLETE (Backend) | 📋 PLANNED (Frontend Polish)
+**Status**: ✅ COMPLETE
 
-### 🎯 Problem
+### 🎯 What Was Done
 
-Deep Research workflow's clarifying question modal created a poor UX:
-- Multiple repeat questions asked
-- Context lost between clarification rounds
-- Same questions asked again in different wording
+Two major UX improvements: inline AI summaries for Discovery categories and automatic contact reveal for Pipeline.
 
-**Root Cause**: When users responded to clarification questions, the response triggered a fresh research session instead of continuing the conversation. The groomer LLM didn't see its own previous question, so it had no context that the user was answering something specific.
+#### 1. Discovery Tab - AI Summary Feature
+Added on-demand thematic AI analysis to category accordions. When a user clicks "AI Summary" on any category (e.g., "Competitor Moves"), an LLM analyzes the articles and surfaces:
+- **2 Key Themes** - Strategic groupings of related articles with analytical summaries
+- **One-off Summary** - Count and description of remaining ungrouped items
 
-### 💡 Solution
+**UI Features:**
+- Gradient teal/emerald button with sparkle icon animation
+- Dark glassmorphism drawer with ambient glow effects
+- Theme cards with TrendingUp/Zap icons
+- "Explore all signals" CTA to open accordion
+- Loading state with "Synthesizing Insights" message
 
-Implemented conversation history tracking to preserve Q&A context:
+**Backend:**
+- New `DiscoverySummaryGenerator` class with Claude Haiku
+- New `GET /api/discovery/summary/{category}` endpoint
+- Returns JSON with themes, one_off_summary, article_count
 
-1. **State Management**: Added `last_clarification` field to track most recent question
-2. **Conversation History**: API now properly builds `AIMessage` objects for assistant responses (not just `HumanMessage` for everything)
-3. **Groomer Prompt**: Added critical instruction to check conversation history before asking questions
-4. **Anti-Duplicate Logic**: LLM now knows to look for prior `AIMessage + HumanMessage` Q&A pairs
+#### 2. Pipeline Tab - Auto-Reveal Contacts
+Modified `find_company_contacts()` to automatically reveal all contact details. No more obfuscated last names or "Email available" indicators - users get actual data immediately.
+
+**Before:** Teaser data showing "John S." with "Has Email ✓" badge
+**After:** Full data showing "John Smith" with "jsmith@company.com" clickable link
+
+**UI Updates:**
+- Green gradient border for revealed contacts
+- "✓ Verified" badge
+- Clickable `mailto:` and `tel:` links
+- Falls back gracefully if reveal fails
+
+#### 3. TypeScript Fix
+Fixed pre-existing build error in `SearchBlockCard.tsx` - was referencing `contact.last_name` which doesn't exist on `ApolloContactTeaserResult` (only `last_name_preview`).
 
 ### 📁 Files Modified
 
-**Backend - State:**
-- `backend/app/agents/research/state.py` - Added `last_clarification` field to `DeepResearchState`
+**Backend - AI Summary:**
+- `backend/app/ingestion/generators/discovery_summary.py` (NEW)
+- `backend/app/ingestion/generators/__init__.py` - Added export
+- `backend/app/api/routes/discovery.py` - Added schemas + endpoint
 
-**Backend - Groomer:**
-- `backend/app/agents/research/groomer.py`:
-  - Store clarifying question in state when asking
-  - Added "Check Conversation History First" instruction to prompt
-  - Emphasized NEVER asking same question twice
+**Backend - Auto-Reveal:**
+- `backend/app/mcp/tools/pipeline_search.py` - Auto-reveal in find_company_contacts
 
-**Backend - API:**
-- `backend/app/api/routes/deep_research.py`:
-  - Fixed conversation history to use `AIMessage` for assistant responses  
-  - Initialize `last_clarification` field in initial state
+**Frontend - AI Summary:**
+- `frontend/src/components/feed/DiscoveryView.tsx` - AI Summary button + drawer
+- `frontend/src/lib/api.ts` - getDiscoverySummary() function
+- `frontend/src/types/index.ts` - DiscoveryTheme, DiscoverySummaryResponse types
+- `frontend/src/app/globals.css` - animate-sparkle, animate-float keyframes
 
-**Frontend:**
-- `frontend/src/components/research/ResearchReport.tsx` - Added null safety checks for `field_sales` (from Session 85)
+**Frontend - Auto-Reveal:**
+- `frontend/src/components/pipeline/SearchBlockCard.tsx` - Display revealed contact data
+- `frontend/src/types/index.ts` - Extended ApolloContactTeaserResult with revealed fields
 
 **Documentation:**
-- `backend/app/agents/research/README.md` - Added frontend compatibility note for Session 76 Category Agent removal
+- `discovery_tab_guide.md` - Added AI Summary to overview
+- `backend/app/agents/pipeline/README.md` - Updated for auto-reveal
 
-### 🔑 How It Works Now
-
-When a user responds to a clarification:
-1. Response comes back with conversation history intact
-2. History includes: `AIMessage("What timeframe?")` + `HumanMessage("2026")`  
-3. Groomer sees this exchange and knows timeframe is resolved
-4. Won't ask about timeframe again!
-
-### 🧪 Verification
-
-```powershell
-cd backend
-python -c "from app.agents.research.state import DeepResearchState; print('OK')"
-python -c "from app.agents.research.groomer import query_grooming_node; print('OK')"
-```
-
-### 📋 Open Items - Frontend Polish (Phase 3)
-
-These enhancements can be added later:
-- [ ] Add "Skip and use defaults" button to ClarificationPrompt
-- [ ] Update useDeepResearch hook to track clarification state explicitly
-- [ ] Pass explicit context markers from frontend (not just inferred from history)
-- [ ] Show clarification history in UI so users understand the conversation flow
+### 🧪 Testing
+- `npm run build` ✅ passes
+- Backend imports ✅ verified
 
 ---
 ## 📅 SESSION 85: Deep Research Streamlining (January 16, 2026)
