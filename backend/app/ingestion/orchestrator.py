@@ -45,7 +45,8 @@ logger = logging.getLogger(__name__)
 @dataclass
 class IngestionConfig:
     """Configuration for the ingestion pipeline"""
-    anthropic_api_key: str = field(default_factory=lambda: settings.anthropic_api_key or os.getenv("ANTHROPIC_API_KEY", ""))
+    # Use dedicated ingestion key if available, otherwise fallback to main key
+    anthropic_api_key: str = field(default_factory=lambda: settings.anthropic_c1_ingestion or os.getenv("ANTHROPIC_C1_INGESTION", "") or settings.anthropic_api_key or os.getenv("ANTHROPIC_API_KEY", ""))
     exa_api_key: str = field(default_factory=lambda: settings.exa_api_key or os.getenv("EXA_AI_API_KEY", ""))
     tavily_api_key: str = field(default_factory=lambda: settings.tavily_api_key or os.getenv("TAVILY_API_KEY", ""))  # Legacy, kept for reference
     sec_api_key: str = field(default_factory=lambda: settings.sec_api_key or os.getenv("SEC_IO_KEY", ""))

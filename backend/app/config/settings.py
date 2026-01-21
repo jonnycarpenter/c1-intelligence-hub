@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     
     # API Keys
     anthropic_api_key: str = ""
+    anthropic_c1_ingestion: str = ""  # Separate key for data ingestion pipeline (cost isolation)
     openai_api_key: str = ""  # Fallback provider when Anthropic credits run out
     tavily_api_key: str = ""
     exa_api_key: str = Field(validation_alias=AliasChoices("EXA_API_KEY", "EXA_AI_API_KEY"), default="")
