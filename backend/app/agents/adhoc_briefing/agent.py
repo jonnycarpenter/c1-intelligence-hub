@@ -56,12 +56,16 @@ class BriefingContext:
         recent_digest_topics: List[str],
         current_brief_id: Optional[str] = None,
         active_filters: List[str] = None,
+        active_category: Optional[str] = None,
+        visible_digest_items: Optional[List[Dict[str, str]]] = None,
     ):
         self.current_brief_headlines = current_brief_headlines
         self.current_brief_date = current_brief_date
         self.recent_digest_topics = recent_digest_topics
         self.current_brief_id = current_brief_id
         self.active_filters = active_filters or []
+        self.active_category = active_category
+        self.visible_digest_items = visible_digest_items or []
     
     def to_context_string(self) -> str:
         """Format context for inclusion in prompt."""
@@ -69,13 +73,27 @@ class BriefingContext:
         topics = ", ".join(self.recent_digest_topics[:15])
         filters = ", ".join(self.active_filters) if self.active_filters else "None"
         
+        # Format visible items if available (Discovery tab context)
+        visible_items_str = ""
+        if self.visible_digest_items:
+            items_list = "\n".join([
+                f"  - {item.get('title', 'Unknown')} (Source: {item.get('source', 'Unknown')})" 
+                for item in self.visible_digest_items[:10]
+            ])
+            visible_items_str = f"\n\nVisible Feed Items (User is looking at these):\n{items_list}"
+            
+        # Format active category
+        category_str = ""
+        if self.active_category:
+            category_str = f"\nActive Category/Tab: {self.active_category}"
+        
         return f"""Current Weekly Briefing ({self.current_brief_date}):
 {headlines}
 
 Recent Digest Topics (last 7 days):
 {topics}
 
-Current UI Filters (Active): {filters}"""
+Current UI Filters (Active): {filters}{category_str}{visible_items_str}"""
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "BriefingContext":
@@ -86,6 +104,8 @@ Current UI Filters (Active): {filters}"""
             recent_digest_topics=data.get("recent_digest_topics", []),
             current_brief_id=data.get("current_brief_id"),
             active_filters=data.get("active_filters", []),
+            active_category=data.get("active_category"),
+            visible_digest_items=data.get("visible_digest_items", []),
         )
 
 
@@ -109,8 +129,10 @@ class AdHocBriefingAgent:
 
 Your role is to provide THOROUGH, WELL-SOURCED briefings on industry news, competitor activity, and market developments.
 
-CONTEXT AWARENESS:
-You have access to the current weekly executive briefing and recent digest topics. The user may be asking follow-up questions about topics they saw there.
+CONITEXT AWARENESS:
+You have access to the current weekly executive briefing, recent digest topics, and potentially the specific items the user is currently viewing on the Discovery feed. 
+If the user asks about "this article" or "the first item", refer to the 'Visible Feed Items' in your context.
+The user may be asking follow-up questions about topics they saw there.
 
 TOOLS AVAILABLE (use in this order):
 1. search_articles - Search our internal corpus FIRST (always start here)
