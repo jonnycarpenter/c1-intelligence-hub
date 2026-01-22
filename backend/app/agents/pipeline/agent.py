@@ -59,11 +59,16 @@ You have access to powerful search and enrichment tools:
    - Use when user specifies: location (state/country), employee count ranges, revenue thresholds, or industries
    - Example: "aerospace companies in Florida with >500 employees"
    - Returns: Full company firmographics (employees, revenue, industry, tech stack, location)
-5. **find_company_contacts** - Find decision makers at a specific company
+5. **find_company_contacts** - Find decision makers at a SPECIFIC company
    - Returns: Full contact profiles with name, title, seniority, department, location, data freshness
    - Use department filter: "purchasing", "engineering", or "executive"
    - Contact cards display email/phone availability indicators
-6. **enrich_company** - Get detailed firmographics for a company by domain
+6. **find_contacts_at_companies** - THE BEST TOOL for BROAD contact searches (across multiple companies)
+   - Use when user wants contacts at companies matching criteria - e.g., "Find purchasing directors at aerospace companies in Florida"
+   - Automates: find companies → iterate contacts at each
+   - Args: keywords, states, countries, industries, employee_ranges, min_revenue + department, seniorities, titles
+   - Example: find_contacts_at_companies(keywords=["aerospace"], states=["Florida"], department="purchasing", seniorities=["director"])
+7. **enrich_company** - Get detailed firmographics for a company by domain
    - Returns: employee count, revenue, industry, tech stack, social profiles, location, stock info
 
 ### BigQuery Corpus Intelligence Tools:
@@ -259,24 +264,24 @@ User: "Show me engineers at Boeing"
 You: [call find_company_contacts(company_name="Boeing", department="engineering")]
 Chat: "Found 15 engineering contacts at Boeing - contact cards show titles, seniority, and department info."
 
-**BROAD CONTACT SEARCH Examples** (When user asks for contacts without specifying a company):
+**BROAD CONTACT SEARCH Examples** (When user asks for contacts at multiple companies or without specifying one):
 
 User: "Find purchasing managers at aerospace suppliers"
-You: [call search_companies_filtered(keywords=["aerospace", "supplier"]) to find companies first]
-Chat: "Found 20 aerospace suppliers - you can see them in the results panel. Pick any company and I'll find their purchasing contacts. Or tell me which ones interest you and I'll search all of them."
+You: [call find_contacts_at_companies(keywords=["aerospace", "supplier"], department="purchasing", seniorities=["manager"])]
+Chat: "Found purchasing managers at 10 aerospace suppliers - see results panel. Each company shows their matching contacts with email/phone when available."
 
-User: "Show me sourcing managers in Chicago"
-You: [call search_companies_filtered(states=["Illinois"], keywords=["manufacturing", "distribution"])]
-Chat: "Found 25 companies in Illinois. Which would you like me to find sourcing contacts at? I can search multiple companies at once."
+User: "Find supply chain directors at large manufacturers in Florida"
+You: [call find_contacts_at_companies(keywords=["manufacturing"], states=["Florida"], employee_ranges=["1001,5000", "5001,10000"], department="purchasing", seniorities=["director"])]
+Chat: "Found supply chain directors at 8 large Florida manufacturers. Results show company firmographics plus contact details for each."
 
-User: "Find supplier sourcing managers at those MRO companies" (referring to previous search)
-You: [call find_company_contacts on top 3-5 companies from previous results]
-Chat: "Searching for sourcing contacts at Grainger, AAR, and other MRO leaders from your list..."
+User: "Show me sourcing managers in the aerospace sector in Texas"
+You: [call find_contacts_at_companies(keywords=["aerospace"], states=["Texas"], department="purchasing", seniorities=["manager", "director"])]
+Chat: "Found sourcing contacts at 12 Texas aerospace companies. Each company card shows relevant contacts with their titles and contact info."
 
 **KEY RULE**: When the user asks for contacts without specifying a company:
-1. If you have relevant companies from a recent search → Offer to search contacts at those companies OR search the top few automatically
-2. If no prior context → First search for relevant companies, then offer to find contacts
-3. **NEVER just ask "which approach" without taking action** - at minimum, show company results
+1. Use **find_contacts_at_companies** - it automates the company search + contact lookup in one call
+2. Specify both company filters (keywords, states, industries) AND contact filters (department, seniorities, titles)
+3. **NEVER just ask "which approach" without taking action** - call find_contacts_at_companies directly
 
 **INSIGHTS Examples (Chat Response Only - NO SearchBlocks)**:
 
@@ -975,6 +980,62 @@ class PipelineAgent:
                     query_context=user_query,
                     apollo_credits=credit_status,
                     result_count=1,
+                )
+            
+            elif tool_name == "find_contacts_at_companies":
+                # New composite tool - returns companies with their contacts
+                if not results:
+                    return None
+                
+                # Parse each company's contacts
+                all_contacts = []
+                for company_result in results:
+                    company_name = company_result.get("company_name", "Unknown")
+                    company_domain = company_result.get("domain")
+                    
+                    for contact_data in company_result.get("contacts", []):
+                        location_parts = [contact_data.get("city"), contact_data.get("state")]
+                        location = ", ".join([p for p in location_parts if p]) or None
+                        
+                        contact = ApolloContactTeaserResult(
+                            id=contact_data.get("id", ""),
+                            first_name=contact_data.get("first_name", ""),
+                            last_name=contact_data.get("last_name"),
+                            last_name_preview=contact_data.get("last_name"),
+                            name=contact_data.get("name"),
+                            name_display=contact_data.get("name"),
+                            title=contact_data.get("title"),
+                            seniority=contact_data.get("seniority"),
+                            departments=contact_data.get("departments", []),
+                            company_name=company_name,
+                            company_domain=company_domain,
+                            has_email=bool(contact_data.get("email")),
+                            has_phone=bool(contact_data.get("phone")),
+                            email=contact_data.get("email"),
+                            email_status=contact_data.get("email_status"),
+                            phone=contact_data.get("phone"),
+                            location=location,
+                            city=contact_data.get("city"),
+                            state=contact_data.get("state"),
+                            country=contact_data.get("country"),
+                            linkedin_url=contact_data.get("linkedin_url"),
+                            photo_url=contact_data.get("photo_url"),
+                            logo_url=company_result.get("logo_url"),
+                            last_updated=contact_data.get("last_updated"),
+                            is_revealed=contact_data.get("is_revealed", False),
+                        )
+                        all_contacts.append(contact)
+                
+                # Build title from filters
+                title = result_data.get("title", f"Contacts at {len(results)} companies")
+                
+                return SearchBlock(
+                    id=block_id,
+                    block_type="apollo_contacts",  # Reuse existing block type
+                    title=title,
+                    query_context=user_query,
+                    apollo_contacts=all_contacts,
+                    result_count=len(all_contacts),
                 )
             
             return None

@@ -56,18 +56,21 @@ The Pipeline tab is an AI-powered sales prospecting engine that combines neural 
    - Example: "aerospace companies in Florida with >500 employees"
    - Returns full firmographics (employees, revenue, industry, tech stack, location)
 6. `enrich_company` - FREE firmographics (employees, revenue, tech stack)
-7. `find_company_contacts` - PRIMARY contact search tool (**AUTO-REVEALS all contacts**)
+7. `find_company_contacts` - Contact search at a SPECIFIC company (**AUTO-REVEALS all contacts**)
    - Automatically reveals full contact details (name, email, phone) for all results
-   - No manual reveal step needed - data is ready to use immediately
    - **Auto-includes company firmographics** (employee count, revenue, industry, location)
-   - Frontend displays verified contact info with clickable email/phone links
-8. `reveal_contact` - Manual reveal (rarely needed, auto-reveal handles most cases)
-9. `get_apollo_credits` - Check usage
+8. `find_contacts_at_companies` - **NEW** BEST TOOL for BROAD contact searches
+   - Use when user wants contacts across multiple companies matching criteria
+   - Example: "Find purchasing directors at aerospace companies in Florida"
+   - Automates: find companies → iterate contacts at each → auto-reveal
+   - Args: keywords, states, industries, employee_ranges, min_revenue + department, seniorities, titles
+9. `reveal_contact` - Manual reveal (rarely needed, auto-reveal handles most cases)
+10. `get_apollo_credits` - Check usage
 
 #### BigQuery Corpus (Chat insights only)
-10. `query_corpus` - Semantic search across article_chunk_embeddings
-11. `get_entity_mentions` - Company news from corpus
-12. `get_competitor_activity` - Competitor intelligence
+11. `query_corpus` - Semantic search across article_chunk_embeddings
+12. `get_entity_mentions` - Company news from corpus
+13. `get_competitor_activity` - Competitor intelligence
 
 ---
 
