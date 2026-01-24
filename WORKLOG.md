@@ -20,7 +20,30 @@ Without reliable daily ingestion:
 
 ## 🚨 TODO / Open Issues
 
-- [ ] **Deep Research is failing** - Look into root cause and fix
+(none currently)
+
+---
+## 📅 SESSION 88: Deep Research Crash Fix (January 24, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 What Was Done
+
+Fixed a critical frontend crash in Deep Research that was causing "Something went wrong" errors.
+
+#### Root Cause
+When the Category agent (sales intelligence) was removed in Session 85, the `field_sales` field started returning `null` from the backend. However, the `ResearchReport.tsx` component was unconditionally rendering the "Field Sales Implications" section and accessing properties like `field_sales.offensive_angles`, causing a `TypeError: Cannot read properties of null`.
+
+#### Fix
+Wrapped the entire "Field Sales Implications" section in a conditional: `{field_sales && (...)}`. Now the section only renders if the backend returns field_sales data.
+
+### 📁 Files Modified
+
+- `frontend/src/components/research/ResearchReport.tsx` - Added null check for `field_sales` section
+
+### 🧪 Testing
+- `npm run build` ✅ passes
+- Backend API endpoint ✅ verified working via curl test
 
 ---
 ## 📅 SESSION 87: Discovery Tab UX Refactor (January 24, 2026)

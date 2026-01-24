@@ -304,57 +304,59 @@ export default function ResearchReport({ report }: DeepResearchReportProps) {
                 </section>
             ))}
 
-            {/* Field Sales Implications */}
-            <section className="bg-emerald-50 rounded-2xl border border-emerald-100 overflow-hidden shadow-sm">
-                <div className="bg-emerald-600 px-6 py-4 flex items-center gap-2">
-                    <Target size={20} className="text-white" />
-                    <h2 className="text-white font-semibold">Field Sales Implications</h2>
-                </div>
-                <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div>
-                        <h4 className="flex items-center gap-2 text-emerald-800 font-bold mb-4">
-                            <TrendingUp size={18} />
-                            Offensive Angles
-                        </h4>
-                        <div className="space-y-4">
-                            {field_sales.offensive_angles?.map((angle: any, idx: number) => (
-                                <div key={idx} className="bg-white rounded-xl p-4 border border-emerald-100">
-                                    <p className="font-semibold text-slate-900 text-sm mb-1">{angle.angle}</p>
-                                    <p className="text-xs text-slate-600 italic">Target: {angle.target_segment}</p>
-                                </div>
-                            ))}
-                        </div>
+            {/* Field Sales Implications - only show if field_sales exists (Category agent output) */}
+            {field_sales && (
+                <section className="bg-emerald-50 rounded-2xl border border-emerald-100 overflow-hidden shadow-sm">
+                    <div className="bg-emerald-600 px-6 py-4 flex items-center gap-2">
+                        <Target size={20} className="text-white" />
+                        <h2 className="text-white font-semibold">Field Sales Implications</h2>
                     </div>
-                    <div>
-                        <h4 className="flex items-center gap-2 text-emerald-800 font-bold mb-4">
-                            <ShieldCheck size={18} />
-                            Defensive Watch-outs
-                        </h4>
-                        <div className="space-y-4">
-                            {field_sales.defensive_angles?.map((angle: any, idx: number) => (
-                                <div key={idx} className="bg-white rounded-xl p-4 border border-emerald-100">
-                                    <p className="font-semibold text-slate-900 text-sm mb-1">{angle.risk}</p>
-                                    <p className="text-xs text-slate-600 italic">Mitigation: {angle.mitigation}</p>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-                <div className="bg-emerald-100/50 p-6 border-t border-emerald-100">
-                    <h4 className="flex items-center gap-2 text-emerald-800 font-bold mb-4">
-                        <HelpCircle size={18} />
-                        Questions to Explore
-                    </h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {field_sales.questions_to_explore?.map((q: string, idx: number) => (
-                            <div key={idx} className="flex gap-2">
-                                <ChevronRight size={14} className="mt-1 text-emerald-500 shrink-0" />
-                                <p className="text-slate-700 text-sm">{q}</p>
+                    <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div>
+                            <h4 className="flex items-center gap-2 text-emerald-800 font-bold mb-4">
+                                <TrendingUp size={18} />
+                                Offensive Angles
+                            </h4>
+                            <div className="space-y-4">
+                                {field_sales.offensive_angles?.map((angle: any, idx: number) => (
+                                    <div key={idx} className="bg-white rounded-xl p-4 border border-emerald-100">
+                                        <p className="font-semibold text-slate-900 text-sm mb-1">{angle.angle}</p>
+                                        <p className="text-xs text-slate-600 italic">Target: {angle.target_segment}</p>
+                                    </div>
+                                ))}
                             </div>
-                        ))}
+                        </div>
+                        <div>
+                            <h4 className="flex items-center gap-2 text-emerald-800 font-bold mb-4">
+                                <ShieldCheck size={18} />
+                                Defensive Watch-outs
+                            </h4>
+                            <div className="space-y-4">
+                                {field_sales.defensive_angles?.map((angle: any, idx: number) => (
+                                    <div key={idx} className="bg-white rounded-xl p-4 border border-emerald-100">
+                                        <p className="font-semibold text-slate-900 text-sm mb-1">{angle.risk}</p>
+                                        <p className="text-xs text-slate-600 italic">Mitigation: {angle.mitigation}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
                     </div>
-                </div>
-            </section>
+                    <div className="bg-emerald-100/50 p-6 border-t border-emerald-100">
+                        <h4 className="flex items-center gap-2 text-emerald-800 font-bold mb-4">
+                            <HelpCircle size={18} />
+                            Questions to Explore
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {field_sales.questions_to_explore?.map((q: string, idx: number) => (
+                                <div key={idx} className="flex gap-2">
+                                    <ChevronRight size={14} className="mt-1 text-emerald-500 shrink-0" />
+                                    <p className="text-slate-700 text-sm">{q}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </section>
+            )}
         </div>
     )
 }
