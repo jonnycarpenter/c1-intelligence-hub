@@ -70,6 +70,14 @@ src/
 - **PipelineDashboard** - "Pulse-style" layout with floating cards and slate-200 background
 - **SearchBlockCard** - Renders search results with alternating row colors (zebra striping) for readability
 
+### Discovery Tab (Session 87 Refactor)
+- **DiscoveryView** - Two-column layout: category list (left) + detail panel (right)
+- **CategoryRow** - Clickable category with name, item count, urgent badge, and AI Summary button
+- **DetailPanel** - Shows either DigestCards (when category clicked) or AI Summary (glassmorphism dark theme)
+- **AdHocBriefing** - Shared component at top for "Ask about this week's news..." input
+- **Entity pivot** - Click entity pill on DigestCard → auto-populates question input
+- **Summary caching** - AI Summaries cached in useRef Map to avoid redundant API calls
+
 ## Custom Hooks
 
 ### `useDeepResearch`

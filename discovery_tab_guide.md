@@ -7,10 +7,11 @@
 ## Overview
 
 The Discovery tab is the primary market intelligence exploration view in the CPG Intelligence Hub. It provides:
-1. **Two-column article feed** - Categories (30-day, 500 items, medium+ priority) + Latest High-Priority (72h)
-2. **AI Assistant panel** - Streaming chat with tool access to corpus, web, and podcast data
-3. **Quick pivot** - Click on entities to trigger assistant searches
-4. **AI Summary** (Jan 2026) - On-demand thematic analysis for each category accordion
+1. **Two-column layout** - Category list (left) + Detail panel (right)
+2. **AdHocBriefing input** - Simple "Ask about this week's news..." bar at top (same UX as Need to Know tab)
+3. **Category cards** - Click to view DigestCards in detail panel
+4. **AI Summary** - Click AI Summary button to see thematic analysis in detail panel
+5. **Entity pivot** - Click entity pills on DigestCards to auto-populate the question input
 
 ### Data Configuration (Updated Jan 17, 2026)
 
@@ -23,61 +24,62 @@ The Discovery tab is the primary market intelligence exploration view in the CPG
 
 ---
 
-## Architecture Diagram
+## Architecture Diagram (Updated Jan 24, 2026)
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                          DISCOVERY TAB                                   │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│  ┌─────────────────┐   ┌───────────────────────────────────────────┐   │
-│  │                 │   │           MAIN CONTENT AREA               │   │
-│  │  DISCOVERY      │   │                                           │   │
-│  │  ASSISTANT      │   │  ┌─ HEADER ──────────────────────────┐   │   │
-│  │  (380px)        │   │  │ "Live Intelligence" badge          │   │   │
-│  │                 │   │  │ Greeting: "Good afternoon, Team"   │   │   │
-│  │  ┌───────────┐  │   │  │ Stats: "We've analyzed X signals"  │   │   │
-│  │  │ Header    │  │   │  └────────────────────────────────────┘   │   │
-│  │  │ Sparkles  │  │   │                                           │   │
-│  │  │ icon      │  │   │  ┌─ 2-COLUMN GRID ─────────────────────┐  │   │
-│  │  └───────────┘  │   │  │                                     │  │   │
-│  │  ┌───────────┐  │   │  │ LEFT: Category Accordions (30d)    │  │   │
-│  │  │ Messages  │  │   │  │ - Competitor Moves (8 high • 24)   │  │   │
-│  │  │ Area      │  │   │  │ - Market Dynamics (5 high • 18)    │  │   │
-│  │  │           │  │   │  │ - Health & Regulatory...           │  │   │
-│  │  │ User msg  │  │   │  │                                     │  │   │
-│  │  │ AI msg    │  │   │  │ RIGHT: Latest Intelligence (72h)   │  │   │
-│  │  │ + Sources │  │   │  │ - High/critical priority only      │  │   │
-│  │  └───────────┘  │   │  │ - DigestCard components             │  │   │
-│  │  ┌───────────┐  │   │  │ - Empty state if quiet             │  │   │
-│  │  │ Input     │  │   │  │                                     │  │   │
-│  │  │ [Ask...] →│  │   │  └─────────────────────────────────────┘  │   │
-│  │  └───────────┘  │   │                                           │   │
-│  │                 │   │                                           │   │
-│  └─────────────────┘   └───────────────────────────────────────────┘   │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────┐
+│                          DISCOVERY TAB                                    │
+├──────────────────────────────────────────────────────────────────────────┤
+│  [Live Intelligence]  Good afternoon, Team                                │
+│                       We've analyzed X signals • Y critical               │
+├──────────────────────────────────────────────────────────────────────────┤
+│  💬 Ask about this week's news...                               [Send]   │
+├──────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  BY CATEGORY (30 days)          │   DETAIL PANEL                         │
+│  ━━━━━━━━━━━━━━━━━━━━━━━━━━━   │   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━     │
+│  ┌─────────────────────────┐   │                                         │
+│  │ Competitor Moves [12] → │   │   "Select a category"                   │
+│  │             [AI Summary]│   │   Click a category to view articles,    │
+│  └─────────────────────────┘   │   or click AI Summary for thematic      │
+│  ┌─────────────────────────┐   │   analysis                              │
+│  │ Market Dynamics [8] →   │   │                                         │
+│  │             [AI Summary]│   │   ── OR when category selected ──       │
+│  └─────────────────────────┘   │                                         │
+│  ┌─────────────────────────┐   │   [DigestCard]                          │
+│  │ Product News [5] →      │   │   [DigestCard]                          │
+│  │             [AI Summary]│   │   [DigestCard]                          │
+│  └─────────────────────────┘   │                                         │
+│  ...                           │   ── OR when AI Summary selected ──     │
+│                                │                                         │
+│                                │   ┌─────────────────────────────────┐   │
+│                                │   │ 🌟 Strategic Themes (dark)       │   │
+│                                │   │ Theme 1: Title + insight         │   │
+│                                │   │ Theme 2: Title + insight         │   │
+│                                │   │ 🎯 One-off summary               │   │
+│                                │   └─────────────────────────────────┘   │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## File Structure
+## File Structure (Updated Jan 24, 2026)
 
 ```
 frontend/src/
 ├── components/
 │   ├── feed/
-│   │   ├── DiscoveryView.tsx      # Main container (325 lines)
-│   │   ├── DiscoveryAssistant.tsx # AI chat panel (200 lines)
-│   │   ├── CategoryAccordion.tsx  # Collapsible category drawer (170 lines)
+│   │   ├── DiscoveryView.tsx      # Main container with CategoryRow + DetailPanel
 │   │   └── index.ts               # Exports
+│   ├── dashboard/
+│   │   └── AdHocBriefing.tsx      # Shared "Ask about..." input (used on Need to Know + Discovery)
 │   ├── digest/
 │   │   └── DigestCard.tsx         # Article card (175 lines)
 │   └── ui/
 │       └── Badge.tsx              # PriorityBadge, CategoryBadge, EntityPill
 ├── hooks/
 │   ├── useFeed.ts                 # Feed data fetching (137 lines)
-│   └── useDiscoveryChat.ts        # Streaming chat hook (150 lines)
+│   └── useBriefing.ts             # Ad-hoc briefing hook (shared)
 ├── lib/
 │   ├── api.ts                     # FastAPI client
 │   └── utils.ts                   # formatRelativeTime, formatCategoryLabel

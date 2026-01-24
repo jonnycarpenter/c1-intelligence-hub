@@ -370,15 +370,26 @@ interface AdHocBriefingProps {
   onDeepResearch?: (query: string) => void
   /** Whether the component is in compact mode */
   compact?: boolean
+  /** Initial query to pre-populate (e.g., from entity clicks) */
+  initialQuery?: string
 }
 
 export default function AdHocBriefing({
   context,
   onDeepResearch,
-  compact = false
+  compact = false,
+  initialQuery
 }: AdHocBriefingProps) {
   const [question, setQuestion] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+  
+  // Populate input when initialQuery changes (from entity clicks)
+  useEffect(() => {
+    if (initialQuery && initialQuery !== question) {
+      setQuestion(initialQuery)
+      inputRef.current?.focus()
+    }
+  }, [initialQuery])
 
   const {
     briefings,

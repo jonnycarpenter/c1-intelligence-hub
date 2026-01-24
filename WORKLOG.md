@@ -17,76 +17,55 @@ Without reliable daily ingestion:
 **Always verify scheduler jobs are running before working on features.**
 
 ---
-## 📅 SESSION 87: Composite Contact Search Tool (January 21, 2026)
+
+## 🚨 TODO / Open Issues
+
+- [ ] **Deep Research is failing** - Look into root cause and fix
+
+---
+## 📅 SESSION 87: Discovery Tab UX Refactor (January 24, 2026)
 
 **Status**: ✅ COMPLETE
 
-### 🎯 Problem
+### 🎯 What Was Done
 
-When users asked for contacts across multiple companies (e.g., "Find purchasing directors at aerospace companies in Florida"), the agent was either:
-1. Asking clarifying questions instead of taking action
-2. Returning contacts from random companies globally (not the targeted companies)
+Major UX refactor of the Discovery tab to match Need to Know tab patterns and fix broken imports.
 
-This happened because `find_company_contacts` requires a specific company, but the agent wasn't doing company-first search reliably.
+#### 1. Removed Left-Panel DiscoveryAssistant
+The `DiscoveryAssistant` component was imported but **never existed** (broken code). Removed in favor of the shared `AdHocBriefing` component.
 
-### 💡 Solution
+#### 2. New Layout: Category List + Detail Panel
+- **Left column (400px)**: Category rows with name, item count, urgent count, and AI Summary button
+- **Right column (flex)**: Detail panel showing either DigestCards OR AI Summary
+- **Top bar**: Simple `AdHocBriefing` input (same as Need to Know)
 
-New composite tool `find_contacts_at_companies` that automates the two-step process:
-1. Find companies matching firmographic filters (Apollo)
-2. For each company, find contacts with specified roles
-3. Auto-reveal all contacts
+#### 3. Interaction Model
+- Click category name → shows DigestCards in detail panel
+- Click AI Summary button → shows thematic analysis in detail panel
+- Toggle behavior: clicking same category/summary again closes detail panel
+- Entity pill click → auto-populates AdHocBriefing input with "Tell me more about {entity}"
 
-**Example Usage:**
-```python
-find_contacts_at_companies(
-    keywords=["aerospace"],
-    states=["Florida"],
-    department="purchasing",
-    seniorities=["director"],
-    max_companies=10,
-    contacts_per_company=3
-)
-```
+#### 4. Summary Caching
+AI Summaries are cached in a `useRef` Map to avoid redundant API calls when toggling.
+
+#### 5. AdHocBriefing Enhancement
+Added `initialQuery` prop to support entity click → input population.
 
 ### 📁 Files Modified
 
-**Backend - New Tool:**
-- `backend/app/mcp/tools/pipeline_search.py` - Added `find_contacts_at_companies` (~210 lines)
-  - Company filters: keywords, states, countries, industries, employee_ranges, min_revenue
-  - Contact filters: department, seniorities, titles
-  - Limits: max_companies (default 10), contacts_per_company (default 3)
-  - Returns companies with contacts grouped by company
-
-**Backend - Agent:**
-- `backend/app/agents/pipeline/agent.py`
-  - Added tool documentation to system prompt
-  - Updated BROAD CONTACT SEARCH examples to use new tool
-  - Added SearchBlock handler for `contacts_at_companies` block type
+**Frontend:**
+- `frontend/src/components/feed/DiscoveryView.tsx` - Complete rewrite with CategoryRow + DetailPanel
+- `frontend/src/components/feed/index.ts` - Removed DiscoveryAssistant export
+- `frontend/src/components/dashboard/AdHocBriefing.tsx` - Added `initialQuery` prop
 
 **Documentation:**
-- `backend/app/agents/pipeline/README.md` - Added tool to Apollo.io section
+- `discovery_tab_guide.md` - Updated architecture diagram and file structure
+- `frontend/README.md` - Updated Discovery section
+- `WORKLOG.md` - This entry
 
-### 🧪 Verification
-
-```powershell
-cd backend
-python -c "from app.mcp.tools.pipeline_search import find_contacts_at_companies; print('OK')"
-# ✓ Tool imports OK
-
-cd frontend
-npm run build  # ✓ Compiled successfully
-```
-
-### 📋 Expected Behavior After Deploy
-
-```
-User: "Find purchasing directors at aerospace companies in Florida"
-Agent: [calls find_contacts_at_companies(keywords=["aerospace"], states=["Florida"], 
-        department="purchasing", seniorities=["director"])]
-Chat: "Found purchasing directors at 10 aerospace companies in Florida. 
-       Each company card shows their contacts with email/phone when available."
-Results Panel: [10 company cards with 3 contacts each, all revealed]
-```
+### 🧪 Testing
+- `npm run build` ✅ passes
+- Backend API `/api/discovery/summary/{category}` ✅ verified registered
 
 ---
 ## 📅 SESSION 86: Discovery AI Summary + Apollo Auto-Reveal (January 20, 2026)
