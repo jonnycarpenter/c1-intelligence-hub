@@ -175,7 +175,7 @@ export default function PodcastModal({ isOpen, onClose, audioUrl, duration, titl
                 <div className="relative px-8 pt-8 pb-6">
                     {/* Decorative background glow */}
                     <div className="absolute inset-0 bg-gradient-to-b from-emerald-500/10 to-transparent pointer-events-none" />
-                    
+
                     {/* Podcast Icon */}
                     <div className="relative flex justify-center mb-6">
                         <div className="w-32 h-32 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-2xl shadow-lg shadow-emerald-500/30 flex items-center justify-center">
@@ -186,7 +186,7 @@ export default function PodcastModal({ isOpen, onClose, audioUrl, duration, titl
                     {/* Title */}
                     <div className="text-center">
                         <p className="text-emerald-400 text-xs font-bold uppercase tracking-widest mb-1">
-                            Executive Briefing
+                            Strategic Priorities
                         </p>
                         <h3 className="text-white font-bold text-lg leading-tight line-clamp-2">
                             {title}

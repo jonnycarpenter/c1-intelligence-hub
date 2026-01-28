@@ -291,7 +291,7 @@ export default function PipelineDashboard() {
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
-                placeholder="Ask about prospects, contacts, or market signals..."
+                placeholder="Ask about companies, prospects, or market signals..."
                 className="flex-1 px-4 py-3 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none transition-all"
                 disabled={isAgentThinking}
               />
@@ -343,9 +343,9 @@ export default function PipelineDashboard() {
               >
                 <Bookmark size={14} />
                 Saved
-                {(savedProspects.length + savedContacts.length) > 0 && (
+                {savedProspects.length > 0 && (
                   <span className="px-1.5 py-0.5 bg-slate-200 text-slate-600 text-xs rounded-full">
-                    {savedProspects.length + savedContacts.length}
+                    {savedProspects.length}
                   </span>
                 )}
               </button>
@@ -400,6 +400,7 @@ export default function PipelineDashboard() {
                     <div className="bg-slate-50 rounded-xl p-6 text-center border border-slate-200">
                       <Building2 className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                       <p className="text-xs text-slate-500">No saved prospects</p>
+                      <p className="text-xs text-slate-400 mt-1">Save companies from search results to track them here</p>
                     </div>
                   ) : (
                     <div className="space-y-2">
@@ -414,37 +415,7 @@ export default function PipelineDashboard() {
                     </div>
                   )}
                 </div>
-
-                {/* Saved Contacts */}
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-semibold text-slate-700">
-                      Contacts ({savedContacts.length})
-                    </h3>
-                    {savedContacts.length > 0 && (
-                      <Button variant="ghost" size="sm" onClick={exportContactsToCSV}>
-                        <Download size={12} />
-                        CSV
-                      </Button>
-                    )}
-                  </div>
-                  {savedContacts.length === 0 ? (
-                    <div className="bg-slate-50 rounded-xl p-6 text-center border border-slate-200">
-                      <Users className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                      <p className="text-xs text-slate-500">No saved contacts</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {savedContacts.map((contact) => (
-                        <SavedContactCard
-                          key={contact.id}
-                          contact={contact}
-                          onRemove={() => removeContact(contact.id)}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
+                {/* NOTE: Saved Contacts section removed - "coming soon" feature */}
               </div>
             )}
           </div>

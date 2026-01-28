@@ -104,14 +104,14 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
     const [conversationHistory, setConversationHistory] = useState<ConversationMessage[]>([
         {
             role: 'assistant',
-            content: "Hi! I'm your Pipeline Agent. I can help you find companies, contacts, and trigger events to build your sales pipeline. What are you looking for today?",
+            content: "Hi! I'm your Pipeline Agent. I can help you find companies and prospects to build your sales pipeline. What are you looking for today?",
             timestamp: new Date()
         }
     ])
     const [suggestedFollowups, setSuggestedFollowups] = useState<string[]>([
         "Find aerospace manufacturers in Florida",
         "Find companies similar to Hexcel",
-        "Find purchasing managers at Boeing"
+        "Find wind energy companies in Texas"
     ])
 
     // Pipeline mode
@@ -149,14 +149,14 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
     const clearConversation = useCallback(() => {
         setConversationHistory([{
             role: 'assistant',
-            content: "Hi! I'm your Pipeline Agent. I can help you find companies, contacts, and trigger events to build your sales pipeline. What are you looking for today?",
+            content: "Hi! I'm your Pipeline Agent. I can help you find companies and prospects to build your sales pipeline. What are you looking for today?",
             timestamp: new Date()
         }])
         setSearchBlocks([])
         setSuggestedFollowups([
             "Find aerospace manufacturers in Florida",
             "Find companies similar to Hexcel",
-            "Find purchasing managers at Boeing"
+            "Find wind energy companies in Texas"
         ])
     }, [])
 

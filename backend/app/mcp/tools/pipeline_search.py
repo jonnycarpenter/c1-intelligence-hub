@@ -942,6 +942,11 @@ async def search_companies_filtered(
                     "revenue_printed": org.revenue_printed,
                     "industry": org.industry,
                     "technologies": org.technologies[:5] if org.technologies else [],
+                    # Extended firmographics
+                    "sic_codes": org.sic_codes,
+                    "naics_codes": org.naics_codes,
+                    "retail_location_count": org.retail_location_count,
+                    "suborganizations": org.suborganizations[:10] if org.suborganizations else [],
                 },
             })
         
@@ -983,216 +988,6 @@ async def search_companies_filtered(
 
 
 @tool
-async def find_contacts_at_companies(
-    # Company filters (passed to search_companies_filtered)
-    keywords: Optional[List[str]] = None,
-    states: Optional[List[str]] = None,
-    countries: Optional[List[str]] = None,
-    industries: Optional[List[str]] = None,
-    employee_ranges: Optional[List[str]] = None,
-    min_revenue: Optional[int] = None,
-    # Contact filters (passed to find_company_contacts for each company)
-    department: Optional[str] = None,
-    seniorities: Optional[List[str]] = None,
-    titles: Optional[List[str]] = None,
-    # Limits
-    max_companies: int = 10,
-    contacts_per_company: int = 3,
-) -> str:
-    """
-    Find contacts at multiple companies matching firmographic criteria.
-    
-    This is the BEST TOOL for broad contact searches like:
-    - "Find purchasing directors at aerospace companies in Florida"
-    - "Find supply chain managers at large manufacturers in Texas"
-    - "Find engineering leaders at composites companies"
-    
-    This tool automates the two-step process:
-    1. First finds companies matching your filters (using Apollo firmographic search)
-    2. Then finds contacts at each company with specified roles
-    
-    Args:
-        # COMPANY FILTERS:
-        keywords: Keywords to match companies (e.g., ["aerospace", "composites"])
-        states: US states (e.g., ["Florida", "Texas"])
-        countries: Countries (e.g., ["United States"])
-        industries: Industries (e.g., ["Manufacturing", "Aerospace"])
-        employee_ranges: Employee count ranges like "501,1000", "1001,5000", "5001,10000"
-        min_revenue: Minimum annual revenue in USD (e.g., 50000000 for $50M)
-        
-        # CONTACT FILTERS:
-        department: Department filter - "purchasing", "engineering", or "executive"
-        seniorities: Seniority levels - ["director", "vp", "c_suite", "manager"]
-        titles: Specific titles - ["Purchasing Manager", "VP Supply Chain"]
-        
-        # LIMITS (to control API calls):
-        max_companies: Max companies to search (default 10, max 25)
-        contacts_per_company: Contacts to find per company (default 3, max 5)
-    
-    Returns:
-        JSON with companies and their contacts, grouped by company.
-    
-    Examples:
-    - "Purchasing directors at aerospace companies in Florida":
-        keywords=["aerospace"], states=["Florida"], department="purchasing", seniorities=["director"]
-    - "Supply chain VPs at large manufacturers":
-        keywords=["manufacturing"], employee_ranges=["1001,5000", "5001,10000"], 
-        department="purchasing", seniorities=["vp"]
-    """
-    logger.info(f"[Pipeline Tool] find_contacts_at_companies: keywords={keywords}, states={states}, "
-               f"department={department}, seniorities={seniorities}")
-    
-    try:
-        # Step 1: Find matching companies using Apollo firmographic search
-        logger.info("[Pipeline Tool] Step 1: Finding matching companies...")
-        organizations = await apollo_service.search_organizations(
-            q_keywords=keywords,
-            states=states,
-            countries=countries,
-            employee_ranges=employee_ranges,
-            revenue_range_min=min_revenue,
-            industries=industries,
-            per_page=min(max_companies, 25),
-        )
-        
-        if not organizations:
-            return json.dumps({
-                "status": "success",
-                "query_type": "contacts_at_companies",
-                "companies_found": 0,
-                "message": "No companies found matching the criteria. Try broader filters.",
-                "results": [],
-            }, indent=2)
-        
-        logger.info(f"[Pipeline Tool] Found {len(organizations)} companies matching filters")
-        
-        # Step 2: For each company, find contacts
-        results = []
-        total_contacts = 0
-        total_revealed = 0
-        
-        for org in organizations[:min(max_companies, 25)]:
-            company_result = {
-                "company_name": org.name,
-                "domain": org.domain,
-                "description": org.description,
-                "logo_url": org.logo_url,
-                "employee_count": org.employee_count,
-                "industry": org.industry,
-                "revenue_printed": org.revenue_printed,
-                "city": org.city,
-                "state": org.state,
-                "country": org.country,
-                "linkedin_url": org.linkedin_url,
-                "contacts": [],
-            }
-            
-            # Search contacts at this company
-            try:
-                logger.info(f"[Pipeline Tool] Searching contacts at {org.name} (domain: {org.domain})")
-                contacts = await apollo_service.search_contacts(
-                    organization_name=org.name,
-                    organization_domain=org.domain,
-                    titles=titles,
-                    department=department,
-                    seniorities=seniorities,
-                    per_page=min(contacts_per_company, 5),
-                )
-                
-                # Auto-reveal each contact
-                for c in contacts[:min(contacts_per_company, 5)]:
-                    try:
-                        revealed = await apollo_service.reveal_contact(c.id)
-                        if revealed:
-                            company_result["contacts"].append({
-                                "id": revealed.id,
-                                "name": revealed.name,
-                                "first_name": revealed.first_name,
-                                "last_name": revealed.last_name,
-                                "title": revealed.title,
-                                "seniority": revealed.seniority,
-                                "departments": c.departments,
-                                "company_name": org.name,
-                                "company_domain": org.domain,
-                                "email": revealed.email,
-                                "email_status": revealed.email_status,
-                                "phone": revealed.phone,
-                                "city": revealed.city or c.city,
-                                "state": revealed.state or c.state,
-                                "country": revealed.country or c.country,
-                                "linkedin_url": revealed.linkedin_url or c.linkedin_url,
-                                "photo_url": revealed.photo_url,
-                                "is_revealed": True,
-                            })
-                            total_revealed += 1
-                            logger.info(f"[Pipeline Tool] Revealed: {revealed.name} at {org.name}")
-                        else:
-                            company_result["contacts"].append({
-                                "id": c.id,
-                                "name": f"{c.first_name} {c.last_name_obfuscated or ''}".strip(),
-                                "first_name": c.first_name,
-                                "last_name": c.last_name_obfuscated,
-                                "title": c.title,
-                                "seniority": c.seniority,
-                                "departments": c.departments,
-                                "company_name": org.name,
-                                "company_domain": org.domain,
-                                "email": None,
-                                "phone": None,
-                                "city": c.city,
-                                "state": c.state,
-                                "country": c.country,
-                                "linkedin_url": c.linkedin_url,
-                                "is_revealed": False,
-                            })
-                    except Exception as e:
-                        logger.warning(f"[Pipeline Tool] Reveal failed for contact at {org.name}: {e}")
-                
-                total_contacts += len(company_result["contacts"])
-                
-            except Exception as e:
-                logger.warning(f"[Pipeline Tool] Contact search failed for {org.name}: {e}")
-                company_result["contact_search_error"] = str(e)
-            
-            results.append(company_result)
-        
-        # Build filter description
-        filters_applied = []
-        if keywords: filters_applied.append(f"keywords: {', '.join(keywords)}")
-        if states: filters_applied.append(f"states: {', '.join(states)}")
-        if industries: filters_applied.append(f"industries: {', '.join(industries)}")
-        if employee_ranges: filters_applied.append(f"employees: {', '.join(employee_ranges)}")
-        if min_revenue: filters_applied.append(f"min revenue: ${min_revenue:,}")
-        if department: filters_applied.append(f"department: {department}")
-        if seniorities: filters_applied.append(f"seniorities: {', '.join(seniorities)}")
-        if titles: filters_applied.append(f"titles: {', '.join(titles)}")
-        
-        logger.info(f"[Pipeline Tool] find_contacts_at_companies complete: {len(results)} companies, "
-                   f"{total_contacts} contacts, {total_revealed} revealed")
-        
-        return json.dumps({
-            "status": "success",
-            "query_type": "contacts_at_companies",
-            "block_type": "contacts_at_companies",
-            "filters_applied": filters_applied,
-            "companies_found": len(organizations),
-            "companies_searched": len(results),
-            "total_contacts": total_contacts,
-            "total_revealed": total_revealed,
-            "results": results,
-            "title": f"Contacts at {len(results)} companies ({total_contacts} contacts found)",
-        }, indent=2)
-        
-    except Exception as e:
-        logger.error(f"Error in find_contacts_at_companies: {e}", exc_info=True)
-        return json.dumps({
-            "status": "error",
-            "error": str(e),
-            "query_type": "contacts_at_companies",
-        })
-
-
-@tool
 async def get_apollo_credits() -> str:
     """
     Check Apollo.io credit usage and remaining balance.
@@ -1224,11 +1019,11 @@ PIPELINE_TOOLS_INSTANT = [
     find_similar_companies,
     search_companies,
     find_trigger_events,
-    # Apollo.io enrichment tools (contacts + company data)
+    # Apollo.io enrichment tools (company data)
     enrich_company,
     search_companies_filtered,  # Apollo org search with firmographic filters (location, employees, revenue)
-    find_company_contacts,      # Contact search at a SPECIFIC company
-    find_contacts_at_companies, # NEW: Composite tool for broad contact searches across multiple companies
+    # NOTE: Contact tools disabled - "coming soon" feature
+    # find_company_contacts,      # Contact search - returns enriched profiles with departments, freshness
     # BigQuery corpus tools (intelligence integration)
     query_corpus,
     get_entity_mentions,
@@ -1241,11 +1036,11 @@ PIPELINE_TOOLS_FULL = [
     search_companies,
     find_trigger_events,
     build_company_webset,
-    # Apollo.io enrichment tools (contacts + company data)
+    # Apollo.io enrichment tools (company data)
     enrich_company,
     search_companies_filtered,  # Apollo org search with firmographic filters (location, employees, revenue)
-    find_company_contacts,      # Contact search at a SPECIFIC company
-    find_contacts_at_companies, # NEW: Composite tool for broad contact searches across multiple companies
+    # NOTE: Contact tools disabled - "coming soon" feature
+    # find_company_contacts,      # Contact search - returns enriched profiles with departments, freshness
     # BigQuery corpus tools (intelligence integration)
     query_corpus,
     get_entity_mentions,

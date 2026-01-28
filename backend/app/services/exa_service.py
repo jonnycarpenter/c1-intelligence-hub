@@ -905,6 +905,11 @@ class ExaService:
                         "technologies": org.technologies,
                         "keywords": org.keywords,
                         "linkedin_url": org.linkedin_url,
+                        # Extended firmographics
+                        "sic_codes": org.sic_codes,
+                        "naics_codes": org.naics_codes,
+                        "retail_location_count": org.retail_location_count,
+                        "suborganizations": org.suborganizations[:10] if org.suborganizations else [],
                     }
                     
                     # Add supply chain matches

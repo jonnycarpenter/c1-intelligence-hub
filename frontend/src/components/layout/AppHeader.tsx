@@ -19,14 +19,14 @@ const modeConfig: Record<Mode, { icon: typeof Activity; title: string; subtitle:
   pulse: {
     icon: Activity,
     title: 'Need to Know',
-    subtitle: 'Curated headlines',
+    subtitle: 'Strategic Priorities',
     color: 'text-emerald-500',
     bg: 'bg-emerald-100',
   },
   discovery: {
     icon: Activity, // Using Activity temporarily, could use Compass
-    title: 'Discovery',
-    subtitle: 'AI-guided market exploration',
+    title: 'Market Intelligence',
+    subtitle: 'Industry landscape',
     color: 'text-teal-500',
     bg: 'bg-teal-100',
   },

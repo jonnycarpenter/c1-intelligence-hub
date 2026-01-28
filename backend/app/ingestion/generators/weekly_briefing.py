@@ -122,7 +122,7 @@ REQUIREMENTS:
 
 FINAL BRIEFING JSON FORMAT:
 {{
-    "briefing_title": "Executive Briefing: Week of {period_end_short}",
+    "briefing_title": "Strategic Intelligence Briefing: Week of {period_end_short}",
     "bluf": "Single sentence high-level summary",
     "sections": [
         {{
@@ -627,7 +627,7 @@ FINAL BRIEFING JSON FORMAT:
         dialogue = []
         
         # 1. Opening - Host introduces the briefing
-        title = briefing.get('briefing_title', 'Executive Briefing')
+        title = briefing.get('briefing_title', 'Strategic Intelligence Briefing')
         # Convert "Week of Jan 6" to "Week of January 6th"
         title = re.sub(r'\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b', 
                       lambda m: {
@@ -1153,7 +1153,7 @@ Your response MUST be the final JSON briefing format, NOT a tool_calls request.
             
             # Build the complete briefing record
             # ALWAYS use calculated Monday date for title (LLM often gets it wrong)
-            forced_title = f"Executive Briefing: Week of {week_of_date}"
+            forced_title = f"Strategic Intelligence Briefing: Week of {week_of_date}"
             llm_title = data.get("briefing_title", "")
             if llm_title and llm_title != forced_title:
                 logger.info(f"Agent 2: Overriding LLM title '{llm_title}' with '{forced_title}'")

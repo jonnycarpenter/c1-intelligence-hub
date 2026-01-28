@@ -456,7 +456,7 @@ export default function WeeklyBriefingSection({
           </div>
           <div>
             <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight leading-none">Need to Know</h2>
-            <p className="text-xs text-emerald-600/80 font-bold uppercase tracking-widest mt-1">Executive Briefing</p>
+            <p className="text-xs text-emerald-600/80 font-bold uppercase tracking-widest mt-1">Strategic Priorities</p>
           </div>
           {/* Listen to Podcast Button */}
           {briefing.podcast_url && (

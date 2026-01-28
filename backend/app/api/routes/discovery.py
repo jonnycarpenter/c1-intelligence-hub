@@ -840,3 +840,101 @@ async def get_discovery_category_summary(category: str):
         elapsed = time.time() - request_start
         logger.error(f"[DISCOVERY_SUMMARY] Endpoint FAILED: {elapsed:.2f}s, error={str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to generate summary: {str(e)}")
+
+
+# =============================================================================
+# Bulletin Board Endpoint (Priority Spotlight)
+# =============================================================================
+
+@router.get("/bulletin")
+async def get_bulletin_board():
+    """
+    Get contextual guidance bullets for the Market Intelligence bulletin board.
+    
+    Analyzes HIGH/CRITICAL priority items from the last 72 hours (or 7 days if none).
+    Uses Haiku LLM to generate 1-3 brief, actionable guidance bullets pointing
+    users to the most important content.
+    
+    Returns:
+    - bullets: 1-3 contextual guidance strings
+    - total_priority_items: Count of HIGH/CRITICAL items found
+    - categories_covered: Which categories are mentioned
+    - time_window_hours: 72 or 168 (if extended)
+    - extended_to_7_days: True if no items in 72h
+    """
+    from app.api.schemas import BulletinBoardResponse
+    from app.db.gcp_storage import get_storage
+    from app.ingestion.generators.bulletin_board import BulletinBoardGenerator
+    from app.config.settings import settings
+    
+    request_start = time.time()
+    logger.info("[DISCOVERY_BULLETIN] Endpoint START")
+    
+    try:
+        storage = get_storage()
+        
+        # 1. Try 72 hours first
+        hours = 72
+        priority_items = await storage.get_digest_items(
+            hours=hours,
+            priorities=["critical", "high"],
+            limit=100
+        )
+        
+        # 2. If no items in 72h, extend to 7 days
+        extended = False
+        if len(priority_items) == 0:
+            hours = 168  # 7 days
+            extended = True
+            priority_items = await storage.get_digest_items(
+                hours=hours,
+                priorities=["critical", "high"],
+                limit=100
+            )
+        
+        # 3. Sort by published_at (most recent first)
+        priority_items.sort(
+            key=lambda x: x.get("published_at") or "",
+            reverse=True
+        )
+        
+        # 4. Generate bulletin board content
+        api_key = settings.anthropic_api_key
+        if not api_key:
+            # Fallback without LLM
+            generator = BulletinBoardGenerator.__new__(BulletinBoardGenerator)
+            generator._prompt_template = ""
+            bullets = generator._generate_fallback_bullets([
+                (cat, [i for i in priority_items if i.get("category") == cat])
+                for cat in set(i.get("category") for i in priority_items if i.get("category"))
+            ][:3])
+            return BulletinBoardResponse(
+                bullets=bullets if bullets else ["Explore the industry themes below for the latest intelligence."],
+                total_priority_items=len(priority_items),
+                categories_covered=[],
+                time_window_hours=hours,
+                extended_to_7_days=extended,
+                generated_at=datetime.utcnow().isoformat()
+            )
+        
+        generator = BulletinBoardGenerator(anthropic_api_key=api_key)
+        result = await generator.generate(priority_items, hours_window=hours, extended=extended)
+        
+        elapsed = time.time() - request_start
+        logger.info(f"[DISCOVERY_BULLETIN] Endpoint COMPLETE: {elapsed:.2f}s, {len(priority_items)} priority items")
+        
+        return BulletinBoardResponse(**result)
+        
+    except Exception as e:
+        elapsed = time.time() - request_start
+        logger.error(f"[DISCOVERY_BULLETIN] Endpoint FAILED: {elapsed:.2f}s, error={str(e)}", exc_info=True)
+        # Return graceful fallback
+        return BulletinBoardResponse(
+            bullets=["Check out the industry themes below for the latest intelligence."],
+            total_priority_items=0,
+            categories_covered=[],
+            time_window_hours=72,
+            extended_to_7_days=False,
+            generated_at=datetime.utcnow().isoformat()
+        )
+
