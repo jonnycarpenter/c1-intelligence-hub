@@ -23,6 +23,46 @@ Without reliable daily ingestion:
 (none currently)
 
 ---
+## 📅 SESSION 90: Pipeline Simplification + Company Metadata Fix (January 27, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 What Was Done
+
+#### 1. Pipeline Tab Simplification - Company-Only Search 🏢
+**Goal**: Focus Pipeline tab exclusively on company/prospect search, disable contact features for now.
+
+**Backend Changes**:
+- Updated `SYSTEM_PROMPT_INSTANT` and `SYSTEM_PROMPT_FULL` in `agent.py` to remove contact tool references
+- Added "IMPORTANT: Contact Search Coming Soon" section with explicit "coming soon!" response for contact queries
+- Commented out `find_company_contacts` from `PIPELINE_TOOLS_INSTANT` and `PIPELINE_TOOLS_FULL` in `pipeline_search.py`
+
+**Frontend Changes**:
+- Removed "Saved Contacts" section from `PipelineDashboard.tsx`
+- Updated Saved tab badge to show only prospect count
+- Updated input placeholder and greetings in `PipelineContext.tsx` to focus on companies
+
+#### 2. Missing Company Metadata Bug Fix 🐛
+**Problem**: Extended firmographic fields (NAICS codes, retail locations, suborganizations) weren't appearing in company "hunting cards" despite frontend code being ready to render them.
+
+**Root Cause**: Two locations were building `apollo_enrichment` objects with only basic fields:
+1. `pipeline_search.py` → `search_companies_filtered` (lines 940-945)
+2. `exa_service.py` → `_enrich_results_with_apollo` (lines 894-908)
+
+**Fix**: Added missing fields to both locations:
+- `sic_codes`
+- `naics_codes`
+- `retail_location_count`
+- `suborganizations`
+
+### 📁 Files Modified
+- `backend/app/agents/pipeline/agent.py` - Agent prompts updated for company-only focus
+- `backend/app/mcp/tools/pipeline_search.py` - Contact tool commented out, extended firmographics added
+- `backend/app/services/exa_service.py` - Extended firmographics added to enrichment
+- `frontend/src/components/pipeline/PipelineDashboard.tsx` - Contacts UI removed
+- `frontend/src/contexts/PipelineContext.tsx` - Greetings/followups updated
+
+---
 ## 📅 SESSION 89: Discovery Tab - Context Awareness + AI Summary Fix (January 27, 2026)
 
 **Status**: ✅ COMPLETE
