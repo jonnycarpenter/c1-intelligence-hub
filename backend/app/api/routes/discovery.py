@@ -67,13 +67,24 @@ class DiscoverySummaryResponse(BaseModel):
 # System Prompt
 # =============================================================================
 
-DISCOVERY_SYSTEM_PROMPT = """You are the Discovery Assistant for C1 Intelligence Hub, a composites industry intelligence platform.
+DISCOVERY_SYSTEM_PROMPT = """You are the Discovery Assistant for C1 Intelligence Hub, a market intelligence platform serving Composites One (C1) - North America's largest composites distributor.
+
+## YOUR DOMAIN CONTEXT
+You serve sales and strategy teams at a COMPOSITES DISTRIBUTOR. When users ask vague questions like "tell me about competitors" or "what's happening in the market", they mean:
+
+**Competitors** = Other composites distributors (Composites USA, Ashland) and material suppliers who sell direct (Hexcel, Toray, Owens Corning, AOC/Aliancys, Scott Bader, Huntsman, BASF, 3M Composites)
+
+**Key Customers/End Markets** = Aerospace (Boeing, Airbus, Lockheed, RTX), Marine (boat builders), Automotive, Wind Energy (Vestas, GE Renewables), Construction, Sporting Goods, Infrastructure
+
+**Materials We Care About** = Fiberglass, carbon fiber, aramid, resins (polyester, vinyl ester, epoxy), gelcoats, core materials, reinforcements, prepregs
+
+**ALWAYS ground your searches in composites industry context.** If a user asks "what's happening with competitors this week" - search for composites industry competitors, NOT generic Fortune 500 companies.
 
 You help users explore recent market intelligence from the past 30 days. Your role is to surface insights from the article corpus and supplement with live web search when needed.
 
 ## Tool Usage Strategy
-1. **ALWAYS start with corpus_search** - Our internal database has pre-classified, relevant articles
-2. **Use exa_search sparingly** - Only when corpus has insufficient results or user explicitly asks for "latest" or "live" news
+1. **ALWAYS start with corpus_search** - Our internal database has pre-classified, relevant articles specific to composites
+2. **For exa_search, add industry context** - When searching the web, ALWAYS include "composites" or "advanced materials" or specific company names to get relevant results
 3. **Combine insights** - Synthesize findings from multiple sources when available
 
 ## Response Guidelines
@@ -84,8 +95,10 @@ You help users explore recent market intelligence from the past 30 days. Your ro
 - For queries about events older than 30 days, redirect to Deep Research
 
 ## Data Window
-- corpus_search: Last 30 days of pre-ingested articles
-- exa_search: Live web results (any time range)
+- corpus_search: Last 30 days of pre-ingested articles (composites-focused)
+- exa_search: Live web results (any time range) - REMEMBER to add composites context to queries
+- stocknews_search: Financial/market news by keyword - great for sentiment and analyst coverage
+- fmp_news: Premium news (Bloomberg, Benzinga) for specific stock tickers (HXL, OC, BA, etc.)
 
 ## Categories Available (for corpus filtering)
 - competitor: Competitor activity, strategy, announcements
@@ -108,7 +121,7 @@ Always cite sources with clickable links."""
 DISCOVERY_TOOLS = [
     {
         "name": "corpus_search",
-        "description": "Search the internal article database for recent intelligence (last 30 days). Use this FIRST for any question about competitors, market trends, or industry news. Returns pre-classified, relevant articles.",
+        "description": "Search the internal article database for recent composites industry intelligence (last 30 days). Use this FIRST for any question about competitors, market trends, or industry news. Returns pre-classified, relevant articles.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -132,13 +145,13 @@ DISCOVERY_TOOLS = [
     },
     {
         "name": "exa_search",
-        "description": "Search live web for real-time news. Use when corpus results are insufficient or user asks for 'latest' news. Returns results with reliable published dates.",
+        "description": "Search live web for real-time news. Use when corpus results are insufficient or user asks for 'latest' news. REMEMBER: Add 'composites' or company names to queries for relevant results.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "query": {
                     "type": "string",
-                    "description": "Search query - include company names and specific topics"
+                    "description": "Search query - include company names and specific topics. Add 'composites' for industry-relevant results."
                 },
                 "days_back": {
                     "type": "integer",
@@ -152,6 +165,49 @@ DISCOVERY_TOOLS = [
                 }
             },
             "required": ["query"]
+        }
+    },
+    {
+        "name": "stocknews_search",
+        "description": "Search financial news by keyword or topic. Great for market-moving news, analyst commentary, and sentiment. Use for questions about financials, earnings, or market sentiment for composites companies.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "keyword": {
+                    "type": "string",
+                    "description": "Keyword to search - company names, topics, or themes. Add 'composites' or 'aerospace' for relevant results."
+                },
+                "days": {
+                    "type": "integer",
+                    "description": "Days back to search (default 7)",
+                    "default": 7
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Number of results (default 5, max 8)",
+                    "default": 5
+                }
+            },
+            "required": ["keyword"]
+        }
+    },
+    {
+        "name": "fmp_news",
+        "description": "Get premium financial news from Bloomberg, Benzinga, SeekingAlpha for a specific stock ticker. Use when user asks about a specific publicly traded company's financials or stock performance.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "ticker": {
+                    "type": "string",
+                    "description": "Stock ticker symbol (e.g., HXL for Hexcel, OC for Owens Corning, TORAY.T for Toray, BA for Boeing)"
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Number of articles (default 5, max 10)",
+                    "default": 5
+                }
+            },
+            "required": ["ticker"]
         }
     }
 ]
@@ -280,6 +336,109 @@ async def execute_exa_search(
         }
 
 
+async def execute_stocknews_search(
+    keyword: str,
+    days: int = 7,
+    limit: int = 5
+) -> Dict[str, Any]:
+    """Execute StockNews keyword search for financial news."""
+    start = time.time()
+    logger.info(f"[DISCOVERY] StockNews search START: keyword='{keyword[:60]}...', days={days}")
+    
+    try:
+        from app.mcp.tools.stocknews_api import search_news_keyword
+        
+        result_str = search_news_keyword.invoke({
+            "keyword": keyword,
+            "days": min(days, 30),
+            "items": min(limit, 8)
+        })
+        
+        if not result_str:
+            return {"status": "error", "message": "No results", "results": []}
+        
+        data = json.loads(result_str)
+        articles = data.get("articles", [])
+        
+        # Format results consistently
+        formatted = []
+        for r in articles[:limit]:
+            formatted.append({
+                "title": r.get("title", "Untitled"),
+                "url": r.get("url", ""),
+                "source": r.get("source", "StockNews"),
+                "published_date": r.get("date", ""),
+                "summary": (r.get("text", "") or "")[:400],
+                "sentiment": r.get("sentiment", "neutral"),
+            })
+        
+        elapsed = time.time() - start
+        logger.info(f"[DISCOVERY] StockNews search COMPLETE: {elapsed:.2f}s, {len(formatted)} results")
+        
+        return {
+            "status": "success",
+            "count": len(formatted),
+            "results": formatted
+        }
+        
+    except Exception as e:
+        elapsed = time.time() - start
+        logger.error(f"[DISCOVERY] StockNews search FAILED: {elapsed:.2f}s, error={str(e)}")
+        return {
+            "status": "error",
+            "message": str(e),
+            "results": []
+        }
+
+
+async def execute_fmp_news(
+    ticker: str,
+    limit: int = 5
+) -> Dict[str, Any]:
+    """Execute FMP premium news search for a stock ticker."""
+    start = time.time()
+    logger.info(f"[DISCOVERY] FMP news START: ticker='{ticker}', limit={limit}")
+    
+    try:
+        from app.tools.fmp_news.client import FMPNewsClient
+        
+        client = FMPNewsClient()
+        articles = await client.get_stock_news(ticker, limit=min(limit, 10))
+        
+        if not articles:
+            return {"status": "error", "message": f"No news found for {ticker}", "results": []}
+        
+        # Format results consistently
+        formatted = []
+        for r in articles[:limit]:
+            formatted.append({
+                "title": r.get("title", "Untitled"),
+                "url": r.get("url", ""),
+                "source": r.get("site", "FMP"),
+                "published_date": r.get("publishedDate", ""),
+                "summary": (r.get("text", "") or "")[:400],
+            })
+        
+        elapsed = time.time() - start
+        logger.info(f"[DISCOVERY] FMP news COMPLETE: {elapsed:.2f}s, {len(formatted)} results")
+        
+        return {
+            "status": "success",
+            "ticker": ticker,
+            "count": len(formatted),
+            "results": formatted
+        }
+        
+    except Exception as e:
+        elapsed = time.time() - start
+        logger.error(f"[DISCOVERY] FMP news FAILED: {elapsed:.2f}s, error={str(e)}")
+        return {
+            "status": "error",
+            "message": str(e),
+            "results": []
+        }
+
+
 async def execute_tool(tool_name: str, tool_input: Dict[str, Any]) -> str:
     """Execute a tool and return JSON result."""
     if tool_name == "corpus_search":
@@ -292,6 +451,17 @@ async def execute_tool(tool_name: str, tool_input: Dict[str, Any]) -> str:
         result = await execute_exa_search(
             query=tool_input.get("query", ""),
             days_back=tool_input.get("days_back", 7),
+            limit=tool_input.get("limit", 5)
+        )
+    elif tool_name == "stocknews_search":
+        result = await execute_stocknews_search(
+            keyword=tool_input.get("keyword", ""),
+            days=tool_input.get("days", 7),
+            limit=tool_input.get("limit", 5)
+        )
+    elif tool_name == "fmp_news":
+        result = await execute_fmp_news(
+            ticker=tool_input.get("ticker", ""),
             limit=tool_input.get("limit", 5)
         )
     else:

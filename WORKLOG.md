@@ -23,6 +23,54 @@ Without reliable daily ingestion:
 (none currently)
 
 ---
+## 📅 SESSION 89: Discovery Tab - Context Awareness + AI Summary Fix (January 27, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 What Was Done
+
+Fixed two critical bugs in the Discovery tab:
+
+#### 1. Discovery Assistant Context Awareness 🧠
+**Problem**: When users asked vague questions like "tell me about competitors this week", the agent responded with irrelevant results (Netflix, Disney) because the exa_search tool wasn't grounded in composites industry context.
+
+**Fix**: Completely rewrote `DISCOVERY_SYSTEM_PROMPT` in `discovery.py` to include:
+- Explicit domain context: "You serve sales and strategy teams at a COMPOSITES DISTRIBUTOR"
+- Named competitors list: Hexcel, Toray, Owens Corning, Composites USA, Ashland, etc.
+- Key customers/end markets: Aerospace (Boeing, Airbus), Marine, Wind Energy, etc.
+- Materials context: Fiberglass, carbon fiber, resins, gelcoats, etc.
+- Explicit instruction: "ALWAYS ground your searches in composites industry context"
+
+#### 2. AI Summary "Failed to parse AI response" 🔧
+**Problem**: The AI Summary button would start generating but end with "Failed to parse AI response" due to fragile JSON extraction.
+
+**Fix**: Added robust `_extract_json_from_text()` function to `discovery_summary.py` that handles:
+- JSON in `\`\`\`json ... \`\`\`` code fences
+- JSON in `\`\`\` ... \`\`\`` generic code fences
+- Raw JSON without code fences
+- JSON with extra text before/after (regex extraction fallback)
+- Added logging of raw response on parse failure for debugging
+
+### 📁 Files Modified
+
+- `backend/app/api/routes/discovery.py` - Rewrote `DISCOVERY_SYSTEM_PROMPT` with composites context
+- `backend/app/ingestion/generators/discovery_summary.py` - Added `_extract_json_from_text()`, updated `generate()` to use it
+
+### 🧪 Verification
+
+```powershell
+cd backend
+python -c "from app.api.routes.discovery import router; from app.ingestion.generators.discovery_summary import DiscoverySummaryGenerator; print('Imports OK')"
+# ✓ Imports OK
+```
+
+### 📋 Next Steps
+
+- [ ] Deploy to production and verify Discovery chat gives composites-relevant responses
+- [ ] Test AI Summary on multiple categories to confirm JSON parsing is robust
+- [ ] UX improvements (user mentioned they have more fixes in mind)
+
+---
 ## 📅 SESSION 88: Deep Research Crash Fix (January 24, 2026)
 
 **Status**: ✅ COMPLETE

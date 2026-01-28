@@ -11,13 +11,70 @@ and surfaces:
 import json
 import time
 import asyncio
-from typing import List, Dict, Any
+import re
+from typing import List, Dict, Any, Optional
 from datetime import datetime
 
 from app.utils.logger import get_logger
 from app.config.settings import settings
 
 logger = get_logger(__name__)
+
+
+def _extract_json_from_text(text: str) -> Optional[Dict[str, Any]]:
+    """
+    Robustly extract JSON from LLM response text.
+    
+    Handles:
+    - JSON wrapped in ```json ... ``` code fences
+    - JSON wrapped in ``` ... ``` code fences  
+    - Raw JSON without code fences
+    - JSON with extra text before/after
+    """
+    if not text:
+        return None
+    
+    text = text.strip()
+    
+    # Try 1: Extract from ```json ... ``` code fence
+    if "```json" in text:
+        try:
+            json_str = text.split("```json")[1].split("```")[0].strip()
+            return json.loads(json_str)
+        except (IndexError, json.JSONDecodeError):
+            pass
+    
+    # Try 2: Extract from ``` ... ``` code fence (any language)
+    if "```" in text:
+        try:
+            # Find content between first ``` and next ```
+            parts = text.split("```")
+            if len(parts) >= 3:
+                json_str = parts[1].strip()
+                # Remove language identifier if present (e.g., "json\n{...")
+                if json_str and not json_str.startswith("{"):
+                    newline_idx = json_str.find("\n")
+                    if newline_idx > 0:
+                        json_str = json_str[newline_idx:].strip()
+                return json.loads(json_str)
+        except (IndexError, json.JSONDecodeError):
+            pass
+    
+    # Try 3: Direct JSON parse (already valid JSON)
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+    
+    # Try 4: Find JSON object with regex (handles extra text before/after)
+    json_match = re.search(r'\{[\s\S]*\}', text)
+    if json_match:
+        try:
+            return json.loads(json_match.group())
+        except json.JSONDecodeError:
+            pass
+    
+    return None
 
 
 class DiscoverySummaryGenerator:
@@ -129,13 +186,16 @@ RULES:
             
             result_text = response.content[0].text.strip()
             
-            # Extract JSON from potential markdown wrapping
-            if "```json" in result_text:
-                result_text = result_text.split("```json")[1].split("```")[0].strip()
-            elif "```" in result_text:
-                result_text = result_text.split("```")[1].split("```")[0].strip()
+            # Use robust JSON extraction
+            data = _extract_json_from_text(result_text)
             
-            data = json.loads(result_text)
+            if data is None:
+                # Log the raw response for debugging
+                logger.error(
+                    f"[DISCOVERY_SUMMARY] Failed to extract JSON from response. "
+                    f"Raw text (first 500 chars): {result_text[:500]}"
+                )
+                return self._fallback_response(category, len(articles), "Failed to parse AI response.")
             
             elapsed = time.time() - start_time
             logger.info(f"[DISCOVERY_SUMMARY] Generate COMPLETE: {elapsed:.2f}s, themes={len(data.get('themes', []))}")
