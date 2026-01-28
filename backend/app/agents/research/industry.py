@@ -508,7 +508,7 @@ Respond ONLY with a JSON object matching this EXACT schema:
       "citation": {{
         "source_type": "trade_publication|industry_news|press_release|earnings_call|sec_10k|sec_10q|financial_news",
         "source_title": "Article or document title",
-        "source_url": "URL if available or null",
+        "source_url": "COPY the 'url' field from the raw result - REQUIRED for clickable links",
         "source_date": "YYYY-MM-DD or null",
         "page_or_section": "Section reference or null",
         "direct_quote": "Exact quote if available or null"
@@ -533,6 +533,7 @@ IMPORTANT:
 - relevance_score MUST be a decimal between 0.0 and 1.0
 - is_historical MUST be a boolean (true/false)
 - All lists MUST be arrays, even if empty []
+- CRITICAL: For source_url, COPY the exact "url" field from each raw result - users need clickable links!
 """
     
     messages = [

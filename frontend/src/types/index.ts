@@ -5,7 +5,7 @@ export type Mode = 'pulse' | 'discovery' | 'research' | 'products' | 'field-sale
 export type ViewMode = 'grid' | 'list'
 export type Priority = 'critical' | 'high' | 'medium' | 'low'
 // Categories aligned with backend ContentCategory/DigestCategory enums
-export type Category = 
+export type Category =
   | 'Market'
   | 'Supply Chain'
   | 'Regulatory'
@@ -658,6 +658,16 @@ export interface ValidationOutput {
   warnings?: string[]
 }
 
+/** Supporting visual from Visual Research Agent */
+export interface SupportingVisual {
+  visual_id: string
+  image_url: string
+  caption: string
+  placement: 'financial_section' | 'competitive_section' | 'market_section' | 'technology_section' | 'supporting_evidence'
+  size: 'small' | 'medium' | 'large'
+  data_summary?: string
+}
+
 /** Deep Research report structure */
 export interface DeepResearchReport {
   report_id: string
@@ -679,7 +689,9 @@ export interface DeepResearchReport {
       published_date?: string
       quote?: string
     }>
+    supporting_visuals?: SupportingVisual[]
   }>
+  all_visuals?: SupportingVisual[]
   field_sales?: {
     offensive_angles: Array<{
       title: string

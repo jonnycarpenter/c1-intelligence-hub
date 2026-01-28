@@ -14,6 +14,7 @@ import {
     CheckCircle,
     Loader2,
     ExternalLink,
+    Image as ImageIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import ReactMarkdown from 'react-markdown'
@@ -48,7 +49,7 @@ interface CompanyWithLogo {
 
 function CompanyLogo({ company }: { company: CompanyWithLogo }) {
     const [imageError, setImageError] = useState(false)
-    
+
     // Use logo.dev API via our backend proxy
     const logoUrl = company.domain
         ? `${API_BASE}/api/pipeline/logo/${company.domain}`
@@ -129,12 +130,86 @@ function CitationList({ citations }: { citations: Citation[] }) {
     )
 }
 
+// =============================================================================
+// Supporting Visuals Component - Renders images from Visual Research Agent
+// =============================================================================
+interface SupportingVisual {
+    visual_id: string
+    image_url: string
+    caption: string
+    placement?: string
+    size?: 'small' | 'medium' | 'large'
+    data_summary?: string
+}
+
+function SupportingVisualsList({ visuals }: { visuals?: SupportingVisual[] }) {
+    const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({})
+
+    if (!visuals || visuals.length === 0) return null
+
+    const handleImageError = (visualId: string) => {
+        setImageErrors(prev => ({ ...prev, [visualId]: true }))
+    }
+
+    // Size mappings for images
+    const sizeClasses = {
+        small: 'max-w-xs',
+        medium: 'max-w-md',
+        large: 'max-w-2xl',
+    }
+
+    return (
+        <div className="mt-6 pt-6 border-t border-slate-100">
+            <p className="text-xs font-medium text-slate-500 mb-3 flex items-center gap-1">
+                <ImageIcon size={12} />
+                Visual Evidence
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {visuals.map((visual, idx) => {
+                    if (imageErrors[visual.visual_id]) return null
+
+                    const sizeClass = sizeClasses[visual.size || 'medium']
+
+                    return (
+                        <div
+                            key={visual.visual_id || idx}
+                            className="bg-slate-50 rounded-lg border border-slate-200 overflow-hidden"
+                        >
+                            <a
+                                href={visual.image_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="block hover:opacity-90 transition-opacity"
+                            >
+                                <img
+                                    src={visual.image_url}
+                                    alt={visual.caption || 'Research visual'}
+                                    className={cn("w-full h-auto object-contain", sizeClass)}
+                                    onError={() => handleImageError(visual.visual_id)}
+                                />
+                            </a>
+                            {visual.caption && (
+                                <div className="px-3 py-2 border-t border-slate-200 bg-white">
+                                    <p className="text-xs text-slate-600">{visual.caption}</p>
+                                    {visual.data_summary && (
+                                        <p className="text-[10px] text-slate-400 mt-1 italic">{visual.data_summary}</p>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )
+                })}
+            </div>
+        </div>
+    )
+}
+
 export default function ResearchReport({ report }: DeepResearchReportProps) {
     const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
 
     if (!report) return null
 
-    const { executive_summary, sections, field_sales, companies_with_logos } = report
+    const { executive_summary, sections, field_sales, companies_with_logos, all_visuals } = report
 
     const handleSaveToMemory = async () => {
         if (saveStatus === 'saving' || saveStatus === 'saved') return
@@ -219,7 +294,7 @@ export default function ResearchReport({ report }: DeepResearchReportProps) {
                             </div>
                         ))}
                     </div>
-                    
+
                     {/* Company Logos */}
                     {companies_with_logos && companies_with_logos.length > 0 && (
                         <div className="mt-6 pt-4 border-t border-slate-100">
@@ -297,9 +372,12 @@ export default function ResearchReport({ report }: DeepResearchReportProps) {
                                 ))}
                             </div>
                         )}
-                        
+
                         {/* Section Citations */}
                         <CitationList citations={section.citations} />
+
+                        {/* Section Supporting Visuals */}
+                        <SupportingVisualsList visuals={section.supporting_visuals} />
                     </div>
                 </section>
             ))}
@@ -354,6 +432,20 @@ export default function ResearchReport({ report }: DeepResearchReportProps) {
                                 </div>
                             ))}
                         </div>
+                    </div>
+                </section>
+            )}
+
+            {/* Visual Gallery - Unplaced visuals from Visual Agent */}
+            {all_visuals && all_visuals.length > 0 && (
+                <section className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                    <div className="bg-slate-100 px-6 py-4 flex items-center gap-2 border-b border-slate-200">
+                        <ImageIcon size={20} className="text-slate-600" />
+                        <h2 className="text-slate-800 font-semibold">Visual Evidence Gallery</h2>
+                        <span className="text-xs text-slate-500 ml-auto">{all_visuals.length} visual{all_visuals.length > 1 ? 's' : ''}</span>
+                    </div>
+                    <div className="p-6">
+                        <SupportingVisualsList visuals={all_visuals} />
                     </div>
                 </section>
             )}

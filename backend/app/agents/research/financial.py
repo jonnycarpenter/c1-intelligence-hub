@@ -663,7 +663,7 @@ Respond ONLY with a JSON object matching this EXACT schema:
       "citation": {{
         "source_type": "sec_10k|sec_10q|sec_8k|earnings_call|investor_presentation|financial_news|press_release",
         "source_title": "Document or article title",
-        "source_url": "URL if available or null",
+        "source_url": "COPY the 'url' field from the raw result - REQUIRED for clickable links",
         "source_date": "YYYY-MM-DD or null",
         "page_or_section": "Section reference or null",
         "direct_quote": "Exact quote if available or null"
@@ -683,7 +683,8 @@ IMPORTANT:
 - confidence MUST be lowercase: "high", "medium", or "low"
 - relevance_score MUST be a decimal between 0.0 and 1.0
 - All lists (findings, failed_sources, data_gaps, warnings) MUST be arrays, even if empty []
-- Include specific citations with URLs where available
+- CRITICAL: For source_url, COPY the exact "url" field from each raw result - users need clickable links!
+- Each raw result above has a "url" field - use it in your citation's source_url
 """
     
     messages = [
