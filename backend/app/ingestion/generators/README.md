@@ -46,6 +46,7 @@ The weekly executive briefing uses a **2-agent pipeline**:
 |------|---------|
 | `pre_briefing.py` | **Agent 1** - Analyzes articles, produces structured observations with signal_types |
 | `weekly_briefing.py` | **Agent 2** - Synthesizes pre-brief into executive briefing with sections |
+| `bulletin_board.py` | **Priority Spotlight** - Generates 1-3 actionable bullets from HIGH/CRITICAL items |
 | `briefing.py` | Legacy category-based briefings (MARKET, COMPETITOR, etc.) |
 | `digest.py` | Digest item generation for the news feed |
 

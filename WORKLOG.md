@@ -23,6 +23,62 @@ Without reliable daily ingestion:
 (none currently)
 
 ---
+## 📅 SESSION 91: Market Intelligence - Priority Spotlight Bulletin Board (January 27, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 What Was Done
+
+Implemented a dynamic **Priority Spotlight** bulletin board for the Market Intelligence (Discovery) tab. Replaces the static "Good morning, Team" greeting with LLM-generated, actionable guidance.
+
+#### Feature Overview
+- Fetches HIGH/CRITICAL priority items from BigQuery (72h window, extends to 7 days if empty)
+- Uses Claude Haiku to synthesize 1-3 concise, actionable bullets
+- Styled with C1's teal/emerald design language
+- Graceful fallback if LLM unavailable
+
+#### Backend Implementation
+1. **LLM Prompt** (`inputs/agent_prompts/bulletin_board_prompt.md`) - Concise prompt for Claude Haiku
+2. **Generator Class** (`backend/app/ingestion/generators/bulletin_board.py`) - Groups items by category, calls LLM, provides fallback
+3. **API Schema** - Added `BulletinBoardResponse` to `schemas.py`
+4. **API Endpoint** - Added `GET /api/discovery/bulletin` to `discovery.py`
+
+#### Frontend Implementation
+1. **API Client** - Added `getBulletinBoard()` method to `api.ts`
+2. **Component** (`frontend/src/components/feed/BulletinBoard.tsx`) - Full React component with loading/error/empty states
+3. **Integration** - Replaced old greeting header in `DiscoveryView.tsx`
+
+### 📁 Files Modified
+
+**Backend (4 files):**
+- `inputs/agent_prompts/bulletin_board_prompt.md` (NEW)
+- `backend/app/ingestion/generators/bulletin_board.py` (NEW)
+- `backend/app/api/schemas.py` - Added `BulletinBoardResponse`
+- `backend/app/api/routes/discovery.py` - Added `/bulletin` endpoint
+
+**Frontend (3 files):**
+- `frontend/src/lib/api.ts` - Added `getBulletinBoard()` method
+- `frontend/src/components/feed/BulletinBoard.tsx` (NEW)
+- `frontend/src/components/feed/DiscoveryView.tsx` - Replaced greeting header
+
+### 🧪 Verification
+
+```bash
+# Test endpoint
+curl http://localhost:8000/api/discovery/bulletin | jq
+
+# Expected response
+{
+  "bullets": ["Check out Market Dynamics – 3 items on resin pricing."],
+  "total_priority_items": 12,
+  "categories_covered": ["Market", "Competitor"],
+  "time_window_hours": 72,
+  "extended_to_7_days": false,
+  "generated_at": "2026-01-28T02:45:00Z"
+}
+```
+
+---
 ## 📅 SESSION 90: Pipeline Simplification + Company Metadata Fix (January 27, 2026)
 
 **Status**: ✅ COMPLETE
