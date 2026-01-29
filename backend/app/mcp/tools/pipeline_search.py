@@ -921,7 +921,7 @@ async def search_companies_filtered(
             formatted.append({
                 "company_name": org.name,
                 "domain": org.domain,
-                "description": org.description,
+                "description": org.description or "",
                 "logo_url": org.logo_url or f"https://logo.clearbit.com/{org.domain}" if org.domain else None,
                 "employee_count": org.employee_count,
                 "founded_year": org.founded_year,

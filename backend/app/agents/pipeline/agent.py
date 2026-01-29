@@ -695,7 +695,7 @@ class PipelineAgent:
                         url=url,
                         domain=domain,
                         logo_url=r.get("logo_url"),
-                        description=r.get("description", ""),
+                        description=r.get("description") or "",
                         score=None,  # No relevance score for filtered search
                         apollo_enrichment=r.get("apollo_enrichment"),
                         published_date=None,

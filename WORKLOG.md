@@ -23,6 +23,79 @@ Without reliable daily ingestion:
 (none currently)
 
 ---
+## 📅 SESSION 91: Pipeline Agent SearchBlock Bug Fix (January 29, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Problem
+
+Pipeline agent was responding with company results in chat but no SearchBlocks were appearing in the Results panel. The agent would say "Found 25 wind energy companies in Texas!" but no company cards displayed.
+
+### 💡 Root Cause
+
+The `_create_search_block` handler for `search_companies_filtered` was failing with a Pydantic validation error:
+
+```
+ValidationError: 1 validation error for ProspectResult
+description
+  Input should be a valid string [type=string_type, input_value=None, input_type=NoneType]
+```
+
+**The bug**: When Apollo returns companies with `None` descriptions, the code `r.get("description", "")` still returns `None` because:
+- `.get(key, default)` only uses the default when the key is **missing**
+- If the key exists but has value `None`, it returns `None`
+
+The Apollo search was setting `"description": org.description` which was `None` for some companies, causing the ProspectResult Pydantic model to reject it.
+
+### ✅ Fix
+
+Changed both the tool output and the handler to use `or ""` instead of default arguments:
+
+**In `pipeline_search.py` (search_companies_filtered)**:
+```python
+# Before
+"description": org.description,
+
+# After  
+"description": org.description or "",
+```
+
+**In `agent.py` (_create_search_block)**:
+```python
+# Before
+description=r.get("description", ""),
+
+# After
+description=r.get("description") or "",
+```
+
+### 📁 Files Modified
+
+- `backend/app/mcp/tools/pipeline_search.py` - Fixed null description in Apollo search results
+- `backend/app/agents/pipeline/agent.py` - Fixed null description handling in SearchBlock creation
+
+### 🧪 Testing
+
+```bash
+cd backend
+python -c "
+import asyncio
+from app.agents.pipeline.agent import PipelineAgent
+
+async def test():
+    agent = PipelineAgent(mode='instant')
+    response = await agent.process_query('Find wind energy companies in Texas')
+    print(f'Search blocks: {len(response.search_blocks)}')
+    for block in response.search_blocks:
+        print(f'  - Type: {block.block_type}, Results: {block.result_count}')
+
+asyncio.run(test())
+"
+# Output: Search blocks: 1
+#   - Type: search_companies, Results: 25
+```
+
+---
 ## 📅 SESSION 90: Deep Research Fixes - Visual Agent & Citation URLs (January 29, 2026)
 
 **Status**: ✅ COMPLETE
