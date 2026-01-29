@@ -61,10 +61,22 @@ def _format_visual_result(item: Dict[str, Any]) -> dict:
         except (json.JSONDecodeError, TypeError):
             topics = []
 
+    # Parse extracted_data_points (JSON array of structured data from charts)
+    extracted_data_points = item.get("extracted_data_points", [])
+    if isinstance(extracted_data_points, str):
+        try:
+            extracted_data_points = json.loads(extracted_data_points)
+        except (json.JSONDecodeError, TypeError):
+            extracted_data_points = []
+
     return {
         "visual_id": item.get("id", ""),
         "image_url": item.get("url", ""),
+        "article_url": item.get("article_url", ""),  # Source article URL
         "description": item.get("description", ""),
+        "alt_text": item.get("alt_text", ""),  # Image alt text from HTML
+        "extracted_text": item.get("extracted_text", ""),  # OCR text from image
+        "extracted_data_points": extracted_data_points[:10] if extracted_data_points else [],  # Structured data from charts
         "article_title": item.get("article_title", ""),
         "article_id": item.get("article_id", ""),
         "image_type": item.get("image_type", "chart"),
@@ -137,23 +149,24 @@ def corpus_visuals_search(
             conditions = []
 
             if companies:
-                # Companies stored as JSON array in BigQuery
+                # Companies stored as JSON array string in BigQuery
+                # Use simple LIKE on the JSON string (case-insensitive)
                 company_conditions = " OR ".join(
-                    [f'JSON_EXTRACT_SCALAR(companies, "$[*]") LIKE "%{c}%"' for c in companies]
+                    [f'LOWER(companies) LIKE LOWER("%{c}%")' for c in companies]
                 )
                 conditions.append(f"({company_conditions})")
 
             if industries:
-                # Industries stored as JSON array
+                # Industries stored as JSON array string
                 industry_conditions = " OR ".join(
-                    [f'JSON_EXTRACT_SCALAR(industries, "$[*]") LIKE "%{i}%"' for i in industries]
+                    [f'LOWER(industries) LIKE LOWER("%{i}%")' for i in industries]
                 )
                 conditions.append(f"({industry_conditions})")
 
             if topics:
-                # Topics stored as JSON array
+                # Topics stored as JSON array string
                 topic_conditions = " OR ".join(
-                    [f'JSON_EXTRACT_SCALAR(topics, "$[*]") LIKE "%{t}%"' for t in topics]
+                    [f'LOWER(topics) LIKE LOWER("%{t}%")' for t in topics]
                 )
                 conditions.append(f"({topic_conditions})")
 
@@ -182,10 +195,14 @@ def corpus_visuals_search(
                 id,
                 article_id,
                 article_title,
+                article_url,
                 url,
                 image_type,
                 chart_type,
                 description,
+                alt_text,
+                extracted_text,
+                extracted_data_points,
                 companies,
                 industries,
                 topics,
@@ -204,8 +221,9 @@ def corpus_visuals_search(
             logger.info(f"Executing corpus visuals search: {query[:200]}...")
 
             try:
-                results = await storage.query_async(query)
-                visuals = [_format_visual_result(row) for row in results]
+                # Use the BigQuery client directly
+                results = list(storage.client.query(query).result())
+                visuals = [_format_visual_result(dict(row)) for row in results]
 
                 logger.info(f"Found {len(visuals)} visuals matching criteria")
 

@@ -39,19 +39,24 @@ You are a Visual Research Agent specializing in selecting impactful charts, grap
    - Which companies/industries need visual representation?
    - What metrics or trends would benefit from charts?
 
-2. EVALUATE candidate visuals for:
-   - Relevance to the research query and entities
-   - Data quality and recency
-   - Visual clarity and professional appearance
-   - Source credibility
+2. EVALUATE candidate visuals using the RICH METADATA available:
+   - **description**: AI-generated summary of what the visual shows
+   - **alt_text**: HTML alt text (often describes the visual's purpose)
+   - **extracted_text**: OCR text extracted FROM the image itself - this tells you what labels, numbers, and text appear in the visual
+   - **extracted_data_points**: Structured data extracted from charts (e.g., [{"label": "Q1 Revenue", "value": "45M"}]) - this is the actual quantitative data shown
+   - **companies/industries/topics**: Entities and themes the visual relates to
+   
+   Use extracted_text and extracted_data_points to understand what SPECIFIC DATA the visual contains. This helps you match visuals to the research query more precisely.
 
 3. SELECT the most impactful visuals (aim for 3-8 per report):
-   - Prioritize charts with quantitative data
+   - Prioritize visuals with extracted_data_points that contain relevant metrics
+   - Prioritize visuals where extracted_text matches research entities/topics
    - Balance coverage across key themes
    - Avoid redundant visuals showing similar data
 
 4. GENERATE contextual captions that:
    - Tie the visual directly to research findings
+   - Reference specific data points from extracted_data_points when available
    - Highlight the key insight shown
    - Cite the source article
 
@@ -65,7 +70,7 @@ You are a Visual Research Agent specializing in selecting impactful charts, grap
 ## Visual Type Priority
 1. Line/Area charts - Best for trends over time
 2. Bar charts - Best for comparisons
-3. Tables - Best for detailed metrics
+3. Tables - Best for detailed metrics (often have rich extracted_data_points!)
 4. Infographics - Best for market overviews
 5. Diagrams - Best for supply chain/process flows
 
@@ -267,11 +272,21 @@ async def visual_research_node(state: DeepResearchState) -> Dict[str, Any]:
     
     candidates_summary = []
     for i, v in enumerate(all_visuals[:25]):  # Limit to 25 candidates for LLM context
+        # Include rich metadata fields for LLM to understand image contents
+        extracted_text = v.get("extracted_text", "")
+        extracted_data_points = v.get("extracted_data_points", [])
+        
         candidates_summary.append({
             "index": i,
             "visual_id": v.get("visual_id", ""),
             "image_url": v.get("image_url", ""),
-            "description": v.get("description", "")[:300],
+            "article_url": v.get("article_url", ""),  # Source article URL
+            "description": v.get("description", "")[:400],
+            "alt_text": v.get("alt_text", "")[:200],  # Image alt text
+            # Extracted OCR text from the image (tells what's actually IN the visual)
+            "extracted_text": extracted_text[:500] if extracted_text else "",
+            # Structured data points extracted from charts (quantitative data)
+            "extracted_data_points": extracted_data_points[:5] if extracted_data_points else [],
             "article_title": v.get("article_title", ""),
             "image_type": v.get("image_type", ""),
             "chart_type": v.get("chart_type", ""),

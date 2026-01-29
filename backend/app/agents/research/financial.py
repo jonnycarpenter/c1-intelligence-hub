@@ -22,6 +22,78 @@ import re
 logger = logging.getLogger(__name__)
 
 
+def _extract_urls_from_tool_output(content: str, source_type: str) -> List[str]:
+    """
+    Extract URLs from tool output content. Different tools return URLs in different structures.
+    Returns a list of URLs found in the content.
+    """
+    urls = []
+    if not content:
+        return urls
+    
+    try:
+        # Try to parse as JSON
+        data = json.loads(content) if isinstance(content, str) else content
+        
+        # Handle different tool output structures
+        if isinstance(data, dict):
+            # StockNews API: {articles: [{url: ...}, ...]}
+            articles = data.get("articles", [])
+            for article in articles:
+                if article.get("url"):
+                    urls.append(article["url"])
+            
+            # Corpus query: {items: [{url: ...}, ...]} or direct list
+            items = data.get("items", [])
+            for item in items:
+                if item.get("url"):
+                    urls.append(item["url"])
+            
+            # Direct URL field
+            if data.get("url"):
+                urls.append(data["url"])
+            
+        elif isinstance(data, list):
+            # Direct list of results (corpus query format)
+            for item in data:
+                if isinstance(item, dict) and item.get("url"):
+                    urls.append(item["url"])
+                    
+    except (json.JSONDecodeError, TypeError):
+        # Not JSON - try regex to extract URLs
+        url_pattern = r'https?://[^\s"<>]+'
+        urls = re.findall(url_pattern, str(content))
+    
+    return urls[:10]  # Limit to 10 URLs to avoid noise
+
+
+def _enrich_raw_results_with_urls(raw_results: List[Dict]) -> List[Dict]:
+    """
+    Process raw_results to extract URLs from content and add them at the top level.
+    This makes URLs more visible to the LLM for citation extraction.
+    """
+    enriched = []
+    for result in raw_results:
+        result_copy = result.copy()
+        
+        # If already has top-level URL, keep it
+        if result_copy.get("url"):
+            enriched.append(result_copy)
+            continue
+        
+        # Try to extract URLs from content
+        content = result_copy.get("content", "")
+        urls = _extract_urls_from_tool_output(content, result_copy.get("source", ""))
+        
+        if urls:
+            result_copy["urls"] = urls
+            result_copy["url"] = urls[0]  # Primary URL for easy access
+        
+        enriched.append(result_copy)
+    
+    return enriched
+
+
 def _truncate_result_content(results: list, max_chars: int = 3000) -> list:
     """Truncate content in each result to avoid exceeding token limits."""
     truncated = []
@@ -593,9 +665,12 @@ async def financial_research_node(state: DeepResearchState) -> Dict[str, Any]:
     # =========================================================================
     ranked_results = _rank_financial_results(raw_results, brief.original_query)
     
+    # Enrich results with top-level URLs extracted from content for easier LLM access
+    enriched_results = _enrich_raw_results_with_urls(ranked_results[:8])
+    
     # Take top 8 results by relevance and truncate content to prevent token overflow
     # Reduced from 15 to avoid LLM output truncation causing JSON parse errors
-    top_results = _truncate_result_content(ranked_results[:8], max_chars=3000)
+    top_results = _truncate_result_content(enriched_results, max_chars=3000)
     
     # Prepare research context for the extraction prompt
     research_context = f"""

@@ -23,6 +23,122 @@ Without reliable daily ingestion:
 (none currently)
 
 ---
+## 📅 SESSION 90: Deep Research Fixes - Visual Agent & Citation URLs (January 29, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Problems Identified
+
+Two issues with Deep Research workflow were investigated:
+
+1. **Visual Agent Not Producing Results** - After 6+ sessions of attempts to fix, the visual agent was returning empty results despite the `article_images` table having 770 images.
+
+2. **Citations Missing source_url** - Findings/citations in Deep Research reports had null or empty `source_url` fields, making citations non-clickable.
+
+### 💡 Root Causes Found
+
+#### Issue 1: Visual Agent - Invalid BigQuery JSON Query Syntax
+
+The `corpus_visuals_search` tool in `corpus_visuals.py` was using:
+```python
+JSON_EXTRACT_SCALAR(companies, "$[*]") LIKE "%Hexcel%"
+```
+
+**BigQuery does not support `$[*]` in JSON_EXTRACT_SCALAR!** This caused a 400 error:
+> "Unsupported operator in JSONPath: *"
+
+Additionally, the tool was calling `storage.query_async()` which doesn't exist on `BigQueryDataStorage`.
+
+#### Issue 2: Citation URLs - URLs Buried in Tool Output Content
+
+The LLM extraction prompt told the model to "COPY the 'url' field from each raw result", but most raw results didn't have a top-level URL field. The URLs were buried inside the JSON content string from tools like:
+- `query_corpus` returns `{items: [{url: ...}]}` 
+- `get_company_news` returns `{articles: [{url: ...}]}`
+- Exa search returns `{results: [{url: ...}]}`
+
+The LLM was inconsistent at extracting URLs from nested JSON.
+
+### ✅ Fixes Applied
+
+#### Fix 1: Visual Agent Query Syntax (corpus_visuals.py)
+
+Changed from invalid JSON_EXTRACT_SCALAR to simple LIKE:
+```python
+# Before (broken)
+f'JSON_EXTRACT_SCALAR(companies, "$[*]") LIKE "%{c}%"'
+
+# After (working)  
+f'LOWER(companies) LIKE LOWER("%{c}%")'
+```
+
+Also fixed the query execution to use `storage.client.query()` directly:
+```python
+# Before (broken)
+results = await storage.query_async(query)
+
+# After (working)
+results = list(storage.client.query(query).result())
+```
+
+#### Fix 2: Citation URL Enrichment (financial.py, industry.py)
+
+Added two helper functions to both agent files:
+- `_extract_urls_from_tool_output()` - Parses JSON tool output and extracts URLs from various structures
+- `_enrich_raw_results_with_urls()` - Adds extracted URLs as top-level fields on raw_results
+
+Now before passing results to the LLM, we enrich them:
+```python
+enriched_results = _enrich_raw_results_with_urls(ranked_results[:8])
+top_results = _truncate_result_content(enriched_results, max_chars=3000)
+```
+
+### 🧪 Testing Results
+
+**Visual Search**:
+- ✅ Company search (Hexcel): 5 results
+- ✅ Industry search (aerospace): 5 results  
+- ✅ Topic search (revenue, growth): 5 results
+- ✅ MCP tools: 54 loaded correctly
+
+**Diagnostic Findings**:
+- `article_images` table: 770 images total (288 charts, 250 infographics, 152 tables, 65 diagrams, 13 graphs)
+- `articles` table: 100% URL coverage (8637/8638 have URLs)
+- `digest_items` table: 99.7% URL coverage (8210/8236)
+
+#### Fix 3: Visual Agent Rich Metadata (corpus_visuals.py, visual.py)
+
+The visual agent was not leveraging the rich metadata in `article_images`:
+- `alt_text` - HTML alt text describing the image
+- `extracted_text` - OCR text FROM the image (labels, numbers, axis titles)  
+- `extracted_data_points` - Structured quantitative data (e.g., `{"label": "Market Size 2021", "value": "4.63", "unit": "US$ Billion"}`)
+- `article_url` - Source article URL for citations
+
+Updated `corpus_visuals_search` SQL to select these fields and `_format_visual_result` to include them.
+
+Updated `visual.py` to:
+1. Pass rich metadata to LLM evaluation (`extracted_text`, `extracted_data_points`, etc.)
+2. Enhanced system prompt explaining how to use metadata to match visuals to research queries
+
+**Result**: Visual agent can now understand what specific data is IN each chart, not just metadata ABOUT it.
+
+### 📁 Files Modified
+
+- `backend/app/mcp/tools/corpus_visuals.py` - Fixed JSON query syntax, BigQuery client usage, added rich metadata fields
+- `backend/app/agents/research/financial.py` - Added URL extraction helpers and enrichment step
+- `backend/app/agents/research/industry.py` - Added URL extraction helpers and enrichment step
+- `backend/app/agents/research/visual.py` - Added rich metadata to LLM evaluation, enhanced system prompt
+
+### 🧪 Final Test Output
+```
+Sample visual from corpus_visuals_search:
+  description: This infographic presents a comprehensive overview of the Advanced Carbon Materials Market...
+  alt_text: Advanced Carbon Materials Market infographic showing growth forecast...
+  extracted_text: Advanced Carbon Materials Market, MMR, CAGR 11.2%, 4.63, 10.84, 2021, 2029...
+  extracted_data_points: [{'label': 'Market Size 2021', 'value': '4.63', 'unit': 'US$ Billion'}, ...]
+  article_url: https://www.researchandmarkets.com/reports/4536069/...
+```
+
+---
 ## 📅 SESSION 89: Pipeline Company Search Results Fix (January 28, 2026)
 
 **Status**: ✅ COMPLETE
