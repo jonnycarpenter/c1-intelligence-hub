@@ -937,11 +937,27 @@ async def search_companies_filtered(
                 "linkedin_url": org.linkedin_url,
                 "technologies": org.technologies[:5] if org.technologies else [],
                 "keywords": org.keywords[:5] if org.keywords else [],
+                # Full apollo_enrichment for profile drawer rendering
                 "apollo_enrichment": {
+                    "name": org.name,
+                    "domain": org.domain,
+                    "description": org.description,
+                    "logo_url": org.logo_url or (f"https://logo.clearbit.com/{org.domain}" if org.domain else None),
                     "employee_count": org.employee_count,
+                    "founded_year": org.founded_year,
                     "revenue_printed": org.revenue_printed,
+                    "annual_revenue": org.annual_revenue,
                     "industry": org.industry,
-                    "technologies": org.technologies[:5] if org.technologies else [],
+                    "city": org.city,
+                    "state": org.state,
+                    "country": org.country,
+                    "linkedin_url": org.linkedin_url,
+                    "technologies": org.technologies[:10] if org.technologies else [],
+                    "keywords": org.keywords[:10] if org.keywords else [],
+                    "sic_codes": org.sic_codes or [],
+                    "naics_codes": org.naics_codes or [],
+                    "retail_location_count": org.retail_location_count,
+                    "suborganizations": [s.get("name") if isinstance(s, dict) else s for s in (org.suborganizations or [])][:10],
                 },
             })
         

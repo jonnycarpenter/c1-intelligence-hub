@@ -23,7 +23,55 @@ Without reliable daily ingestion:
 (none currently)
 
 ---
+## 📅 SESSION 92: Pipeline Profile Drawer Fix (January 29, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Problem
+
+After Session 91 fixed SearchBlocks appearing for company-only searches, clicking "Show Full Profile" did nothing - the profile drawer wasn't expanding even though company cards displayed correctly.
+
+### 💡 Root Cause
+
+The `search_companies_filtered` tool was populating `apollo_enrichment` with only a minimal subset of fields:
+
+```python
+"apollo_enrichment": {
+    "employee_count": org.employee_count,
+    "revenue_printed": org.revenue_printed,
+    "industry": org.industry,
+    "technologies": org.technologies[:5],
+}
+```
+
+But the frontend `ProspectItem` component in `SearchBlockCard.tsx` needs many more fields to render the expanded profile:
+- `description`, `founded_year`, `city`, `state`, `country`
+- `linkedin_url`, `sic_codes`, `naics_codes`
+- `suborganizations`, `retail_location_count`
+
+When these fields were missing/undefined, the profile drawer would render as essentially empty.
+
+### ✅ Fix
+
+Expanded the `apollo_enrichment` object to include all firmographic fields returned by Apollo that the frontend expects. Now includes 18 fields for comprehensive profile rendering.
+
+### 📁 Files Modified
+
+- `backend/app/mcp/tools/pipeline_search.py` - Expanded `apollo_enrichment` object in `search_companies_filtered`
+
+### 🧪 Testing
+
+```bash
+cd backend
+python -c "from app.mcp.tools.pipeline_search import search_companies_filtered; print('OK')"  # ✅
+
+cd frontend
+npm run build  # ✅ Compiled successfully
+```
+
+---
 ## 📅 SESSION 91: Pipeline Agent SearchBlock Bug Fix (January 29, 2026)
+
 
 **Status**: ✅ COMPLETE
 
