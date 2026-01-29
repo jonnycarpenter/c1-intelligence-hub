@@ -677,6 +677,39 @@ class PipelineAgent:
                     result_count=len(results),
                 )
             
+            elif tool_name == "search_companies_filtered":
+                # Apollo filtered search - returns rich firmographic data
+                # Map to ProspectResult format for consistent UI rendering
+                filters_applied = result_data.get("filters_applied", [])
+                filter_desc = ", ".join(filters_applied) if filters_applied else "filtered search"
+                
+                prospects = []
+                for r in results:
+                    # Build a URL from domain or linkedin
+                    domain = r.get("domain", "")
+                    url = r.get("website") or r.get("linkedin_url") or (f"https://{domain}" if domain else "")
+                    
+                    prospects.append(ProspectResult(
+                        title=r.get("company_name", "Unknown Company"),
+                        company_name=r.get("company_name"),
+                        url=url,
+                        domain=domain,
+                        logo_url=r.get("logo_url"),
+                        description=r.get("description", ""),
+                        score=None,  # No relevance score for filtered search
+                        apollo_enrichment=r.get("apollo_enrichment"),
+                        published_date=None,
+                    ))
+                
+                return SearchBlock(
+                    id=block_id,
+                    block_type="search_companies",  # Reuse existing UI component
+                    title=result_data.get("title", f"Companies ({filter_desc})"),
+                    query_context=user_query,
+                    prospects=prospects,
+                    result_count=len(prospects),
+                )
+            
             elif tool_name == "find_contacts":
                 role = tool_args.get("role", "contacts")
                 industry = tool_args.get("industry", "")

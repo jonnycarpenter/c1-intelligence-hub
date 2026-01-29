@@ -197,20 +197,6 @@ class Digest(BaseModel):
 
 
 # ============================================
-# Bulletin Board Schemas
-# ============================================
-
-class BulletinBoardResponse(BaseModel):
-    """Contextual guidance for the Market Intelligence bulletin board."""
-    bullets: List[str] = Field(description="1-3 contextual guidance bullets")
-    total_priority_items: int = Field(description="Total HIGH/CRITICAL items found")
-    categories_covered: List[str] = Field(default_factory=list, description="Categories included in bullets")
-    time_window_hours: int = Field(description="Time window used (72 or 168)")
-    extended_to_7_days: bool = Field(default=False, description="True if no items in 72h, extended to 7 days")
-    generated_at: str = Field(description="ISO timestamp of generation")
-
-
-# ============================================
 # Podcast Schemas
 # ============================================
 

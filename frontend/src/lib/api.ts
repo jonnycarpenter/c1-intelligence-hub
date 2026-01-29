@@ -166,27 +166,6 @@ class ApiClient {
   }
 
   /**
-   * Get bulletin board contextual guidance (Priority Spotlight)
-   */
-  async getBulletinBoard(): Promise<{
-    bullets: string[]
-    total_priority_items: number
-    categories_covered: string[]
-    time_window_hours: number
-    extended_to_7_days: boolean
-    generated_at: string
-  }> {
-    const response = await fetch(`${this.baseUrl}/api/discovery/bulletin`)
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch bulletin board: ${response.statusText}`)
-    }
-
-    return response.json()
-  }
-
-
-  /**
    * Send a chat query
    */
   async query(request: ApiQueryRequest): Promise<ApiQueryResponse> {

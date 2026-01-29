@@ -67,24 +67,13 @@ class DiscoverySummaryResponse(BaseModel):
 # System Prompt
 # =============================================================================
 
-DISCOVERY_SYSTEM_PROMPT = """You are the Discovery Assistant for C1 Intelligence Hub, a market intelligence platform serving Composites One (C1) - North America's largest composites distributor.
-
-## YOUR DOMAIN CONTEXT
-You serve sales and strategy teams at a COMPOSITES DISTRIBUTOR. When users ask vague questions like "tell me about competitors" or "what's happening in the market", they mean:
-
-**Competitors** = Other composites distributors (Composites USA, Ashland) and material suppliers who sell direct (Hexcel, Toray, Owens Corning, AOC/Aliancys, Scott Bader, Huntsman, BASF, 3M Composites)
-
-**Key Customers/End Markets** = Aerospace (Boeing, Airbus, Lockheed, RTX), Marine (boat builders), Automotive, Wind Energy (Vestas, GE Renewables), Construction, Sporting Goods, Infrastructure
-
-**Materials We Care About** = Fiberglass, carbon fiber, aramid, resins (polyester, vinyl ester, epoxy), gelcoats, core materials, reinforcements, prepregs
-
-**ALWAYS ground your searches in composites industry context.** If a user asks "what's happening with competitors this week" - search for composites industry competitors, NOT generic Fortune 500 companies.
+DISCOVERY_SYSTEM_PROMPT = """You are the Discovery Assistant for C1 Intelligence Hub, a composites industry intelligence platform.
 
 You help users explore recent market intelligence from the past 30 days. Your role is to surface insights from the article corpus and supplement with live web search when needed.
 
 ## Tool Usage Strategy
-1. **ALWAYS start with corpus_search** - Our internal database has pre-classified, relevant articles specific to composites
-2. **For exa_search, add industry context** - When searching the web, ALWAYS include "composites" or "advanced materials" or specific company names to get relevant results
+1. **ALWAYS start with corpus_search** - Our internal database has pre-classified, relevant articles
+2. **Use exa_search sparingly** - Only when corpus has insufficient results or user explicitly asks for "latest" or "live" news
 3. **Combine insights** - Synthesize findings from multiple sources when available
 
 ## Response Guidelines
@@ -95,10 +84,8 @@ You help users explore recent market intelligence from the past 30 days. Your ro
 - For queries about events older than 30 days, redirect to Deep Research
 
 ## Data Window
-- corpus_search: Last 30 days of pre-ingested articles (composites-focused)
-- exa_search: Live web results (any time range) - REMEMBER to add composites context to queries
-- stocknews_search: Financial/market news by keyword - great for sentiment and analyst coverage
-- fmp_news: Premium news (Bloomberg, Benzinga) for specific stock tickers (HXL, OC, BA, etc.)
+- corpus_search: Last 30 days of pre-ingested articles
+- exa_search: Live web results (any time range)
 
 ## Categories Available (for corpus filtering)
 - competitor: Competitor activity, strategy, announcements
@@ -121,7 +108,7 @@ Always cite sources with clickable links."""
 DISCOVERY_TOOLS = [
     {
         "name": "corpus_search",
-        "description": "Search the internal article database for recent composites industry intelligence (last 30 days). Use this FIRST for any question about competitors, market trends, or industry news. Returns pre-classified, relevant articles.",
+        "description": "Search the internal article database for recent intelligence (last 30 days). Use this FIRST for any question about competitors, market trends, or industry news. Returns pre-classified, relevant articles.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -145,13 +132,13 @@ DISCOVERY_TOOLS = [
     },
     {
         "name": "exa_search",
-        "description": "Search live web for real-time news. Use when corpus results are insufficient or user asks for 'latest' news. REMEMBER: Add 'composites' or company names to queries for relevant results.",
+        "description": "Search live web for real-time news. Use when corpus results are insufficient or user asks for 'latest' news. Returns results with reliable published dates.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "query": {
                     "type": "string",
-                    "description": "Search query - include company names and specific topics. Add 'composites' for industry-relevant results."
+                    "description": "Search query - include company names and specific topics"
                 },
                 "days_back": {
                     "type": "integer",
@@ -165,49 +152,6 @@ DISCOVERY_TOOLS = [
                 }
             },
             "required": ["query"]
-        }
-    },
-    {
-        "name": "stocknews_search",
-        "description": "Search financial news by keyword or topic. Great for market-moving news, analyst commentary, and sentiment. Use for questions about financials, earnings, or market sentiment for composites companies.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "keyword": {
-                    "type": "string",
-                    "description": "Keyword to search - company names, topics, or themes. Add 'composites' or 'aerospace' for relevant results."
-                },
-                "days": {
-                    "type": "integer",
-                    "description": "Days back to search (default 7)",
-                    "default": 7
-                },
-                "limit": {
-                    "type": "integer",
-                    "description": "Number of results (default 5, max 8)",
-                    "default": 5
-                }
-            },
-            "required": ["keyword"]
-        }
-    },
-    {
-        "name": "fmp_news",
-        "description": "Get premium financial news from Bloomberg, Benzinga, SeekingAlpha for a specific stock ticker. Use when user asks about a specific publicly traded company's financials or stock performance.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "ticker": {
-                    "type": "string",
-                    "description": "Stock ticker symbol (e.g., HXL for Hexcel, OC for Owens Corning, TORAY.T for Toray, BA for Boeing)"
-                },
-                "limit": {
-                    "type": "integer",
-                    "description": "Number of articles (default 5, max 10)",
-                    "default": 5
-                }
-            },
-            "required": ["ticker"]
         }
     }
 ]
@@ -336,109 +280,6 @@ async def execute_exa_search(
         }
 
 
-async def execute_stocknews_search(
-    keyword: str,
-    days: int = 7,
-    limit: int = 5
-) -> Dict[str, Any]:
-    """Execute StockNews keyword search for financial news."""
-    start = time.time()
-    logger.info(f"[DISCOVERY] StockNews search START: keyword='{keyword[:60]}...', days={days}")
-    
-    try:
-        from app.mcp.tools.stocknews_api import search_news_keyword
-        
-        result_str = search_news_keyword.invoke({
-            "keyword": keyword,
-            "days": min(days, 30),
-            "items": min(limit, 8)
-        })
-        
-        if not result_str:
-            return {"status": "error", "message": "No results", "results": []}
-        
-        data = json.loads(result_str)
-        articles = data.get("articles", [])
-        
-        # Format results consistently
-        formatted = []
-        for r in articles[:limit]:
-            formatted.append({
-                "title": r.get("title", "Untitled"),
-                "url": r.get("url", ""),
-                "source": r.get("source", "StockNews"),
-                "published_date": r.get("date", ""),
-                "summary": (r.get("text", "") or "")[:400],
-                "sentiment": r.get("sentiment", "neutral"),
-            })
-        
-        elapsed = time.time() - start
-        logger.info(f"[DISCOVERY] StockNews search COMPLETE: {elapsed:.2f}s, {len(formatted)} results")
-        
-        return {
-            "status": "success",
-            "count": len(formatted),
-            "results": formatted
-        }
-        
-    except Exception as e:
-        elapsed = time.time() - start
-        logger.error(f"[DISCOVERY] StockNews search FAILED: {elapsed:.2f}s, error={str(e)}")
-        return {
-            "status": "error",
-            "message": str(e),
-            "results": []
-        }
-
-
-async def execute_fmp_news(
-    ticker: str,
-    limit: int = 5
-) -> Dict[str, Any]:
-    """Execute FMP premium news search for a stock ticker."""
-    start = time.time()
-    logger.info(f"[DISCOVERY] FMP news START: ticker='{ticker}', limit={limit}")
-    
-    try:
-        from app.tools.fmp_news.client import FMPNewsClient
-        
-        client = FMPNewsClient()
-        articles = await client.get_stock_news(ticker, limit=min(limit, 10))
-        
-        if not articles:
-            return {"status": "error", "message": f"No news found for {ticker}", "results": []}
-        
-        # Format results consistently
-        formatted = []
-        for r in articles[:limit]:
-            formatted.append({
-                "title": r.get("title", "Untitled"),
-                "url": r.get("url", ""),
-                "source": r.get("site", "FMP"),
-                "published_date": r.get("publishedDate", ""),
-                "summary": (r.get("text", "") or "")[:400],
-            })
-        
-        elapsed = time.time() - start
-        logger.info(f"[DISCOVERY] FMP news COMPLETE: {elapsed:.2f}s, {len(formatted)} results")
-        
-        return {
-            "status": "success",
-            "ticker": ticker,
-            "count": len(formatted),
-            "results": formatted
-        }
-        
-    except Exception as e:
-        elapsed = time.time() - start
-        logger.error(f"[DISCOVERY] FMP news FAILED: {elapsed:.2f}s, error={str(e)}")
-        return {
-            "status": "error",
-            "message": str(e),
-            "results": []
-        }
-
-
 async def execute_tool(tool_name: str, tool_input: Dict[str, Any]) -> str:
     """Execute a tool and return JSON result."""
     if tool_name == "corpus_search":
@@ -451,17 +292,6 @@ async def execute_tool(tool_name: str, tool_input: Dict[str, Any]) -> str:
         result = await execute_exa_search(
             query=tool_input.get("query", ""),
             days_back=tool_input.get("days_back", 7),
-            limit=tool_input.get("limit", 5)
-        )
-    elif tool_name == "stocknews_search":
-        result = await execute_stocknews_search(
-            keyword=tool_input.get("keyword", ""),
-            days=tool_input.get("days", 7),
-            limit=tool_input.get("limit", 5)
-        )
-    elif tool_name == "fmp_news":
-        result = await execute_fmp_news(
-            ticker=tool_input.get("ticker", ""),
             limit=tool_input.get("limit", 5)
         )
     else:
@@ -840,102 +670,3 @@ async def get_discovery_category_summary(category: str):
         elapsed = time.time() - request_start
         logger.error(f"[DISCOVERY_SUMMARY] Endpoint FAILED: {elapsed:.2f}s, error={str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to generate summary: {str(e)}")
-
-
-# =============================================================================
-# Bulletin Board Endpoint (Priority Spotlight)
-# =============================================================================
-
-@router.get("/bulletin")
-async def get_bulletin_board():
-    """
-    Get contextual guidance bullets for the Market Intelligence bulletin board.
-    
-    Analyzes HIGH/CRITICAL priority items from the last 72 hours (or 7 days if none).
-    Uses Haiku LLM to generate 1-3 brief, actionable guidance bullets pointing
-    users to the most important content.
-    
-    Returns:
-    - bullets: 1-3 contextual guidance strings
-    - total_priority_items: Count of HIGH/CRITICAL items found
-    - categories_covered: Which categories are mentioned
-    - time_window_hours: 72 or 168 (if extended)
-    - extended_to_7_days: True if no items in 72h
-    """
-    from app.api.schemas import BulletinBoardResponse
-    from app.db.gcp_storage import get_storage
-    from app.ingestion.generators.bulletin_board import BulletinBoardGenerator
-    from app.config.settings import settings
-    
-    request_start = time.time()
-    logger.info("[DISCOVERY_BULLETIN] Endpoint START")
-    
-    try:
-        storage = await get_storage()
-        
-        # 1. Try 72 hours first
-        hours = 72
-        priority_items = await storage.get_digest_items(
-            hours=hours,
-            priorities=["critical", "high"],
-            limit=100
-        )
-        
-        # 2. If no items in 72h, extend to 7 days
-        extended = False
-        if len(priority_items) == 0:
-            hours = 168  # 7 days
-            extended = True
-            priority_items = await storage.get_digest_items(
-                hours=hours,
-                priorities=["critical", "high"],
-                limit=100
-            )
-        
-        # 3. Sort by published_at (most recent first)
-        priority_items.sort(
-            key=lambda x: x.get("published_at") or "",
-            reverse=True
-        )
-        
-        # 4. Generate bulletin board content
-        api_key = settings.anthropic_api_key
-        if not api_key:
-            # Fallback without LLM
-            generator = BulletinBoardGenerator.__new__(BulletinBoardGenerator)
-            generator._prompt_template = ""
-            bullets = generator._generate_fallback_bullets([
-                (cat, [i for i in priority_items if i.get("category") == cat])
-                for cat in set(i.get("category") for i in priority_items if i.get("category"))
-            ][:3])
-            return BulletinBoardResponse(
-                bullets=bullets if bullets else ["Explore the industry themes below for the latest intelligence."],
-                total_priority_items=len(priority_items),
-                categories_covered=[],
-                time_window_hours=hours,
-                extended_to_7_days=extended,
-                generated_at=datetime.utcnow().isoformat()
-            )
-        
-        generator = BulletinBoardGenerator(anthropic_api_key=api_key)
-        result = await generator.generate(priority_items, hours_window=hours, extended=extended)
-        
-        elapsed = time.time() - request_start
-        logger.info(f"[DISCOVERY_BULLETIN] Endpoint COMPLETE: {elapsed:.2f}s, {len(priority_items)} priority items")
-        
-        return BulletinBoardResponse(**result)
-        
-    except Exception as e:
-        elapsed = time.time() - request_start
-        logger.error(f"[DISCOVERY_BULLETIN] Endpoint FAILED: {elapsed:.2f}s, error={str(e)}", exc_info=True)
-        # Return graceful fallback
-        return BulletinBoardResponse(
-            bullets=["Check out the industry themes below for the latest intelligence."],
-            total_priority_items=0,
-            categories_covered=[],
-            time_window_hours=72,
-            extended_to_7_days=False,
-            generated_at=datetime.utcnow().isoformat()
-        )
-
-

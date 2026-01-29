@@ -942,11 +942,6 @@ async def search_companies_filtered(
                     "revenue_printed": org.revenue_printed,
                     "industry": org.industry,
                     "technologies": org.technologies[:5] if org.technologies else [],
-                    # Extended firmographics
-                    "sic_codes": org.sic_codes,
-                    "naics_codes": org.naics_codes,
-                    "retail_location_count": org.retail_location_count,
-                    "suborganizations": org.suborganizations[:10] if org.suborganizations else [],
                 },
             })
         
@@ -1019,11 +1014,10 @@ PIPELINE_TOOLS_INSTANT = [
     find_similar_companies,
     search_companies,
     find_trigger_events,
-    # Apollo.io enrichment tools (company data)
+    # Apollo.io enrichment tools (contacts + company data)
     enrich_company,
     search_companies_filtered,  # Apollo org search with firmographic filters (location, employees, revenue)
-    # NOTE: Contact tools disabled - "coming soon" feature
-    # find_company_contacts,      # Contact search - returns enriched profiles with departments, freshness
+    find_company_contacts,      # Contact search - returns enriched profiles with departments, freshness
     # BigQuery corpus tools (intelligence integration)
     query_corpus,
     get_entity_mentions,
@@ -1036,11 +1030,10 @@ PIPELINE_TOOLS_FULL = [
     search_companies,
     find_trigger_events,
     build_company_webset,
-    # Apollo.io enrichment tools (company data)
+    # Apollo.io enrichment tools (contacts + company data)
     enrich_company,
     search_companies_filtered,  # Apollo org search with firmographic filters (location, employees, revenue)
-    # NOTE: Contact tools disabled - "coming soon" feature
-    # find_company_contacts,      # Contact search - returns enriched profiles with departments, freshness
+    find_company_contacts,      # Contact search - returns enriched profiles with departments, freshness
     # BigQuery corpus tools (intelligence integration)
     query_corpus,
     get_entity_mentions,

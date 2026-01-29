@@ -23,148 +23,46 @@ Without reliable daily ingestion:
 (none currently)
 
 ---
-## 📅 SESSION 91: Market Intelligence - Priority Spotlight Bulletin Board (January 27, 2026)
+## 📅 SESSION 89: Pipeline Company Search Results Fix (January 28, 2026)
 
 **Status**: ✅ COMPLETE
 
-### 🎯 What Was Done
+### 🎯 Problem
 
-Implemented a dynamic **Priority Spotlight** bulletin board for the Market Intelligence (Discovery) tab. Replaces the static "Good morning, Team" greeting with LLM-generated, actionable guidance.
+When user searched "Find wind energy companies in Texas", the agent correctly found 25 companies and responded in chat, but **no company cards appeared in the search results panel**.
 
-#### Feature Overview
-- Fetches HIGH/CRITICAL priority items from BigQuery (72h window, extends to 7 days if empty)
-- Uses Claude Haiku to synthesize 1-3 concise, actionable bullets
-- Styled with C1's teal/emerald design language
-- Graceful fallback if LLM unavailable
+### 💡 Root Cause
 
-#### Backend Implementation
-1. **LLM Prompt** (`inputs/agent_prompts/bulletin_board_prompt.md`) - Concise prompt for Claude Haiku
-2. **Generator Class** (`backend/app/ingestion/generators/bulletin_board.py`) - Groups items by category, calls LLM, provides fallback
-3. **API Schema** - Added `BulletinBoardResponse` to `schemas.py`
-4. **API Endpoint** - Added `GET /api/discovery/bulletin` to `discovery.py`
+The `_create_search_block` method in `agent.py` was **missing a handler for `search_companies_filtered`**.
 
-#### Frontend Implementation
-1. **API Client** - Added `getBulletinBoard()` method to `api.ts`
-2. **Component** (`frontend/src/components/feed/BulletinBoard.tsx`) - Full React component with loading/error/empty states
-3. **Integration** - Replaced old greeting header in `DiscoveryView.tsx`
+The agent correctly selected `search_companies_filtered` (Apollo) for location-filtered queries like "companies in Texas", and the tool returned results successfully. However, `_create_search_block` only had handlers for:
+- `find_similar_companies`
+- `search_companies` (Exa)
+- `find_contacts`
+- `find_trigger_events`
+- etc.
+
+When it encountered `search_companies_filtered`, it returned `None`, so no `SearchBlock` was created for the results panel.
+
+### ✅ Fix
+
+Added a handler for `search_companies_filtered` that:
+1. Maps Apollo organization data to `ProspectResult` format
+2. Builds URL from domain/website/linkedin
+3. Uses `block_type="search_companies"` for consistent UI rendering
+4. Includes filter description in the title
 
 ### 📁 Files Modified
 
-**Backend (4 files):**
-- `inputs/agent_prompts/bulletin_board_prompt.md` (NEW)
-- `backend/app/ingestion/generators/bulletin_board.py` (NEW)
-- `backend/app/api/schemas.py` - Added `BulletinBoardResponse`
-- `backend/app/api/routes/discovery.py` - Added `/bulletin` endpoint
+- `backend/app/agents/pipeline/agent.py` - Added `search_companies_filtered` handler in `_create_search_block`
 
-**Frontend (3 files):**
-- `frontend/src/lib/api.ts` - Added `getBulletinBoard()` method
-- `frontend/src/components/feed/BulletinBoard.tsx` (NEW)
-- `frontend/src/components/feed/DiscoveryView.tsx` - Replaced greeting header
-
-### 🧪 Verification
+### 🧪 Testing
 
 ```bash
-# Test endpoint
-curl http://localhost:8000/api/discovery/bulletin | jq
-
-# Expected response
-{
-  "bullets": ["Check out Market Dynamics – 3 items on resin pricing."],
-  "total_priority_items": 12,
-  "categories_covered": ["Market", "Competitor"],
-  "time_window_hours": 72,
-  "extended_to_7_days": false,
-  "generated_at": "2026-01-28T02:45:00Z"
-}
-```
-
----
-## 📅 SESSION 90: Pipeline Simplification + Company Metadata Fix (January 27, 2026)
-
-**Status**: ✅ COMPLETE
-
-### 🎯 What Was Done
-
-#### 1. Pipeline Tab Simplification - Company-Only Search 🏢
-**Goal**: Focus Pipeline tab exclusively on company/prospect search, disable contact features for now.
-
-**Backend Changes**:
-- Updated `SYSTEM_PROMPT_INSTANT` and `SYSTEM_PROMPT_FULL` in `agent.py` to remove contact tool references
-- Added "IMPORTANT: Contact Search Coming Soon" section with explicit "coming soon!" response for contact queries
-- Commented out `find_company_contacts` from `PIPELINE_TOOLS_INSTANT` and `PIPELINE_TOOLS_FULL` in `pipeline_search.py`
-
-**Frontend Changes**:
-- Removed "Saved Contacts" section from `PipelineDashboard.tsx`
-- Updated Saved tab badge to show only prospect count
-- Updated input placeholder and greetings in `PipelineContext.tsx` to focus on companies
-
-#### 2. Missing Company Metadata Bug Fix 🐛
-**Problem**: Extended firmographic fields (NAICS codes, retail locations, suborganizations) weren't appearing in company "hunting cards" despite frontend code being ready to render them.
-
-**Root Cause**: Two locations were building `apollo_enrichment` objects with only basic fields:
-1. `pipeline_search.py` → `search_companies_filtered` (lines 940-945)
-2. `exa_service.py` → `_enrich_results_with_apollo` (lines 894-908)
-
-**Fix**: Added missing fields to both locations:
-- `sic_codes`
-- `naics_codes`
-- `retail_location_count`
-- `suborganizations`
-
-### 📁 Files Modified
-- `backend/app/agents/pipeline/agent.py` - Agent prompts updated for company-only focus
-- `backend/app/mcp/tools/pipeline_search.py` - Contact tool commented out, extended firmographics added
-- `backend/app/services/exa_service.py` - Extended firmographics added to enrichment
-- `frontend/src/components/pipeline/PipelineDashboard.tsx` - Contacts UI removed
-- `frontend/src/contexts/PipelineContext.tsx` - Greetings/followups updated
-
----
-## 📅 SESSION 89: Discovery Tab - Context Awareness + AI Summary Fix (January 27, 2026)
-
-**Status**: ✅ COMPLETE
-
-### 🎯 What Was Done
-
-Fixed two critical bugs in the Discovery tab:
-
-#### 1. Discovery Assistant Context Awareness 🧠
-**Problem**: When users asked vague questions like "tell me about competitors this week", the agent responded with irrelevant results (Netflix, Disney) because the exa_search tool wasn't grounded in composites industry context.
-
-**Fix**: Completely rewrote `DISCOVERY_SYSTEM_PROMPT` in `discovery.py` to include:
-- Explicit domain context: "You serve sales and strategy teams at a COMPOSITES DISTRIBUTOR"
-- Named competitors list: Hexcel, Toray, Owens Corning, Composites USA, Ashland, etc.
-- Key customers/end markets: Aerospace (Boeing, Airbus), Marine, Wind Energy, etc.
-- Materials context: Fiberglass, carbon fiber, resins, gelcoats, etc.
-- Explicit instruction: "ALWAYS ground your searches in composites industry context"
-
-#### 2. AI Summary "Failed to parse AI response" 🔧
-**Problem**: The AI Summary button would start generating but end with "Failed to parse AI response" due to fragile JSON extraction.
-
-**Fix**: Added robust `_extract_json_from_text()` function to `discovery_summary.py` that handles:
-- JSON in `\`\`\`json ... \`\`\`` code fences
-- JSON in `\`\`\` ... \`\`\`` generic code fences
-- Raw JSON without code fences
-- JSON with extra text before/after (regex extraction fallback)
-- Added logging of raw response on parse failure for debugging
-
-### 📁 Files Modified
-
-- `backend/app/api/routes/discovery.py` - Rewrote `DISCOVERY_SYSTEM_PROMPT` with composites context
-- `backend/app/ingestion/generators/discovery_summary.py` - Added `_extract_json_from_text()`, updated `generate()` to use it
-
-### 🧪 Verification
-
-```powershell
 cd backend
-python -c "from app.api.routes.discovery import router; from app.ingestion.generators.discovery_summary import DiscoverySummaryGenerator; print('Imports OK')"
-# ✓ Imports OK
+python -c "from app.agents.pipeline.agent import PipelineAgent; print('OK')"  # ✅
+python -c "from app.mcp.server import get_all_mcp_tools; print(len(get_all_mcp_tools()))"  # ✅ 54 tools
 ```
-
-### 📋 Next Steps
-
-- [ ] Deploy to production and verify Discovery chat gives composites-relevant responses
-- [ ] Test AI Summary on multiple categories to confirm JSON parsing is robust
-- [ ] UX improvements (user mentioned they have more fixes in mind)
 
 ---
 ## 📅 SESSION 88: Deep Research Crash Fix (January 24, 2026)
