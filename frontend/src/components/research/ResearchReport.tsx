@@ -134,7 +134,7 @@ export default function ResearchReport({ report }: DeepResearchReportProps) {
 
     if (!report) return null
 
-    const { executive_summary, sections, field_sales, companies_with_logos } = report
+    const { executive_summary, sections, field_sales, companies_with_logos, sources_used, data_gaps } = report
 
     const handleSaveToMemory = async () => {
         if (saveStatus === 'saving' || saveStatus === 'saved') return
@@ -211,13 +211,31 @@ export default function ResearchReport({ report }: DeepResearchReportProps) {
                             </div>
                         ))}
                     </div>
-                    <div className="space-y-2">
-                        {executive_summary.key_points?.map((point: string, idx: number) => (
-                            <div key={idx} className="flex gap-3">
-                                <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                                <p className="text-slate-700">{point}</p>
-                            </div>
-                        ))}
+                    <div className="space-y-3">
+                        {executive_summary.key_points?.map((point: string, idx: number) => {
+                            const citation = executive_summary.key_point_citations?.[idx]
+                            const hasValidCitation = citation?.source_url && citation.source_title !== 'MISSING CITATION'
+                            return (
+                                <div key={idx} className="flex gap-3 group">
+                                    <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                                    <div className="flex-1">
+                                        <p className="text-slate-700">{point}</p>
+                                        {hasValidCitation && (
+                                            <a
+                                                href={citation.source_url!}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 bg-slate-100 hover:bg-slate-200 rounded text-xs text-slate-500 hover:text-slate-700 transition-colors"
+                                                title={citation.source_title}
+                                            >
+                                                <ExternalLink size={10} />
+                                                <span>{extractDomain(citation.source_url!)}</span>
+                                            </a>
+                                        )}
+                                    </div>
+                                </div>
+                            )
+                        })}
                     </div>
                     
                     {/* Company Logos */}
@@ -354,6 +372,78 @@ export default function ResearchReport({ report }: DeepResearchReportProps) {
                                 </div>
                             ))}
                         </div>
+                    </div>
+                </section>
+            )}
+
+            {/* All Sources Section */}
+            {sources_used && sources_used.length > 0 && (
+                <section className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                    <div className="bg-slate-100 px-6 py-4 flex items-center gap-2 border-b border-slate-200">
+                        <ExternalLink size={20} className="text-slate-600" />
+                        <h2 className="text-slate-800 font-semibold">Sources & References</h2>
+                        <span className="ml-auto text-xs text-slate-500 bg-slate-200 px-2 py-0.5 rounded-full">
+                            {sources_used.filter((s: Citation) => s.source_url && s.source_title !== 'MISSING CITATION').length} sources
+                        </span>
+                    </div>
+                    <div className="p-6">
+                        <div className="space-y-3">
+                            {sources_used
+                                .filter((source: Citation) => source.source_url && source.source_title !== 'MISSING CITATION')
+                                .map((source: Citation, idx: number) => (
+                                    <a
+                                        key={idx}
+                                        href={source.source_url!}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-start gap-3 p-3 rounded-lg border border-slate-100 hover:border-slate-300 hover:bg-slate-50 transition-all group"
+                                    >
+                                        <div className="w-8 h-8 rounded bg-slate-100 flex items-center justify-center shrink-0 group-hover:bg-slate-200 transition-colors">
+                                            <FileText size={14} className="text-slate-500" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-medium text-slate-800 truncate group-hover:text-slate-900">
+                                                {source.source_title}
+                                            </p>
+                                            <div className="flex items-center gap-2 mt-0.5">
+                                                <span className="text-xs text-slate-500">
+                                                    {extractDomain(source.source_url!)}
+                                                </span>
+                                                {source.source_date && (
+                                                    <>
+                                                        <span className="text-slate-300">•</span>
+                                                        <span className="text-xs text-slate-400">{source.source_date}</span>
+                                                    </>
+                                                )}
+                                                {source.source_type && source.source_type !== 'unspecified' && (
+                                                    <>
+                                                        <span className="text-slate-300">•</span>
+                                                        <span className="text-xs text-slate-400 capitalize">
+                                                            {String(source.source_type).replace(/_/g, ' ')}
+                                                        </span>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <ExternalLink size={14} className="text-slate-400 group-hover:text-slate-600 shrink-0 mt-1" />
+                                    </a>
+                                ))}
+                        </div>
+                        
+                        {/* Data Gaps Warning */}
+                        {data_gaps && data_gaps.length > 0 && (
+                            <div className="mt-6 pt-4 border-t border-slate-100">
+                                <p className="text-xs font-medium text-amber-600 mb-2 flex items-center gap-1">
+                                    <HelpCircle size={12} />
+                                    Data Gaps
+                                </p>
+                                <div className="space-y-1">
+                                    {data_gaps.map((gap: string, idx: number) => (
+                                        <p key={idx} className="text-xs text-slate-500 italic">• {gap}</p>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </section>
             )}

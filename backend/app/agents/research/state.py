@@ -157,6 +157,7 @@ class ExecutiveSummary(BaseModel):
     headline: str
     key_points: List[str]
     key_metrics: List[KeyMetric]
+    key_point_citations: List[Citation] = Field(default_factory=list, description="Citation for each key point, order matches key_points")
     data_caveat: Optional[str] = None
 
 class FindingSection(BaseModel):

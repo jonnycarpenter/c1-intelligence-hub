@@ -217,17 +217,27 @@ SYNTHESIZER_SYSTEM_PROMPT = """You are a synthesis agent. Convert research findi
 
 ## GOLDEN RULE: Be ruthlessly concise. Every sentence must earn its place.
 
+## CITATION REQUIREMENTS (CRITICAL FOR USER VERIFICATION)
+Users need to verify findings independently. EVERY claim must be traceable:
+- Every section MUST have at least one citation with a valid source_url
+- Every key_point in executive summary MUST have a corresponding citation in key_point_citations
+- The key_point_citations array must match key_points array in order (citation[0] supports key_point[0])
+- Use ONLY citations from the findings data - do NOT invent sources
+- If no source exists for a claim, still include it but use source_title: "Synthesis" (the validator will flag it)
+
 ## OUTPUT STRUCTURE (follow exactly)
 
 1. EXECUTIVE SUMMARY
    - headline: One sentence, 12 words max. Lead with the insight.
    - key_metrics: 2-3 numbers max. Format: {"label": "Name", "value": "$X.XB"}
    - key_points: 3-4 bullets. One sentence each. No fluff.
+   - key_point_citations: Array of citations, one per key_point (REQUIRED - same length as key_points)
 
 2. SECTIONS (2-4 max, you have creative license on structure)
    - section_title: 3-5 words - make them punchy and informative
    - content: 2-4 sentences of insight. Use markdown bullets if listing items. No preamble.
    - tables: ONLY if comparing 3+ data points. Otherwise skip.
+   - citations: At least one citation per section with source_url (REQUIRED)
    - Include relevant EXECUTIVE QUOTES from earnings calls when available - these ground the analysis
 
 3. SOURCES & CITATIONS
@@ -397,6 +407,11 @@ OUTPUT FORMAT (valid JSON):
   "executive_summary": {{
     "headline": "12 words max - lead with insight",
     "key_points": ["Point 1", "Point 2", "Point 3"],
+    "key_point_citations": [
+      {{"source_type": "type", "source_title": "Title", "source_url": "https://...", "source_date": "2025-01-01"}},
+      {{"source_type": "type", "source_title": "Title", "source_url": "https://...", "source_date": "2025-01-01"}},
+      {{"source_type": "type", "source_title": "Title", "source_url": "https://...", "source_date": "2025-01-01"}}
+    ],
     "key_metrics": [
       {{"label": "Metric Name", "value": "$X.XB or X%"}}
     ],
@@ -493,6 +508,36 @@ Structure the sections based on what the data tells you. Include executive quote
             section.setdefault("citations", [])
             section.setdefault("supporting_visuals", [])
             section.setdefault("confidence", "medium")
+        
+        # --- ENFORCE CITATION PRESENCE FOR USER VERIFICATION ---
+        # Ensure each section has at least one citation with source_url
+        for section in output_data.get("sections", []):
+            valid_citations = [c for c in section.get("citations", []) if c.get("source_url")]
+            if not valid_citations:
+                # Add placeholder so validator can flag it
+                section["citations"].append({
+                    "source_type": "unspecified",
+                    "source_title": "MISSING CITATION - needs source",
+                    "source_url": "",
+                    "source_date": None
+                })
+        
+        # Ensure key_point_citations exists and matches key_points length
+        key_points = exec_summary.get("key_points", [])
+        key_point_citations = exec_summary.get("key_point_citations", [])
+        if len(key_point_citations) != len(key_points):
+            # Fill with placeholders if missing or mismatched
+            exec_summary["key_point_citations"] = [
+                {"source_type": "unspecified", "source_title": "MISSING CITATION", "source_url": "", "source_date": None}
+                for _ in key_points
+            ]
+        else:
+            # Ensure each citation has a source_url, flag if missing
+            for i, c in enumerate(exec_summary.get("key_point_citations", [])):
+                if not c.get("source_url"):
+                    exec_summary["key_point_citations"][i]["source_title"] = "MISSING CITATION - " + c.get("source_title", "needs source")
+        
+        output_data["executive_summary"] = exec_summary
         
         # Enrich companies with logos
         # Extract all entities mentioned across findings

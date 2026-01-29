@@ -210,6 +210,14 @@ LIMIT 10
 - **Company Logo Enrichment** (Session 75): Extracts entities from findings, enriches with Logo.dev URLs via `_enrich_companies_with_logos()`
 - **Clickable Citations**: Section citations include `source_url` for frontend rendering as clickable links
 
+**Citation Enforcement (Session 77):**
+Reports are designed for user verification - every claim must be traceable to a source:
+- Every section must have at least one citation with a valid `source_url`
+- Every `key_point` in executive summary has a corresponding entry in `key_point_citations`
+- `key_point_citations` array matches `key_points` array in order (citation[0] supports key_point[0])
+- Missing citations are flagged with `source_title: "MISSING CITATION"` for the validator to catch
+- Frontend renders inline citation badges next to each key point for easy verification
+
 **Anti-Patterns (LLM is instructed to avoid):**
 - ❌ "It's worth noting..." / "Interestingly..." filler
 - ❌ More than 3 thematic sections
@@ -558,7 +566,16 @@ validation = result["validator_output"]
   - [x] Frontend renders `source_url` as clickable domain links
   - [x] Citations displayed as pill-style badges under each section
 
-### Phase 7 (Planned)
+### Phase 7 (Complete - Citation Enforcement for User Verification)
+- [x] **Citation Enforcement** (Session 77)
+  - [x] Add `key_point_citations` field to `ExecutiveSummary` model in state.py
+  - [x] Update synthesizer prompt with explicit citation requirements
+  - [x] Add citation enforcement logic in post-processing (flag missing citations)
+  - [x] Frontend: Inline citation badges next to each key point
+  - [x] Frontend: Sources & References footer section with all sources_used
+  - [x] Frontend: Data gaps warning display
+
+### Phase 8 (Planned)
 - [ ] **Chart Generation** - Generate visuals from BigQuery trend data
   - [ ] `generate_trend_chart` tool (matplotlib/plotly)
   - [ ] `generate_comparison_table` tool
