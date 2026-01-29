@@ -129,6 +129,9 @@ export default function DigestCard({ item, onQuickFilter }: DigestCardProps) {
     [item.title, item.entities?.companies]
   )
 
+  // Normalize priority to lowercase for consistent lookup (backend sends Title Case)
+  const normalizedPriority = (item.priority?.toLowerCase() || 'medium') as Priority
+
   // Priority color map for border
   const borderColors: Record<Priority, string> = {
     critical: 'border-red-500',
@@ -150,8 +153,8 @@ export default function DigestCard({ item, onQuickFilter }: DigestCardProps) {
       "group relative rounded-r-xl rounded-l-md shadow-sm border border-slate-200/60 transition-all duration-300",
       "hover:shadow-lg hover:-translate-y-0.5 hover:border-emerald-300/60",
       "border-l-4",
-      borderColors[item.priority] || 'border-slate-300',
-      bgGradients[item.priority] || 'bg-white'
+      borderColors[normalizedPriority] || 'border-slate-300',
+      bgGradients[normalizedPriority] || 'bg-white'
     )}>
       <div className="p-4 space-y-3">
         {/* Header: Title & Meta */}
@@ -331,12 +334,14 @@ interface DigestListItemProps {
 }
 
 export function DigestListItem({ item, onClick }: DigestListItemProps) {
+  // Normalize priority to lowercase for consistent lookup (backend sends Title Case)
+  const normalizedPriority = (item.priority?.toLowerCase() || 'medium') as Priority
   return (
     <div
       className="flex items-start gap-3 p-3 rounded-lg hover:bg-slate-50 cursor-pointer transition-colors"
       onClick={() => onClick?.(item)}
     >
-      <div className={cn('w-1 h-full min-h-[40px] rounded-full', priorityColors[item.priority])} />
+      <div className={cn('w-1 h-full min-h-[40px] rounded-full', priorityColors[normalizedPriority])} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
           <CategoryBadge category={item.category} />

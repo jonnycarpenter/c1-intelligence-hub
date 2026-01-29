@@ -17,7 +17,9 @@ interface HeroCardProps {
 
 export default function HeroCard({ item }: HeroCardProps) {
     const sources = item.sources || []
-    const priorityCfg = priorityConfig[item.priority] || priorityConfig.medium
+    // Normalize priority to lowercase for consistent lookup (backend sends Title Case)
+    const normalizedPriority = item.priority?.toLowerCase() as Priority
+    const priorityCfg = priorityConfig[normalizedPriority] || priorityConfig.medium
 
     return (
         <div className={cn(

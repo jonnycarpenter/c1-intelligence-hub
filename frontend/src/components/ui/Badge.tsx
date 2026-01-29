@@ -47,7 +47,9 @@ const priorityConfig: Record<string, { variant: BadgeVariant; label: string; dot
 }
 
 export function PriorityBadge({ priority }: PriorityBadgeProps) {
-  const config = (priority && priorityConfig[priority]) || priorityConfig.medium  // Fallback to medium
+  // Normalize priority to lowercase for consistent lookup (backend sends Title Case)
+  const normalizedPriority = priority?.toLowerCase()
+  const config = (normalizedPriority && priorityConfig[normalizedPriority]) || priorityConfig.medium  // Fallback to medium
   const { variant, label, dot } = config
   return (
     <Badge variant={variant} className="gap-1.5">

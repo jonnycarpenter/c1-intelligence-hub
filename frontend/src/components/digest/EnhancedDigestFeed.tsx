@@ -52,9 +52,11 @@ export default function EnhancedDigestFeed({
 
         for (const item of filteredItems) {
             const isHeroFlagged = item.is_hero === true
+            // Normalize priority to lowercase for consistent comparison (backend sends Title Case)
+            const normalizedPriority = item.priority?.toLowerCase()
             const isFallbackHero =
-                item.priority === 'critical' ||
-                (item.priority === 'high' && item.category === 'competitor')
+                normalizedPriority === 'critical' ||
+                (normalizedPriority === 'high' && item.category === 'competitor')
 
             if (isHeroFlagged || isFallbackHero) {
                 if (heroes.length < 2) {  // Max 2 hero articles
