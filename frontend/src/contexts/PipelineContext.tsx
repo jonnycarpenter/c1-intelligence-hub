@@ -288,9 +288,13 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
             if (data.search_blocks && data.search_blocks.length > 0) {
                 const newBlocks = data.search_blocks.map((b: SearchBlock, idx: number) => ({
                     ...b,
-                    is_expanded: idx === 0
+                    is_expanded: idx === 0  // Only first new block expanded
                 }))
-                return setSearchBlocks(prev => [...newBlocks, ...prev])
+                // Prepend new blocks and collapse all existing blocks
+                setSearchBlocks(prev => [
+                    ...newBlocks,
+                    ...prev.map(block => ({ ...block, is_expanded: false }))
+                ])
             }
 
             if (data.suggested_followups) {
