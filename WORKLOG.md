@@ -23,7 +23,48 @@ Without reliable daily ingestion:
 (none currently)
 
 ---
+## 📅 SESSION 93: Market Intelligence AI Summary Fix (January 29, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Problem
+
+In the Market Intelligence tab, clicking "AI Summary" on a category would show the loading spinner, appear to process, but then display an empty/failed summary panel. No errors in console or Cloud Run logs.
+
+### 💡 Root Cause
+
+The vector store categories have **mixed casing** from different ingestion runs:
+- Some lowercase: `'competitor'`, `'market'`, `'general'`
+- Some Title Case: `'Competitor'`, `'Market'`, `'Supply Chain'`
+
+The backend was using a strict `where={"category": search_category}` filter with lowercase categories, which didn't match Title Case categories in the data. The fallback path only triggered on zero results, but the strict filter was returning *empty* results silently.
+
+**Data sample from vector store:**
+```
+'general': 135, 'General': 32, 'market': 12, 'Supply Chain': 3, 'Earnings': 2
+```
+
+### ✅ Fix
+
+Replaced the strict `where` filter with a semantic search + post-hoc case-insensitive filtering:
+1. Fetch 150 results via semantic search (no category filter)
+2. Filter matches by comparing lowercased/normalized categories
+3. Return up to 50 filtered articles to the LLM for thematic analysis
+
+### 📁 Files Modified
+
+- `backend/app/api/routes/discovery.py` - Replaced category filter logic with case-insensitive matching
+
+### 🧪 Testing
+
+```bash
+# Verified 52 articles matched for 'Market' category after fix
+python -c "..." # Case-insensitive filtering now works
+```
+
+---
 ## 📅 SESSION 92: Pipeline Profile Drawer Fix (January 29, 2026)
+
 
 **Status**: ✅ COMPLETE
 
