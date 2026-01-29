@@ -107,6 +107,7 @@ class DigestService:
         hours: int = 72,
         categories: Optional[List[DigestCategory]] = None,
         priorities: Optional[List[Priority]] = None,
+        limit: int = 100,
     ) -> Digest:
         """
         Get the current digest, optionally filtered.
@@ -115,6 +116,7 @@ class DigestService:
             hours: Number of hours to look back
             categories: Filter by these categories (None = all)
             priorities: Filter by these priorities (None = all)
+            limit: Maximum number of items to return (default 100)
             
         Returns:
             Filtered digest
@@ -124,14 +126,14 @@ class DigestService:
         # Create cache key
         cat_key = "_".join(sorted(c.value for c in categories)) if categories else "all"
         pri_key = "_".join(sorted(p.value for p in priorities)) if priorities else "all"
-        cache_key = f"{hours}_{cat_key}_{pri_key}"
+        cache_key = f"{hours}_{cat_key}_{pri_key}_{limit}"
         
         # Check cache
         if cache_key in self._cache and not self._is_cache_stale():
             return self._cache[cache_key]
         
         # Generate fresh digest
-        digest = await self._generate_digest(hours, categories, priorities)
+        digest = await self._generate_digest(hours, categories, priorities, limit)
         
         # Cache it
         self._cache[cache_key] = digest
@@ -144,9 +146,10 @@ class DigestService:
         hours: int,
         categories: Optional[List[DigestCategory]] = None,
         priorities: Optional[List[Priority]] = None,
+        limit: int = 100,
     ) -> Digest:
         """Generate a digest from stored items."""
-        logger.info(f"Generating digest for last {hours} hours")
+        logger.info(f"Generating digest for last {hours} hours, limit={limit}")
         
         now = datetime.now()
         period_start = now - timedelta(hours=hours)
@@ -162,7 +165,7 @@ class DigestService:
                 categories=cat_strs,
                 priorities=pri_strs,
                 min_confidence=0.3,  # Filter low-confidence classifications
-                limit=100,
+                limit=limit,
             )
         except Exception as e:
             logger.error(f"Error querying digest items: {e}")

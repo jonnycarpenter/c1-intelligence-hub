@@ -871,7 +871,7 @@ async def get_bulletin_board():
     logger.info("[DISCOVERY_BULLETIN] Endpoint START")
     
     try:
-        storage = get_storage()
+        storage = await get_storage()
         
         # 1. Try 72 hours first
         hours = 72
@@ -937,4 +937,5 @@ async def get_bulletin_board():
             extended_to_7_days=False,
             generated_at=datetime.utcnow().isoformat()
         )
+
 
