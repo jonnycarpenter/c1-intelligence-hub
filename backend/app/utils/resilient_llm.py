@@ -401,36 +401,69 @@ class ResilientAsyncClient:
         messages: List[Dict[str, Any]],
         system: Optional[str] = None,
         temperature: float = 0.3,
+        thinking: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> Any:
         """
         Create a message with automatic OpenAI fallback.
         
+        Args:
+            model: The model to use (e.g., "claude-sonnet-4-5")
+            max_tokens: Maximum tokens in response
+            messages: List of message dictionaries
+            system: Optional system prompt
+            temperature: Sampling temperature (ignored when thinking is enabled)
+            thinking: Optional extended thinking config, e.g. {"type": "enabled", "budget_tokens": 10000}
+                     See: https://platform.claude.com/docs/en/build-with-claude/extended-thinking
+        
         Returns an Anthropic-style response object (or OpenAI response adapted).
+        The response may include 'thinking' content blocks when thinking is enabled.
         """
         # Try Anthropic first
         try:
             start = time.time()
-            logger.info(f"Async invoking primary model: {model}")
+            thinking_enabled = thinking and thinking.get("type") == "enabled"
+            logger.info(f"Async invoking primary model: {model} (thinking={'enabled' if thinking_enabled else 'disabled'})")
+            
             # Build params dict - only include system if provided (SDK 0.75.0+ requires this)
             anthropic_params = {
                 "model": model,
                 "max_tokens": max_tokens,
                 "messages": messages,
-                "temperature": temperature,
                 **kwargs,
             }
+            
+            # Extended thinking configuration
+            # Note: temperature/top_k not compatible with extended thinking
+            if thinking_enabled:
+                anthropic_params["thinking"] = thinking
+                # Don't set temperature when thinking is enabled (API requirement)
+            else:
+                anthropic_params["temperature"] = temperature
+            
             if system:
                 anthropic_params["system"] = system
             
             response = await self.anthropic_client.messages.create(**anthropic_params)
             elapsed = time.time() - start
-            logger.info(f"Anthropic ({model}) succeeded in {elapsed:.2f}s")
+            
+            # Log thinking usage if present
+            if thinking_enabled:
+                thinking_blocks = [b for b in response.content if getattr(b, 'type', None) == 'thinking']
+                text_blocks = [b for b in response.content if getattr(b, 'type', None) == 'text']
+                logger.info(f"Anthropic ({model}) succeeded in {elapsed:.2f}s - thinking_blocks: {len(thinking_blocks)}, text_blocks: {len(text_blocks)}")
+            else:
+                logger.info(f"Anthropic ({model}) succeeded in {elapsed:.2f}s")
             
             # Check for empty response (API succeeded but returned nothing)
-            if not response.content or len(response.content) == 0 or not response.content[0].text.strip():
+            # For thinking responses, check for text blocks specifically
+            text_content = [b for b in response.content if getattr(b, 'type', None) == 'text']
+            if not response.content or (not thinking_enabled and len(response.content) == 0):
                 logger.warning(f"Anthropic ({model}) returned empty content, falling back to OpenAI")
                 raise ValueError("Anthropic returned empty response")
+            if thinking_enabled and not text_content:
+                logger.warning(f"Anthropic ({model}) returned only thinking blocks, no text output")
+                # Still return - thinking-only responses can be valid
             
             return response
             

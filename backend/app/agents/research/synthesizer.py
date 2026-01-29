@@ -3,7 +3,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from app.agents.research.state import DeepResearchState, SynthesisAgentOutput, FindingSection, FieldSalesSection, SupportingVisual, CompanyWithLogo
 from app.agents.research.memory import get_research_memory
 from app.config.settings import settings
-from app.utils.resilient_llm import create_resilient_llm_with_openai_fallback
+from app.utils.resilient_llm import create_resilient_llm_with_openai_fallback, get_resilient_async_client
 from app.services.logo_service import logo_service, company_name_to_domain
 import json
 import time
@@ -288,16 +288,32 @@ async def _get_prior_research_context(query: str, companies: List[str] = None, i
 async def synthesis_node(state: DeepResearchState) -> DeepResearchState:
     """
     Synthesis node. Merges financial, industry, and visual outputs into a CONCISE final report.
+    
+    Now supports Claude's Extended Thinking feature for enhanced reasoning transparency.
+    When enabled, Claude's thinking process is captured and included in the report.
+    See: https://platform.claude.com/docs/en/build-with-claude/extended-thinking
     """
     start_time = time.time()
     logger.info(f"[SYNTHESIZER] START - query: {state.get('user_query', '')[:50]}...")
     
-    llm = create_resilient_llm_with_openai_fallback(
-        primary_model=settings.deep_research_synthesizer_model,
-        anthropic_api_key=settings.anthropic_api_key,
-        openai_api_key=settings.openai_api_key,
-        temperature=0,
-    )
+    # Use raw SDK client for extended thinking support
+    # Extended thinking is not compatible with LangChain's ChatAnthropic wrapper
+    use_thinking = settings.deep_research_thinking_enabled
+    thinking_budget = settings.deep_research_thinking_budget_tokens
+    
+    if use_thinking:
+        logger.info(f"[SYNTHESIZER] Extended thinking ENABLED with budget: {thinking_budget} tokens")
+        client = get_resilient_async_client(
+            anthropic_api_key=settings.anthropic_api_key,
+            openai_api_key=settings.openai_api_key,
+        )
+    else:
+        llm = create_resilient_llm_with_openai_fallback(
+            primary_model=settings.deep_research_synthesizer_model,
+            anthropic_api_key=settings.anthropic_api_key,
+            openai_api_key=settings.openai_api_key,
+            temperature=0,
+        )
     
     financial = state.get("financial_output")
     industry = state.get("industry_output")
@@ -438,21 +454,63 @@ OUTPUT FORMAT (valid JSON):
 
 Structure the sections based on what the data tells you. Include executive quotes where they add value."""
     
-    messages = [
-        SystemMessage(content=system_content),
-        HumanMessage(content=synthesis_prompt)
-    ]
+    # Variable to capture thinking content from extended thinking
+    thinking_content = None
     
-    response = await llm.ainvoke(messages)
+    if use_thinking:
+        # Use raw SDK with extended thinking enabled
+        messages_raw = [
+            {"role": "user", "content": synthesis_prompt}
+        ]
+        
+        response = await client.messages_create(
+            model=settings.deep_research_synthesizer_model,
+            max_tokens=16000,  # Needs to be > budget_tokens
+            messages=messages_raw,
+            system=system_content,
+            thinking={
+                "type": "enabled",
+                "budget_tokens": thinking_budget,
+            },
+        )
+        
+        # Extract thinking and text content from response blocks
+        # Response format: [thinking_block(s), text_block(s)]
+        text_content_parts = []
+        for block in response.content:
+            block_type = getattr(block, 'type', None)
+            if block_type == 'thinking':
+                # Capture the thinking content (summarized by Claude 4 models)
+                thinking_text = getattr(block, 'thinking', None)
+                if thinking_text:
+                    thinking_content = thinking_text
+                    logger.info(f"[SYNTHESIZER] Captured thinking content: {len(thinking_text)} chars")
+            elif block_type == 'text':
+                text_content_parts.append(getattr(block, 'text', ''))
+        
+        content = '\n'.join(text_content_parts)
+    else:
+        # Use LangChain wrapper (no extended thinking)
+        messages = [
+            SystemMessage(content=system_content),
+            HumanMessage(content=synthesis_prompt)
+        ]
+        
+        response = await llm.ainvoke(messages)
+        content = response.content
     
     try:
-        content = response.content
+        # Parse JSON from response content
         if "```json" in content:
             content = content.split("```json")[1].split("```")[0].strip()
         elif "```" in content:
             content = content.split("```")[1].split("```")[0].strip()
             
         output_data = json.loads(content)
+        
+        # Add thinking content if captured
+        if thinking_content:
+            output_data["thinking_content"] = thinking_content
         
         # Ensure required fields
         if "generated_at" not in output_data:

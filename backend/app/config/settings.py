@@ -112,6 +112,11 @@ class Settings(BaseSettings):
     deep_research_category_model: str = "claude-sonnet-4-5"  # Phase 2: Sales intelligence
     deep_research_validator_model: str = "claude-sonnet-4-5"  # Phase 2: Citation verification
     
+    # Extended Thinking Configuration
+    # See: https://platform.claude.com/docs/en/build-with-claude/extended-thinking
+    deep_research_thinking_enabled: bool = True  # Enable Claude's extended thinking for synthesis
+    deep_research_thinking_budget_tokens: int = 10000  # Token budget for thinking (min 1024, affects latency)
+    
     # Deep Research Timeout Configuration (in seconds)
     deep_research_workflow_timeout: int = 300  # 5 minutes total workflow timeout
     deep_research_tool_timeout: int = 60  # 60 seconds per external tool call

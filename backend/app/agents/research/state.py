@@ -278,6 +278,8 @@ class SynthesisAgentOutput(BaseModel):
     overall_confidence: ConfidenceLevel
     executive_summary: ExecutiveSummary
     sections: List[FindingSection]
+    # Extended thinking output from Claude - shows model's reasoning process
+    thinking_content: Optional[str] = Field(default=None, description="Claude's extended thinking/reasoning process before generating the report")
     all_visuals: List[SupportingVisual]
     companies_with_logos: List[CompanyWithLogo] = Field(default_factory=list)
     sources_used: List[Citation]

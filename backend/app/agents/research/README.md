@@ -353,6 +353,31 @@ deep_research_llm_timeout = 120       # 120 seconds for LLM extraction calls
 - Frontend displays a user-friendly timeout message with retry option
 - Individual tool timeouts can be applied using the `sync_tool_with_timeout` decorator from `app/utils/retry.py`
 
+### Extended Thinking Configuration
+
+Claude's Extended Thinking feature provides transparency into the model's reasoning process during report synthesis. When enabled, users can see how Claude analyzed and connected the research findings.
+
+```python
+# Extended Thinking settings
+deep_research_thinking_enabled = True   # Enable Claude's extended thinking
+deep_research_thinking_budget_tokens = 10000  # Token budget (min 1024, affects latency)
+```
+
+**How It Works:**
+1. Synthesizer agent calls Claude with `thinking: { type: "enabled", budget_tokens: N }`
+2. Claude performs extended reasoning internally before generating the report
+3. A summarized version of the thinking process is returned (Claude 4 models return summaries, not full thinking)
+4. Thinking content is streamed via SSE `thinking` event and included in the `thinking_content` field of the report
+5. Frontend displays thinking in a collapsible "Claude's Reasoning Process" section
+
+**Key Considerations:**
+- Extended thinking adds latency (~10-30s depending on budget)
+- Temperature/top_k parameters are not compatible with extended thinking
+- Thinking budget must be less than max_tokens (16000 by default)
+- OpenAI fallback does NOT support extended thinking (gracefully degrades)
+
+**Documentation:** https://platform.claude.com/docs/en/build-with-claude/extended-thinking
+
 ## Streaming & Caching
 
 ### Progress Emissions

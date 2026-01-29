@@ -541,7 +541,19 @@ async def run_deep_research(request: DeepResearchRequest):
                 # Final report
                 if final_state.get("final_report"):
                     report = final_state["final_report"]
-                    yield _emit_event("report", report.model_dump() if hasattr(report, 'model_dump') else report)
+                    report_data = report.model_dump() if hasattr(report, 'model_dump') else report
+                    
+                    # Emit thinking content as a separate event for frontend display
+                    # This allows the frontend to show Claude's reasoning process
+                    thinking_content = report_data.get("thinking_content")
+                    if thinking_content:
+                        yield _emit_event("thinking", {
+                            "content": thinking_content,
+                            "message": "Claude's reasoning process",
+                        })
+                        logger.info(f"[DEEP_RESEARCH] Emitted thinking content: {len(thinking_content)} chars")
+                    
+                    yield _emit_event("report", report_data)
                 else:
                     logger.error(f"Workflow completed but no final_report in state. Keys: {list(final_state.keys())}")
                     yield _emit_event("error", {"message": "Research completed but no report was generated", "type": "missing_report"})

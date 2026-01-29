@@ -7,6 +7,7 @@ import {
     Target,
     HelpCircle,
     ChevronRight,
+    ChevronDown,
     ShieldCheck,
     TrendingUp,
     LayoutDashboard,
@@ -14,6 +15,7 @@ import {
     CheckCircle,
     Loader2,
     ExternalLink,
+    Brain,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import ReactMarkdown from 'react-markdown'
@@ -134,7 +136,8 @@ export default function ResearchReport({ report }: DeepResearchReportProps) {
 
     if (!report) return null
 
-    const { executive_summary, sections, field_sales, companies_with_logos, sources_used, data_gaps } = report
+    const { executive_summary, sections, field_sales, companies_with_logos, sources_used, data_gaps, thinking_content } = report
+    const [thinkingExpanded, setThinkingExpanded] = useState(false)
 
     const handleSaveToMemory = async () => {
         if (saveStatus === 'saving' || saveStatus === 'saved') return
@@ -257,6 +260,47 @@ export default function ResearchReport({ report }: DeepResearchReportProps) {
                     )}
                 </div>
             </section>
+
+            {/* Claude's Thinking Process - Extended Thinking Feature */}
+            {thinking_content && (
+                <section className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl border border-purple-200 overflow-hidden shadow-sm">
+                    <button
+                        onClick={() => setThinkingExpanded(!thinkingExpanded)}
+                        className="w-full px-6 py-4 flex items-center justify-between hover:bg-purple-100/50 transition-colors"
+                    >
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-purple-100 rounded-lg">
+                                <Brain size={20} className="text-purple-600" />
+                            </div>
+                            <div className="text-left">
+                                <h2 className="font-semibold text-purple-900">Claude&apos;s Reasoning Process</h2>
+                                <p className="text-xs text-purple-600">See how Claude analyzed and synthesized the research</p>
+                            </div>
+                        </div>
+                        <ChevronDown
+                            size={20}
+                            className={cn(
+                                "text-purple-500 transition-transform duration-200",
+                                thinkingExpanded && "rotate-180"
+                            )}
+                        />
+                    </button>
+                    {thinkingExpanded && (
+                        <div className="px-6 pb-6 border-t border-purple-200/50">
+                            <div className="mt-4 p-4 bg-white/80 rounded-xl border border-purple-100">
+                                <div className="prose prose-sm prose-slate max-w-none">
+                                    <pre className="whitespace-pre-wrap text-sm text-slate-700 font-sans leading-relaxed bg-transparent p-0 m-0 overflow-x-auto">
+                                        {thinking_content}
+                                    </pre>
+                                </div>
+                            </div>
+                            <p className="mt-3 text-xs text-purple-500 italic">
+                                This is a summary of Claude&apos;s internal reasoning process using Extended Thinking.
+                            </p>
+                        </div>
+                    )}
+                </section>
+            )}
 
             {/* Main Sections */}
             {sections?.map((section: any, idx: number) => (

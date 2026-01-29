@@ -166,6 +166,38 @@ class ApiClient {
   }
 
   /**
+   * Get the Bulletin Board - AI-generated priority spotlight
+   * Returns actionable guidance bullets for high-priority items
+   */
+  async getBulletinBoard(): Promise<{
+    bullets: string[]
+    total_priority_items: number
+    categories_covered: string[]
+    time_window_hours: number
+    extended_to_7_days: boolean
+    generated_at: string
+  }> {
+    const response = await fetch(`${this.baseUrl}/api/stats/discovery/bulletin`)
+
+    if (!response.ok) {
+      // Return empty fallback if endpoint not yet implemented
+      if (response.status === 404) {
+        return {
+          bullets: [],
+          total_priority_items: 0,
+          categories_covered: [],
+          time_window_hours: 72,
+          extended_to_7_days: false,
+          generated_at: new Date().toISOString(),
+        }
+      }
+      throw new Error(`Failed to fetch bulletin board: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
    * Send a chat query
    */
   async query(request: ApiQueryRequest): Promise<ApiQueryResponse> {
