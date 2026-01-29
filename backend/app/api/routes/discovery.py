@@ -609,30 +609,32 @@ async def get_discovery_category_summary(category: str):
             'General': 'general',
         }
         
-        # Normalize the category for search
+        # Normalize the category for search (lowercase, underscores)
         search_category = category_mapping.get(category, category.lower().replace(' ', '_'))
         
-        # Fetch articles for this category (last 30 days)
-        # Using a semantic search with category filter
+        # Fetch articles using semantic search (skip strict where filter due to mixed casing in data)
+        # The vector store has categories in mixed formats: 'Competitor', 'competitor', 'Market', 'market', etc.
+        logger.info(f"[DISCOVERY_SUMMARY] Fetching articles: category={category}, normalized={search_category}")
+        
         results = await vector_store.search(
-            query=f"{category} industry news updates",
-            limit=50,
-            where={"category": search_category}
+            query=f"{category} industry news developments trends",
+            limit=150  # Fetch more to filter from
         )
         
-        # If category filter didn't work, try without it but filter results
-        if not results:
-            logger.info(f"[DISCOVERY_SUMMARY] No results with category filter, trying semantic search")
-            results = await vector_store.search(
-                query=f"{category} industry news developments trends",
-                limit=100
-            )
-            # Filter by category in metadata
-            results = [
-                r for r in results 
-                if r.get("metadata", {}).get("category", "").lower() == search_category
-                or category.lower() in r.get("metadata", {}).get("category", "").lower()
-            ][:50]
+        # Case-insensitive category filtering (handles mixed casing in vector store)
+        filtered_results = []
+        for r in results:
+            result_category = r.get("metadata", {}).get("category", "")
+            result_cat_lower = result_category.lower().replace(' ', '_').replace('-', '_')
+            
+            # Check for match (lowercase comparison)
+            if (result_cat_lower == search_category 
+                or search_category in result_cat_lower 
+                or result_cat_lower in search_category):
+                filtered_results.append(r)
+        
+        results = filtered_results[:50]
+        logger.info(f"[DISCOVERY_SUMMARY] Filtered results: {len(filtered_results)} matched out of 150 searched")
         
         # Convert to article dicts for the generator
         articles = []
