@@ -303,13 +303,13 @@ class SynthesisAgentOutput(BaseModel):
     sections: List[FindingSection]
     # Extended thinking output from Claude - shows model's reasoning process
     thinking_content: Optional[str] = Field(default=None, description="Claude's extended thinking/reasoning process before generating the report")
-    all_visuals: List[SupportingVisual]
+    all_visuals: List[SupportingVisual] = Field(default_factory=list)
     companies_with_logos: List[CompanyWithLogo] = Field(default_factory=list)
-    sources_used: List[Citation]
-    source_breakdown: Dict[str, int]
-    data_gaps: List[str]
-    warnings: List[str]
-    research_time_seconds: float
+    sources_used: List[Citation] = Field(default_factory=list)
+    source_breakdown: Dict[str, int] = Field(default_factory=dict)
+    data_gaps: List[str] = Field(default_factory=list)
+    warnings: List[str] = Field(default_factory=list)
+    research_time_seconds: float = 0.0
     # Legacy field - kept for backward compatibility with cached reports
     field_sales: Optional[FieldSalesSection] = None
 

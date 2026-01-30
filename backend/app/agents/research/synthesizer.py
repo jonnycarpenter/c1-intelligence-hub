@@ -457,6 +457,11 @@ OUTPUT FORMAT (valid JSON):
         
         if thinking_content:
             output_data["thinking_content"] = thinking_content
+        
+        # Pre-populate all_visuals from visual agent's supporting_visuals
+        # This ensures the field has data even if LLM doesn't include it
+        if visual and visual.supporting_visuals:
+            output_data["all_visuals"] = [v.model_dump() for v in visual.supporting_visuals]
             
         # Enrich companies with logos
         # Extract all entities mentioned across findings
@@ -477,6 +482,7 @@ OUTPUT FORMAT (valid JSON):
         
     except Exception as e:
         logger.error(f"[SYNTHESIZER] Failed to parse LLM output: {e}")
+        logger.error(f"[SYNTHESIZER] Output data keys: {list(output_data.keys()) if 'output_data' in dir() else 'N/A'}")
         state["errors"].append({"node": "synthesis", "error": str(e)})
         state["current_status"] = "synthesis_failed"
         

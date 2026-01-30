@@ -23,6 +23,37 @@ Without reliable daily ingestion:
 (none currently)
 
 ---
+## 📅 SESSION 95: Deep Research "No Report Generated" Fix (January 30, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Problem
+
+Deep Research workflow completes but shows: **"Research completed but no report was generated"**
+
+### 💡 Root Cause
+
+`SynthesisAgentOutput` Pydantic model required `all_visuals` field (and other fields) without defaults. The synthesizer LLM prompt doesn't ask for these fields, causing Pydantic validation to fail silently in the catch block. The catch block set `synthesis_failed` status but did NOT set `final_report`, leading to the error.
+
+### ✅ Fix
+
+1. **Added default factories** to `SynthesisAgentOutput` fields in `state.py`:
+   - `all_visuals = Field(default_factory=list)`
+   - `sources_used = Field(default_factory=list)`
+   - `source_breakdown = Field(default_factory=dict)`
+   - `data_gaps = Field(default_factory=list)`
+   - `warnings = Field(default_factory=list)`
+   - `research_time_seconds = 0.0`
+
+2. **Pre-populated `all_visuals`** in `synthesizer.py` from the visual agent's `supporting_visuals` before Pydantic validation.
+
+3. **Improved error logging** in synthesizer catch block to show what keys are present in `output_data`.
+
+### 📁 Files Modified
+- `backend/app/agents/research/state.py` - Added default factories
+- `backend/app/agents/research/synthesizer.py` - Pre-populate visuals + better logging
+
+---
 ## 📅 SESSION 93: Market Intelligence AI Summary Fix (January 29, 2026)
 
 **Status**: ✅ COMPLETE
