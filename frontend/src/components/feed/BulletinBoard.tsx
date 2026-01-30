@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Sparkles, Zap, Loader2, Clock, AlertCircle } from 'lucide-react'
+import { Sparkles, Zap, Loader2, Clock, AlertCircle, ChevronDown } from 'lucide-react'
 import { api } from '@/lib/api'
 
 interface BulletinBoardData {
@@ -21,6 +21,7 @@ export default function BulletinBoard({ className }: BulletinBoardProps) {
     const [data, setData] = useState<BulletinBoardData | null>(null)
     const [isLoading, setIsLoading] = useState(true)
     const [error, setError] = useState<Error | null>(null)
+    const [isExpanded, setIsExpanded] = useState(true)
 
     useEffect(() => {
         let isMounted = true
@@ -89,8 +90,11 @@ export default function BulletinBoard({ className }: BulletinBoardProps) {
 
     return (
         <div className={`bg-gradient-to-r from-teal-50 via-white to-emerald-50 rounded-xl overflow-hidden border border-teal-200/50 shadow-sm ${className || ''}`}>
-            {/* Header */}
-            <div className="px-4 py-3 border-b border-teal-100 bg-gradient-to-r from-teal-50/80 to-emerald-50/80">
+            {/* Header - Always visible, clickable to toggle */}
+            <button
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="w-full px-4 py-3 border-b border-teal-100 bg-gradient-to-r from-teal-50/80 to-emerald-50/80 hover:from-teal-100/80 hover:to-emerald-100/80 transition-colors"
+            >
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                         <div className="p-1.5 bg-gradient-to-br from-teal-500/20 to-emerald-500/20 rounded-lg">
@@ -99,45 +103,62 @@ export default function BulletinBoard({ className }: BulletinBoardProps) {
                         <h3 className="text-xs font-bold text-teal-800 uppercase tracking-widest">
                             Priority Spotlight
                         </h3>
+                        {/* Show item count when collapsed */}
+                        {!isExpanded && (
+                            <span className="ml-1 px-2 py-0.5 bg-teal-100 text-teal-700 text-[10px] font-semibold rounded-full">
+                                {data.total_priority_items} item{data.total_priority_items !== 1 ? 's' : ''}
+                            </span>
+                        )}
                     </div>
-                    <div className="flex items-center gap-1.5 text-slate-400">
-                        <Clock size={10} />
-                        <span className="text-[10px] font-medium">
-                            {data.extended_to_7_days ? 'Last 7 days' : 'Last 72 hours'}
-                        </span>
+                    <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-1.5 text-slate-400">
+                            <Clock size={10} />
+                            <span className="text-[10px] font-medium">
+                                {data.extended_to_7_days ? 'Last 7 days' : 'Last 72 hours'}
+                            </span>
+                        </div>
+                        <ChevronDown
+                            size={16}
+                            className={`text-teal-500 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
+                        />
                     </div>
                 </div>
-            </div>
+            </button>
 
-            {/* Bullets */}
-            <div className="p-4 space-y-3">
-                {data.bullets.map((bullet, idx) => (
-                    <div
-                        key={idx}
-                        className="flex items-start gap-3 group"
-                    >
-                        <span className={`flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold shrink-0 mt-0.5 ${idx === 0
-                            ? "bg-gradient-to-br from-teal-500 to-emerald-600 text-white shadow-md shadow-teal-500/20"
-                            : "bg-teal-100 text-teal-600"
-                            }`}>
-                            {idx + 1}
-                        </span>
-                        <p className={`text-sm leading-relaxed ${idx === 0 ? "text-slate-800 font-medium" : "text-slate-600"
-                            }`}>
-                            {bullet}
-                        </p>
+            {/* Collapsible content */}
+            {isExpanded && (
+                <>
+                    {/* Bullets */}
+                    <div className="p-4 space-y-3">
+                        {data.bullets.map((bullet, idx) => (
+                            <div
+                                key={idx}
+                                className="flex items-start gap-3 group"
+                            >
+                                <span className={`flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold shrink-0 mt-0.5 ${idx === 0
+                                    ? "bg-gradient-to-br from-teal-500 to-emerald-600 text-white shadow-md shadow-teal-500/20"
+                                    : "bg-teal-100 text-teal-600"
+                                    }`}>
+                                    {idx + 1}
+                                </span>
+                                <p className={`text-sm leading-relaxed ${idx === 0 ? "text-slate-800 font-medium" : "text-slate-600"
+                                    }`}>
+                                    {bullet}
+                                </p>
+                            </div>
+                        ))}
                     </div>
-                ))}
-            </div>
 
-            {/* Footer - Total count */}
-            {data.total_priority_items > 0 && (
-                <div className="px-4 py-2.5 border-t border-teal-100 bg-gradient-to-r from-teal-50/50 to-emerald-50/50">
-                    <p className="text-[10px] text-slate-400 font-medium">
-                        {data.total_priority_items} priority item{data.total_priority_items !== 1 ? 's' : ''} across{' '}
-                        {data.categories_covered.length} theme{data.categories_covered.length !== 1 ? 's' : ''}
-                    </p>
-                </div>
+                    {/* Footer - Total count */}
+                    {data.total_priority_items > 0 && (
+                        <div className="px-4 py-2.5 border-t border-teal-100 bg-gradient-to-r from-teal-50/50 to-emerald-50/50">
+                            <p className="text-[10px] text-slate-400 font-medium">
+                                {data.total_priority_items} priority item{data.total_priority_items !== 1 ? 's' : ''} across{' '}
+                                {data.categories_covered.length} theme{data.categories_covered.length !== 1 ? 's' : ''}
+                            </p>
+                        </div>
+                    )}
+                </>
             )}
         </div>
     )
