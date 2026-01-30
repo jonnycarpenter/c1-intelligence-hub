@@ -191,81 +191,28 @@ LIMIT 10
 ```
 
 ### 5. Synthesizer (`synthesizer.py`)
-**Purpose**: Merge findings into BRIEF, executive-ready report
+**Purpose**: Merge findings into a dynamic, block-based executive report
 
-**Brevity-First Design (Session 66 Refactor):**
-- **12-word max headlines** - Lead with the insight
-- **2-3 sections max** - Ruthlessly prioritize
-- **2-3 sentences per section** - No filler paragraphs
-- **3-4 key points** - One sentence each
-- **2-3 key metrics** - Just `label` + `value`
+**Synthesizer V3: Block-Based Narrative (Session 78):**
+The Synthesizer agent has been upgraded from generating flat text to designing a rich, component-based layout. Instead of rigid sections, the agent constructs the report using a library of UI blocks:
+
+**Available Output Blocks:**
+- **`paragraph`**: Standard text analysis with inline citation pills
+- **`metric_grid`**: A horizontal row of key comparison metrics (e.g., Revenue $1.2B | YoY +12%)
+- **`visual_split`**: A high-impact side-by-side layout pairing analysis text with a specific chart from the Visual agent
+- **`quote`**: A styled, verbatim callout for CEO/CFO quotes that ground the narrative
 
 **Key Features:**
-- Deduplicates overlapping findings from Financial + Industry agents
-- Connects financial data with market trends (one sentence is enough)
-- Creates punchy executive summary with actionable metrics
-- Generates brief field sales angles (1-2 offensive, 1 defensive)
-- **Places relevant visuals** in appropriate report sections
-- **Prior Research Context**: Can reference past findings ("Building on our Jan 3rd analysis...")
-- **Company Logo Enrichment** (Session 75): Extracts entities from findings, enriches with Logo.dev URLs via `_enrich_companies_with_logos()`
-- **Clickable Citations**: Section citations include `source_url` for frontend rendering as clickable links
+- **Visual Agency**: The agent explicitly chooses *where* to place visuals using the `visual_split` block, integrating them into the narrative flow rather than appending them as an afterthought.
+- **Graceful Degradation**: If no visuals are available, the agent falls back to text and metric grids to maintain a high-quality "text-only" presentation.
+- **Citation Robustness**: Every block type supports strict citation verification, rendered as clickable pills in the UI.
 
-**Citation Enforcement (Session 77):**
-Reports are designed for user verification - every claim must be traceable to a source:
-- Every section must have at least one citation with a valid `source_url`
-- Every `key_point` in executive summary has a corresponding entry in `key_point_citations`
-- `key_point_citations` array matches `key_points` array in order (citation[0] supports key_point[0])
-- Missing citations are flagged with `source_title: "MISSING CITATION"` for the validator to catch
-- Frontend renders inline citation badges next to each key point for easy verification
+**Brevity-First Design:**
+- **12-word max headlines** - Lead with the insight
+- **2-3 sections max** - Ruthlessly prioritize
+- **blocks** - Mix of text, data, and visuals
 
-**Anti-Patterns (LLM is instructed to avoid):**
-- ❌ "It's worth noting..." / "Interestingly..." filler
-- ❌ More than 3 thematic sections
-- ❌ Paragraphs >4 sentences
-- ❌ Tables with <3 rows
-- ❌ Repeating info across sections
-
-**Prior Research Injection:**
-Before synthesis, the agent fetches related past research via `memory.find_related_research()` and injects it into the system prompt. This enables contextual references like "This confirms our earlier finding that..."
-
-**Input Condensing:**
-The `_condense_findings()` helper strips verbose metadata from agent outputs before sending to the LLM, reducing token count and keeping focus on actual insights.
-
-**Planning Scratchpad (Session 70):**
-Before synthesis, the agent generates a structured planning scratchpad via `_generate_planning_scratchpad()` that analyzes:
-
-| Section | Purpose |
-|---------|---------|
-| **Content Inventory** | Counts findings, visuals, and demand signals available |
-| **Date Analysis** | Checks publication dates, flags stale content (>6 months), respects user timeframe |
-| **Entity Coverage** | Verifies requested entities appear in findings, identifies gaps |
-| **Data Quality** | Assesses whether both financial and industry data are present |
-
-This scratchpad is injected into the synthesis prompt to help the LLM:
-- Prioritize recent content over stale historical data
-- Acknowledge data gaps transparently
-- Structure the report based on available content
-- Flag when requested entities weren't found
-
-Example scratchpad output:
-```
-=== CONTENT INVENTORY ===
-[INVENTORY] Financial findings: 8
-[INVENTORY] Industry findings: 12
-[INVENTORY] Visuals available: 3
-=== DATE ANALYSIS ===
-[DATE CHECK] Financial: 8 items, oldest: 2025-10-15, newest: 2026-01-05
-[DATE WARN] Industry: 2 items are >6 months old - consider as historical context only
-[TIMEFRAME] User requested: Q4 2025
-[TIMEFRAME] Prioritize content matching this period; older content is context only
-=== ENTITY COVERAGE ===
-[ENTITIES] Mentioned in findings: Hexcel, Toray, Boeing, Airbus
-[COVERAGE] All requested entities covered
-=== DATA QUALITY ===
-[QUALITY] Both financial and industry data available
-```
-
-**Output**: `SynthesisAgentOutput` with concise report structure, `supporting_visuals` per section
+**Output**: `SynthesisAgentOutput` with `blocks` list per section instead of `content` string.
 
 ### 6. Validator (`validator.py`)
 **Purpose**: Citation verification and quality gate

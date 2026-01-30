@@ -5,7 +5,7 @@ export type Mode = 'pulse' | 'discovery' | 'research' | 'products' | 'field-sale
 export type ViewMode = 'grid' | 'list'
 export type Priority = 'critical' | 'high' | 'medium' | 'low'
 // Categories aligned with backend ContentCategory/DigestCategory enums
-export type Category = 
+export type Category =
   | 'Market'
   | 'Supply Chain'
   | 'Regulatory'
@@ -161,7 +161,8 @@ export interface ResearchSection {
   id: string
   title: string
   query: string  // Original user question
-  content: string  // Markdown content from agent
+  content: string | null // Markdown content from agent
+  blocks?: ReportBlock[]
   timestamp: string
   isCollapsed: boolean
   isDeepResearch?: boolean
@@ -658,6 +659,25 @@ export interface ValidationOutput {
   warnings?: string[]
 }
 
+/** Citation structure */
+export interface Citation {
+  source_type: string
+  source_title: string
+  source_url?: string
+  source_date?: string
+  page_or_section?: string
+  direct_quote?: string
+}
+
+export type BlockType = 'paragraph' | 'metric_grid' | 'visual_split' | 'quote' | 'table' | 'visual_hero'
+
+export interface ReportBlock {
+  block_type: BlockType
+  block_id: string
+  data: Record<string, any>
+  citations?: Citation[]
+}
+
 /** Deep Research report structure */
 export interface DeepResearchReport {
   report_id: string
@@ -669,16 +689,15 @@ export interface DeepResearchReport {
     headline: string
     key_points: string[]
     key_metrics: Array<{ label: string; value: string; context?: string }>
+    key_point_citations?: Citation[]
   }
   sections: Array<{
     section_title: string
-    content: string
-    citations: Array<{
-      source_name: string
-      url?: string
-      published_date?: string
-      quote?: string
-    }>
+    content: string | null // Content is optional if blocks are present
+    blocks?: ReportBlock[]
+    citations: Citation[]
+    supporting_visuals?: any[]
+    confidence?: string
   }>
   field_sales?: {
     offensive_angles: Array<{

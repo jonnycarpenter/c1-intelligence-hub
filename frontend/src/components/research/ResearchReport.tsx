@@ -21,6 +21,8 @@ import { cn } from '@/lib/utils'
 import ReactMarkdown from 'react-markdown'
 import { api } from '@/lib/api'
 import { API_BASE } from '@/lib/config'
+import { ReportBlockRenderer } from './ReportBlockRenderer'
+import type { ReportBlock } from '@/types'
 
 interface DeepResearchReportProps {
     report: any
@@ -50,7 +52,7 @@ interface CompanyWithLogo {
 
 function CompanyLogo({ company }: { company: CompanyWithLogo }) {
     const [imageError, setImageError] = useState(false)
-    
+
     // Use logo.dev API via our backend proxy
     const logoUrl = company.domain
         ? `${API_BASE}/api/pipeline/logo/${company.domain}`
@@ -240,7 +242,7 @@ export default function ResearchReport({ report }: DeepResearchReportProps) {
                             )
                         })}
                     </div>
-                    
+
                     {/* Company Logos */}
                     {companies_with_logos && companies_with_logos.length > 0 && (
                         <div className="mt-6 pt-4 border-t border-slate-100">
@@ -313,9 +315,17 @@ export default function ResearchReport({ report }: DeepResearchReportProps) {
                         <span className="text-xs text-slate-400">Section {idx + 1}</span>
                     </div>
                     <div className="p-6">
-                        <div className="prose prose-slate max-w-none mb-6">
-                            <ReactMarkdown>{section.content}</ReactMarkdown>
-                        </div>
+                        {section.blocks && section.blocks.length > 0 ? (
+                            <div className="mb-6">
+                                {section.blocks.map((block: ReportBlock) => (
+                                    <ReportBlockRenderer key={block.block_id} block={block} />
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="prose prose-slate max-w-none mb-6">
+                                <ReactMarkdown>{section.content}</ReactMarkdown>
+                            </div>
+                        )}
 
                         {/* Tables */}
                         {section.tables && section.tables.length > 0 && (
@@ -359,7 +369,7 @@ export default function ResearchReport({ report }: DeepResearchReportProps) {
                                 ))}
                             </div>
                         )}
-                        
+
                         {/* Section Citations */}
                         <CitationList citations={section.citations} />
                     </div>
@@ -473,7 +483,7 @@ export default function ResearchReport({ report }: DeepResearchReportProps) {
                                     </a>
                                 ))}
                         </div>
-                        
+
                         {/* Data Gaps Warning */}
                         {data_gaps && data_gaps.length > 0 && (
                             <div className="mt-6 pt-4 border-t border-slate-100">

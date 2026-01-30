@@ -15,8 +15,9 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui'
 import { cn } from '@/lib/utils'
-import type { ResearchSection as ResearchSectionType, Source } from '@/types'
+import type { ResearchSection as ResearchSectionType, Source, ReportBlock } from '@/types'
 import ReactMarkdown from 'react-markdown'
+import { ReportBlockRenderer } from './ReportBlockRenderer'
 
 interface ResearchSectionProps {
   section: ResearchSectionType
@@ -204,7 +205,13 @@ export default function ResearchSection({
           ref={contentRef}
           className="p-4 max-h-[500px] overflow-y-auto select-text"
         >
-          {section.content ? (
+          {section.blocks && section.blocks.length > 0 ? (
+            <div className="space-y-4">
+              {section.blocks.map((block) => (
+                <ReportBlockRenderer key={block.block_id} block={block} />
+              ))}
+            </div>
+          ) : section.content ? (
             <div className="prose prose-sm prose-slate max-w-none select-text cursor-text">
               <ReactMarkdown
                 components={{

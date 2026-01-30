@@ -132,8 +132,42 @@ def _count_citations_in_report(report) -> int:
         for section in report.sections:
             if section.citations:
                 count += len(section.citations)
+            # NEW: Count citations in blocks
+            if hasattr(section, 'blocks') and section.blocks:
+                for block in section.blocks:
+                    if block.citations:
+                        count += len(block.citations)
     
     return count
+
+
+def _summarize_section_content(section, max_len=800) -> str:
+    """Summarize content from either legacy string or new blocks."""
+    if section.content:
+        return section.content[:max_len]
+    
+    summary = []
+    current_len = 0
+    if section.blocks:
+        for block in section.blocks:
+            text = ""
+            if block.block_type == "paragraph":
+                text = block.data.get("text", "")
+            elif block.block_type == "quote":
+                text = f'"{block.data.get("text", "")}"'
+            elif block.block_type == "visual_split":
+                text = block.data.get("text", "")
+            elif block.block_type == "metric_grid":
+                metrics = block.data.get("metrics", [])
+                text = f"[{len(metrics)} metrics]"
+            
+            if text:
+                summary.append(text)
+                current_len += len(text)
+                if current_len > max_len:
+                    break
+    
+    return " ".join(summary)[:max_len]
 
 
 def _extract_claims_for_validation(report) -> Dict[str, Any]:
@@ -156,10 +190,16 @@ def _extract_claims_for_validation(report) -> Dict[str, Any]:
     # Section claims
     if report.sections:
         for section in report.sections:
+            # Count citations (section + blocks)
+            citations_count = len(section.citations) if section.citations else 0
+            if hasattr(section, 'blocks') and section.blocks:
+                for block in section.blocks:
+                    citations_count += len(block.citations)
+
             claims["sections"][section.section_id] = {
                 "title": section.section_title,
-                "content_preview": section.content[:500] if section.content else "",
-                "citations_count": len(section.citations) if section.citations else 0,
+                "content_preview": _summarize_section_content(section),
+                "citations_count": citations_count,
                 "stated_confidence": section.confidence.value if section.confidence else "medium",
             }
     

@@ -160,11 +160,34 @@ class ExecutiveSummary(BaseModel):
     key_point_citations: List[Citation] = Field(default_factory=list, description="Citation for each key point, order matches key_points")
     data_caveat: Optional[str] = None
 
+class BlockType(str, Enum):
+    PARAGRAPH = "paragraph"
+    METRIC_GRID = "metric_grid"
+    VISUAL_HERO = "visual_hero"
+    VISUAL_SPLIT = "visual_split"
+    QUOTE_CALLOUT = "quote"
+    TABLE = "table"
+    
+class ReportBlock(BaseModel):
+    block_type: BlockType
+    block_id: str
+    # Flexible data payload - schema depends on block_type
+    # paragraph: {text: str}
+    # metric_grid: {metrics: List[KeyMetric]}
+    # visual_split: {visual_id: str, text: str, layout: str, caption: str}
+    # quote: {text: str, speaker: str, context: str, sentiment: str}
+    data: Dict[str, Any]
+    citations: List[Citation] = Field(default_factory=list)
+
 class FindingSection(BaseModel):
     section_id: str
     section_title: str
-    content: str
-    tables: List[MetricsTable] = Field(default_factory=list) # NEW: Tables to embed in this section
+    # Legacy: content string for older reports
+    content: Optional[str] = None
+    # New: component-based blocks
+    blocks: List[ReportBlock] = Field(default_factory=list)
+    
+    tables: List[MetricsTable] = Field(default_factory=list) # Legacy tables
     citations: List[Citation]
     confidence: ConfidenceLevel
     supporting_visuals: List[SupportingVisual]

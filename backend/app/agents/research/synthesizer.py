@@ -213,59 +213,55 @@ def _condense_findings(output) -> Dict[str, Any]:
     return condensed
 
 
-SYNTHESIZER_SYSTEM_PROMPT = """You are a synthesis agent. Convert research findings into a BRIEF executive report.
+SYNTHESIZER_SYSTEM_PROMPT = """You are a synthesis agent. Convert research findings into a dynamic, block-based executive report.
 
-## GOLDEN RULE: Be ruthlessly concise. Every sentence must earn its place.
+## GOLDEN RULE: Design the report page. Don't just write text blocks.
 
-## CITATION REQUIREMENTS (CRITICAL FOR USER VERIFICATION)
-Users need to verify findings independently. EVERY claim must be traceable:
-- Every section MUST have at least one citation with a valid source_url
-- Every key_point in executive summary MUST have a corresponding citation in key_point_citations
-- The key_point_citations array must match key_points array in order (citation[0] supports key_point[0])
-- Use ONLY citations from the findings data - do NOT invent sources
-- If no source exists for a claim, still include it but use source_title: "Synthesis" (the validator will flag it)
+## AVAILABLE COMPONENTS (BLOCK TYPES)
+
+You build the report by stacking these blocks. Choose the best block for the data.
+
+1. `paragraph`: Standard text analysis.
+   - Use for: Narrative explanation, context, synthesis.
+   - Must include `citation_badges` metadata.
+
+2. `metric_grid`: A horizontal row of 2-4 key numbers.
+   - Use for: "At a glance" financials or KPI comparisons.
+   - Example: Revenue $1.2B | Margin 18% | YoY +12%
+
+3. `visual_split`: Side-by-side layout with Text (left/right) and Visual (right/left).
+   - Use for: Highlighting a specific chart while analyzing it.
+   - constraint: **ONLY use if you have a relevant visual in `available_visuals`**.
+   - constraint: You MUST copy the `visual_id` exactly from the input.
+
+4. `quote`: A styled executive quote callout.
+   - Use for: Verbatim CEO/CFO quotes that ground the narrative.
+   - source: Must come from `direct_quote` in findings.
+
+5. `table`: A structured data table.
+   - Use for: Comparing 3+ items or dimensions.
+
+## CITATION REQUIREMENTS (CRITICAL)
+Every block that makes a claim MUST have a `citations` array.
+- Use `source_url` from findings.
+- If a block has no citation, use empty array (but valid blocks usually have sources).
+
+## VISUALS STRATEGY (CRITICAL)
+- **IF visuals are available**: Use `visual_split` or `visual_hero` to weave them into the narrative.
+- **IF NO visuals are available**: Do NOT force visual blocks. Use `paragraph`, `metric_grid`, and `quote` blocks to create visual interest through layout instead.
+- **NEVER invent visual_ids**. only use what is provided.
 
 ## OUTPUT STRUCTURE (follow exactly)
 
 1. EXECUTIVE SUMMARY
-   - headline: One sentence, 12 words max. Lead with the insight.
-   - key_metrics: 2-3 numbers max. Format: {"label": "Name", "value": "$X.XB"}
-   - key_points: 3-4 bullets. One sentence each. No fluff.
-   - key_point_citations: Array of citations, one per key_point (REQUIRED - same length as key_points)
+   - headline: 12 words max.
+   - key_metrics: 2-3 top metadata metrics.
+   - key_points: 3-4 bullets.
 
-2. SECTIONS (2-4 max, you have creative license on structure)
-   - section_title: 3-5 words - make them punchy and informative
-   - content: 2-4 sentences of insight. Use markdown bullets if listing items. No preamble.
-   - tables: ONLY if comparing 3+ data points. Otherwise skip.
-   - citations: At least one citation per section with source_url (REQUIRED)
-   - Include relevant EXECUTIVE QUOTES from earnings calls when available - these ground the analysis
+2. SECTIONS (2-4 customized sections)
+   - title: Punchy header.
+   - blocks: Array of component blocks (mix paragraphs, grids, quotes, visuals).
 
-3. SOURCES & CITATIONS
-   - sources_used: List 3-5 key sources (not every article)
-   - CRITICAL: Include source_url from findings data. Users need clickable links!
-   - data_gaps: What's missing (1 sentence)
-
-## EXECUTIVE QUOTES
-When financial findings include direct_quote from earnings calls, USE THEM:
-- Format as blockquote with speaker attribution
-- These verbatim CEO/CFO statements ground your analysis
-- Example: "> 'We see strong demand in narrowbody...' — Nick Stanage, CEO, Q3 2025"
-
-## YOU HAVE CREATIVE LICENSE
-Structure the report based on what the data tells you. You can:
-- Create thematic sections that make sense for THIS query
-- Highlight key quotes from executives
-- Focus on what matters most for the research question
-- Include forward-looking implications
-
-## ANTI-PATTERNS (avoid these)
-- "It's worth noting..." / "Interestingly..." / "Additionally..."
-- Repeating findings across sections
-- Tables with <3 rows
-- Paragraphs >5 sentences
-
-## PRIOR RESEARCH
-If prior research context is provided, you may reference it: "Building on our [date] analysis..." or "This confirms earlier findings that..."
 """
 
 async def _get_prior_research_context(query: str, companies: List[str] = None, industries: List[str] = None) -> str:
@@ -287,17 +283,12 @@ async def _get_prior_research_context(query: str, companies: List[str] = None, i
 
 async def synthesis_node(state: DeepResearchState) -> DeepResearchState:
     """
-    Synthesis node. Merges financial, industry, and visual outputs into a CONCISE final report.
-    
-    Now supports Claude's Extended Thinking feature for enhanced reasoning transparency.
-    When enabled, Claude's thinking process is captured and included in the report.
-    See: https://platform.claude.com/docs/en/build-with-claude/extended-thinking
+    Synthesis node. Merges outputs into a dynamic BLOCK-BASED report.
     """
     start_time = time.time()
     logger.info(f"[SYNTHESIZER] START - query: {state.get('user_query', '')[:50]}...")
     
     # Use raw SDK client for extended thinking support
-    # Extended thinking is not compatible with LangChain's ChatAnthropic wrapper
     use_thinking = settings.deep_research_thinking_enabled
     thinking_budget = settings.deep_research_thinking_budget_tokens
     
@@ -325,19 +316,15 @@ async def synthesis_node(state: DeepResearchState) -> DeepResearchState:
         state["current_status"] = "synthesis_failed_no_input"
         return state
     
-    # Extract entities for prior research lookup
+    # Extract entities and context
     companies = research_brief.entities_to_track if research_brief else []
     industries = []
     if research_brief and research_brief.domain_context:
         industries = [research_brief.domain_context]
     
-    # Fetch prior research context
     prior_context = await _get_prior_research_context(user_query, companies, industries)
-    if prior_context:
-        logger.info(f"[SYNTHESIZER] Injecting prior research context ({len(prior_context)} chars)")
     
-    # Build condensed research data (strip verbose fields)
-    # Format available visuals for LLM to place in sections
+    # Prepare visuals for placement
     available_visuals = []
     if visual and visual.supporting_visuals:
         for v in visual.supporting_visuals:
@@ -345,11 +332,8 @@ async def synthesis_node(state: DeepResearchState) -> DeepResearchState:
                 "visual_id": v.visual_id,
                 "image_url": v.image_url,
                 "caption": v.caption,
-                "placement": v.placement,  # e.g., financial_section, market_section
-                "size": v.size,
                 "data_summary": v.data_summary,
             })
-        logger.info(f"[SYNTHESIZER] {len(available_visuals)} visuals available for section placement")
     
     research_data = {
         "query": user_query,
@@ -360,56 +344,23 @@ async def synthesis_node(state: DeepResearchState) -> DeepResearchState:
         } if research_brief else None,
         "financial": _condense_findings(financial) if financial else None,
         "industry": _condense_findings(industry) if industry else None,
-        "available_visuals": available_visuals,  # For LLM to place in sections
+        "available_visuals": available_visuals,
     }
     
-    # Generate planning scratchpad for structured pre-synthesis analysis
-    planning_notes = _generate_planning_scratchpad(
-        financial=financial,
-        industry=industry,
-        visual=visual,
-        research_brief=research_brief,
-        user_query=user_query,
-    )
+    # Generate scratchpad
+    planning_notes = _generate_planning_scratchpad(financial, industry, visual, research_brief, user_query)
     planning_scratchpad = "\n".join(planning_notes)
-    logger.info(f"[SYNTHESIZER] Planning scratchpad: {len(planning_notes)} notes")
-    logger.debug(f"[SYNTHESIZER] Scratchpad content:\n{planning_scratchpad}")
     
-    # Build system prompt with prior context
     system_content = SYNTHESIZER_SYSTEM_PROMPT
     if prior_context:
         system_content += f"\n\n{prior_context}"
-    
-    # Visual placement instructions for the LLM
-    visual_placement_instructions = ""
-    if available_visuals:
-        visual_placement_instructions = f"""
-## VISUAL PLACEMENT INSTRUCTIONS
 
-You have {len(available_visuals)} curated visuals from the Visual Research agent. Place them in sections where they add value:
+    synthesis_prompt = f"""Synthesize a dynamic block-based report for: "{user_query}"
 
-1. Match the visual's `placement` field to section themes:
-   - "financial_section" → sections about revenue, earnings, margins
-   - "competitive_section" → sections about market share, competitors
-   - "market_section" → sections about trends, forecasts, demand/supply
-   - "technology_section" → sections about products, R&D, innovation
-   - "supporting_evidence" → general supporting data
-
-2. Include at most 2 visuals per section in `supporting_visuals`
-
-3. For each visual you place, copy the EXACT visual_id, image_url, caption, size, and data_summary
-
-4. Any visuals you don't place in sections will appear in the footer gallery
-
-Available visuals to place:
-{json.dumps(available_visuals, indent=2)}
-"""
-    
-    synthesis_prompt = f"""Synthesize into a BRIEF report for: "{user_query}"
-
-## PLANNING ANALYSIS (use this to structure your report)
+## PLANNING & VISUALS
 {planning_scratchpad}
-{visual_placement_instructions}
+Available Visuals: {json.dumps(available_visuals, indent=2)}
+
 ## RESEARCH DATA
 {json.dumps(research_data, indent=2, default=str)}
 
@@ -418,89 +369,85 @@ OUTPUT FORMAT (valid JSON):
   "report_id": "REP-{int(time.time())}",
   "generated_at": "{datetime.now().isoformat()}",
   "query": "{user_query}",
-  "data_completeness": "complete|partial|limited",
-  "overall_confidence": "high|medium|low",
+  "data_completeness": "complete|partial",
+  "overall_confidence": "high|medium",
   "executive_summary": {{
-    "headline": "12 words max - lead with insight",
-    "key_points": ["Point 1", "Point 2", "Point 3"],
+    "headline": "Insight lead headline",
+    "key_metrics": [{{"label": "Rev", "value": "$1B"}}],
+    "key_points": ["Point 1", "Point 2"],
     "key_point_citations": [
-      {{"source_type": "type", "source_title": "Title", "source_url": "https://...", "source_date": "2025-01-01"}},
-      {{"source_type": "type", "source_title": "Title", "source_url": "https://...", "source_date": "2025-01-01"}},
-      {{"source_type": "type", "source_title": "Title", "source_url": "https://...", "source_date": "2025-01-01"}}
-    ],
-    "key_metrics": [
-      {{"label": "Metric Name", "value": "$X.XB or X%"}}
-    ],
-    "data_caveat": null
+       {{"source_type": "sec", "source_title": "10K", "source_url": "http...", "source_date": "2025-01-01"}}
+    ]
   }},
   "sections": [
     {{
-      "section_id": "sec_001",
-      "section_title": "Short Title",
-      "content": "2-4 sentences of insight. Use markdown bullets for lists. Include executive quotes when relevant.",
-      "tables": [],
-      "citations": [{{"source_type": "type", "source_title": "Title", "source_url": "https://... (USE URL FROM FINDINGS DATA)", "source_date": "2025-01-01"}}],
-      "confidence": "high|medium|low",
-      "supporting_visuals": []
+      "section_id": "sec_01",
+      "section_title": "Financial Performance",
+      "content": null, // LEGACY field - leave null
+      "blocks": [
+        {{
+            "block_type": "paragraph",
+            "block_id": "blk_1",
+            "data": {{ "text": "Revenue grew 12%..." }},
+            "citations": [{{ "source_url": "..." }}]
+        }},
+        {{
+            "block_type": "metric_grid",
+            "block_id": "blk_2",
+            "data": {{ 
+                "metrics": [
+                    {{ "label": "Revenue", "value": "$1.2B", "context": "+12% YoY" }}
+                ]
+            }}
+        }},
+        {{
+            "block_type": "visual_split",
+            "block_id": "blk_3",
+            "data": {{
+                "visual_id": "vis_123",
+                "layout": "text_left",
+                "text": "As seen in the chart...",
+                "caption": "Figure 1: Revenue trend"
+            }},
+            "citations": []
+        }}
+      ],
+      "citations": [],
+      "supporting_visuals": [] // LEGACY field - okay to leave empty if visuals are in blocks
     }}
   ],
-  "all_visuals": [],
-  "sources_used": [{{"source_type": "type", "source_title": "Title", "source_url": "https://... (USE URL FROM FINDINGS DATA)", "source_date": "2025-01-01"}}],
-  "source_breakdown": {{}},
-  "data_gaps": ["What's missing"],
-  "warnings": [],
-  "research_time_seconds": 0.0
+  "sources_used": [],
+  "data_gaps": [],
+  "warnings": []
 }}
-
-Structure the sections based on what the data tells you. Include executive quotes where they add value."""
+"""
     
-    # Variable to capture thinking content from extended thinking
+    # Variable to capture thinking content
     thinking_content = None
     
     if use_thinking:
-        # Use raw SDK with extended thinking enabled
-        messages_raw = [
-            {"role": "user", "content": synthesis_prompt}
-        ]
-        
+        messages_raw = [{"role": "user", "content": synthesis_prompt}]
         response = await client.messages_create(
             model=settings.deep_research_synthesizer_model,
-            max_tokens=16000,  # Needs to be > budget_tokens
+            max_tokens=16000,
             messages=messages_raw,
             system=system_content,
-            thinking={
-                "type": "enabled",
-                "budget_tokens": thinking_budget,
-            },
+            thinking={"type": "enabled", "budget_tokens": thinking_budget},
         )
-        
-        # Extract thinking and text content from response blocks
-        # Response format: [thinking_block(s), text_block(s)]
+        # Parser for thinking blocks (same as before)
         text_content_parts = []
         for block in response.content:
-            block_type = getattr(block, 'type', None)
-            if block_type == 'thinking':
-                # Capture the thinking content (summarized by Claude 4 models)
-                thinking_text = getattr(block, 'thinking', None)
-                if thinking_text:
-                    thinking_content = thinking_text
-                    logger.info(f"[SYNTHESIZER] Captured thinking content: {len(thinking_text)} chars")
-            elif block_type == 'text':
+            if getattr(block, 'type', None) == 'thinking':
+                thinking_content = getattr(block, 'thinking', None)
+            elif getattr(block, 'type', None) == 'text':
                 text_content_parts.append(getattr(block, 'text', ''))
-        
         content = '\n'.join(text_content_parts)
     else:
-        # Use LangChain wrapper (no extended thinking)
-        messages = [
-            SystemMessage(content=system_content),
-            HumanMessage(content=synthesis_prompt)
-        ]
-        
+        messages = [SystemMessage(content=system_content), HumanMessage(content=synthesis_prompt)]
         response = await llm.ainvoke(messages)
         content = response.content
-    
+        
     try:
-        # Parse JSON from response content
         if "```json" in content:
             content = content.split("```json")[1].split("```")[0].strip()
         elif "```" in content:
@@ -508,120 +455,28 @@ Structure the sections based on what the data tells you. Include executive quote
             
         output_data = json.loads(content)
         
-        # Add thinking content if captured
         if thinking_content:
             output_data["thinking_content"] = thinking_content
-        
-        # Ensure required fields
-        if "generated_at" not in output_data:
-            output_data["generated_at"] = datetime.now().isoformat()
-        if "report_id" not in output_data:
-            output_data["report_id"] = f"REP-{int(time.time())}"
-        if "query" not in output_data:
-            output_data["query"] = user_query
-        
-        # Normalize key_metrics to have both label (frontend) and metric_name (backend schema)
-        exec_summary = output_data.get("executive_summary", {})
-        if "key_metrics" in exec_summary:
-            for metric in exec_summary["key_metrics"]:
-                # Frontend expects "label", backend schema expects "metric_name"
-                if "label" in metric and "metric_name" not in metric:
-                    metric["metric_name"] = metric["label"]
-                elif "metric_name" in metric and "label" not in metric:
-                    metric["label"] = metric["metric_name"]
-                # Ensure required backend fields have defaults
-                metric.setdefault("context", "")
-                metric.setdefault("source", "Research data")
-                metric.setdefault("confidence", "medium")
-        
-        # Ensure arrays exist
-        output_data.setdefault("all_visuals", [])
-        output_data.setdefault("sources_used", [])
-        output_data.setdefault("source_breakdown", {})
-        output_data.setdefault("data_gaps", [])
-        output_data.setdefault("warnings", [])
-        output_data.setdefault("sections", [])
-        
-        # Populate all_visuals with any unplaced visuals from Visual Agent
-        if available_visuals:
-            # Collect visual IDs that were placed in sections
-            placed_visual_ids = set()
-            for section in output_data.get("sections", []):
-                for sv in section.get("supporting_visuals", []):
-                    if sv.get("visual_id"):
-                        placed_visual_ids.add(sv["visual_id"])
             
-            # Add unplaced visuals to all_visuals footer gallery
-            for v in available_visuals:
-                if v["visual_id"] not in placed_visual_ids:
-                    output_data["all_visuals"].append(v)
-            
-            placed_count = len(placed_visual_ids)
-            unplaced_count = len(output_data["all_visuals"])
-            logger.info(f"[SYNTHESIZER] Visuals: {placed_count} placed in sections, {unplaced_count} in footer gallery")
-        
-        # Ensure section fields
-        for section in output_data.get("sections", []):
-            section.setdefault("tables", [])
-            section.setdefault("citations", [])
-            section.setdefault("supporting_visuals", [])
-            section.setdefault("confidence", "medium")
-        
-        # --- ENFORCE CITATION PRESENCE FOR USER VERIFICATION ---
-        # Ensure each section has at least one citation with source_url
-        for section in output_data.get("sections", []):
-            valid_citations = [c for c in section.get("citations", []) if c.get("source_url")]
-            if not valid_citations:
-                # Add placeholder so validator can flag it
-                section["citations"].append({
-                    "source_type": "unspecified",
-                    "source_title": "MISSING CITATION - needs source",
-                    "source_url": "",
-                    "source_date": None
-                })
-        
-        # Ensure key_point_citations exists and matches key_points length
-        key_points = exec_summary.get("key_points", [])
-        key_point_citations = exec_summary.get("key_point_citations", [])
-        if len(key_point_citations) != len(key_points):
-            # Fill with placeholders if missing or mismatched
-            exec_summary["key_point_citations"] = [
-                {"source_type": "unspecified", "source_title": "MISSING CITATION", "source_url": "", "source_date": None}
-                for _ in key_points
-            ]
-        else:
-            # Ensure each citation has a source_url, flag if missing
-            for i, c in enumerate(exec_summary.get("key_point_citations", [])):
-                if not c.get("source_url"):
-                    exec_summary["key_point_citations"][i]["source_title"] = "MISSING CITATION - " + c.get("source_title", "needs source")
-        
-        output_data["executive_summary"] = exec_summary
-        
         # Enrich companies with logos
         # Extract all entities mentioned across findings
         all_entities = list(_extract_entities_from_findings(financial, industry))
-        
-        # Also include entities from research brief if available
         if research_brief and research_brief.entities_to_track:
             all_entities.extend(research_brief.entities_to_track)
         
-        # Enrich with logo URLs
         companies_with_logos = _enrich_companies_with_logos(all_entities)
         output_data["companies_with_logos"] = [c.model_dump() for c in companies_with_logos]
-        logger.info(f"[SYNTHESIZER] Enriched {len(companies_with_logos)} companies with logos")
-        
+
+        # Final object
         final_report = SynthesisAgentOutput(**output_data)
         final_report.research_time_seconds = time.time() - start_time
         
-        elapsed = time.time() - start_time
-        logger.info(f"[SYNTHESIZER] COMPLETE in {elapsed:.1f}s - sections: {len(final_report.sections)}")
-        
+        logger.info(f"[SYNTHESIZER] COMPLETE in {time.time() - start_time:.1f}s - {len(final_report.sections)} sections")
         state["final_report"] = final_report
         state["current_status"] = "synthesis_complete"
         
     except Exception as e:
         logger.error(f"[SYNTHESIZER] Failed to parse LLM output: {e}")
-        logger.error(f"[SYNTHESIZER] Raw response: {response.content[:500] if response else 'None'}...")
         state["errors"].append({"node": "synthesis", "error": str(e)})
         state["current_status"] = "synthesis_failed"
         
