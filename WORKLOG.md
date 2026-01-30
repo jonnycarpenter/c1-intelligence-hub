@@ -23,6 +23,27 @@ Without reliable daily ingestion:
 (none currently)
 
 ---
+## 📅 SESSION 96: Deep Research Report Generation Fix (January 30, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Problem
+Deep Research errors with "Research completed but no report was generated" despite all agents running successfully.
+
+### 💡 Root Cause
+Strict Pydantic validation in `SynthesisAgentOutput` (in `state.py`) caused failures when the LLM omitted required fields (like `citations` or `supporting_visuals` with empty values). This silent validation failure prevented the `final_report` from being set in the state.
+
+### ✅ Fix
+Relaxed the schema validation in `backend/app/agents/research/state.py` by adding default values (`default_factory=list` or `ConfidenceLevel.MEDIUM`) to required fields in `FindingSection`, `ExecutiveSummary`, and `SynthesisAgentOutput`. This ensures report generation succeeds even if the LLM output is slightly incomplete.
+
+### 📁 Files Modified
+- `backend/app/agents/research/state.py`
+
+### 🧪 Verification
+- Created reproduction script `backend/test_synthesis_schema.py` which confirmed the fix handles missing fields gracefully.
+
+
+---
 ## 📅 SESSION 95: Deep Research "No Report Generated" Fix (January 30, 2026)
 
 **Status**: ✅ COMPLETE

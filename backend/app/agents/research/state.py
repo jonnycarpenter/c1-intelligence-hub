@@ -155,8 +155,8 @@ class KeyMetric(BaseModel):
 
 class ExecutiveSummary(BaseModel):
     headline: str
-    key_points: List[str]
-    key_metrics: List[KeyMetric]
+    key_points: List[str] = Field(default_factory=list)
+    key_metrics: List[KeyMetric] = Field(default_factory=list)
     key_point_citations: List[Citation] = Field(default_factory=list, description="Citation for each key point, order matches key_points")
     data_caveat: Optional[str] = None
 
@@ -188,9 +188,9 @@ class FindingSection(BaseModel):
     blocks: List[ReportBlock] = Field(default_factory=list)
     
     tables: List[MetricsTable] = Field(default_factory=list) # Legacy tables
-    citations: List[Citation]
-    confidence: ConfidenceLevel
-    supporting_visuals: List[SupportingVisual]
+    citations: List[Citation] = Field(default_factory=list)
+    confidence: ConfidenceLevel = ConfidenceLevel.MEDIUM
+    supporting_visuals: List[SupportingVisual] = Field(default_factory=list)
 
 class FieldSalesAngle(BaseModel):
     """Field sales angle - supports both offensive and defensive formats."""
