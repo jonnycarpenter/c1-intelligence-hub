@@ -280,81 +280,151 @@ interface CollapsibleBriefingProps {
 }
 
 function CollapsibleBriefing({ briefing, index, totalCount, onDeepResearch }: CollapsibleBriefingProps) {
-  // First briefing (newest) is always expanded, others start collapsed
+  // First briefing (newest) starts expanded, others start collapsed
   const [isExpanded, setIsExpanded] = useState(index === 0)
 
-  // If it's the newest briefing, always show full
-  if (index === 0) {
-    return (
-      <ResponseCard
-        response={briefing}
-        onDeepResearch={onDeepResearch}
-        onSaveToMemory={async () => {
-          await api.saveToMemory({
-            type: 'briefing',
-            question: briefing.question,
-            answer: briefing.answer,
-            sources: briefing.sources_used,
-            confidence: briefing.confidence,
-            tags: briefing.related_topics,
-          })
-        }}
-      />
-    )
-  }
-
-  // Older briefings: collapsed header that expands on click
-  return (
-    <div className="transition-all duration-200">
-      {/* Collapsed Header - click to expand */}
-      <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        className={cn(
-          "w-full text-left px-4 py-3 rounded-xl border transition-all duration-200",
-          isExpanded
-            ? "bg-white border-slate-200 rounded-b-none border-b-0"
-            : "bg-slate-100/80 border-slate-200 hover:bg-slate-100"
-        )}
-      >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <MessageSquare size={14} className="text-slate-400" />
-            <span className="text-sm font-medium text-slate-600">
-              {briefing.question.slice(0, 60)}{briefing.question.length > 60 ? '...' : ''}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <ConfidenceBadge confidence={briefing.confidence} />
-            <ChevronDown
-              size={16}
-              className={cn(
-                "text-slate-400 transition-transform duration-200",
-                isExpanded && "rotate-180"
-              )}
-            />
-          </div>
+  // Collapsed header (used for all briefings when collapsed)
+  const CollapsedHeader = () => (
+    <button
+      onClick={() => setIsExpanded(!isExpanded)}
+      className={cn(
+        "w-full text-left px-4 py-3 rounded-xl border transition-all duration-200",
+        isExpanded
+          ? "bg-white border-slate-200 rounded-b-none border-b-0"
+          : "bg-slate-100/80 border-slate-200 hover:bg-slate-100"
+      )}
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <MessageSquare size={14} className="text-slate-400" />
+          <span className="text-sm font-medium text-slate-600">
+            {briefing.question.slice(0, 60)}{briefing.question.length > 60 ? '...' : ''}
+          </span>
         </div>
-      </button>
-
-      {/* Expanded Content */}
-      {isExpanded && (
-        <div className="border border-t-0 border-slate-200 rounded-b-xl overflow-hidden">
-          <ResponseCard
-            response={briefing}
-            onDeepResearch={onDeepResearch}
-            onSaveToMemory={async () => {
-              await api.saveToMemory({
-                type: 'briefing',
-                question: briefing.question,
-                answer: briefing.answer,
-                sources: briefing.sources_used,
-                confidence: briefing.confidence,
-                tags: briefing.related_topics,
-              })
-            }}
+        <div className="flex items-center gap-2">
+          <ConfidenceBadge confidence={briefing.confidence} />
+          <ChevronDown
+            size={16}
+            className={cn(
+              "text-slate-400 transition-transform duration-200",
+              isExpanded && "rotate-180"
+            )}
           />
         </div>
-      )}
+      </div>
+    </button>
+  )
+
+  // If collapsed, show only the header
+  if (!isExpanded) {
+    return <CollapsedHeader />
+  }
+
+  // Expanded: show the full response with a collapse button in the header
+  return (
+    <div className="transition-all duration-200">
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+        {/* Header with collapse toggle */}
+        <div className="border-b border-slate-100 px-4 py-3 flex items-center justify-between bg-slate-50">
+          <div className="flex items-center gap-2">
+            <MessageSquare size={16} className="text-emerald-600" />
+            <span className="text-sm font-medium text-slate-700">Quick Briefing</span>
+            <ConfidenceBadge confidence={briefing.confidence} />
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setIsExpanded(false)}
+              className="text-slate-400 hover:text-slate-600 transition-colors p-1.5"
+              title="Collapse briefing"
+            >
+              <ChevronDown size={16} className="rotate-180" />
+            </button>
+          </div>
+        </div>
+
+        {/* Question */}
+        <div className="px-4 py-3 bg-emerald-50/50 border-b border-slate-100">
+          <p className="text-sm text-slate-600">
+            <span className="font-semibold text-slate-700">Q:</span> {briefing.question}
+          </p>
+        </div>
+
+        {/* Answer */}
+        <div className="p-4">
+          <div className="prose prose-sm prose-slate max-w-none">
+            <MarkdownContent content={briefing.answer} />
+          </div>
+        </div>
+
+        {/* Sources */}
+        {briefing.sources_used && briefing.sources_used.length > 0 && (
+          <div className="border-t border-slate-100 px-4 py-3 bg-slate-50">
+            <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold mb-2">
+              Sources
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {briefing.sources_used.map((source, idx) => (
+                <a
+                  key={idx}
+                  href={source.url || '#'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-slate-600 hover:text-emerald-600 transition-colors"
+                >
+                  <span className="truncate max-w-[200px]">{source.title}</span>
+                  {source.url && <ExternalLink size={10} />}
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Deep Research Suggestion */}
+        {(briefing.suggest_deep_research || briefing.redirect_to_deep_research) && (
+          <div className="border-t border-emerald-100 px-4 py-3 bg-emerald-50">
+            <div className="flex items-start gap-3">
+              <AlertCircle size={18} className="text-emerald-600 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm text-amber-900">
+                  {briefing.redirect_to_deep_research
+                    ? "You've asked several follow-up questions. For comprehensive analysis, try Deep Research."
+                    : "This topic may benefit from deeper analysis with additional sources."
+                  }
+                </p>
+                {onDeepResearch && (
+                  <button
+                    onClick={() => onDeepResearch(briefing.deep_research_query || briefing.question)}
+                    className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white text-xs font-medium rounded-lg hover:bg-emerald-700 transition-colors"
+                  >
+                    <Sparkles size={12} />
+                    Start Deep Research
+                    <ArrowRight size={12} />
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Related Topics */}
+        {briefing.related_topics && briefing.related_topics.length > 0 && (
+          <div className="border-t border-slate-100 px-4 py-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">
+                Related:
+              </span>
+              {briefing.related_topics.map((topic, idx) => (
+                <Badge
+                  key={idx}
+                  className="text-xs text-slate-600 bg-white border-slate-200 cursor-pointer hover:bg-slate-100"
+                >
+                  {topic}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -382,7 +452,7 @@ export default function AdHocBriefing({
 }: AdHocBriefingProps) {
   const [question, setQuestion] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
-  
+
   // Populate input when initialQuery changes (from entity clicks)
   useEffect(() => {
     if (initialQuery && initialQuery !== question) {
