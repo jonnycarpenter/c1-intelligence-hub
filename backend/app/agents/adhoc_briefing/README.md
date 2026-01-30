@@ -21,6 +21,19 @@ On-demand AI briefings using **Claude Sonnet 4.5** with multi-source intelligenc
 | Timeout | ~10 seconds | **120 seconds** |
 | Streaming | Text only | **SSE progress events** |
 
+## C1 Industry Context (Added Jan 30, 2026)
+
+The agent's `SYSTEM_PROMPT` includes hardcoded context specific to Composites One (C1):
+
+| Context Area | Contents |
+|--------------|----------|
+| **Company Identity** | "Composites One (C1), the largest composites distributor in North America" |
+| **Competitors** | Hexcel, Toray, Solvay, Owens Corning, Huntsman, Gurit, Teijin, SGL Carbon, Mitsubishi Chemical |
+| **Products** | Carbon fiber, fiberglass, resins (epoxy, polyester, vinyl ester), core materials, prepregs, ancillaries |
+| **End Markets** | Aerospace, Automotive, Marine, Wind Energy, Infrastructure, Sporting Goods, Industrial |
+
+This enables the agent to provide more relevant, strategic responses when users ask about competitors, products, or market developments.
+
 ## Data Sources
 
 The agent searches in this order:
@@ -57,18 +70,21 @@ The streaming endpoint emits progress events for real-time feedback:
 The ad-hoc briefing is now fully conversational with collapsible history:
 
 - **Stacking Briefings**: Each new question adds a briefing to the stack (newest on top)
-- **Collapsible History**: Older briefings collapse to header; click to expand
+- **Collapsible History**: ALL briefings are collapsible - click header to toggle
 - **No Limits**: Users can ask unlimited questions in a session
 - **Gentle Nudge**: After 2 questions, shows "For comprehensive analysis, try Deep Research"
 - **Clear Option**: "Clear conversation" button at bottom to reset
 
 ### Frontend Components
 
-**CollapsibleBriefing Component**:
-- Index 0 (newest): Always shows full ResponseCard
-- Index > 0 (older): Shows collapsed header with question + confidence badge
-- Click header → expands to show full ResponseCard
+**CollapsibleBriefing Component** (Updated Jan 30, 2026):
+- **All briefings collapsible**: Every briefing can be collapsed, including the newest one
+- When expanded: Shows ▲ button in header to collapse
+- When collapsed: Shows compact question preview with confidence badge
+- Click anywhere on collapsed bar to expand
 - ChevronDown icon rotates to indicate state
+
+**ResponseCard** (no longer used for first briefing - unified into CollapsibleBriefing)
 
 **Frontend State** (`useAdHocBriefing` hook):
 - `briefings[]`: Array of all briefings (newest first)

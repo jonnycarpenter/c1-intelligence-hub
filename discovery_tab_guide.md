@@ -6,12 +6,13 @@
 
 ## Overview
 
-The Discovery tab is the primary market intelligence exploration view in the CPG Intelligence Hub. It provides:
+The Discovery tab (now renamed **Market Intelligence**) is the primary market intelligence exploration view in the CPG Intelligence Hub. It provides:
 1. **Two-column layout** - Category list (left) + Detail panel (right)
-2. **AdHocBriefing input** - Simple "Ask about this week's news..." bar at top (same UX as Need to Know tab)
-3. **Category cards** - Click to view DigestCards in detail panel
-4. **AI Summary** - Click AI Summary button to see thematic analysis in detail panel
-5. **Entity pivot** - Click entity pills on DigestCards to auto-populate the question input
+2. **Priority Spotlight** - AI-generated priority guidance (collapsible)
+3. **AdHocBriefing assistant** - Collapsible "Ask about the feed..." section
+4. **Category cards** - Click to view DigestCards in detail panel
+5. **AI Summary** - Click AI Summary button to see thematic analysis in detail panel
+6. **Entity pivot** - Click entity pills on DigestCards to auto-populate the question input
 
 ### Data Configuration (Updated Jan 17, 2026)
 
@@ -22,43 +23,53 @@ The Discovery tab is the primary market intelligence exploration view in the CPG
 | Priorities | Critical, High, Medium | Excludes Low priority (noise reduction) |
 | Confidence | ≥ 0.3 | Minimum classifier confidence |
 
+### UX Improvements (Jan 30, 2026)
+
+| Feature | Description |
+|---------|-------------|
+| **Collapsible Priority Spotlight** | Click header to collapse/expand the bulletin board |
+| **Collapsible Ad-Hoc Assistant** | Starts collapsed; click "Ask about the feed..." to expand |
+| **Scrollable Page** | Entire page now scrolls properly to show all content |
+| **Max Height Constraint** | Expanded assistant has max-height 400px with internal scroll |
+
 ---
 
-## Architecture Diagram (Updated Jan 24, 2026)
+## Architecture Diagram (Updated Jan 30, 2026)
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│                          DISCOVERY TAB                                    │
+│                     MARKET INTELLIGENCE TAB                              │
 ├──────────────────────────────────────────────────────────────────────────┤
 │  [Live Intelligence]  Good afternoon, Team                                │
 │                       We've analyzed X signals • Y critical               │
 ├──────────────────────────────────────────────────────────────────────────┤
-│  💬 Ask about this week's news...                               [Send]   │
+│  ⚡ PRIORITY SPOTLIGHT                    [72h] [▲]  ← Collapsible       │
+│  ┌─────────────────────────────────────────────────┐                     │
+│  │ 1. Key Priority Item                            │  (When expanded)    │
+│  │ 2. Second Priority                              │                     │
+│  └─────────────────────────────────────────────────┘                     │
+├──────────────────────────────────────────────────────────────────────────┤
+│  ✨ Ask about the feed...                           [▶]  ← Collapsible   │
+│  ┌─────────────────────────────────────────────────┐                     │
+│  │ [AdHocBriefing Component]                       │  (When expanded,    │
+│  │ Max-height: 400px, scrollable                   │   with scroll)      │
+│  └─────────────────────────────────────────────────┘                     │
 ├──────────────────────────────────────────────────────────────────────────┤
 │                                                                          │
-│  BY CATEGORY (30 days)          │   DETAIL PANEL                         │
-│  ━━━━━━━━━━━━━━━━━━━━━━━━━━━   │   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━     │
+│  CATEGORY THEMES (30 days)     │   DETAIL PANEL                          │
+│  ━━━━━━━━━━━━━━━━━━━━━━━━━━━   │   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━      │
 │  ┌─────────────────────────┐   │                                         │
 │  │ Competitor Moves [12] → │   │   "Select a category"                   │
 │  │             [AI Summary]│   │   Click a category to view articles,    │
 │  └─────────────────────────┘   │   or click AI Summary for thematic      │
 │  ┌─────────────────────────┐   │   analysis                              │
 │  │ Market Dynamics [8] →   │   │                                         │
-│  │             [AI Summary]│   │   ── OR when category selected ──       │
+│  │             [AI Summary]│   │                                         │
 │  └─────────────────────────┘   │                                         │
-│  ┌─────────────────────────┐   │   [DigestCard]                          │
-│  │ Product News [5] →      │   │   [DigestCard]                          │
-│  │             [AI Summary]│   │   [DigestCard]                          │
-│  └─────────────────────────┘   │                                         │
-│  ...                           │   ── OR when AI Summary selected ──     │
+│  ...                           │                                         │
 │                                │                                         │
-│                                │   ┌─────────────────────────────────┐   │
-│                                │   │ 🌟 Strategic Themes (dark)       │   │
-│                                │   │ Theme 1: Title + insight         │   │
-│                                │   │ Theme 2: Title + insight         │   │
-│                                │   │ 🎯 One-off summary               │   │
-│                                │   └─────────────────────────────────┘   │
 └──────────────────────────────────────────────────────────────────────────┘
+     ↑ ENTIRE PAGE SCROLLS (overflow-y-auto on outer container)
 ```
 
 ---
