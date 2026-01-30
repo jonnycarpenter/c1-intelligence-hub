@@ -83,6 +83,15 @@ export interface AdHocBriefingContext {
   recent_digest_topics?: string[]
   current_brief_id?: string
   active_filters?: string[]
+  // Discovery tab context
+  visible_digest_items?: Array<{
+    title: string
+    summary?: string
+    source_name?: string
+    category?: string
+    priority?: string
+  }>
+  active_category?: string
 }
 
 export interface AdHocBriefingRequest {

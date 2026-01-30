@@ -717,15 +717,15 @@ async def get_bulletin_board():
         try:
             items = await storage.get_digest_items(hours=hours)
             for item in items:
-                priority = getattr(item, 'priority', '') or ''
+                priority = item.get('priority', '') or ''
                 if priority.lower() in ['high', 'critical']:
                     priority_items.append({
-                        "id": getattr(item, 'id', ''),
-                        "title": getattr(item, 'title', ''),
-                        "primary_category": getattr(item, 'category', ''),
+                        "id": item.get('id', ''),
+                        "title": item.get('title', ''),
+                        "primary_category": item.get('category', ''),
                         "priority": priority,
-                        "published_at": getattr(item, 'published_at', None),
-                        "source_name": getattr(item, 'source_name', ''),
+                        "published_at": item.get('published_at'),
+                        "source_name": item.get('source_name', ''),
                     })
         except Exception as e:
             logger.warning(f"[BULLETIN_BOARD] Failed to get digest items: {e}")
@@ -738,15 +738,15 @@ async def get_bulletin_board():
             try:
                 items = await storage.get_digest_items(hours=hours)
                 for item in items:
-                    priority = getattr(item, 'priority', '') or ''
+                    priority = item.get('priority', '') or ''
                     if priority.lower() in ['high', 'critical']:
                         priority_items.append({
-                            "id": getattr(item, 'id', ''),
-                            "title": getattr(item, 'title', ''),
-                            "primary_category": getattr(item, 'category', ''),
+                            "id": item.get('id', ''),
+                            "title": item.get('title', ''),
+                            "primary_category": item.get('category', ''),
                             "priority": priority,
-                            "published_at": getattr(item, 'published_at', None),
-                            "source_name": getattr(item, 'source_name', ''),
+                            "published_at": item.get('published_at'),
+                            "source_name": item.get('source_name', ''),
                         })
             except Exception as e:
                 logger.warning(f"[BULLETIN_BOARD] Failed to get extended digest items: {e}")

@@ -19,6 +19,7 @@ import AdHocBriefing from '@/components/dashboard/AdHocBriefing'
 import { api } from '@/lib/api'
 import BulletinBoard from './BulletinBoard'
 import type { DigestItem, DigestStats, Category, Priority, DiscoverySummaryResponse } from '@/types'
+import type { AdHocBriefingContext } from '@/types/briefing'
 
 // =============================================================================
 // Types
@@ -405,6 +406,30 @@ const DiscoveryView = forwardRef<DiscoveryViewRef, DiscoveryViewProps>(
       return groupedByCategory.get(selectedCategory) || []
     }, [selectedCategory, groupedByCategory])
 
+    // Build context for the Ad Hoc assistant - makes it aware of visible items
+    const adHocContext: AdHocBriefingContext = useMemo(() => {
+      // Get top digest items (prioritizing high/critical, limit to 15 for prompt size)
+      const topItems = items
+        .sort((a, b) => {
+          const priorityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 }
+          return (priorityOrder[a.priority?.toLowerCase()] ?? 4) - (priorityOrder[b.priority?.toLowerCase()] ?? 4)
+        })
+        .slice(0, 15)
+        .map(item => ({
+          title: item.title,
+          summary: item.summary,
+          source_name: item.sources?.[0]?.name,
+          category: item.category,
+          priority: item.priority,
+        }))
+
+      return {
+        visible_digest_items: topItems,
+        active_category: selectedCategory || undefined,
+        recent_digest_topics: Array.from(groupedByCategory.keys()),
+      }
+    }, [items, selectedCategory, groupedByCategory])
+
     // Calculate stats
     const totalItems = items.length
     const criticalCount = items.filter(i => i.priority === 'critical').length
@@ -501,9 +526,9 @@ const DiscoveryView = forwardRef<DiscoveryViewRef, DiscoveryViewProps>(
             <BulletinBoard />
           </div>
 
-          {/* Ask about the feed */}
-          <div className="shrink-0 px-6 py-3 border-b border-slate-100">
-            <AdHocBriefing compact initialQuery={assistantQuery} />
+          {/* Ask about the feed - max height with scroll to prevent layout push */}
+          <div className="shrink-0 px-6 py-3 border-b border-slate-100 max-h-[300px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300">
+            <AdHocBriefing compact initialQuery={assistantQuery} context={adHocContext} />
           </div>
 
           {/* Loading state */}
@@ -535,7 +560,7 @@ const DiscoveryView = forwardRef<DiscoveryViewRef, DiscoveryViewProps>(
                   <div className="flex items-center gap-2 mb-4">
                     <TrendingUp size={16} className="text-slate-500" />
                     <h2 className="text-sm font-semibold text-slate-600 uppercase tracking-wide">
-                      By Category (30 days)
+                      Category Themes
                     </h2>
                   </div>
 
