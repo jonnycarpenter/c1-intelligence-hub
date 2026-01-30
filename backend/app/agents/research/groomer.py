@@ -180,6 +180,36 @@ CRITICAL REQUIREMENTS:
 3. If query is reasonably clear, set status to "ready" and provide the queries
 """
 
+def _count_prior_clarifications(history: list) -> int:
+    """
+    Count how many clarification exchanges have already occurred in the conversation.
+    
+    A clarification exchange is an AIMessage (the groomer asking a question) 
+    followed by a HumanMessage (the user's answer).
+    
+    Returns:
+        Number of completed clarification exchanges
+    """
+    if not history:
+        return 0
+    
+    clarification_count = 0
+    i = 0
+    while i < len(history) - 1:
+        msg = history[i]
+        next_msg = history[i + 1]
+        
+        # AIMessage followed by HumanMessage = one clarification exchange
+        if (hasattr(msg, '__class__') and msg.__class__.__name__ == 'AIMessage' and
+            hasattr(next_msg, '__class__') and next_msg.__class__.__name__ == 'HumanMessage'):
+            clarification_count += 1
+            i += 2  # Skip both messages
+        else:
+            i += 1
+    
+    return clarification_count
+
+
 async def query_grooming_node(state: DeepResearchState) -> DeepResearchState:
     """
     Main grooming logic. Calls Claude to interpret the query and generate a brief.
@@ -188,6 +218,10 @@ async def query_grooming_node(state: DeepResearchState) -> DeepResearchState:
     - Reference related past findings
     - Avoid redundant clarifying questions
     - Generate more targeted search queries
+    
+    IMPORTANT: Enforces max 1 clarifying question per session. If a clarification
+    has already been asked and answered, the groomer will force status="ready"
+    and proceed with research using sensible defaults.
     """
     import time
     from datetime import datetime
@@ -195,6 +229,14 @@ async def query_grooming_node(state: DeepResearchState) -> DeepResearchState:
     start_timestamp = datetime.now().isoformat()
     logger.info(f"[GROOMER] START at {start_timestamp} - query: {state.get('user_query', '')[:50]}...")
     logger.info(f"[GROOMER] State keys: {list(state.keys())}")
+    
+    # =========================================================================
+    # ENFORCEMENT: Max 1 clarifying question per session
+    # Count prior clarifications from conversation history
+    # =========================================================================
+    history = state.get("conversation_history") or []
+    prior_clarifications = _count_prior_clarifications(history)
+    logger.info(f"[GROOMER] Prior clarifications detected: {prior_clarifications}")
     
     llm = create_resilient_llm_with_openai_fallback(
         primary_model=settings.deep_research_groomer_model,
@@ -232,17 +274,18 @@ async def query_grooming_node(state: DeepResearchState) -> DeepResearchState:
     if prior_context:
         system_content = f"{GROOMER_SYSTEM_PROMPT}\n\n{prior_context}"
         logger.info("Injected prior research context into groomer prompt")
-        # emit_progress_sync(ToolProgress(
-        #     tool_name="prior_research",
-        #     message="Found related prior research",
-        #     status="complete"
-        # ))
-    # else:
-    #     emit_progress_sync(ToolProgress(
-    #         tool_name="prior_research",
-    #         message="No related prior research found",
-    #         status="complete"
-    #     ))
+    
+    # Add context hint when user has answered a clarifying question
+    # This helps the LLM understand it should now proceed with the clarified info
+    if prior_clarifications >= 1:
+        system_content += """
+
+## USER HAS ALREADY ANSWERED A CLARIFYING QUESTION
+The user has already provided answers to clarifying questions. 
+You MUST now set status="ready" and generate the research plan using their clarified information.
+Do NOT ask any more questions. Proceed with research immediately.
+Remember: Your response MUST be valid JSON matching the schema above."""
+        logger.info("[GROOMER] Added clarification-answered context hint to prompt")
     
     # Build messages from state
     messages = [SystemMessage(content=system_content)]
@@ -328,12 +371,32 @@ async def query_grooming_node(state: DeepResearchState) -> DeepResearchState:
     try:
         # Extract JSON from response content (handling potential markdown)
         content = response.content
+        logger.info(f"[GROOMER] Raw response length: {len(content)} chars")
         logger.debug(f"Raw groomer response: {content[:500]}...")
+        
+        # Validate response is not empty
+        if not content or not content.strip():
+            logger.error("[GROOMER] LLM returned empty response")
+            state["errors"].append({"node": "groomer", "error": "LLM returned empty response - please try again"})
+            state["current_status"] = "grooming_failed"
+            emit_progress_sync(ToolProgress(
+                tool_name="query_analysis",
+                message="LLM returned empty response - please try again",
+                status="error"
+            ))
+            return state
         
         if "```json" in content:
             content = content.split("```json")[1].split("```")[0].strip()
         elif "```" in content:
             content = content.split("```")[1].split("```")[0].strip()
+        
+        # Final check after markdown extraction
+        if not content.strip():
+            logger.error("[GROOMER] No JSON found in LLM response after markdown extraction")
+            state["errors"].append({"node": "groomer", "error": "LLM response did not contain valid JSON"})
+            state["current_status"] = "grooming_failed"
+            return state
             
         brief_data = json.loads(content)
         
@@ -348,6 +411,21 @@ async def query_grooming_node(state: DeepResearchState) -> DeepResearchState:
             }
         
         research_brief = ResearchBrief(**brief_data)
+        
+        # =====================================================================
+        # ENFORCEMENT: Max 1 clarifying question per session
+        # If we've already asked a clarification, force status to READY
+        # =====================================================================
+        if research_brief.status == QueryStatus.NEEDS_CLARIFICATION and prior_clarifications >= 1:
+            logger.warning(f"[GROOMER] ENFORCEMENT: Already had {prior_clarifications} clarification(s), forcing status=READY")
+            # Override the status - proceed with research using whatever info we have
+            research_brief.status = QueryStatus.READY
+            research_brief.clarifying_question = None
+            emit_progress_sync(ToolProgress(
+                tool_name="query_analysis",
+                message="Proceeding with research (clarification limit reached)",
+                status="complete"
+            ))
         
         state["research_brief"] = research_brief
         elapsed = time.time() - start_time
