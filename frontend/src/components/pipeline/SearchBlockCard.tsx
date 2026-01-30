@@ -662,11 +662,17 @@ function ProspectItem({
                         <div className="flex items-center gap-2 text-xs">
                           <span className="font-semibold text-slate-500 w-12">SIC:</span>
                           <div className="flex flex-wrap gap-1">
-                            {enrichment.sic_codes.map((code, i) => (
-                              <span key={i} className="px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded">
-                                {code}
-                              </span>
-                            ))}
+                            {enrichment.sic_codes.map((code, i) => {
+                              // Handle both string and object formats from Apollo API
+                              const displayCode = typeof code === 'string'
+                                ? code
+                                : (code as any)?.code || (code as any)?.name || String(code)
+                              return (
+                                <span key={i} className="px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded">
+                                  {displayCode}
+                                </span>
+                              )
+                            })}
                           </div>
                         </div>
                       )}
@@ -674,11 +680,17 @@ function ProspectItem({
                         <div className="flex items-center gap-2 text-xs">
                           <span className="font-semibold text-slate-500 w-12">NAICS:</span>
                           <div className="flex flex-wrap gap-1">
-                            {enrichment.naics_codes.map((code, i) => (
-                              <span key={i} className="px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded">
-                                {code}
-                              </span>
-                            ))}
+                            {enrichment.naics_codes.map((code, i) => {
+                              // Handle both string and object formats from Apollo API
+                              const displayCode = typeof code === 'string'
+                                ? code
+                                : (code as any)?.code || (code as any)?.name || String(code)
+                              return (
+                                <span key={i} className="px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded">
+                                  {displayCode}
+                                </span>
+                              )
+                            })}
                           </div>
                         </div>
                       )}
@@ -1040,7 +1052,7 @@ function ApolloContactTeaserItem({
   // Build full location string
   const locationParts = [contact.city, contact.state, contact.country].filter(Boolean)
   const fullLocation = contact.location || locationParts.join(', ')
-  
+
   // Format data freshness
   const formatFreshness = (dateStr?: string) => {
     if (!dateStr) return null
@@ -1056,7 +1068,7 @@ function ApolloContactTeaserItem({
       return null
     }
   }
-  
+
   const freshness = formatFreshness(contact.last_updated)
   const isStale = contact.last_updated && new Date(contact.last_updated) < new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
 
@@ -1072,9 +1084,9 @@ function ApolloContactTeaserItem({
   }
 
   // Determine the display name - prefer revealed full name
-  const displayName = contact.name || contact.name_display || 
+  const displayName = contact.name || contact.name_display ||
     `${contact.first_name} ${contact.last_name || contact.last_name_preview || ''}`.trim()
-  
+
   // Check if we have actual contact info (revealed)
   const hasActualEmail = !!contact.email
   const hasActualPhone = !!contact.phone
@@ -1100,18 +1112,18 @@ function ApolloContactTeaserItem({
             </span>
           )}
         </div>
-        
+
         {/* Title */}
         {contact.title && (
           <p className="text-sm text-slate-600 mt-0.5">{contact.title}</p>
         )}
-        
+
         {/* Department Badges */}
         {contact.departments && contact.departments.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-1.5">
             {contact.departments.slice(0, 3).map((dept, i) => (
-              <span 
-                key={i} 
+              <span
+                key={i}
                 className={`px-2 py-0.5 text-[10px] font-medium rounded border ${getDeptColor(dept)}`}
               >
                 {dept.charAt(0).toUpperCase() + dept.slice(1).replace(/_/g, ' ')}
@@ -1119,17 +1131,17 @@ function ApolloContactTeaserItem({
             ))}
           </div>
         )}
-        
+
         {/* Company */}
         {contact.company_name && (
           <p className="text-sm text-slate-500 mt-1">{contact.company_name}</p>
         )}
-        
+
         {/* Revealed Contact Info - Email & Phone */}
         {(hasActualEmail || hasActualPhone) && (
           <div className="flex items-center gap-4 mt-2 text-sm">
             {hasActualEmail && (
-              <a 
+              <a
                 href={`mailto:${contact.email}`}
                 className="flex items-center gap-1.5 text-emerald-700 hover:text-emerald-800 font-medium"
               >
@@ -1141,7 +1153,7 @@ function ApolloContactTeaserItem({
               </a>
             )}
             {hasActualPhone && (
-              <a 
+              <a
                 href={`tel:${contact.phone}`}
                 className="flex items-center gap-1.5 text-emerald-700 hover:text-emerald-800 font-medium"
               >
@@ -1151,7 +1163,7 @@ function ApolloContactTeaserItem({
             )}
           </div>
         )}
-        
+
         {/* Meta Row: Location, Contact Availability (legacy), Freshness */}
         <div className="flex items-center gap-3 mt-2 text-xs text-slate-400 flex-wrap">
           {fullLocation && (
@@ -1181,7 +1193,7 @@ function ApolloContactTeaserItem({
           )}
         </div>
       </div>
-      
+
       {/* LinkedIn - always visible now */}
       <div className="flex items-center gap-1 shrink-0">
         {contact.linkedin_url && (
