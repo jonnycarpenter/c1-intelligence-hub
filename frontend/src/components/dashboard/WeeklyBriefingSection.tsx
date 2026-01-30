@@ -211,11 +211,12 @@ const renderTextWithLogosAndCitations = (
 interface InsightItemProps {
   insight: BriefingInsight
   companiesWithLogos: CompanyWithLogo[]
+  sourceArticles?: SourceArticle[]
   isHeadline?: boolean
   isSneakPeek?: boolean
 }
 
-function InsightItem({ insight, companiesWithLogos, isHeadline = false, isSneakPeek = false }: InsightItemProps) {
+function InsightItem({ insight, companiesWithLogos, sourceArticles, isHeadline = false, isSneakPeek = false }: InsightItemProps) {
 
   return (
     <div className={cn(
@@ -234,7 +235,7 @@ function InsightItem({ insight, companiesWithLogos, isHeadline = false, isSneakP
             : "text-sm text-slate-700",
           isSneakPeek ? "line-clamp-1 truncate" : ""
         )}>
-          {renderTextWithLogosAndCitations(insight.text, companiesWithLogos)}
+          {renderTextWithLogosAndCitations(insight.text, companiesWithLogos, sourceArticles)}
         </div>
         <div className="mt-1.5 flex items-center gap-2">
           {!isSneakPeek && <StatusBadge status={insight.status} />}
@@ -293,6 +294,7 @@ function SectionCard({ section, isFirst = false }: SectionCardProps) {
           <InsightItem
             insight={section.headline}
             companiesWithLogos={companies}
+            sourceArticles={articles}
             isHeadline={true}
           />
         )}
@@ -303,6 +305,7 @@ function SectionCard({ section, isFirst = false }: SectionCardProps) {
             <InsightItem
               insight={insights[0]}
               companiesWithLogos={companies}
+              sourceArticles={articles}
               isSneakPeek={true}
             />
             <div className="absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-white to-transparent pointer-events-none" />
@@ -338,6 +341,7 @@ function SectionCard({ section, isFirst = false }: SectionCardProps) {
               key={idx}
               insight={insight}
               companiesWithLogos={companies}
+              sourceArticles={articles}
             />
           ))}
         </div>

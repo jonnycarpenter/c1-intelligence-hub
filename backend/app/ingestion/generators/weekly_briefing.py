@@ -350,18 +350,36 @@ FINAL BRIEFING JSON FORMAT:
         """
         Extract citation numbers from text.
         
+        Handles both individual citations [N] and comma-separated [N, M, Exa:K].
+        
         Returns:
             Tuple of (pre_brief_citations, exa_citations)
             - pre_brief_citations: List of [N] citation numbers (1-indexed)
             - exa_citations: List of [Exa:N] citation numbers (1-indexed)
         """
-        # Match [1], [2], etc. but NOT [[Company]] or [Exa:N]
-        pre_brief_pattern = r'\[(\d+)\](?!\])'
-        pre_brief_citations = [int(m) for m in re.findall(pre_brief_pattern, text)]
+        pre_brief_citations = []
+        exa_citations = []
         
-        # Match [Exa:1], [Exa:2], etc.
-        exa_pattern = r'\[Exa:(\d+)\]'
-        exa_citations = [int(m) for m in re.findall(exa_pattern, text)]
+        # First, find all bracket contents (but not double brackets [[Company]])
+        # This matches [4], [11], [4,11], [1, 2, Exa:3], etc.
+        bracket_pattern = r'\[([^\[\]]+)\](?!\])'
+        bracket_contents = re.findall(bracket_pattern, text)
+        
+        for content in bracket_contents:
+            # Split by comma and process each part
+            parts = [p.strip() for p in content.split(',')]
+            
+            for part in parts:
+                # Check if it's an Exa citation
+                exa_match = re.match(r'Exa:(\d+)', part)
+                if exa_match:
+                    exa_citations.append(int(exa_match.group(1)))
+                    continue
+                
+                # Check if it's a plain number (pre-brief citation)
+                num_match = re.match(r'^(\d+)$', part)
+                if num_match:
+                    pre_brief_citations.append(int(num_match.group(1)))
         
         return sorted(set(pre_brief_citations)), sorted(set(exa_citations))
     
