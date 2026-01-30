@@ -177,7 +177,7 @@ class ApiClient {
     extended_to_7_days: boolean
     generated_at: string
   }> {
-    const response = await fetch(`${this.baseUrl}/api/stats/discovery/bulletin`)
+    const response = await fetch(`${this.baseUrl}/api/discovery/bulletin`)
 
     if (!response.ok) {
       // Return empty fallback if endpoint not yet implemented

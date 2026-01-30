@@ -672,3 +672,124 @@ async def get_discovery_category_summary(category: str):
         elapsed = time.time() - request_start
         logger.error(f"[DISCOVERY_SUMMARY] Endpoint FAILED: {elapsed:.2f}s, error={str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to generate summary: {str(e)}")
+
+
+# =============================================================================
+# Bulletin Board Endpoint (Priority Spotlight)
+# =============================================================================
+
+class BulletinBoardResponse(BaseModel):
+    """Contextual guidance for the Market Intelligence bulletin board."""
+    bullets: List[str]
+    total_priority_items: int
+    categories_covered: List[str] = []
+    time_window_hours: int
+    extended_to_7_days: bool = False
+    generated_at: str
+
+
+@router.get("/bulletin", response_model=BulletinBoardResponse)
+async def get_bulletin_board():
+    """
+    Get contextual guidance bullets for the Market Intelligence bulletin board.
+    
+    Analyzes HIGH/CRITICAL priority items from the last 72 hours (or 7 days if none).
+    Uses Haiku LLM to generate 1-3 brief, actionable guidance bullets pointing
+    users to the most important content.
+    """
+    request_start = time.time()
+    logger.info("[BULLETIN_BOARD] Endpoint START")
+    
+    try:
+        from app.ingestion.generators.bulletin_board import BulletinBoardGenerator
+        from app.db.gcp_storage import get_storage
+        
+        storage = await get_storage()
+        
+        # 1. Try 72 hours first
+        hours = 72
+        priority_items = []
+        
+        # Get HIGH/CRITICAL priority articles
+        cutoff = datetime.utcnow() - timedelta(hours=hours)
+        
+        # Query digest_items for high priority articles
+        try:
+            items = await storage.get_digest_items(hours=hours)
+            for item in items:
+                priority = getattr(item, 'priority', '') or ''
+                if priority.lower() in ['high', 'critical']:
+                    priority_items.append({
+                        "id": getattr(item, 'id', ''),
+                        "title": getattr(item, 'title', ''),
+                        "primary_category": getattr(item, 'category', ''),
+                        "priority": priority,
+                        "published_at": getattr(item, 'published_at', None),
+                        "source_name": getattr(item, 'source_name', ''),
+                    })
+        except Exception as e:
+            logger.warning(f"[BULLETIN_BOARD] Failed to get digest items: {e}")
+        
+        # 2. If no items in 72h, extend to 7 days
+        extended = False
+        if len(priority_items) == 0:
+            hours = 168  # 7 days
+            extended = True
+            try:
+                items = await storage.get_digest_items(hours=hours)
+                for item in items:
+                    priority = getattr(item, 'priority', '') or ''
+                    if priority.lower() in ['high', 'critical']:
+                        priority_items.append({
+                            "id": getattr(item, 'id', ''),
+                            "title": getattr(item, 'title', ''),
+                            "primary_category": getattr(item, 'category', ''),
+                            "priority": priority,
+                            "published_at": getattr(item, 'published_at', None),
+                            "source_name": getattr(item, 'source_name', ''),
+                        })
+            except Exception as e:
+                logger.warning(f"[BULLETIN_BOARD] Failed to get extended digest items: {e}")
+        
+        # 3. Sort by published_at (most recent first)
+        priority_items.sort(
+            key=lambda x: x.get("published_at") or "",
+            reverse=True
+        )
+        
+        logger.info(f"[BULLETIN_BOARD] Found {len(priority_items)} priority items in {hours}h window")
+        
+        # 4. Generate bulletin board content
+        try:
+            generator = BulletinBoardGenerator(anthropic_api_key=settings.anthropic_api_key)
+            result = await generator.generate(priority_items, hours_window=hours, extended=extended)
+            
+            elapsed = time.time() - request_start
+            logger.info(f"[BULLETIN_BOARD] Endpoint COMPLETE: {elapsed:.2f}s, bullets={len(result.get('bullets', []))}")
+            
+            return BulletinBoardResponse(**result)
+            
+        except Exception as gen_error:
+            logger.error(f"[BULLETIN_BOARD] Generator failed: {gen_error}")
+            # Fallback response
+            return BulletinBoardResponse(
+                bullets=["Check out the category themes below for the latest intelligence."],
+                total_priority_items=len(priority_items),
+                categories_covered=[],
+                time_window_hours=hours,
+                extended_to_7_days=extended,
+                generated_at=datetime.utcnow().isoformat()
+            )
+        
+    except Exception as e:
+        elapsed = time.time() - request_start
+        logger.error(f"[BULLETIN_BOARD] Endpoint FAILED: {elapsed:.2f}s, error={str(e)}", exc_info=True)
+        # Return graceful fallback
+        return BulletinBoardResponse(
+            bullets=["Explore the categories below for the latest intelligence."],
+            total_priority_items=0,
+            categories_covered=[],
+            time_window_hours=72,
+            extended_to_7_days=False,
+            generated_at=datetime.utcnow().isoformat()
+        )
