@@ -149,9 +149,8 @@ function CategoryRow({
             {config.label}
           </span>
           {highPriorityCount > 0 && (
-            <span className="flex items-center gap-1 text-xs font-medium text-amber-600">
-              <Flame size={12} />
-              {highPriorityCount} urgent
+            <span className="text-xs font-medium text-amber-600">
+              {highPriorityCount} high priority
             </span>
           )}
           <span className="text-sm text-slate-400">{items.length} items</span>
@@ -199,6 +198,9 @@ interface DetailPanelProps {
   isLoadingSummary: boolean
   onClose: () => void
   onQuickFilter: (query: string) => void
+  // For enhanced empty state
+  allItems?: DigestItem[]
+  categoryCount?: number
 }
 
 function DetailPanel({
@@ -208,34 +210,132 @@ function DetailPanel({
   summary,
   isLoadingSummary,
   onClose,
-  onQuickFilter
+  onQuickFilter,
+  allItems = [],
+  categoryCount = 0
 }: DetailPanelProps) {
   const config = category ? CATEGORY_CONFIG[category] || { label: category, color: 'border-l-slate-400', bgLight: 'bg-slate-50' } : null
 
-  // Sort items for display
+  // Get top 3 priority signals for empty state preview
+  const topSignals = useMemo(() => {
+    return [...allItems]
+      .sort((a, b) => {
+        const priorityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 }
+        const aPriority = priorityOrder[a.priority?.toLowerCase()] ?? 4
+        const bPriority = priorityOrder[b.priority?.toLowerCase()] ?? 4
+        if (aPriority !== bPriority) return aPriority - bPriority
+        return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      })
+      .slice(0, 3)
+  }, [allItems])
+
+  // Empty state - enhanced with top signals preview
+  if (!category || !mode) {
+    const totalHighPriority = allItems.filter(i =>
+      i.priority?.toLowerCase() === 'critical' || i.priority?.toLowerCase() === 'high'
+    ).length
+
+    return (
+      <div className="h-full flex flex-col p-6">
+        {/* Header with pulse summary */}
+        <div className="mb-6">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+            <h3 className="text-sm font-bold uppercase tracking-wide text-slate-600">
+              Intelligence Overview
+            </h3>
+          </div>
+          <p className="text-2xl font-bold text-slate-800">
+            <span className="text-teal-600">{totalHighPriority}</span> priority signals across{' '}
+            <span className="text-teal-600">{categoryCount}</span> categories
+          </p>
+          <p className="text-sm text-slate-500 mt-1">
+            Select a category to explore, or click AI Summary for instant analysis
+          </p>
+        </div>
+
+        {/* Top Signals Preview */}
+        {topSignals.length > 0 && (
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-3">
+              <Zap size={14} className="text-amber-500" />
+              <h4 className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                Today's Top Signals
+              </h4>
+            </div>
+            <div className="space-y-3">
+              {topSignals.map((item, idx) => {
+                const itemConfig = CATEGORY_CONFIG[item.category] || {
+                  label: item.category,
+                  color: 'border-l-slate-400',
+                  bgLight: 'bg-slate-50'
+                }
+                return (
+                  <div
+                    key={item.id}
+                    className={cn(
+                      "p-4 rounded-xl border-l-4 bg-gradient-to-r from-white to-slate-50/50 shadow-sm hover:shadow-md transition-all cursor-default",
+                      itemConfig.color
+                    )}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="shrink-0 w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-500">
+                        {idx + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={cn(
+                            "text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded",
+                            item.priority?.toLowerCase() === 'critical'
+                              ? "bg-red-100 text-red-700"
+                              : "bg-amber-100 text-amber-700"
+                          )}>
+                            {item.priority}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-medium">
+                            {itemConfig.label}
+                          </span>
+                        </div>
+                        <p className="text-sm font-semibold text-slate-800 line-clamp-2 leading-snug">
+                          {item.title}
+                        </p>
+                        {item.summary && (
+                          <p className="text-xs text-slate-500 mt-1 line-clamp-1">
+                            {item.summary}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Fallback if no items */}
+        {topSignals.length === 0 && (
+          <div className="flex-1 flex items-center justify-center text-slate-400">
+            <div className="text-center">
+              <Layers size={32} className="mx-auto mb-2 text-slate-300" />
+              <p className="text-sm">No signals to display</p>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // Sort items for display (used when showing cards)
   const sortedItems = useMemo(() => {
     return [...items].sort((a, b) => {
       const priorityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 }
-      // Normalize priorities to lowercase for consistent lookup (backend sends Title Case)
       const aPriority = priorityOrder[a.priority?.toLowerCase()] ?? 4
       const bPriority = priorityOrder[b.priority?.toLowerCase()] ?? 4
       if (aPriority !== bPriority) return aPriority - bPriority
       return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
     })
   }, [items])
-
-  // Empty state
-  if (!category || !mode) {
-    return (
-      <div className="h-full flex flex-col items-center justify-center text-slate-400 p-8">
-        <div className="p-4 bg-slate-100 rounded-full mb-4">
-          <Layers size={32} className="text-slate-300" />
-        </div>
-        <p className="font-medium text-slate-500 mb-1">Select a category</p>
-        <p className="text-sm text-center">Click a category to view articles, or click AI Summary for thematic analysis</p>
-      </div>
-    )
-  }
 
   return (
     <div className="h-full flex flex-col">
@@ -625,6 +725,8 @@ const DiscoveryView = forwardRef<DiscoveryViewRef, DiscoveryViewProps>(
                     isLoadingSummary={isLoadingSummary}
                     onClose={handleCloseDetail}
                     onQuickFilter={handleQuickFilter}
+                    allItems={items}
+                    categoryCount={sortedCategories.length}
                   />
                 </div>
               </div>

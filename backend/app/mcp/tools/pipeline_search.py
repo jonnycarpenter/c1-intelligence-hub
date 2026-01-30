@@ -12,6 +12,7 @@ All results include domain extraction and logo URLs for rich UI display.
 
 from typing import Optional, List, Literal
 import json
+import asyncio
 from langchain_core.tools import tool
 
 from app.services.exa_service import exa_service
@@ -917,28 +918,53 @@ async def search_companies_filtered(
         
         # Format results for display
         formatted = []
-        for org in organizations:
-            formatted.append({
-                "company_name": org.name,
-                "domain": org.domain,
-                "description": org.description or "",
-                "logo_url": org.logo_url or f"https://logo.clearbit.com/{org.domain}" if org.domain else None,
-                "employee_count": org.employee_count,
-                "founded_year": org.founded_year,
-                "industry": org.industry,
-                "revenue_printed": org.revenue_printed,
-                "annual_revenue": org.annual_revenue,
-                "city": org.city,
-                "state": org.state,
-                "country": org.country,
-                "address": org.raw_address,
-                "phone": org.phone,
-                "website": org.website_url,
-                "linkedin_url": org.linkedin_url,
-                "technologies": org.technologies[:5] if org.technologies else [],
-                "keywords": org.keywords[:5] if org.keywords else [],
-                # Full apollo_enrichment for profile drawer rendering
-                "apollo_enrichment": {
+        
+        # Secondary enrichment pass: get full profile data for each result
+        # Apollo's /search endpoint returns sparse data; /enrich has full details
+        async def enrich_single(org):
+            """Fetch full enrichment data for a single org."""
+            if not org.domain:
+                return None
+            try:
+                enriched = await apollo_service.enrich_organization(org.domain)
+                return enriched
+            except Exception as e:
+                logger.warning(f"[Pipeline] Secondary enrichment failed for {org.domain}: {e}")
+                return None
+        
+        # Run enrichments in parallel
+        enriched_orgs = await asyncio.gather(*[enrich_single(org) for org in organizations])
+        
+        for i, org in enumerate(organizations):
+            # Use enriched data if available, fall back to search data
+            enriched = enriched_orgs[i]
+            
+            # Build apollo_enrichment from the richer source
+            if enriched:
+                apollo_enrichment = {
+                    "name": enriched.name or org.name,
+                    "domain": enriched.domain or org.domain,
+                    "description": enriched.description or org.description,
+                    "logo_url": enriched.logo_url or org.logo_url or (f"https://logo.clearbit.com/{org.domain}" if org.domain else None),
+                    "employee_count": enriched.employee_count or org.employee_count,
+                    "founded_year": enriched.founded_year or org.founded_year,
+                    "revenue_printed": enriched.revenue_printed or org.revenue_printed,
+                    "annual_revenue": enriched.annual_revenue or org.annual_revenue,
+                    "industry": enriched.industry or org.industry,
+                    "city": enriched.city or org.city,
+                    "state": enriched.state or org.state,
+                    "country": enriched.country or org.country,
+                    "linkedin_url": enriched.linkedin_url or org.linkedin_url,
+                    "technologies": (enriched.technologies[:15] if enriched.technologies else []) or (org.technologies[:10] if org.technologies else []),
+                    "keywords": (enriched.keywords[:10] if enriched.keywords else []) or (org.keywords[:10] if org.keywords else []),
+                    "sic_codes": enriched.sic_codes or org.sic_codes or [],
+                    "naics_codes": enriched.naics_codes or org.naics_codes or [],
+                    "retail_location_count": enriched.retail_location_count or org.retail_location_count,
+                    "suborganizations": (enriched.suborganizations[:10] if enriched.suborganizations else []) or ([s.get("name") if isinstance(s, dict) else s for s in (org.suborganizations or [])][:10]),
+                }
+            else:
+                # Fall back to search-only data
+                apollo_enrichment = {
                     "name": org.name,
                     "domain": org.domain,
                     "description": org.description,
@@ -958,8 +984,31 @@ async def search_companies_filtered(
                     "naics_codes": org.naics_codes or [],
                     "retail_location_count": org.retail_location_count,
                     "suborganizations": [s.get("name") if isinstance(s, dict) else s for s in (org.suborganizations or [])][:10],
-                },
+                }
+            
+            formatted.append({
+                "company_name": org.name,
+                "domain": org.domain,
+                "description": apollo_enrichment["description"] or "",
+                "logo_url": apollo_enrichment["logo_url"],
+                "employee_count": org.employee_count,
+                "founded_year": apollo_enrichment["founded_year"],
+                "industry": org.industry,
+                "revenue_printed": org.revenue_printed,
+                "annual_revenue": org.annual_revenue,
+                "city": org.city,
+                "state": org.state,
+                "country": org.country,
+                "address": org.raw_address,
+                "phone": org.phone,
+                "website": org.website_url,
+                "linkedin_url": org.linkedin_url,
+                "technologies": apollo_enrichment["technologies"][:5],
+                "keywords": apollo_enrichment["keywords"][:5],
+                # Full apollo_enrichment for profile drawer rendering
+                "apollo_enrichment": apollo_enrichment,
             })
+
         
         # Build filter description for UI
         filters_applied = []

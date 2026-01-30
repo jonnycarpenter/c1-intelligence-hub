@@ -898,6 +898,8 @@ class ExaService:
                         "employee_count": org.employee_count,
                         "annual_revenue": org.annual_revenue,
                         "revenue_printed": org.revenue_printed,
+                        "founded_year": org.founded_year,
+                        "logo_url": org.logo_url,
                         "industry": org.industry,
                         "city": org.city,
                         "state": org.state,
