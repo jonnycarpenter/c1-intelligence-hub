@@ -489,12 +489,22 @@ const DiscoveryView = forwardRef<DiscoveryViewRef, DiscoveryViewProps>(
       setDetailMode(null)
     }, [])
 
+    // Ad-hoc assistant collapsed state - starts collapsed unless there's a query
+    const [isAssistantExpanded, setIsAssistantExpanded] = useState(false)
+
+    // Auto-expand when assistantQuery is set (e.g., from entity clicks)
+    React.useEffect(() => {
+      if (assistantQuery) {
+        setIsAssistantExpanded(true)
+      }
+    }, [assistantQuery])
+
     return (
-      <div className="h-full flex flex-col overflow-hidden bg-slate-200 p-4 gap-4">
+      <div className="h-full overflow-y-auto bg-slate-200 p-4">
         {/* Main Content Area */}
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-white rounded-2xl shadow-sm border border-slate-100/60">
+        <div className="min-h-full flex flex-col bg-white rounded-2xl shadow-sm border border-slate-100/60">
           {/* Header */}
-          <div className="shrink-0 px-6 py-4 bg-white border-b border-slate-200">
+          <div className="shrink-0 px-6 py-4 bg-white border-b border-slate-200 rounded-t-2xl">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-full">
@@ -526,14 +536,34 @@ const DiscoveryView = forwardRef<DiscoveryViewRef, DiscoveryViewProps>(
             <BulletinBoard />
           </div>
 
-          {/* Ask about the feed - max height with scroll to prevent layout push */}
-          <div className="shrink-0 px-6 py-3 border-b border-slate-100 max-h-[300px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300">
-            <AdHocBriefing compact initialQuery={assistantQuery} context={adHocContext} />
+          {/* Ask about the feed - Collapsible section */}
+          <div className="shrink-0 px-6 py-3 border-b border-slate-100">
+            <button
+              onClick={() => setIsAssistantExpanded(!isAssistantExpanded)}
+              className="w-full flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200/50 hover:from-emerald-100 hover:to-teal-100 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <Sparkles size={16} className="text-emerald-600" />
+                <span className="text-sm font-medium text-emerald-800">Ask about the feed...</span>
+              </div>
+              <ChevronRight
+                size={16}
+                className={cn(
+                  "text-emerald-500 transition-transform duration-200",
+                  isAssistantExpanded && "rotate-90"
+                )}
+              />
+            </button>
+            {isAssistantExpanded && (
+              <div className="mt-3 max-h-[400px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300">
+                <AdHocBriefing compact initialQuery={assistantQuery} context={adHocContext} />
+              </div>
+            )}
           </div>
 
           {/* Loading state */}
           {isLoading && (
-            <div className="flex-1 flex items-center justify-center">
+            <div className="flex-1 flex items-center justify-center py-16">
               <div className="text-center">
                 <div className="animate-spin w-8 h-8 border-2 border-teal-500 border-t-transparent rounded-full mx-auto mb-3" />
                 <p className="text-slate-500">Loading intelligence feed...</p>
@@ -553,10 +583,10 @@ const DiscoveryView = forwardRef<DiscoveryViewRef, DiscoveryViewProps>(
 
           {/* Main 2-column grid */}
           {!isLoading && !error && (
-            <div className="flex-1 overflow-hidden p-6">
-              <div className="h-full flex gap-6">
+            <div className="flex-1 p-6">
+              <div className="flex gap-6" style={{ minHeight: '500px' }}>
                 {/* Left Column: Category List */}
-                <div className="w-[400px] shrink-0 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-300">
+                <div className="w-[400px] shrink-0">
                   <div className="flex items-center gap-2 mb-4">
                     <TrendingUp size={16} className="text-slate-500" />
                     <h2 className="text-sm font-semibold text-slate-600 uppercase tracking-wide">
@@ -586,7 +616,7 @@ const DiscoveryView = forwardRef<DiscoveryViewRef, DiscoveryViewProps>(
                 </div>
 
                 {/* Right Column: Detail Panel */}
-                <div className="flex-1 border-l border-slate-200 pl-6">
+                <div className="flex-1 border-l border-slate-200 pl-6 min-h-[400px]">
                   <DetailPanel
                     category={selectedCategory}
                     items={selectedItems}
