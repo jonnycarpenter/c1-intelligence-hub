@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Activity, Search, Package, Building2, Factory, Database, RefreshCw, Bell, User, Mic, GitBranch, Ship, LogOut } from 'lucide-react'
+import { Activity, Search, Package, Building2, Factory, Database, RefreshCw, Bell, User, Mic, GitBranch, Ship, LogOut, Compass } from 'lucide-react'
 import { Button } from '@/components/ui'
 import { cn } from '@/lib/utils'
 import type { Mode } from '@/types'
@@ -93,9 +93,11 @@ interface AppHeaderProps {
   activeMode: Mode
   onRefresh?: () => void
   isRefreshing?: boolean
+  onOpenGuide?: () => void
+  shouldAnimateGuide?: boolean
 }
 
-export default function AppHeader({ activeMode, onRefresh, isRefreshing = false }: AppHeaderProps) {
+export default function AppHeader({ activeMode, onRefresh, isRefreshing = false, onOpenGuide, shouldAnimateGuide = false }: AppHeaderProps) {
   const config = modeConfig[activeMode]
   const Icon = config.icon
 
@@ -147,10 +149,28 @@ export default function AppHeader({ activeMode, onRefresh, isRefreshing = false 
           </Button>
         )}
 
+        {/* Guide button */}
+        {onOpenGuide && (
+          <button
+            onClick={onOpenGuide}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-2 rounded-lg text-teal-600 hover:bg-teal-50 transition-colors border border-teal-200 hover:border-teal-300",
+              shouldAnimateGuide && "animate-pulse ring-2 ring-teal-400 ring-offset-2 shadow-lg shadow-teal-200"
+            )}
+          >
+            <Compass size={18} className={cn(shouldAnimateGuide && "animate-spin")} style={shouldAnimateGuide ? { animationDuration: '3s' } : undefined} />
+            <span className="text-sm font-medium">Guide</span>
+            {shouldAnimateGuide && (
+              <span className="ml-1 text-xs bg-teal-500 text-white px-1.5 py-0.5 rounded-full animate-bounce">New</span>
+            )}
+          </button>
+        )}
+
         <button className="relative p-2 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors">
           <Bell size={20} />
           <span className="absolute top-1 right-1 w-2 h-2 bg-emerald-500 rounded-full" />
         </button>
+
 
         {/* User indicator with dropdown */}
         <div className="relative">

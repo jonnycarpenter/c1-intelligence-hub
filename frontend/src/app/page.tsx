@@ -16,7 +16,7 @@ import { PipelineDashboard } from '@/components/pipeline'
 // import { ImportYetiDashboard } from '@/components/importyeti' // ARCHIVED - Trade Intel feature
 import DataPreferencesDashboard from '@/components/data-preferences/DataPreferencesDashboard'
 import { DiscoveryView } from '@/components/feed'
-import { WelcomeTourModal } from '@/components/welcome'
+import { GuidePanel } from '@/components/guide'
 import { useDigest, useStreamingChat, useDeepResearch } from '@/hooks'
 import { useToast } from '@/components/ui'
 import { api } from '@/lib/api'
@@ -30,19 +30,23 @@ export default function Home() {
   const [activeMode, setActiveMode] = useState<Mode>('pulse')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [isReportOpen, setIsReportOpen] = useState(false)
-  const [showWelcomeTour, setShowWelcomeTour] = useState(false)
+  const [isGuideOpen, setIsGuideOpen] = useState(false)
+  const [shouldAnimateGuide, setShouldAnimateGuide] = useState(false)
 
-  // Check if first visit and show welcome tour
+  // Check if first visit and animate Guide button to draw attention
   useEffect(() => {
-    const hasSeenTour = localStorage.getItem('c1-hub-tour-seen')
-    if (!hasSeenTour) {
-      setShowWelcomeTour(true)
+    const hasSeenGuide = localStorage.getItem('c1-hub-guide-seen')
+    if (!hasSeenGuide) {
+      // Add slight delay so button is rendered first
+      setTimeout(() => setShouldAnimateGuide(true), 500)
     }
   }, [])
 
-  const handleCloseTour = () => {
-    setShowWelcomeTour(false)
-    localStorage.setItem('c1-hub-tour-seen', 'true')
+  const handleOpenGuide = () => {
+    setIsGuideOpen(true)
+    // Stop animation and mark as seen
+    setShouldAnimateGuide(false)
+    localStorage.setItem('c1-hub-guide-seen', 'true')
   }
 
   // Research state
@@ -337,6 +341,8 @@ export default function Home() {
         <AppHeader
           activeMode={activeMode}
           onRefresh={handleRefresh}
+          onOpenGuide={handleOpenGuide}
+          shouldAnimateGuide={shouldAnimateGuide}
         />
 
         {/* Main split view */}
@@ -491,10 +497,10 @@ export default function Home() {
         }}
       />
 
-      {/* Welcome Tour Modal */}
-      <WelcomeTourModal
-        isOpen={showWelcomeTour}
-        onClose={handleCloseTour}
+      {/* Guide Panel */}
+      <GuidePanel
+        isOpen={isGuideOpen}
+        onClose={() => setIsGuideOpen(false)}
       />
     </div>
   )
