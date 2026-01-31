@@ -452,14 +452,14 @@ export default function WeeklyBriefingSection({
 
   return (
     <div className="space-y-6">
-      {/* Need to Know Header */}
+      {/* The Brief Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <div className="p-3 bg-gradient-to-br from-emerald-100 to-emerald-50 rounded-xl shadow-sm border border-emerald-200/60">
             <Zap size={24} className="text-emerald-600" fill="currentColor" />
           </div>
           <div>
-            <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight leading-none">Need to Know</h2>
+            <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight leading-none">The Brief</h2>
             <p className="text-xs text-emerald-600/80 font-bold uppercase tracking-widest mt-1">Strategic Priorities</p>
           </div>
           {/* Listen to Podcast Button */}
@@ -546,11 +546,16 @@ export default function WeeklyBriefingSection({
         />
       )}
 
-      {/* Sections */}
-      <div className="space-y-4">
-        {(briefing.sections || []).map((section, idx) => (
-          <SectionCard key={idx} section={section} isFirst={idx === 0} />
-        ))}
+      {/* Industry Headlines Section */}
+      <div className="mt-8">
+        <h2 className="text-2xl font-extrabold text-emerald-600/80 tracking-tight leading-none mb-4">
+          INDUSTRY HEADLINES
+        </h2>
+        <div className="space-y-4">
+          {(briefing.sections || []).map((section, idx) => (
+            <SectionCard key={idx} section={section} isFirst={idx === 0} />
+          ))}
+        </div>
       </div>
 
       {/* Key Topics Footer */}

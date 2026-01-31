@@ -354,7 +354,13 @@ export default function Home() {
           )}>
             {activeMode === 'pulse' && (
               <PulseDashboard
-                digestItems={digestItems}
+                digestItems={
+                  // DRUMBEAT feed: filter to only show critical or high priority items (case-insensitive)
+                  (digestItems || []).filter(item => {
+                    const priority = (item.priority || '').toLowerCase()
+                    return priority === 'critical' || priority === 'high'
+                  })
+                }
                 stats={digestStats}
                 onAskAbout={handleAskAbout}
                 onAddToReport={handleAddToReport}

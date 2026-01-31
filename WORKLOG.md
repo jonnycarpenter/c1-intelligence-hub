@@ -22,6 +22,36 @@ Without reliable daily ingestion:
 
 - [x] Investigate `Minified React error #310` when clicking a category theme on the Market Intelligence tab (likely a Hook violation)
 - [x] Fix 'Intelligence Hub Guide' returning 404 errors when opened
+- [x] Determine app header vs page header relationship across the app
+- [x] Adjust DRUMBEAT FEED to only include critical or high news items/digest cards
+
+---
+## 📅 SESSION 100: The Brief Rename & DRUMBEAT Priority Filter (January 31, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 What Was Done
+
+1. **Renamed "Need to Know" tab to "The Brief"**
+   - Updated app header title in `AppHeader.tsx`
+   - Updated sidebar nav item label in `Sidebar.tsx`
+   - Updated on-page header in `WeeklyBriefingSection.tsx`
+
+2. **Filtered DRUMBEAT Feed to Critical/High Priority Only**
+   - DRUMBEAT feed remains at 7 days lookback (168 hours)
+   - Now only shows `critical` or `high` priority digest items
+   - Uses case-insensitive comparison (`priority.toLowerCase()`) to handle known mixed-casing issues from different ingestion runs
+
+### 📁 Files Modified
+
+**Frontend:**
+- `frontend/src/components/layout/AppHeader.tsx` - Changed pulse mode title
+- `frontend/src/components/layout/Sidebar.tsx` - Changed nav item label
+- `frontend/src/components/dashboard/WeeklyBriefingSection.tsx` - Changed on-page header
+- `frontend/src/app/page.tsx` - Added priority filter for DRUMBEAT feed
+
+### 🧪 Verification
+- `npm run build` ✅ Compiled successfully
 
 ---
 ## 📅 SESSION 99: Intelligence Hub Guide 404 Fix (January 30, 2026)

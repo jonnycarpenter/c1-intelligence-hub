@@ -33,7 +33,7 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { id: 'pulse', label: 'Need to Know', icon: Activity, description: 'Strategic Priorities', color: 'text-emerald-500', bg: 'bg-emerald-500' },
+  { id: 'pulse', label: 'The Brief', icon: Activity, description: 'Strategic Priorities', color: 'text-emerald-500', bg: 'bg-emerald-500' },
   { id: 'discovery', label: 'Market Intelligence', icon: Compass, description: 'Industry landscape', color: 'text-teal-500', bg: 'bg-teal-500', tooltip: 'Explore market intelligence with AI assistant' },
   { id: 'research', label: 'Research', icon: Search, description: 'Deep analysis', color: 'text-emerald-500', bg: 'bg-emerald-500' },
   { id: 'pipeline', label: 'Pipeline', icon: GitBranch, description: 'Prospect discovery', color: 'text-purple-500', bg: 'bg-purple-500', tooltip: 'Find similar companies and decision makers' },
