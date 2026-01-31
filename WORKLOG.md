@@ -20,7 +20,29 @@ Without reliable daily ingestion:
 
 ## 🚨 TODO / Open Issues
 
-(none currently)
+- [x] Investigate `Minified React error #310` when clicking a category theme on the Market Intelligence tab (likely a Hook violation)
+
+---
+## 📅 SESSION 98: Market Intelligence React Error Fix (January 30, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Problem
+Users encountered `Minified React error #310` when clicking on a category theme in the Market Intelligence tab. This error typically correlates to a "Rendered more hooks than during the previous render" violation in React.
+
+### 💡 Root Cause
+In `frontend/src/components/feed/DiscoveryView.tsx`, the `DetailPanel` component had a `useMemo` hook (calculating `sortedItems`) placed **after** a conditional return statement (`if (!category || !mode) return ...`).
+When the component state changed from empty/null to having a category, the early return was skipped, causing the `useMemo` hook to execute for the first time in that render cycle, violating React's Rules of Hooks (hooks must be called in the same order on every render).
+
+### ✅ Fix
+Moved the `sortedItems` `useMemo` hook to the top of the component function, before any conditional return statements. This ensures the hook executes consistently on every render.
+
+### 📁 Files Modified
+- `frontend/src/components/feed/DiscoveryView.tsx` - Moved `useMemo` before conditional return
+
+### 🧪 Verification
+- `npm run build` ✅ passes
+- Code structure now complies with Rules of Hooks.
 
 ---
 ## 📅 SESSION 96: Deep Research Report Generation Fix (January 30, 2026)
@@ -4812,3 +4834,24 @@ SESSION 7 COMPLETED:
 - \rontend/src/components/feed/DiscoveryView.tsx\
 - \rontend/src/components/feed/FullFeedView.tsx\
 
+
+---
+## ðŸ“… SESSION 97: Enable Markdown for Thinking Output (January 30, 2026)
+
+**Status**: âœ… COMPLETE
+
+### ðŸŽ¯ Problem
+The "Claude's Reasoning Process" section in Deep Research reports was rendering the thinking content as raw text within a `<pre>` tag. This prevented rich formatting (bold, lists, code blocks) from being displayed correctly, making the reasoning process harder to read.
+
+### ðŸ’¡ Root Cause
+The `ResearchReport.tsx` component was using a simple `<pre>` tag to display the `thinking_content` string, which does not parse markdown syntax.
+
+### âœ… Fix
+Replaced the `<pre>` tag with the `<ReactMarkdown>` component to properly render the markdown content. Added styling classes (`text-sm text-slate-700 leading-relaxed space-y-2`) to ensure good typography and readability.
+
+### ðŸ“ Files Modified
+- `frontend/src/components/research/ResearchReport.tsx` - Replaced `<pre>` with `<ReactMarkdown>`
+
+### ðŸ§ª Verification
+- `npm run build` âœ… passes
+- Verified component structure change via code review.

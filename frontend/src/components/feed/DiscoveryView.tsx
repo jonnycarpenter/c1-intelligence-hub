@@ -247,6 +247,17 @@ function DetailPanel({
       .slice(0, 3)
   }, [allItems])
 
+  // Sort items for display (used when showing cards)
+  const sortedItems = useMemo(() => {
+    return [...items].sort((a, b) => {
+      const priorityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 }
+      const aPriority = priorityOrder[a.priority?.toLowerCase()] ?? 4
+      const bPriority = priorityOrder[b.priority?.toLowerCase()] ?? 4
+      if (aPriority !== bPriority) return aPriority - bPriority
+      return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    })
+  }, [items])
+
   // Empty state - enhanced with top signals preview
   if (!category || !mode) {
     const totalHighPriority = allItems.filter(i =>
@@ -344,16 +355,7 @@ function DetailPanel({
     )
   }
 
-  // Sort items for display (used when showing cards)
-  const sortedItems = useMemo(() => {
-    return [...items].sort((a, b) => {
-      const priorityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 }
-      const aPriority = priorityOrder[a.priority?.toLowerCase()] ?? 4
-      const bPriority = priorityOrder[b.priority?.toLowerCase()] ?? 4
-      if (aPriority !== bPriority) return aPriority - bPriority
-      return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-    })
-  }, [items])
+
 
   return (
     <div className="h-full flex flex-col">
