@@ -35,6 +35,14 @@ Without reliable daily ingestion:
 - [x] **"New Since Last Visit" Badges** - Track last visit, show NEW badges
 - [ ] **Virtual Scrolling** - Performance optimization for 500+ items
 - [ ] **Saved Filter Presets** - Let users save filter combinations
+- [ ] **Deep Research Troubleshooting**
+    - [ ] Display linked charts/images/graphs (currently appended links but not displayed)
+    - [ ] Fix incomplete citation list (verify all sources are output)
+    - [ ] Fix empty earnings call quotes container
+- [ ] **Model Attribution**
+    - [ ] Add footer to Deep Research and Briefings indicating the model used
+    - [ ] List every LLM used in the process
+    - [ ] Highlight fallback LLMs if used
 
 ---
 ## 📅 SESSION 104: Market Pulse Implementation (January 31, 2026)

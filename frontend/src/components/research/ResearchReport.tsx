@@ -101,31 +101,43 @@ interface Citation {
 function CitationList({ citations }: { citations: Citation[] }) {
     if (!citations || citations.length === 0) return null
 
-    // Filter to only citations with URLs
-    const linkedCitations = citations.filter(c => c.source_url)
-    if (linkedCitations.length === 0) return null
-
     return (
         <div className="mt-4 pt-4 border-t border-slate-100">
             <p className="text-xs font-medium text-slate-500 mb-2 flex items-center gap-1">
                 <ExternalLink size={12} />
-                Sources
+                Sources ({citations.length})
             </p>
             <div className="flex flex-wrap gap-2">
-                {linkedCitations.map((citation, idx) => {
-                    const domain = citation.source_url ? extractDomain(citation.source_url) : 'Unknown'
+                {citations.map((citation, idx) => {
+                    const domain = citation.source_url ? extractDomain(citation.source_url) : null
+                    const title = citation.source_title || 'Unknown Source'
+
+                    // If we have a URL, render as clickable link
+                    if (citation.source_url) {
+                        return (
+                            <a
+                                key={idx}
+                                href={citation.source_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-600 hover:text-slate-900 transition-colors group"
+                                title={title}
+                            >
+                                <span className="font-medium">{domain}</span>
+                                <ExternalLink size={10} className="opacity-50 group-hover:opacity-100" />
+                            </a>
+                        )
+                    }
+
+                    // No URL - render as non-clickable reference
                     return (
-                        <a
+                        <span
                             key={idx}
-                            href={citation.source_url || '#'}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-600 hover:text-slate-900 transition-colors group"
-                            title={citation.source_title}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-500"
+                            title={title}
                         >
-                            <span className="font-medium">{domain}</span>
-                            <ExternalLink size={10} className="opacity-50 group-hover:opacity-100" />
-                        </a>
+                            <span>{title.length > 40 ? title.slice(0, 40) + '...' : title}</span>
+                        </span>
                     )
                 })}
             </div>

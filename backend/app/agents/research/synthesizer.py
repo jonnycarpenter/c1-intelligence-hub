@@ -421,6 +421,46 @@ def _condense_findings(output) -> Dict[str, Any]:
     return condensed
 
 
+def _hydrate_visual_blocks(sections: list, available_visuals: list) -> list:
+    """
+    Inject image_url and other visual metadata into blocks that reference a visual_id.
+    
+    The LLM generates visual_split blocks with just a visual_id reference.
+    This function hydrates the block.data with the actual image_url, caption,
+    and data_summary from the available_visuals list.
+    """
+    if not available_visuals:
+        return sections
+    
+    # Create lookup by visual_id
+    visual_lookup = {v.get("visual_id"): v for v in available_visuals}
+    
+    for section in sections:
+        if not isinstance(section, dict):
+            continue
+        for block in section.get("blocks", []):
+            if not isinstance(block, dict):
+                continue
+            if block.get("block_type") in ("visual_split", "visual_hero"):
+                data = block.get("data", {})
+                vid = data.get("visual_id")
+                if vid and vid in visual_lookup:
+                    visual = visual_lookup[vid]
+                    # Hydrate missing fields from available_visuals
+                    if not data.get("image_url"):
+                        data["image_url"] = visual.get("image_url")
+                    if not data.get("caption"):
+                        data["caption"] = visual.get("caption")
+                    if not data.get("data_summary"):
+                        data["data_summary"] = visual.get("data_summary")
+                    # Also include article_url for sourcing
+                    if not data.get("article_url"):
+                        data["article_url"] = visual.get("article_url")
+                    logger.debug(f"[SYNTHESIZER] Hydrated visual block {vid} with image_url: {data.get('image_url')[:50] if data.get('image_url') else 'N/A'}...")
+    
+    return sections
+
+
 SYNTHESIZER_SYSTEM_PROMPT = """You are a synthesis agent. Convert research findings into a dynamic, block-based executive report.
 
 ## GOLDEN RULE: Design the report page. Don't just write text blocks.
@@ -443,8 +483,13 @@ You build the report by stacking these blocks. Choose the best block for the dat
    - constraint: You MUST copy the `visual_id` exactly from the input.
 
 4. `quote`: A styled executive quote callout.
-   - Use for: Verbatim CEO/CFO quotes that ground the narrative.
+   - Use for: Verbatim CEO/CFO quotes from earnings calls that ground the narrative.
    - source: Must come from `direct_quote` in findings.
+   - REQUIRED fields in data:
+     - text: The actual quote text (copy exactly from direct_quote)
+     - speaker: Full name and title (e.g., "Gary McGuire, CEO")
+     - context: Source event (e.g., "Q3 2025 Earnings Call", "Investor Day 2025")
+     - sentiment: "positive" | "neutral" | "negative" (optional)
 
 5. `table`: A structured data table.
    - Use for: Comparing 3+ items or dimensions.
@@ -679,6 +724,13 @@ OUTPUT FORMAT (valid JSON):
         
         companies_with_logos = _enrich_companies_with_logos(all_entities)
         output_data["companies_with_logos"] = [c.model_dump() for c in companies_with_logos]
+
+        # CRITICAL: Hydrate visual blocks with actual image URLs
+        # The LLM generates visual_split blocks with only visual_id references.
+        # This step injects the actual image_url, caption, etc. from available_visuals.
+        if output_data.get("sections") and available_visuals:
+            output_data["sections"] = _hydrate_visual_blocks(output_data["sections"], available_visuals)
+            logger.info(f"[SYNTHESIZER] Hydrated visual blocks using {len(available_visuals)} available visuals")
 
         # CRITICAL: Normalize LLM output before Pydantic validation
         # This fixes enum mismatches (e.g., "text" -> "paragraph", "High" -> "high")
