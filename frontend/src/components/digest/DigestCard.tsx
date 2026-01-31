@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import React, { useState, useMemo } from 'react'
 import {
   ExternalLink,
   Newspaper,
@@ -97,15 +97,32 @@ function highlightEntities(text: string, entities: string[]): React.ReactNode {
   })
 }
 
+export interface DigestCardHandle {
+  toggleExpand: () => void
+  scrollIntoView: (options?: ScrollIntoViewOptions) => void
+}
+
 interface DigestCardProps {
   item: DigestItem
   onQuickFilter?: (query: string) => void  // Called when entity pill is clicked
   lastVisitTime?: Date | null  // For NEW badge - items published after this are marked new
+  isFocused?: boolean
 }
 
-export default function DigestCard({ item, onQuickFilter, lastVisitTime }: DigestCardProps) {
+export default React.forwardRef<DigestCardHandle, DigestCardProps>(function DigestCard(
+  { item, onQuickFilter, lastVisitTime, isFocused },
+  ref
+) {
   const [showSourcesModal, setShowSourcesModal] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
+  const containerRef = React.useRef<HTMLDivElement>(null)
+
+  // Expose toggleExpand to parent
+  React.useImperativeHandle(ref, () => ({
+    toggleExpand: () => setIsExpanded(prev => !prev),
+    scrollIntoView: (options) => containerRef.current?.scrollIntoView(options)
+  }))
+
   const sources = item.sources || []
   const hasMultipleSources = sources.length > 1
 
@@ -163,14 +180,19 @@ export default function DigestCard({ item, onQuickFilter, lastVisitTime }: Diges
   }
 
   return (
-    <div className={cn(
-      "group relative rounded-r-xl rounded-l-md shadow-sm border border-slate-200/60 transition-all duration-300",
-      "hover:shadow-lg hover:-translate-y-0.5 hover:border-emerald-300/60",
-      "border-l-4",
-      borderColors[normalizedPriority] || 'border-slate-300',
-      bgGradients[normalizedPriority] || 'bg-white',
-      priorityGlow[normalizedPriority] || ''
-    )}>
+    <div
+      ref={containerRef}
+      className={cn(
+        "group relative rounded-r-xl rounded-l-md shadow-sm border border-slate-200/60 transition-all duration-300",
+        "hover:shadow-lg hover:-translate-y-0.5 hover:border-emerald-300/60",
+        "border-l-4",
+        borderColors[normalizedPriority] || 'border-slate-300',
+        bgGradients[normalizedPriority] || 'bg-white',
+        priorityGlow[normalizedPriority] || '',
+        // Focus styles for keyboard nav
+        isFocused && "ring-2 ring-emerald-500 ring-offset-2 z-10 scale-[1.01] shadow-xl border-emerald-400"
+      )}
+    >
       <div className="p-4 space-y-3">
         {/* Header: Title & Meta */}
         <div className="space-y-1.5">
@@ -233,7 +255,7 @@ export default function DigestCard({ item, onQuickFilter, lastVisitTime }: Diges
                 e.stopPropagation();
                 setIsExpanded(!isExpanded);
               }}
-              className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 hover:text-emerald-700 transition-colors"
+              className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 hover:text-emerald-700 transition-colors focus:outline-none focus:text-emerald-800"
             >
               {isExpanded ? (
                 <>Show less <ChevronUp size={12} /></>
@@ -282,7 +304,7 @@ export default function DigestCard({ item, onQuickFilter, lastVisitTime }: Diges
               hasMultipleSources ? (
                 <button
                   onClick={() => setShowSourcesModal(true)}
-                  className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-emerald-600 transition-colors group/src"
+                  className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-emerald-600 transition-colors group/src focus:outline-none focus:text-emerald-700"
                 >
                   <Newspaper size={12} />
                   <span className="group-hover/src:underline decoration-emerald-200 underline-offset-2">
@@ -294,7 +316,7 @@ export default function DigestCard({ item, onQuickFilter, lastVisitTime }: Diges
                   href={sources[0].url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-emerald-600 transition-colors group/src"
+                  className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-emerald-600 transition-colors group/src focus:outline-none focus:text-emerald-700"
                 >
                   <ExternalLink size={12} />
                   <span className="truncate max-w-[200px] group-hover/src:underline decoration-emerald-200 underline-offset-2">
@@ -359,7 +381,7 @@ export default function DigestCard({ item, onQuickFilter, lastVisitTime }: Diges
       </div>
     </div>
   )
-}
+})
 
 // Compact variant for lists
 interface DigestListItemProps {

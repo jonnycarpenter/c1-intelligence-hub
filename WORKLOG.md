@@ -40,9 +40,97 @@ Without reliable daily ingestion:
     - [x] Fix incomplete citation list (CitationList now shows all sources)
     - [x] Fix empty earnings call quotes container (improved prompt guidance)
 - [ ] **Model Attribution**
-    - [ ] Add footer to Deep Research and Briefings indicating the model used
+    - [x] **Deep Research**: "Claude's Reasoning Process" footer added
+    - [ ] **Briefings**: Add footer indicating model used
     - [ ] List every LLM used in the process
     - [ ] Highlight fallback LLMs if used
+- [x] **Keyboard Navigation**
+    - [c] Implemented Arrow Key traversal for Full Feed
+    - [c] Added visual focus ring to Digest Cards
+    - [c] "Enter" to expand/collapse cards
+    - [c] "Escape" to clear selection
+
+
+---
+## 📅 SESSION 108: Keyboard Navigation & Attribution Check (January 31, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Goals
+Implement keyboard navigation for the Full Feed to improve accessibility and user efficiency. Also verify the state of Model Attribution across the app.
+
+### ✅ Completed
+
+1. **Keyboard Navigation (Full Feed)**
+   - **Arrow Keys**: Implemented `j`/`k` and `ArrowDown`/`ArrowUp` traversal in `FullFeedView`.
+   - **Visual Focus**: Added a distinct emerald ring and scale effect to `DigestCard` when focused.
+   - **Interaction**: "Enter" expands/collapses the focused card. "Escape" clears the selection.
+   - **Smooth Scrolling**: The focused card automatically scrolls into view.
+
+2. **Model Attribution Verification**
+   - **Deep Research**: Confirmed "Claude's Reasoning Process" footer is present (`ResearchReport.tsx`).
+   - **Briefings**: Confirmed explicit model attribution is currently missing (added to punch list).
+
+### 📁 Files Modified
+- `frontend/src/components/feed/FullFeedView.tsx` - Implemented keyboard event listeners and state.
+- `frontend/src/components/digest/DigestCard.tsx` - Exposed expansion handle and added focus styling.
+
+### 🧪 Verification
+- `npm run build` ✅ Compiled successfully.
+
+---
+## 📅 SESSION 107: Need to Know Animations (January 31, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Goals
+Bring the "Need to Know" (Weekly Briefing) tab up to parity with the Market Intelligence tab's visual polish, including staggered entry animations and glassmorphism styling.
+
+### ✅ Completed
+
+1. **Staggered Entry Animations**
+   - Wrapped `WeeklyBriefingSection` in `MotionWrapper`.
+   - Applied staggered slide-in animations to the "Industry Headlines" cards (`cardVariants`).
+   - Header and summary sections now fade in smoothly on load.
+
+2. **Visual Polish**
+   - **Header**: Enhanced "The Brief" header with a gradient text effect and subtle background glow.
+   - **Podcast Button**: Animated entrance with hover scale effect.
+   - **BLUF Section**: Added glassmorphism background (`bg-white/80`) and a sparkle icon.
+   - **Rich Text Preservation**: Replaced `TypewriterEffect` (which didn't support rich text) with smooth `motion.p` fade-ins to preserve clickable citations and logos.
+
+3. **TS Fixes**
+   - Fixed `framer-motion` type error by using `as const` for transition definitions.
+
+### 📁 Files Modified
+- `frontend/src/components/dashboard/WeeklyBriefingSection.tsx` - Added animations and styling.
+
+### 🧪 Verification
+- `npm run build` ✅ Compiled successfully.
+
+---
+## 📅 SESSION 106: UX Animations & Polish (January 31, 2026)
+
+**Status**: ✅ COMPLETE (Retroactive Log)
+
+### 🎯 Overview
+Discovered implemented changes for Framer Motion integration and "Thinking Authenticity" that were missing from changes logs.
+
+### ✅ Verified Features
+
+1. **Market Pulse Typewriter**
+   - `BulletinBoard.tsx` uses `TypewriterEffect` for the "thinking" authenticity animation.
+
+2. **Discovery Tab Animations**
+   - `DiscoveryView.tsx` implements staggered entry for category rows.
+   - Using `MotionWrapper` for consistent page transitions.
+
+3. **Floating Pill & Motion Wrapper**
+   - `motion-wrapper.tsx` component is active and used in main views.
+
+### 📁 Files Verified
+- `frontend/src/components/feed/BulletinBoard.tsx`
+- `frontend/src/components/feed/DiscoveryView.tsx`
 
 ---
 ## 📅 SESSION 105: Deep Research Output Fixes (January 31, 2026)
@@ -5138,3 +5226,14 @@ Replaced the `<pre>` tag with the `<ReactMarkdown>` component to properly render
 ### ðŸ§ª Verification
 - `npm run build` âœ… passes
 - Verified component structure change via code review.
+
+## Session 106: UX Polish & "Alive" Interactions
+- **Date**: 2026-01-31
+- **Focus**: Integrating Framer Motion for high-impact visual polish.
+- **Changes**:
+  - **Framer Motion Integration**: Installed `framer-motion` and created a reusable `MotionWrapper` component.
+  - **Sidebar**: Implemented a "floating active pill" using `layoutId` for smooth tab switching.
+  - **Feed Animations**: Added staggered entry animations to `DiscoveryView` (Category List) and `FullFeedView` (Cards) to eliminate "wall of text" loading.
+  - **Direct "Thinking" Feedback**: Replaced the static "Market Pulse" text with a `TypewriterEffect` component that renders text character-by-character to simulate real-time AI generation.
+  - **Documentation**: Updated `frontend/README.md` with new animation architecture details.
+

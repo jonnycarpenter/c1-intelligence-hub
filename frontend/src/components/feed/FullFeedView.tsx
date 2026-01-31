@@ -16,7 +16,7 @@ import {
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
-import DigestCard from '@/components/digest/DigestCard'
+import DigestCard, { DigestCardHandle } from '@/components/digest/DigestCard'
 import type { DigestItem, DigestStats } from '@/types'
 
 // =============================================================================
@@ -54,6 +54,15 @@ export default function FullFeedView({
     // Shuffle state
     const [isShuffled, setIsShuffled] = useState(false)
     const [shuffledOrder, setShuffledOrder] = useState<string[]>([])
+
+    // Keyboard Navigation State
+    const [selectedIndex, setSelectedIndex] = useState<number>(-1)
+    const cardRefs = React.useRef<Record<string, DigestCardHandle | null>>({})
+
+    // Reset selection when filters change
+    useEffect(() => {
+        setSelectedIndex(-1)
+    }, [searchQuery, selectedCategory, selectedPriority, selectedSource, selectedIndustry, timeRange, sortBy, isShuffled])
 
     // Last visit time for NEW badges
     const [lastVisitTime, setLastVisitTime] = useState<Date | null>(null)
@@ -194,6 +203,62 @@ export default function FullFeedView({
     }, [items, searchQuery, selectedCategory, selectedPriority,
         selectedSource, selectedIndustry, timeRange, sortBy,
         isShuffled, shuffledOrder])
+
+    // Keyboard Event Listener
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // Ignore if input is focused
+            if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
+                return
+            }
+
+            switch (e.key) {
+                case 'ArrowDown':
+                case 'j':
+                    e.preventDefault()
+                    setSelectedIndex(prev => {
+                        const next = prev + 1
+                        if (next >= filteredItems.length) return prev
+                        return next
+                    })
+                    break
+                case 'ArrowUp':
+                case 'k':
+                    e.preventDefault()
+                    setSelectedIndex(prev => {
+                        const next = prev - 1
+                        if (next < 0) return 0
+                        return next
+                    })
+                    break
+                case 'Enter':
+                    if (selectedIndex >= 0 && selectedIndex < filteredItems.length) {
+                        e.preventDefault()
+                        const itemId = filteredItems[selectedIndex].id
+                        cardRefs.current[itemId]?.toggleExpand()
+                    }
+                    break
+                case 'Escape':
+                    e.preventDefault()
+                    setSelectedIndex(-1)
+                    break
+            }
+        }
+
+        window.addEventListener('keydown', handleKeyDown)
+        return () => window.removeEventListener('keydown', handleKeyDown)
+    }, [filteredItems, selectedIndex])
+
+    // Scroll selected item into view
+    useEffect(() => {
+        if (selectedIndex >= 0 && selectedIndex < filteredItems.length) {
+            const itemId = filteredItems[selectedIndex].id
+            // Short delay to allow render
+            requestAnimationFrame(() => {
+                cardRefs.current[itemId]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            })
+        }
+    }, [selectedIndex, filteredItems])
 
     // =============================================================================
     // Handlers
@@ -492,7 +557,7 @@ export default function FullFeedView({
                                 }
                             }}
                         >
-                            {filteredItems.map((item) => (
+                            {filteredItems.map((item, index) => (
                                 <motion.div
                                     key={item.id}
                                     className="mb-4 break-inside-avoid"
@@ -502,9 +567,13 @@ export default function FullFeedView({
                                     }}
                                 >
                                     <DigestCard
+                                        ref={(el) => {
+                                            if (el) cardRefs.current[item.id] = el
+                                        }}
                                         item={item}
                                         onQuickFilter={onQuickFilter}
                                         lastVisitTime={lastVisitTime}
+                                        isFocused={index === selectedIndex}
                                     />
                                 </motion.div>
                             ))}

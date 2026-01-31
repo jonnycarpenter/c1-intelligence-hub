@@ -9,12 +9,18 @@ import {
   RefreshCw,
   ExternalLink,
   Clock,
-  Headphones
+  Headphones,
+  TrendingUp,
+  Globe,
+  Radio
 } from 'lucide-react'
+import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui'
 import { API_BASE } from '@/lib/config'
 import PodcastModal from './PodcastModal'
+import MotionWrapper from '@/components/ui/motion-wrapper'
+import TypewriterEffect from '@/components/ui/typewriter'
 import type {
   WeeklyBriefing,
   BriefingSection,
@@ -34,8 +40,8 @@ interface StatusBadgeProps {
 function StatusBadge({ status }: StatusBadgeProps) {
   if (status === 'net_new') {
     return (
-      <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-[10px] font-bold uppercase tracking-wider">
-        <Sparkles size={10} className="mr-1" />
+      <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-[10px] font-bold uppercase tracking-wider shadow-sm">
+        <Sparkles size={10} className="mr-1 fill-emerald-500/20" />
         Net New
       </Badge>
     )
@@ -95,7 +101,7 @@ function CompanyLogo({ company, size = 'sm' }: CompanyLogoProps) {
       src={logoUrl}
       alt={company.name}
       title={company.name}
-      className={cn(sizeClasses, "rounded object-contain")}
+      className={cn(sizeClasses, "rounded object-contain bg-white")}
       onError={() => setImageError(true)}
     />
   )
@@ -143,7 +149,7 @@ const renderTextWithLogosAndCitations = (
             href={article.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-emerald-600 font-semibold ml-0.5 cursor-pointer hover:underline"
+            className="text-emerald-600 font-semibold ml-0.5 cursor-pointer hover:underline decoration-emerald-300 underline-offset-2"
             title={domain || `Source ${num}`}
           >
             <sup>{numStr}</sup>
@@ -172,7 +178,7 @@ const renderTextWithLogosAndCitations = (
         <span key={idx} className="inline-flex items-center gap-1.5 align-baseline">
           <span className="font-bold text-slate-900 mx-0.5">{companyName}</span>
           {company && (
-            <span className="inline-block transform translate-y-0.5">
+            <span className="inline-block transform translate-y-0.5 shadow-sm rounded-sm">
               <CompanyLogo company={company} size="sm" />
             </span>
           )}
@@ -184,7 +190,7 @@ const renderTextWithLogosAndCitations = (
     if (/^\{\{.*?\}\}$/.test(part)) {
       const entityName = part.replace(/[\{\}]/g, '')
       return (
-        <span key={idx} className="font-semibold text-slate-800">
+        <span key={idx} className="font-bold text-slate-800 bg-slate-100/50 px-1 rounded">
           {entityName}
         </span>
       )
@@ -225,7 +231,7 @@ function InsightItem({ insight, companiesWithLogos, sourceArticles, isHeadline =
       isSneakPeek ? "opacity-60 scale-[0.98] origin-top" : ""
     )}>
       {!isHeadline && (
-        <div className="mt-2 w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+        <div className="mt-2 w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0 shadow-sm shadow-emerald-200" />
       )}
       <div className="flex-1">
         <div className={cn(
@@ -252,9 +258,10 @@ function InsightItem({ insight, companiesWithLogos, sourceArticles, isHeadline =
 interface SectionCardProps {
   section: BriefingSection
   isFirst?: boolean
+  index: number
 }
 
-function SectionCard({ section, isFirst = false }: SectionCardProps) {
+function SectionCard({ section, isFirst = false, index }: SectionCardProps) {
   const [isExpanded, setIsExpanded] = useState(isFirst) // Auto-expand first section
 
   // Safe accessors
@@ -262,17 +269,37 @@ function SectionCard({ section, isFirst = false }: SectionCardProps) {
   const insights = section.insights || []
   const articles = section.source_articles || []
 
+  // Animation variants for card slide-in
+  const cardVariants = {
+    hidden: { opacity: 0, y: 20 },
+    show: {
+      opacity: 1,
+      y: 0,
+      transition: {
+        type: "spring" as const,
+        stiffness: 100,
+        damping: 15,
+        delay: index * 0.05 // Stagger based on index
+      }
+    }
+  }
+
   return (
-    <div className={cn(
-      "bg-white border rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-200",
-      isFirst ? "border-emerald-200 ring-1 ring-emerald-50" : "border-slate-200"
-    )}>
+    <motion.div
+      variants={cardVariants}
+      className={cn(
+        "bg-white border rounded-xl overflow-hidden shadow-sm hover:shadow-lg hover:shadow-emerald-900/5 transition-all duration-300",
+        isFirst ? "border-emerald-200 ring-1 ring-emerald-50 shadow-md" : "border-slate-200"
+      )}
+    >
       {/* Section Header */}
       <div className="p-5">
-        <div className="flex items-center justify-between mb-4 bg-emerald-400/10 p-3 rounded-lg border border-emerald-400/5">
-          <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
-            {section.header}
-          </h3>
+        <div className="flex items-center justify-between mb-4 bg-gradient-to-r from-emerald-50/80 to-teal-50/30 p-3 rounded-lg border border-emerald-100/50">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
+              {section.header}
+            </h3>
+          </div>
 
           {/* Company Logos */}
           {companies.length > 0 && (
@@ -281,7 +308,7 @@ function SectionCard({ section, isFirst = false }: SectionCardProps) {
                 <CompanyLogo key={idx} company={company} size="sm" />
               ))}
               {companies.length > 5 && (
-                <span className="text-[10px] text-slate-400 ml-1">
+                <span className="text-[10px] text-slate-400 ml-1 font-medium bg-slate-100 px-1.5 py-0.5 rounded-full">
                   +{companies.length - 5}
                 </span>
               )}
@@ -308,7 +335,7 @@ function SectionCard({ section, isFirst = false }: SectionCardProps) {
               sourceArticles={articles}
               isSneakPeek={true}
             />
-            <div className="absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-white to-transparent pointer-events-none" />
+            <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-white via-white/80 to-transparent pointer-events-none" />
           </div>
         )}
 
@@ -316,16 +343,16 @@ function SectionCard({ section, isFirst = false }: SectionCardProps) {
         {insights.length > 0 && (
           <button
             onClick={() => setIsExpanded(!isExpanded)}
-            className="flex items-center gap-1 text-xs text-emerald-600 font-medium hover:text-emerald-700 transition-colors mt-1 relative z-10"
+            className="group flex items-center gap-1.5 text-xs text-emerald-600 font-medium hover:text-emerald-700 transition-colors mt-2 relative z-10 px-2 py-1 -ml-2 rounded-md hover:bg-emerald-50"
           >
             {isExpanded ? (
               <>
-                <ChevronUp size={14} />
+                <ChevronUp size={14} className="group-hover:-translate-y-0.5 transition-transform" />
                 Hide insights
               </>
             ) : (
               <>
-                <ChevronDown size={14} />
+                <ChevronDown size={14} className="group-hover:translate-y-0.5 transition-transform" />
                 Show {insights.length} more insight{insights.length > 1 ? 's' : ''}
               </>
             )}
@@ -335,7 +362,12 @@ function SectionCard({ section, isFirst = false }: SectionCardProps) {
 
       {/* Expandable Insights Tray */}
       {isExpanded && insights.length > 0 && (
-        <div className="border-t border-slate-100 bg-slate-50/50 p-5 space-y-3">
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: 'auto' }}
+          exit={{ opacity: 0, height: 0 }}
+          className="border-t border-slate-100 bg-slate-50/50 p-5 space-y-4"
+        >
           {insights.map((insight, idx) => (
             <InsightItem
               key={idx}
@@ -344,7 +376,7 @@ function SectionCard({ section, isFirst = false }: SectionCardProps) {
               sourceArticles={articles}
             />
           ))}
-        </div>
+        </motion.div>
       )}
 
       {/* Sources Footer - Grouped by Domain */}
@@ -358,30 +390,31 @@ function SectionCard({ section, isFirst = false }: SectionCardProps) {
         }, {} as Record<string, SourceArticle[]>)
 
         return (
-          <div className="border-t border-slate-100 px-5 py-3 bg-slate-50">
+          <div className="border-t border-slate-100 px-5 py-3 bg-slate-50/80">
             <div className="flex items-center gap-2 text-[10px] text-slate-400 uppercase tracking-wider mb-2">
-              <span className="font-semibold">Sources</span>
+              <Globe size={10} />
+              <span className="font-semibold">Intelligence Sources</span>
               <span>({articles.length})</span>
             </div>
-            <div className="flex flex-wrap gap-x-4 gap-y-1">
+            <div className="flex flex-wrap gap-x-4 gap-y-2">
               {Object.entries(articlesByDomain).slice(0, 6).map(([domain, domainArticles]) => (
                 <a
                   key={domain}
                   href={domainArticles[0].url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-xs text-slate-600 hover:text-emerald-600 transition-colors"
+                  className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-emerald-600 transition-colors bg-white px-2 py-1 rounded border border-slate-200 hover:border-emerald-200 hover:shadow-sm"
                   title={domainArticles.map(a => a.title).join(' | ')}
                 >
                   <span className="font-medium">{domain}</span>
-                  <span className="text-slate-400">
+                  <span className="text-slate-400 text-[10px]">
                     [{domainArticles.map(a => a.article_number).join(', ')}]
                   </span>
-                  <ExternalLink size={10} className="shrink-0 text-slate-400" />
+                  <ExternalLink size={10} className="shrink-0 text-slate-400 opacity-50" />
                 </a>
               ))}
               {Object.keys(articlesByDomain).length > 6 && (
-                <span className="text-xs text-slate-400">
+                <span className="text-xs text-slate-400 self-center px-1">
                   +{Object.keys(articlesByDomain).length - 6} more
                 </span>
               )}
@@ -389,7 +422,7 @@ function SectionCard({ section, isFirst = false }: SectionCardProps) {
           </div>
         )
       })()}
-    </div>
+    </motion.div>
   )
 }
 
@@ -451,89 +484,156 @@ export default function WeeklyBriefingSection({
   })
 
   return (
-    <div className="space-y-6">
+    <MotionWrapper className="space-y-6">
       {/* The Brief Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="p-3 bg-gradient-to-br from-emerald-100 to-emerald-50 rounded-xl shadow-sm border border-emerald-200/60">
-            <Zap size={24} className="text-emerald-600" fill="currentColor" />
+        <motion.div
+          className="flex items-center gap-4"
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          <div className="p-3 bg-gradient-to-br from-emerald-100 to-teal-50 rounded-xl shadow-lg shadow-emerald-900/5 border border-emerald-200/60 relative overflow-hidden group">
+            <div className="absolute inset-0 bg-white/40 opacity-0 group-hover:opacity-100 transition-opacity" />
+            <Zap size={24} className="text-emerald-600 relative z-10" fill="currentColor" />
           </div>
           <div>
-            <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight leading-none">The Brief</h2>
-            <p className="text-xs text-emerald-600/80 font-bold uppercase tracking-widest mt-1">Strategic Priorities</p>
+            <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight leading-none bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-700">
+              The Brief
+            </h2>
+            <div className="flex items-center gap-2 mt-1">
+              <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <p className="text-xs text-emerald-600 font-bold uppercase tracking-widest">
+                Strategic Priorities
+              </p>
+            </div>
           </div>
+
           {/* Listen to Podcast Button */}
           {briefing.podcast_url && (
-            <button
+            <motion.button
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ delay: 0.3 }}
               onClick={() => setIsPodcastModalOpen(true)}
-              className="flex items-center gap-2 px-3 py-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 rounded-lg transition-colors border border-emerald-200/60"
+              className="ml-2 flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-emerald-100 to-teal-50 hover:from-emerald-200 hover:to-teal-100 text-emerald-800 rounded-full transition-all border border-emerald-200/60 shadow-sm hover:shadow-md group"
               title="Listen to podcast"
             >
-              <Headphones size={16} />
-              <span className="text-xs font-semibold">Listen</span>
-            </button>
+              <div className="p-1 bg-white rounded-full">
+                <Headphones size={12} className="text-emerald-600 group-hover:scale-110 transition-transform" />
+              </div>
+              <span className="text-xs font-bold mr-1">Listen to Briefing</span>
+            </motion.button>
           )}
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 text-xs text-slate-400">
+        </motion.div>
+
+        <motion.div
+          className="flex items-center gap-4"
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+        >
+          <div className="flex items-center gap-2 text-xs text-slate-400 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100">
             <Clock size={14} />
-            <span>{periodStart} - {periodEnd}</span>
+            <span className="font-medium font-mono">{periodStart} - {periodEnd}</span>
           </div>
           {onHistoryClick && (
             <button
               onClick={onHistoryClick}
-              className="text-xs text-emerald-600 hover:text-emerald-700 font-medium transition-colors"
+              className="text-xs text-emerald-600 hover:text-emerald-700 font-bold transition-colors uppercase tracking-wider flex items-center gap-1 hover:gap-1.5"
             >
-              View History →
+              View History <ChevronDown className="-rotate-90" size={12} />
             </button>
           )}
-        </div>
+        </motion.div>
       </div>
 
       {/* Briefing Title + Summary */}
-      <div className="bg-gradient-to-r from-emerald-100 to-emerald-100 border border-emerald-200 rounded-xl p-4">
-        <h3 className="text-lg font-bold text-slate-900">{briefing.briefing_title}</h3>
-        {briefing.bluf && (
-          <div className="mt-3 p-3 bg-white/60 rounded-lg border border-emerald-200/50">
-            <p className="text-sm font-medium text-slate-800 leading-relaxed">
-              {renderTextWithLogosAndCitations(briefing.bluf, allCompaniesWithLogos)}
-            </p>
-          </div>
-        )}
-        {briefing.overall_trend && (
-          <div className="mt-3">
-            {/* Collapsible Overall Trend */}
-            {!isOverallTrendExpanded && (
-              <div className="relative">
-                <p className="text-sm text-slate-600 line-clamp-2">
-                  {renderTextWithLogosAndCitations(briefing.overall_trend, allCompaniesWithLogos)}
-                </p>
-                <div className="absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-emerald-100 to-transparent pointer-events-none" />
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+        className="relative overflow-hidden bg-gradient-to-br from-emerald-50 via-white to-teal-50/30 border border-emerald-100 rounded-2xl p-6 shadow-sm group"
+      >
+        {/* Background decorative elements */}
+        <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-100/20 rounded-full blur-3xl -mr-32 -mt-32 pointer-events-none" />
+
+        <div className="relative z-10">
+          <h3 className="text-lg font-bold text-slate-900 mb-4">{briefing.briefing_title}</h3>
+
+          {briefing.bluf && (
+            <div className="mb-4 p-4 bg-white/80 rounded-xl border border-emerald-100/60 shadow-sm relative">
+              <div className="absolute top-3 right-3 text-emerald-200">
+                <Sparkles size={16} />
               </div>
-            )}
-            {isOverallTrendExpanded && (
-              <p className="text-sm text-slate-600 leading-relaxed">
-                {renderTextWithLogosAndCitations(briefing.overall_trend, allCompaniesWithLogos)}
-              </p>
-            )}
-            <button
-              onClick={() => setIsOverallTrendExpanded(!isOverallTrendExpanded)}
-              className="flex items-center gap-1 text-xs text-emerald-600 font-medium hover:text-emerald-700 transition-colors mt-2"
-            >
-              {isOverallTrendExpanded ? (
-                <><ChevronUp size={14} /> Show less</>
-              ) : (
-                <><ChevronDown size={14} /> Read full summary</>
-              )}
-            </button>
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.8, delay: 0.4 }}
+                className="text-sm font-medium text-slate-800 leading-relaxed font-serif"
+              >
+                {renderTextWithLogosAndCitations(briefing.bluf, allCompaniesWithLogos)}
+              </motion.p>
+            </div>
+          )}
+
+          {/* Overall Trend Section */}
+          {briefing.overall_trend && (
+            <div className="mt-2 pl-1 border-l-2 border-emerald-100">
+              <div className="pl-3">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <TrendingUp size={12} className="text-emerald-500" />
+                  <span className="text-xs font-bold uppercase tracking-widest text-emerald-600/70">Market Trajectory</span>
+                </div>
+
+                {/* Collapsible Overall Trend */}
+                {!isOverallTrendExpanded && (
+                  <div className="relative">
+                    <p className="text-sm text-slate-600 line-clamp-2 leading-relaxed">
+                      {renderTextWithLogosAndCitations(briefing.overall_trend, allCompaniesWithLogos)}
+                    </p>
+                    <div className="absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-white/90 to-transparent pointer-events-none" />
+                  </div>
+                )}
+
+                {isOverallTrendExpanded && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.5 }}
+                  >
+                    <p className="text-sm text-slate-600 leading-relaxed">
+                      {renderTextWithLogosAndCitations(briefing.overall_trend, allCompaniesWithLogos)}
+                    </p>
+                  </motion.div>
+                )}
+
+                <button
+                  onClick={() => setIsOverallTrendExpanded(!isOverallTrendExpanded)}
+                  className="flex items-center gap-1 text-xs text-emerald-600 font-medium hover:text-emerald-700 transition-colors mt-2"
+                >
+                  {isOverallTrendExpanded ? (
+                    <><ChevronUp size={14} /> Show less</>
+                  ) : (
+                    <><ChevronDown size={14} /> Read full trajectory</>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-6 flex items-center gap-4 text-xs font-medium text-slate-400 border-t border-emerald-100/50 pt-4">
+            <div className="flex items-center gap-1.5">
+              <div className="w-1.5 h-1.5 bg-emerald-300 rounded-full" />
+              <span>{briefing.article_count} articles analyzed</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-1.5 h-1.5 bg-teal-300 rounded-full" />
+              <span>{briefing.sections.length} key priority areas</span>
+            </div>
           </div>
-        )}
-        <div className="mt-3 flex items-center gap-4 text-xs text-slate-500">
-          <span>{briefing.article_count} articles analyzed</span>
-          <span>•</span>
-          <span>{briefing.sections.length} key areas</span>
         </div>
-      </div>
+      </motion.div>
 
       {/* Podcast Modal */}
       {briefing.podcast_url && (
@@ -547,33 +647,62 @@ export default function WeeklyBriefingSection({
       )}
 
       {/* Industry Headlines Section */}
-      <div className="mt-8">
-        <h2 className="text-2xl font-extrabold text-emerald-600/80 tracking-tight leading-none mb-4">
-          INDUSTRY HEADLINES
-        </h2>
-        <div className="space-y-4">
+      <div className="mt-10">
+        <motion.div
+          className="flex items-center gap-3 mb-6"
+          initial={{ opacity: 0, x: -10 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.3 }}
+        >
+          <div className="h-8 w-1 bg-emerald-500 rounded-full" />
+          <h2 className="text-xl font-bold text-slate-800 tracking-tight">
+            Industry Headlines
+          </h2>
+        </motion.div>
+
+        <motion.div
+          className="space-y-5"
+          initial="hidden"
+          animate="show"
+          variants={{
+            hidden: { opacity: 0 },
+            show: {
+              opacity: 1,
+              transition: {
+                staggerChildren: 0.1,
+                delayChildren: 0.3
+              }
+            }
+          }}
+        >
           {(briefing.sections || []).map((section, idx) => (
-            <SectionCard key={idx} section={section} isFirst={idx === 0} />
+            <SectionCard key={idx} section={section} isFirst={idx === 0} index={idx} />
           ))}
-        </div>
+        </motion.div>
       </div>
 
       {/* Key Topics Footer */}
       {briefing.key_topics_this_week.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 pt-4 border-t border-slate-100">
-          <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">
-            Key Topics:
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1 }}
+          className="flex flex-wrap items-center gap-2 pt-6 border-t border-slate-100"
+        >
+          <span className="text-xs text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1">
+            <Radio size={12} />
+            Detected Signals:
           </span>
           {briefing.key_topics_this_week.map((topic, idx) => (
             <Badge
               key={idx}
-              className="text-xs text-slate-600 bg-white border-slate-200"
+              className="text-[10px] uppercase font-bold text-slate-500 bg-slate-50 border-slate-100 hover:bg-emerald-50 hover:text-emerald-600 transition-colors cursor-default"
             >
-              {topic}
+              #{topic}
             </Badge>
           ))}
-        </div>
+        </motion.div>
       )}
-    </div>
+    </MotionWrapper>
   )
 }
