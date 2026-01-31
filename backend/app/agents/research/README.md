@@ -8,7 +8,12 @@ Deep Research is a **6-node** LangGraph workflow that orchestrates specialized a
 
 **Status: ✅ PRODUCTION READY** (January 16, 2026)
 
-**Recent Changes (Session 76):**
+**Recent Changes (Session 105):**
+- **Visual URL Hydration** - `_hydrate_visual_blocks()` injects `image_url` into blocks referencing `visual_id`
+- **Citation Display Fix** - All citations shown (URL-linked and non-linked)
+- **Quote Block Prompt** - Explicit required fields (`text`, `speaker`, `context`)
+
+**Previous Changes (Session 76):**
 - **Removed Category Agent** (sales intelligence) - Synthesizer now has full creative license
 - **Fixed Visual Agent bug** - `visual.visuals` → `visual.supporting_visuals`
 - **Enhanced Executive Quote Extraction** - Financial agent prioritizes verbatim CEO/CFO quotes

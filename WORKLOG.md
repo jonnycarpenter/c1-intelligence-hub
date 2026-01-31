@@ -36,13 +36,46 @@ Without reliable daily ingestion:
 - [ ] **Virtual Scrolling** - Performance optimization for 500+ items
 - [ ] **Saved Filter Presets** - Let users save filter combinations
 - [ ] **Deep Research Troubleshooting**
-    - [ ] Display linked charts/images/graphs (currently appended links but not displayed)
-    - [ ] Fix incomplete citation list (verify all sources are output)
-    - [ ] Fix empty earnings call quotes container
+    - [x] Display linked charts/images/graphs (fixed via visual hydration in synthesizer.py)
+    - [x] Fix incomplete citation list (CitationList now shows all sources)
+    - [x] Fix empty earnings call quotes container (improved prompt guidance)
 - [ ] **Model Attribution**
     - [ ] Add footer to Deep Research and Briefings indicating the model used
     - [ ] List every LLM used in the process
     - [ ] Highlight fallback LLMs if used
+
+---
+## 📅 SESSION 105: Deep Research Output Fixes (January 31, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Goals
+Fix three issues with Deep Research report output: visuals not displaying inline, incomplete citation lists, and empty quote blocks.
+
+### ✅ Completed
+
+1.  **Visual URL Hydration**
+    - Added `_hydrate_visual_blocks()` function in `synthesizer.py`
+    - Injects `image_url`, `caption`, `data_summary` into `visual_split` blocks that only have `visual_id` references
+    - Charts/graphs from article_images now render inline
+
+2.  **Citation Display Fix**
+    - Updated `CitationList` in `ResearchReport.tsx` to show all citations
+    - Citations with URLs render as clickable domain links
+    - Citations without URLs render as non-clickable badges with source title
+
+3.  **Quote Block Prompt Improvement**
+    - Enhanced `SYNTHESIZER_SYSTEM_PROMPT` with explicit required fields for quote blocks
+    - Now requires: `text`, `speaker`, `context` fields
+    - Better guidance for earnings call attribution
+
+### 📁 Files Modified
+- `backend/app/agents/research/synthesizer.py` - Visual hydration + prompt improvement
+- `frontend/src/components/research/ResearchReport.tsx` - Citation display fix
+
+### 🧪 Verification
+- Python syntax check ✅
+- `npm run build` ✅ Compiled successfully
 
 ---
 ## 📅 SESSION 104: Market Pulse Implementation (January 31, 2026)
