@@ -261,15 +261,34 @@ async def get_industries(
     try:
         df = load_industries_df()
         
+        # Normalize column names for frontend consistency
+        # BigQuery uses: industry, application, end_users, naics_code, etc.
+        # Frontend expects: industry_id, industry_name, description, key_materials, key_processes
+        if "industry" in df.columns and "industry_name" not in df.columns:
+            df = df.rename(columns={
+                "industry": "industry_name",
+                "application": "description",
+                "example_products": "key_materials",
+                "naics_description": "key_processes",
+            })
+            # Generate industry_id if not present
+            if "industry_id" not in df.columns:
+                df["industry_id"] = df["industry_name"].apply(
+                    lambda x: "ind_" + str(x).lower().replace(" ", "_")[:20] if pd.notna(x) else "ind_unknown"
+                )
+        
         if search:
-            # Support both 'industry' (BigQuery) and 'industry_name' (CSV) column names
-            search_col = "industry" if "industry" in df.columns else "industry_name"
-            df = df[df[search_col].str.lower().str.contains(search.lower(), na=False)]
+            df = df[df["industry_name"].str.lower().str.contains(search.lower(), na=False)]
         
         total = len(df)
         df = df.iloc[offset:offset + limit]
         
-        industries = df.to_dict("records")
+        # Ensure all expected columns exist
+        for col in ["industry_id", "industry_name", "description", "key_materials", "key_processes"]:
+            if col not in df.columns:
+                df[col] = ""
+        
+        industries = df[["industry_id", "industry_name", "description", "key_materials", "key_processes"]].to_dict("records")
         
         return {
             "total": total,
