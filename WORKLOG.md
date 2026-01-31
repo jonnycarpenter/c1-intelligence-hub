@@ -24,6 +24,143 @@ Without reliable daily ingestion:
 - [x] Fix 'Intelligence Hub Guide' returning 404 errors when opened
 - [x] Determine app header vs page header relationship across the app
 - [x] Adjust DRUMBEAT FEED to only include critical or high news items/digest cards
+- [ ] **Deep Research workflow failures** - Two distinct failure modes (see Session 101)
+
+### Full Feed UX Polish (Session 102)
+- [x] **Filter State Indicator** - Show prominent time window banner (e.g., "📅 Viewing last 30 days • 247 signals")
+- [x] **Empty State Differentiation** - Distinguish between "no data" vs "filters too restrictive"
+- [x] **Loading Skeleton Placeholders** - Replace spinner with skeleton cards
+- [ ] **Keyboard Navigation** - ↑/↓ to navigate, Enter to expand, Esc to close
+- [x] **Priority Visual Hierarchy** - Subtle glow/pulse on Critical/High items
+- [x] **"New Since Last Visit" Badges** - Track last visit, show NEW badges
+- [ ] **Virtual Scrolling** - Performance optimization for 500+ items
+- [ ] **Saved Filter Presets** - Let users save filter combinations
+
+---
+## 📅 SESSION 102: Full Feed UX Polish Sprint (January 31, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Goals
+Fix Full Feed data loading and implement UX polish improvements.
+
+### ✅ Completed
+
+1. **Fixed Full Feed "No Available Signals" Bug**
+   - Root cause: `limit` parameter not passed from frontend to API
+   - Fixed `api.getDigest()` to include `limit` in URL params
+   - Backend was defaulting to 100 items instead of requested 500
+
+2. **Filter State Indicator** (#1)
+   - Added prominent time window badge with Clock icon
+   - Shows "Last 7 days", "Last 14 days", "Last 30 days" in teal pill
+
+3. **Empty State Differentiation** (#2)
+   - Amber warning state when `items.length === 0` (ingestion issue)
+   - Info state when filters are too restrictive with signal count
+
+4. **Loading Skeleton Placeholders** (#3)
+   - Replaced spinner with masonry grid of skeleton cards
+   - Variable heights (160-280px) for visual variety
+
+5. **Priority Visual Hierarchy** (#5)
+   - Added `ring` glow effect on Critical (red) and High (emerald) cards
+   - Critical: `ring-2 ring-red-200/50`, High: `ring-1 ring-emerald-200/40`
+
+6. **"New Since Last Visit" Badges** (#6)
+   - Added `publishedAt` Date field to digest transform
+   - Tracks last visit in localStorage (`c1-fullfeed-last-visit`)
+   - Shows sparkly "NEW" badge with Sparkles icon for items published after last visit
+   - Updates localStorage after 5 seconds of viewing
+
+### 📁 Files Modified
+- `frontend/src/lib/api.ts` - Added `limit` to type signature and URL params
+- `frontend/src/hooks/useDigest.ts` - Added `publishedAt` Date field for NEW badges
+- `frontend/src/components/feed/FullFeedView.tsx` - Time badge, skeletons, empty states, lastVisitTime
+- `frontend/src/components/digest/DigestCard.tsx` - Priority glow, NEW badge with Sparkles
+
+---
+## 📅 SESSION 101: Deep Research Workflow Debug (January 31, 2026)
+
+**Status**: ✅ COMPLETE (Synthesizer Fix)
+
+### 🐛 Problem Statement
+
+Deep Research workflow was failing in production with two distinct failure modes:
+
+1. **Synthesizer Pydantic Validation Failure** → Falls back to minimal "raw data" report
+   - User sees: "Report generation encountered an issue - raw research data available below"
+   - Root cause: **12 Pydantic validation errors** from LLM output not matching schema exactly
+   - JSON parsed successfully, but nested models failed validation (enums, case sensitivity)
+
+2. **Groomer Agent Timeout** → Triggers OpenAI fallback via resilient LLM
+   - Still investigating if this persists after synthesizer fix
+
+### ✅ Fix Implemented: LLM Output Normalization
+
+Added comprehensive normalization functions to `synthesizer.py` that preprocess Claude's output before Pydantic validation:
+
+1. **`_normalize_block_type()`** - Maps LLM variations to valid `BlockType` enum
+   - `"text"` → `"paragraph"`, `"chart"` → `"visual_split"`, etc.
+
+2. **`_normalize_confidence()`** - Case-insensitive confidence matching
+   - `"High"` → `"high"`, `"Medium"` → `"medium"`, etc.
+
+3. **`_normalize_citation()`** - Ensures required fields have defaults
+
+4. **`_normalize_synthesis_output()`** - Master normalizer that processes entire output tree
+
+### 📁 Files Modified
+
+- `backend/app/agents/research/synthesizer.py`
+  - Added 200+ lines of normalization functions
+  - Called normalizer before `SynthesisAgentOutput(**output_data)`
+
+### 🧪 Verification
+- Syntax check: ✅ Imports successfully
+- MCP tools: ✅ 54 loaded
+
+### 🔍 Investigation Plan
+
+#### Phase 1: Reproduce & Capture Logs
+- [ ] Run a Deep Research query locally with verbose logging
+- [ ] Check Cloud Run logs for `[SYNTHESIZER]` prefix to see raw LLM output
+- [ ] Check Cloud Run logs for `[GROOMER]` prefix to see timeout details
+- [ ] Verify timeout settings: `deep_research_llm_timeout` in `settings.py`
+
+#### Phase 2: Synthesizer JSON Parsing
+- [ ] Review `synthesizer.py` lines 450-456 - JSON extraction logic
+- [ ] Check if Claude is returning markdown fencing inconsistently
+- [ ] Verify the JSON schema in the prompt matches `SynthesisAgentOutput` Pydantic model
+- [ ] Consider adding regex fallback for JSON extraction
+
+#### Phase 3: Groomer Timeout Root Cause
+- [ ] Check `groomer.py` LLM timeout value (currently 90s per CLAUDE.md)
+- [ ] Review if extended thinking is enabled for groomer (adds latency)
+- [ ] Check if prior research context injection is slow (memory.py)
+- [ ] Review Anthropic API status for latency issues
+
+#### Phase 4: Error Surfacing
+- [ ] Verify SSE `error` events are properly surfaced to frontend
+- [ ] Check `deep_research.py` API route error handling
+- [ ] Confirm frontend displays meaningful error messages, not just "timeout"
+
+### 📁 Key Files to Investigate
+
+| File | Focus Area |
+|------|------------|
+| `backend/app/agents/research/synthesizer.py` | JSON parsing (L450-456), fallback (L489-529) |
+| `backend/app/agents/research/groomer.py` | LLM timeout handling, message filtering |
+| `backend/app/api/routes/deep_research.py` | SSE streaming, error event emission |
+| `backend/app/utils/resilient_llm.py` | Fallback trigger conditions, timeout config |
+| `backend/app/config/settings.py` | Timeout values: `deep_research_llm_timeout`, `deep_research_workflow_timeout` |
+
+### 🔧 Potential Fixes
+
+1. **JSON Parsing**: Add more robust extraction with multiple fallback patterns
+2. **Timeout**: Increase `deep_research_llm_timeout` or disable extended thinking for groomer
+3. **Error Surfacing**: Improve error message specificity in SSE events
+4. **Retry Logic**: Add automatic retry on transient timeout failures
 
 ---
 ## 📅 SESSION 100: The Brief Rename & DRUMBEAT Priority Filter (January 31, 2026)

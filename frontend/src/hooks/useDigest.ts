@@ -24,6 +24,7 @@ function transformDigestItem(item: ApiDigestItem): DigestItem {
       topics: item.entities.topics || [],
     },
     timestamp: formatRelativeTime(item.published_at),
+    publishedAt: new Date(item.published_at), // Preserve original for NEW badge
     coverage_count: item.coverage_count,
     relevance_score: item.relevance_score,
   }

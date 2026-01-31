@@ -13,6 +13,214 @@ from datetime import datetime, timedelta
 logger = logging.getLogger(__name__)
 
 
+# =============================================================================
+# LLM Output Normalization
+# =============================================================================
+# The LLM sometimes returns enum values that don't exactly match Pydantic schemas:
+# - "text" instead of "paragraph" for block types
+# - "High" instead of "high" for confidence
+# - Missing required nested fields
+# This normalizer fixes these issues before Pydantic validation.
+
+# Block type mapping - LLM variations to valid BlockType enum values
+BLOCK_TYPE_MAPPING = {
+    "text": "paragraph",
+    "para": "paragraph",
+    "metric": "metric_grid",
+    "metrics": "metric_grid",
+    "visual": "visual_split",
+    "image": "visual_split",
+    "chart": "visual_split",
+    "quote_callout": "quote",
+    "callout": "quote",
+    "data_table": "table",
+}
+
+# Valid enum values (lowercase)
+VALID_BLOCK_TYPES = {"paragraph", "metric_grid", "visual_hero", "visual_split", "quote", "table"}
+VALID_CONFIDENCE_LEVELS = {"high", "medium", "low"}
+VALID_DATA_COMPLETENESS = {"complete", "partial", "limited"}
+
+
+def _normalize_block_type(block_type: str) -> str:
+    """Normalize block type string to valid BlockType enum value."""
+    if not block_type:
+        return "paragraph"  # Default
+    
+    normalized = block_type.lower().strip()
+    
+    # Check mapping first
+    if normalized in BLOCK_TYPE_MAPPING:
+        return BLOCK_TYPE_MAPPING[normalized]
+    
+    # Check if already valid
+    if normalized in VALID_BLOCK_TYPES:
+        return normalized
+    
+    # Default to paragraph for unknown types
+    logger.warning(f"[SYNTHESIZER] Unknown block_type '{block_type}', defaulting to 'paragraph'")
+    return "paragraph"
+
+
+def _normalize_confidence(value: str) -> str:
+    """Normalize confidence level to valid enum value."""
+    if not value:
+        return "medium"
+    
+    normalized = value.lower().strip()
+    if normalized in VALID_CONFIDENCE_LEVELS:
+        return normalized
+    
+    # Map common variations
+    if "hi" in normalized:
+        return "high"
+    if "lo" in normalized:
+        return "low"
+    
+    return "medium"
+
+
+def _normalize_data_completeness(value: str) -> str:
+    """Normalize data completeness to valid enum value."""
+    if not value:
+        return "partial"
+    
+    normalized = value.lower().strip()
+    if normalized in VALID_DATA_COMPLETENESS:
+        return normalized
+    
+    return "partial"
+
+
+def _normalize_citation(citation: dict) -> dict:
+    """Ensure citation has all required fields with defaults."""
+    if not citation or not isinstance(citation, dict):
+        return {
+            "source_type": "industry_news",
+            "source_title": "Unknown Source",
+            "source_url": None,
+            "source_date": None,
+        }
+    
+    return {
+        "source_type": citation.get("source_type") or "industry_news",
+        "source_title": citation.get("source_title") or "Unknown Source",
+        "source_url": citation.get("source_url"),
+        "source_date": citation.get("source_date"),
+        "page_or_section": citation.get("page_or_section"),
+        "direct_quote": citation.get("direct_quote"),
+    }
+
+
+def _normalize_block(block: dict) -> dict:
+    """Normalize a report block to match schema requirements."""
+    if not block or not isinstance(block, dict):
+        return None
+    
+    return {
+        "block_type": _normalize_block_type(block.get("block_type", "paragraph")),
+        "block_id": block.get("block_id") or f"blk_{id(block)}",
+        "data": block.get("data") or {},
+        "citations": [_normalize_citation(c) for c in (block.get("citations") or [])],
+    }
+
+
+def _normalize_section(section: dict) -> dict:
+    """Normalize a finding section to match schema requirements."""
+    if not section or not isinstance(section, dict):
+        return None
+    
+    normalized_blocks = []
+    for block in (section.get("blocks") or []):
+        normalized = _normalize_block(block)
+        if normalized:
+            normalized_blocks.append(normalized)
+    
+    return {
+        "section_id": section.get("section_id") or f"sec_{id(section)}",
+        "section_title": section.get("section_title") or "Untitled Section",
+        "content": section.get("content"),  # Legacy field
+        "blocks": normalized_blocks,
+        "citations": [_normalize_citation(c) for c in (section.get("citations") or [])],
+        "confidence": _normalize_confidence(section.get("confidence", "medium")),
+        "supporting_visuals": section.get("supporting_visuals") or [],
+        "tables": section.get("tables") or [],
+    }
+
+
+def _normalize_key_metric(metric: dict) -> dict:
+    """Normalize a key metric to match schema requirements."""
+    if not metric or not isinstance(metric, dict):
+        return None
+    
+    label = metric.get("label") or metric.get("metric_name") or "Metric"
+    return {
+        "metric_name": label,
+        "label": label,
+        "value": str(metric.get("value", "")),
+        "context": metric.get("context") or "",
+        "source": metric.get("source") or "Research data",
+        "confidence": _normalize_confidence(metric.get("confidence", "medium")),
+    }
+
+
+def _normalize_executive_summary(summary: dict) -> dict:
+    """Normalize executive summary to match schema requirements."""
+    if not summary or not isinstance(summary, dict):
+        return {
+            "headline": "Research Summary",
+            "key_points": [],
+            "key_metrics": [],
+            "key_point_citations": [],
+        }
+    
+    return {
+        "headline": summary.get("headline") or "Research Summary",
+        "key_points": summary.get("key_points") or [],
+        "key_metrics": [m for m in (_normalize_key_metric(m) for m in (summary.get("key_metrics") or [])) if m],
+        "key_point_citations": [_normalize_citation(c) for c in (summary.get("key_point_citations") or [])],
+        "data_caveat": summary.get("data_caveat"),
+    }
+
+
+def _normalize_synthesis_output(data: dict) -> dict:
+    """
+    Master normalizer for LLM synthesis output.
+    
+    Preprocesses the raw JSON from Claude to ensure all fields match
+    Pydantic schema requirements before validation.
+    """
+    if not data or not isinstance(data, dict):
+        return data
+    
+    try:
+        normalized = {
+            "report_id": data.get("report_id") or f"REP-{int(time.time())}",
+            "generated_at": data.get("generated_at") or "",
+            "query": data.get("query") or "",
+            "data_completeness": _normalize_data_completeness(data.get("data_completeness", "partial")),
+            "overall_confidence": _normalize_confidence(data.get("overall_confidence", "medium")),
+            "executive_summary": _normalize_executive_summary(data.get("executive_summary")),
+            "sections": [s for s in (_normalize_section(s) for s in (data.get("sections") or [])) if s],
+            "thinking_content": data.get("thinking_content"),
+            "all_visuals": data.get("all_visuals") or [],
+            "companies_with_logos": data.get("companies_with_logos") or [],
+            "sources_used": [_normalize_citation(c) for c in (data.get("sources_used") or [])],
+            "source_breakdown": data.get("source_breakdown") or {},
+            "data_gaps": data.get("data_gaps") or [],
+            "warnings": data.get("warnings") or [],
+            "research_time_seconds": data.get("research_time_seconds", 0.0),
+            "field_sales": data.get("field_sales"),  # Legacy, pass through
+        }
+        
+        logger.info(f"[SYNTHESIZER] Normalized output: {len(normalized['sections'])} sections, {len(normalized['executive_summary'].get('key_points', []))} key points")
+        return normalized
+        
+    except Exception as e:
+        logger.error(f"[SYNTHESIZER] Normalization failed: {e}, returning original data")
+        return data
+
+
 def _analyze_finding_dates(findings: list, label: str) -> list:
     """Analyze dates in findings and return scratchpad notes."""
     notes = []
@@ -471,6 +679,11 @@ OUTPUT FORMAT (valid JSON):
         
         companies_with_logos = _enrich_companies_with_logos(all_entities)
         output_data["companies_with_logos"] = [c.model_dump() for c in companies_with_logos]
+
+        # CRITICAL: Normalize LLM output before Pydantic validation
+        # This fixes enum mismatches (e.g., "text" -> "paragraph", "High" -> "high")
+        # and ensures all nested models have required defaults
+        output_data = _normalize_synthesis_output(output_data)
 
         # Final object
         final_report = SynthesisAgentOutput(**output_data)

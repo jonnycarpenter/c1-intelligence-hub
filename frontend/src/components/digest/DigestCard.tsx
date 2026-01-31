@@ -17,6 +17,7 @@ import {
   Building2,     // Expansion
   Star,          // C1 Mention
   Layers,        // Coverage badge
+  Sparkles,      // NEW badge
 } from 'lucide-react'
 import { Badge, PriorityBadge, CategoryBadge, Modal } from '@/components/ui'
 import { cn } from '@/lib/utils'
@@ -99,13 +100,17 @@ function highlightEntities(text: string, entities: string[]): React.ReactNode {
 interface DigestCardProps {
   item: DigestItem
   onQuickFilter?: (query: string) => void  // Called when entity pill is clicked
+  lastVisitTime?: Date | null  // For NEW badge - items published after this are marked new
 }
 
-export default function DigestCard({ item, onQuickFilter }: DigestCardProps) {
+export default function DigestCard({ item, onQuickFilter, lastVisitTime }: DigestCardProps) {
   const [showSourcesModal, setShowSourcesModal] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
   const sources = item.sources || []
   const hasMultipleSources = sources.length > 1
+
+  // Check if item is "new" (published after last visit)
+  const isNew = lastVisitTime && item.publishedAt && item.publishedAt > lastVisitTime
 
   // Combine all entities for text highlighting
   const allEntities = useMemo(() => {
@@ -149,13 +154,22 @@ export default function DigestCard({ item, onQuickFilter }: DigestCardProps) {
     low: 'bg-gradient-to-br from-white to-slate-50/50',
   }
 
+  // Glow/shadow effects for high-priority items
+  const priorityGlow: Record<Priority, string> = {
+    critical: 'ring-2 ring-red-200/50 shadow-red-100/50',
+    high: 'ring-1 ring-emerald-200/40',
+    medium: '',
+    low: '',
+  }
+
   return (
     <div className={cn(
       "group relative rounded-r-xl rounded-l-md shadow-sm border border-slate-200/60 transition-all duration-300",
       "hover:shadow-lg hover:-translate-y-0.5 hover:border-emerald-300/60",
       "border-l-4",
       borderColors[normalizedPriority] || 'border-slate-300',
-      bgGradients[normalizedPriority] || 'bg-white'
+      bgGradients[normalizedPriority] || 'bg-white',
+      priorityGlow[normalizedPriority] || ''
     )}>
       <div className="p-4 space-y-3">
         {/* Header: Title & Meta */}
@@ -167,6 +181,14 @@ export default function DigestCard({ item, onQuickFilter }: DigestCardProps) {
           )}
 
           <div className="flex items-center flex-wrap gap-2 text-xs">
+            {/* NEW Badge - show if item was published after last visit */}
+            {isNew && (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-gradient-to-r from-amber-400 to-orange-400 text-white rounded text-[9px] font-bold uppercase animate-pulse">
+                <Sparkles size={10} />
+                NEW
+              </span>
+            )}
+
             {/* Priority Badge */}
             <PriorityBadge priority={item.priority} />
 

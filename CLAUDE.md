@@ -22,6 +22,10 @@ Read these files first:
 - `.agent/ARCHITECTURE.md` - System design decisions
 - `WORKLOG.md` - Recent work and open items
 
+## ⚠️ Development Environment
+
+**PRODUCTION ONLY** - We are ONLY developing for production. Never develop or run locally unless the user explicitly says so. All testing and verification should be done via Cloud Run deployments.
+
 ## Critical Rules (TL;DR)
 
 1. **BigQuery ONLY** - Never add SQLite, ChromaDB, or local databases

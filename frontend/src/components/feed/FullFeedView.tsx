@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useMemo, useCallback } from 'react'
+import React, { useState, useMemo, useCallback, useEffect } from 'react'
 import {
     Search,
     Layers,
@@ -12,6 +12,7 @@ import {
     ArrowUpDown,
     X,
     Loader2,
+    Clock,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import DigestCard from '@/components/digest/DigestCard'
@@ -52,6 +53,23 @@ export default function FullFeedView({
     // Shuffle state
     const [isShuffled, setIsShuffled] = useState(false)
     const [shuffledOrder, setShuffledOrder] = useState<string[]>([])
+
+    // Last visit time for NEW badges
+    const [lastVisitTime, setLastVisitTime] = useState<Date | null>(null)
+
+    // Load and update last visit time from localStorage
+    useEffect(() => {
+        const STORAGE_KEY = 'c1-fullfeed-last-visit'
+        const stored = localStorage.getItem(STORAGE_KEY)
+        if (stored) {
+            setLastVisitTime(new Date(stored))
+        }
+        // Update last visit time on mount (after a short delay to show NEW badges first)
+        const timeout = setTimeout(() => {
+            localStorage.setItem(STORAGE_KEY, new Date().toISOString())
+        }, 5000) // Update after 5 seconds of viewing
+        return () => clearTimeout(timeout)
+    }, [])
 
     // =============================================================================
     // Derived Filter Options
@@ -216,11 +234,44 @@ export default function FullFeedView({
     // =============================================================================
 
     if (isLoading) {
+        // Skeleton placeholders - feels faster than a spinner
         return (
-            <div className="flex-1 flex items-center justify-center py-16">
-                <div className="text-center">
-                    <Loader2 size={32} className="animate-spin text-teal-500 mx-auto mb-3" />
-                    <p className="text-slate-500">Loading intelligence feed...</p>
+            <div className="flex flex-col h-full">
+                {/* Skeleton Filter Toolbar */}
+                <div className="shrink-0 p-4 border-b bg-white space-y-3">
+                    <div className="flex flex-wrap items-center gap-3">
+                        <div className="h-9 w-48 bg-slate-200 rounded-lg animate-pulse" />
+                        <div className="h-9 w-28 bg-slate-200 rounded-lg animate-pulse" />
+                        <div className="h-9 w-28 bg-slate-200 rounded-lg animate-pulse" />
+                        <div className="h-9 w-28 bg-slate-200 rounded-lg animate-pulse" />
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <div className="h-6 w-24 bg-slate-200 rounded-full animate-pulse" />
+                        <div className="h-4 w-32 bg-slate-100 rounded animate-pulse" />
+                    </div>
+                </div>
+                {/* Skeleton Cards */}
+                <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-100">
+                    <div className="max-w-7xl mx-auto">
+                        <div className="columns-1 md:columns-2 xl:columns-3 gap-4">
+                            {[180, 240, 160, 200, 280, 150, 220, 190, 260].map((height, i) => (
+                                <div
+                                    key={i}
+                                    className="mb-4 break-inside-avoid bg-white rounded-xl p-4 animate-pulse"
+                                    style={{ height: `${height}px` }}
+                                >
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <div className="h-5 w-16 bg-slate-200 rounded" />
+                                        <div className="h-5 w-12 bg-slate-100 rounded" />
+                                    </div>
+                                    <div className="h-5 w-3/4 bg-slate-200 rounded mb-2" />
+                                    <div className="h-4 w-full bg-slate-100 rounded mb-1" />
+                                    <div className="h-4 w-5/6 bg-slate-100 rounded mb-1" />
+                                    <div className="h-4 w-2/3 bg-slate-100 rounded" />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
                 </div>
             </div>
         )
@@ -364,18 +415,26 @@ export default function FullFeedView({
                     </div>
                 </div>
 
-                {/* Row 2: Results count + Active filter pills */}
+                {/* Row 2: Time window banner + Results count */}
                 <div className="flex items-center justify-between">
-                    {/* Left: Count + Clear button */}
-                    <div className="flex items-center gap-2 text-xs text-slate-500">
-                        <span>
-                            Showing <b className="text-slate-700">{filteredItems.length}</b> of {items.length} signals
+                    {/* Left: Time window indicator + Count */}
+                    <div className="flex items-center gap-3">
+                        {/* Time Window Badge */}
+                        <div className="flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-teal-50 to-emerald-50 border border-teal-200/50 rounded-full">
+                            <Clock size={12} className="text-teal-600" />
+                            <span className="text-xs font-semibold text-teal-700">
+                                {timeRange === 'today' ? 'Today' : timeRange === 'week' ? 'Last 7 days' : timeRange === 'twoWeeks' ? 'Last 14 days' : 'Last 30 days'}
+                            </span>
+                        </div>
+                        {/* Signal Count */}
+                        <div className="text-xs text-slate-500">
+                            <b className="text-slate-700">{filteredItems.length}</b> of {items.length} signals
                             {isShuffled && <span className="ml-1 text-violet-500 font-medium">(Shuffled)</span>}
-                        </span>
+                        </div>
                         {hasFilters && (
                             <button
                                 onClick={clearFilters}
-                                className="flex items-center gap-1 text-teal-600 hover:underline font-medium ml-2"
+                                className="flex items-center gap-1 text-teal-600 hover:underline font-medium text-xs"
                             >
                                 <X size={12} />
                                 Clear filters
@@ -424,16 +483,40 @@ export default function FullFeedView({
                                     <DigestCard
                                         item={item}
                                         onQuickFilter={onQuickFilter}
+                                        lastVisitTime={lastVisitTime}
                                     />
                                 </div>
                             ))}
                         </div>
+                    ) : items.length === 0 ? (
+                        // No data at all - possible ingestion issue
+                        <div className="text-center py-20 bg-gradient-to-br from-amber-50 to-orange-50 rounded-3xl border border-dashed border-amber-200">
+                            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-amber-100 flex items-center justify-center">
+                                <Layers size={28} className="text-amber-500" />
+                            </div>
+                            <h3 className="text-lg font-semibold text-amber-800 mb-2">No signals available</h3>
+                            <p className="text-amber-600 mb-2 text-sm max-w-md mx-auto">
+                                The intelligence feed is currently empty. This may be due to:
+                            </p>
+                            <ul className="text-amber-600 text-sm mb-6 space-y-1">
+                                <li>• Data ingestion pipeline not running</li>
+                                <li>• Recent system maintenance</li>
+                                <li>• Network connectivity issues</li>
+                            </ul>
+                            <p className="text-xs text-amber-500">
+                                Try refreshing the page, or contact support if this persists.
+                            </p>
+                        </div>
                     ) : (
+                        // Filters too restrictive
                         <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-300">
                             <Layers size={40} className="mx-auto mb-3 text-slate-300" />
                             <h3 className="text-lg font-semibold text-slate-700 mb-2">No signals match your filters</h3>
-                            <p className="text-slate-500 mb-6 text-sm">
-                                Try adjusting your search query or filter criteria.
+                            <p className="text-slate-500 mb-2 text-sm">
+                                {items.length} signals exist, but none match your current criteria.
+                            </p>
+                            <p className="text-slate-400 mb-6 text-xs">
+                                Try broadening your search or adjusting filter settings.
                             </p>
                             <button
                                 onClick={clearFilters}
