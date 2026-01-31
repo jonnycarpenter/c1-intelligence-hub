@@ -291,9 +291,9 @@ export default function ResearchReport({ report }: DeepResearchReportProps) {
                         <div className="px-6 pb-6 border-t border-purple-200/50">
                             <div className="mt-4 p-4 bg-white/80 rounded-xl border border-purple-100">
                                 <div className="prose prose-sm prose-slate max-w-none">
-                                    <pre className="whitespace-pre-wrap text-sm text-slate-700 font-sans leading-relaxed bg-transparent p-0 m-0 overflow-x-auto">
+                                    <ReactMarkdown className="text-sm text-slate-700 leading-relaxed space-y-2">
                                         {thinking_content}
-                                    </pre>
+                                    </ReactMarkdown>
                                 </div>
                             </div>
                             <p className="mt-3 text-xs text-purple-500 italic">
