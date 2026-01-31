@@ -1,10 +1,10 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { 
-  ExternalLink, 
-  Newspaper, 
-  ChevronDown, 
+import {
+  ExternalLink,
+  Newspaper,
+  ChevronDown,
   ChevronUp,
   TrendingUp,    // Market
   Truck,         // Supply Chain, Logistics
@@ -16,6 +16,7 @@ import {
   Handshake,     // Partnership
   Building2,     // Expansion
   Star,          // C1 Mention
+  Layers,        // Coverage badge
 } from 'lucide-react'
 import { Badge, PriorityBadge, CategoryBadge, Modal } from '@/components/ui'
 import { cn } from '@/lib/utils'
@@ -181,6 +182,17 @@ export default function DigestCard({ item, onQuickFilter }: DigestCardProps) {
 
             {/* Time */}
             <span className="text-slate-400">{item.timestamp}</span>
+
+            {/* Coverage Badge - show for items with 3+ sources */}
+            {(item.coverage_count ?? 0) >= 3 && (
+              <>
+                <span className="text-slate-300">•</span>
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-violet-50 text-violet-600 rounded text-[10px] font-bold">
+                  <Layers size={10} />
+                  {item.coverage_count} sources
+                </span>
+              </>
+            )}
           </div>
         </div>
 
@@ -274,11 +286,11 @@ export default function DigestCard({ item, onQuickFilter }: DigestCardProps) {
 
             {/* Right: Relevance Score */}
             {item.relevance_score !== undefined && (
-              <span 
+              <span
                 className={cn(
                   "inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded",
-                  item.relevance_score >= 0.7 
-                    ? "bg-emerald-50 text-emerald-700" 
+                  item.relevance_score >= 0.7
+                    ? "bg-emerald-50 text-emerald-700"
                     : item.relevance_score >= 0.4
                       ? "bg-blue-50 text-blue-600"
                       : "bg-slate-100 text-slate-500"

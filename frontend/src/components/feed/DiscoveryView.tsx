@@ -12,12 +12,15 @@ import {
   Zap,
   Target,
   Layers,
+  LayoutGrid,
+  Rows3,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import DigestCard from '@/components/digest/DigestCard'
 import AdHocBriefing from '@/components/dashboard/AdHocBriefing'
 import { api } from '@/lib/api'
 import BulletinBoard from './BulletinBoard'
+import FullFeedView from './FullFeedView'
 import type { DigestItem, DigestStats, Category, Priority, DiscoverySummaryResponse } from '@/types'
 import type { AdHocBriefingContext } from '@/types/briefing'
 
@@ -38,6 +41,7 @@ export interface DiscoveryViewRef {
 }
 
 type DetailMode = 'cards' | 'summary' | null
+type SubTab = 'themes' | 'fullFeed'
 
 // =============================================================================
 // Helper Functions
@@ -466,6 +470,9 @@ function DetailPanel({
 
 const DiscoveryView = forwardRef<DiscoveryViewRef, DiscoveryViewProps>(
   function DiscoveryView({ items, stats, isLoading, error, onSelectArticle }, ref) {
+    // Sub-tab state
+    const [activeSubTab, setActiveSubTab] = useState<SubTab>('themes')
+
     // Detail panel state
     const [selectedCategory, setSelectedCategory] = useState<Category | null>(null)
     const [detailMode, setDetailMode] = useState<DetailMode>(null)
@@ -661,6 +668,36 @@ const DiscoveryView = forwardRef<DiscoveryViewRef, DiscoveryViewProps>(
             )}
           </div>
 
+          {/* Sub-tab Navigation */}
+          <div className="shrink-0 px-6 py-3 border-b border-slate-200 bg-slate-50/50">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setActiveSubTab('themes')}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all",
+                  activeSubTab === 'themes'
+                    ? "bg-white shadow-sm border border-slate-200 text-slate-800"
+                    : "text-slate-500 hover:text-slate-700 hover:bg-white/50"
+                )}
+              >
+                <LayoutGrid size={16} />
+                Themes
+              </button>
+              <button
+                onClick={() => setActiveSubTab('fullFeed')}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all",
+                  activeSubTab === 'fullFeed'
+                    ? "bg-white shadow-sm border border-slate-200 text-slate-800"
+                    : "text-slate-500 hover:text-slate-700 hover:bg-white/50"
+                )}
+              >
+                <Rows3 size={16} />
+                Full Feed
+              </button>
+            </div>
+          </div>
+
           {/* Loading state */}
           {isLoading && (
             <div className="flex-1 flex items-center justify-center py-16">
@@ -681,56 +718,70 @@ const DiscoveryView = forwardRef<DiscoveryViewRef, DiscoveryViewProps>(
             </div>
           )}
 
-          {/* Main 2-column grid */}
+          {/* Content Area: Themes or Full Feed */}
           {!isLoading && !error && (
-            <div className="flex-1 p-6">
-              <div className="flex gap-6" style={{ minHeight: '500px' }}>
-                {/* Left Column: Category List */}
-                <div className="w-[400px] shrink-0">
-                  <div className="flex items-center gap-2 mb-4">
-                    <TrendingUp size={16} className="text-slate-500" />
-                    <h2 className="text-sm font-semibold text-slate-600 uppercase tracking-wide">
-                      Category Themes
-                    </h2>
-                  </div>
-
-                  <div className="space-y-2">
-                    {sortedCategories.map(([category, categoryItems]) => (
-                      <CategoryRow
-                        key={category}
-                        category={category}
-                        items={categoryItems}
-                        isSelected={selectedCategory === category}
-                        selectedMode={selectedCategory === category ? detailMode : null}
-                        onSelectCategory={handleSelectCategory}
-                        onShowSummary={handleShowSummary}
-                      />
-                    ))}
-
-                    {sortedCategories.length === 0 && (
-                      <div className="text-center py-12 text-slate-500">
-                        <p>No articles found in the last 30 days.</p>
+            <>
+              {activeSubTab === 'themes' ? (
+                /* Themes View - Original 2-column grid */
+                <div className="flex-1 p-6">
+                  <div className="flex gap-6" style={{ minHeight: '500px' }}>
+                    {/* Left Column: Category List */}
+                    <div className="w-[400px] shrink-0">
+                      <div className="flex items-center gap-2 mb-4">
+                        <TrendingUp size={16} className="text-slate-500" />
+                        <h2 className="text-sm font-semibold text-slate-600 uppercase tracking-wide">
+                          Category Themes
+                        </h2>
                       </div>
-                    )}
+
+                      <div className="space-y-2">
+                        {sortedCategories.map(([category, categoryItems]) => (
+                          <CategoryRow
+                            key={category}
+                            category={category}
+                            items={categoryItems}
+                            isSelected={selectedCategory === category}
+                            selectedMode={selectedCategory === category ? detailMode : null}
+                            onSelectCategory={handleSelectCategory}
+                            onShowSummary={handleShowSummary}
+                          />
+                        ))}
+
+                        {sortedCategories.length === 0 && (
+                          <div className="text-center py-12 text-slate-500">
+                            <p>No articles found in the last 30 days.</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Right Column: Detail Panel */}
+                    <div className="flex-1 border-l border-slate-200 pl-6 min-h-[400px]">
+                      <DetailPanel
+                        category={selectedCategory}
+                        items={selectedItems}
+                        mode={detailMode}
+                        summary={summary}
+                        isLoadingSummary={isLoadingSummary}
+                        onClose={handleCloseDetail}
+                        onQuickFilter={handleQuickFilter}
+                        allItems={items}
+                        categoryCount={sortedCategories.length}
+                      />
+                    </div>
                   </div>
                 </div>
-
-                {/* Right Column: Detail Panel */}
-                <div className="flex-1 border-l border-slate-200 pl-6 min-h-[400px]">
-                  <DetailPanel
-                    category={selectedCategory}
-                    items={selectedItems}
-                    mode={detailMode}
-                    summary={summary}
-                    isLoadingSummary={isLoadingSummary}
-                    onClose={handleCloseDetail}
-                    onQuickFilter={handleQuickFilter}
-                    allItems={items}
-                    categoryCount={sortedCategories.length}
-                  />
-                </div>
-              </div>
-            </div>
+              ) : (
+                /* Full Feed View - Masonry layout with filters */
+                <FullFeedView
+                  items={items}
+                  stats={stats}
+                  isLoading={isLoading}
+                  error={error}
+                  onQuickFilter={handleQuickFilter}
+                />
+              )}
+            </>
           )}
         </div>
       </div>
