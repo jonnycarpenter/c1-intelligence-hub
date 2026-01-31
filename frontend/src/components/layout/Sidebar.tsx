@@ -142,8 +142,8 @@ export default function Sidebar({
 
         <div className="my-4 mx-3 border-t border-slate-800/50" />
 
-        {/* Report Builder Button */}
-        <button
+        {/* Report Builder Button - HIDDEN per user request */}
+        {/* <button
           onClick={onOpenReport}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800/40 hover:text-white transition-all"
         >
@@ -161,7 +161,7 @@ export default function Sidebar({
               <span className="text-xs text-slate-500 block">{reportCount} items</span>
             </span>
           )}
-        </button>
+        </button> */}
 
         {/* Divider before future pages */}
         <div className="my-4 mx-3 border-t border-slate-800/50" />

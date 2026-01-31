@@ -54,8 +54,9 @@ export function ResearchProgress({
     isCacheHit,
 }: ResearchProgressProps) {
     // Get the most recent tool progress for display
+    // Get the most recent tool progress for display (show all, newest first)
     const recentTools = useMemo(() => {
-        return toolProgress.slice(-5).reverse()
+        return toolProgress.slice().reverse()
     }, [toolProgress])
 
     // Check if financial and industry are running in parallel
@@ -83,34 +84,10 @@ export function ResearchProgress({
             </div>
 
             {/* Pipeline Visualization */}
+            {/* Pipeline Visualization */}
             <div className="px-4 py-4">
-                {/* Node labels above icons */}
-                <div className="hidden sm:flex items-end justify-between mb-2 px-1">
-                    {nodeStatuses.map(node => {
-                        // Split multi-word labels into lines
-                        const label = NODE_LABELS[node.node]
-                        const words = label.split(' ')
-
-                        return (
-                            <div key={`label-${node.node}`} className="flex-1 text-center">
-                                <div className={cn(
-                                    'text-xs leading-tight',
-                                    node.status === 'running' && 'text-emerald-600 font-medium',
-                                    node.status === 'completed' && 'text-slate-500',
-                                    node.status === 'pending' && 'text-slate-400',
-                                    node.status === 'error' && 'text-red-500',
-                                )}>
-                                    {words.map((word, idx) => (
-                                        <div key={idx}>{word}</div>
-                                    ))}
-                                </div>
-                            </div>
-                        )
-                    })}
-                </div>
-
-                {/* Icon row */}
-                <div className="flex items-center justify-between gap-1">
+                {/* Unified Node Row */}
+                <div className="flex items-end justify-between gap-1">
                     {nodeStatuses.map((node, idx) => {
                         const Icon = NODE_ICONS[node.node]
                         const isActive = node.status === 'running'
@@ -118,18 +95,22 @@ export function ResearchProgress({
                         const isError = node.status === 'error'
                         const isPending = node.status === 'pending'
 
+                        // Parse label
+                        const label = NODE_LABELS[node.node]
+                        const words = label.split(' ')
+
                         // Show parallel indicator between financial and industry
                         const showParallelBracket =
                             (node.node === 'financial_research' || node.node === 'industry_research') &&
                             parallelNodes
 
                         return (
-                            <div key={node.node} className="flex items-center">
+                            <div key={node.node} className="flex items-end">
                                 {/* Connector line */}
                                 {idx > 0 && node.node !== 'industry_research' && (
                                     <div
                                         className={cn(
-                                            'w-4 h-0.5 mx-0.5',
+                                            'w-4 h-0.5 mx-0.5 mb-5',
                                             isComplete || isActive
                                                 ? 'bg-emerald-400'
                                                 : 'bg-slate-200'
@@ -137,43 +118,61 @@ export function ResearchProgress({
                                     />
                                 )}
 
-                                {/* Node */}
-                                <div
-                                    className={cn(
-                                        'relative group',
-                                        showParallelBracket && 'flex flex-col items-center'
-                                    )}
-                                >
-                                    {/* Parallel bracket indicator */}
-                                    {showParallelBracket && node.node === 'financial_research' && (
-                                        <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 w-24 h-2 border-t border-l border-r border-blue-300 rounded-t-lg" />
-                                    )}
-
-                                    {/* Node circle */}
-                                    <div
-                                        className={cn(
-                                            'w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300',
-                                            isComplete && 'bg-emerald-500 text-white',
-                                            isActive && 'bg-emerald-100 text-emerald-600 ring-2 ring-emerald-400 ring-offset-2',
-                                            isError && 'bg-red-500 text-white',
-                                            isPending && 'bg-slate-100 text-slate-400'
-                                        )}
-                                    >
-                                        {isActive ? (
-                                            <Loader2 size={18} className="animate-spin" />
-                                        ) : isComplete ? (
-                                            <CheckCircle size={18} />
-                                        ) : isError ? (
-                                            <AlertCircle size={18} />
-                                        ) : (
-                                            <Icon size={18} />
-                                        )}
+                                {/* Node Step Container (Label + Icon) */}
+                                <div className="flex flex-col items-center">
+                                    {/* Label - Fixed height to align top baseline */}
+                                    <div className="hidden sm:flex flex-col items-center justify-end h-8 mb-2 w-24">
+                                        <div className={cn(
+                                            'text-xs leading-tight text-center',
+                                            node.status === 'running' && 'text-emerald-600 font-medium',
+                                            node.status === 'completed' && 'text-slate-500',
+                                            node.status === 'pending' && 'text-slate-400',
+                                            node.status === 'error' && 'text-red-500',
+                                        )}>
+                                            {words.map((word, wIdx) => (
+                                                <div key={wIdx}>{word}</div>
+                                            ))}
+                                        </div>
                                     </div>
 
-                                    {/* Tooltip for mobile */}
-                                    <div className="sm:hidden absolute -bottom-8 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                                        <div className="bg-slate-900 text-white text-xs px-2 py-1 rounded whitespace-nowrap">
-                                            {NODE_LABELS[node.node]}
+                                    {/* Icon Group */}
+                                    <div
+                                        className={cn(
+                                            'relative group',
+                                            showParallelBracket && 'flex flex-col items-center'
+                                        )}
+                                    >
+                                        {/* Parallel bracket indicator */}
+                                        {showParallelBracket && node.node === 'financial_research' && (
+                                            <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 w-24 h-2 border-t border-l border-r border-blue-300 rounded-t-lg" />
+                                        )}
+
+                                        {/* Node circle */}
+                                        <div
+                                            className={cn(
+                                                'w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300',
+                                                isComplete && 'bg-emerald-500 text-white',
+                                                isActive && 'bg-emerald-100 text-emerald-600 ring-2 ring-emerald-400 ring-offset-2',
+                                                isError && 'bg-red-500 text-white',
+                                                isPending && 'bg-slate-100 text-slate-400'
+                                            )}
+                                        >
+                                            {isActive ? (
+                                                <Loader2 size={18} className="animate-spin" />
+                                            ) : isComplete ? (
+                                                <CheckCircle size={18} />
+                                            ) : isError ? (
+                                                <AlertCircle size={18} />
+                                            ) : (
+                                                <Icon size={18} />
+                                            )}
+                                        </div>
+
+                                        {/* Tooltip for mobile (only show if label hidden) */}
+                                        <div className="sm:hidden absolute -bottom-8 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                                            <div className="bg-slate-900 text-white text-xs px-2 py-1 rounded whitespace-nowrap">
+                                                {NODE_LABELS[node.node]}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -190,7 +189,7 @@ export function ResearchProgress({
                         <Circle size={8} className="text-emerald-500 fill-emerald-500 animate-pulse" />
                         <span className="text-xs font-medium text-slate-600">Live Activity</span>
                     </div>
-                    <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                    <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
                         {recentTools.map((tool, idx) => (
                             <ToolProgressItem key={idx} tool={tool} isLatest={idx === 0} />
                         ))}

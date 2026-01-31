@@ -274,8 +274,8 @@ export default function ResearchDashboard({
                     className={cn(
                       'max-w-[85%] rounded-2xl px-4 py-3',
                       msg.role === 'user'
-                        ? 'bg-emerald-600 text-white'
-                        : 'bg-slate-100 text-slate-800'
+                        ? 'bg-emerald-500 text-white rounded-tr-sm'
+                        : 'bg-white border border-slate-200 text-slate-700 rounded-tl-sm'
                     )}
                   >
                     <MarkdownContent
@@ -295,9 +295,9 @@ export default function ResearchDashboard({
               {/* Agent thinking indicator */}
               {isResearching && (
                 <div className="flex justify-start">
-                  <div className="bg-slate-100 rounded-2xl px-4 py-3 flex items-center gap-2">
+                  <div className="bg-emerald-50 rounded-2xl rounded-tl-sm px-4 py-3 border border-emerald-200 flex items-center gap-2">
                     <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
-                    <span className="text-sm text-slate-600">{researchStatus || 'Researching...'}</span>
+                    <span className="text-sm text-emerald-700">{researchStatus || 'Researching...'}</span>
                   </div>
                 </div>
               )}
