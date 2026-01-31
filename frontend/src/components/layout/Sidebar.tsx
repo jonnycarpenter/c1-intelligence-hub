@@ -1,6 +1,7 @@
 'use client'
 
 import { Activity, Search, Package, Building2, Factory, FileText, Settings, ChevronLeft, ChevronRight, Database, Users, ShoppingCart, Construction, Mic, GitBranch, Ship, Compass } from 'lucide-react'
+import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import type { Mode } from '@/types'
 
@@ -104,11 +105,15 @@ export default function Sidebar({
               )}
             >
               {isActive && !isDisabled && (
-                <span className={cn('absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full', item.bg)} />
+                <motion.span
+                  layoutId="sidebar-active-pill"
+                  transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                  className={cn('absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full', item.bg)}
+                />
               )}
               <span
                 className={cn(
-                  'w-8 h-8 rounded-lg flex items-center justify-center transition-colors',
+                  'w-8 h-8 rounded-lg flex items-center justify-center transition-colors relative z-10',
                   isDisabled ? 'bg-slate-800/30' : isActive ? `${item.bg}/20` : 'bg-slate-800/50'
                 )}
               >

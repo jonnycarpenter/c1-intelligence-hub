@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Sparkles, Zap, Loader2, Clock, AlertCircle, ChevronDown } from 'lucide-react'
 import { api } from '@/lib/api'
+import TypewriterEffect from '@/components/ui/typewriter'
 
 interface BulletinBoardData {
     market_pulse: string
@@ -118,8 +119,15 @@ export default function BulletinBoard({ className }: BulletinBoardProps) {
 
                 {/* Right Side: The Insight */}
                 <div className="flex-1 p-5 flex items-center bg-white/30">
-                    <p className="text-lg md:text-xl font-medium text-slate-700 leading-relaxed font-serif italic text-balance">
-                        "{data.market_pulse}"
+                    <p className="text-lg md:text-xl font-medium text-slate-700 leading-relaxed font-serif italic text-balance min-h-[3.5rem]">
+                        "
+                        <TypewriterEffect
+                            text={data.market_pulse}
+                            speed={25}
+                            startDelay={300}
+                            cursorClassName="bg-teal-500 w-[3px]"
+                        />
+                        "
                     </p>
                 </div>
             </div>

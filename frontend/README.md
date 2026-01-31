@@ -158,3 +158,14 @@ Core types are in `types/index.ts`:
 - `ResearchSection`, `RecentSearch` - Research state
 - `NodeStatus`, `ToolProgressEvent` - Progress tracking
 - `DeepResearchReport` - Full report structure
+
+## Animations & UX (Session 106)
+
+### Core Libraries
+- **Framer Motion**: Main animation library for page transitions and component interactions.
+- `src/components/ui/motion-wrapper.tsx`: Reusable wrapper for page entry animations.
+
+### Interactions
+- **Active Pill**: Sidebar uses `layoutId` for smooth "floating" tab transitions.
+- **Staggered Entry**: DiscoveryView and FullFeedView use `staggerChildren` for cascaded content loading.
+- **Thinking Authenticity**: `TypewriterEffect` component for "Market Pulse" to simulate AI reasoning.

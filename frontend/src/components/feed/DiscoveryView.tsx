@@ -15,6 +15,8 @@ import {
   LayoutGrid,
   Rows3,
 } from 'lucide-react'
+import { motion } from 'framer-motion'
+import MotionWrapper from '@/components/ui/motion-wrapper'
 import { cn } from '@/lib/utils'
 import DigestCard from '@/components/digest/DigestCard'
 import AdHocBriefing from '@/components/dashboard/AdHocBriefing'
@@ -714,7 +716,7 @@ const DiscoveryView = forwardRef<DiscoveryViewRef, DiscoveryViewProps>(
             <>
               {activeSubTab === 'themes' ? (
                 /* Themes View - Original 2-column grid */
-                <div className="flex-1 p-6">
+                <MotionWrapper className="flex-1 p-6" delay={0.1}>
                   <div className="flex gap-6" style={{ minHeight: '500px' }}>
                     {/* Left Column: Category List */}
                     <div className="w-[480px] shrink-0">
@@ -725,17 +727,37 @@ const DiscoveryView = forwardRef<DiscoveryViewRef, DiscoveryViewProps>(
                         </h2>
                       </div>
 
-                      <div className="space-y-2">
+                      <motion.div
+                        className="space-y-2"
+                        initial="hidden"
+                        animate="show"
+                        variants={{
+                          hidden: { opacity: 0 },
+                          show: {
+                            opacity: 1,
+                            transition: {
+                              staggerChildren: 0.05
+                            }
+                          }
+                        }}
+                      >
                         {sortedCategories.map(([category, categoryItems]) => (
-                          <CategoryRow
+                          <motion.div
                             key={category}
-                            category={category}
-                            items={categoryItems}
-                            isSelected={selectedCategory === category}
-                            selectedMode={selectedCategory === category ? detailMode : null}
-                            onSelectCategory={handleSelectCategory}
-                            onShowSummary={handleShowSummary}
-                          />
+                            variants={{
+                              hidden: { opacity: 0, x: -20 },
+                              show: { opacity: 1, x: 0 }
+                            }}
+                          >
+                            <CategoryRow
+                              category={category}
+                              items={categoryItems}
+                              isSelected={selectedCategory === category}
+                              selectedMode={selectedCategory === category ? detailMode : null}
+                              onSelectCategory={handleSelectCategory}
+                              onShowSummary={handleShowSummary}
+                            />
+                          </motion.div>
                         ))}
 
                         {sortedCategories.length === 0 && (
@@ -743,7 +765,7 @@ const DiscoveryView = forwardRef<DiscoveryViewRef, DiscoveryViewProps>(
                             <p>No articles found in the last 30 days.</p>
                           </div>
                         )}
-                      </div>
+                      </motion.div>
                     </div>
 
                     {/* Right Column: Detail Panel */}
@@ -761,7 +783,7 @@ const DiscoveryView = forwardRef<DiscoveryViewRef, DiscoveryViewProps>(
                       />
                     </div>
                   </div>
-                </div>
+                </MotionWrapper>
               ) : (
                 /* Full Feed View - Masonry layout with filters */
                 <FullFeedView

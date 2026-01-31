@@ -14,6 +14,7 @@ import {
     Loader2,
     Clock,
 } from 'lucide-react'
+import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import DigestCard from '@/components/digest/DigestCard'
 import type { DigestItem, DigestStats } from '@/types'
@@ -477,17 +478,37 @@ export default function FullFeedView({
             <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-100">
                 <div className="max-w-7xl mx-auto">
                     {filteredItems.length > 0 ? (
-                        <div className="columns-1 md:columns-2 xl:columns-3 gap-4">
+                        <motion.div
+                            className="columns-1 md:columns-2 xl:columns-3 gap-4"
+                            initial="hidden"
+                            animate="show"
+                            variants={{
+                                hidden: { opacity: 0 },
+                                show: {
+                                    opacity: 1,
+                                    transition: {
+                                        staggerChildren: 0.05
+                                    }
+                                }
+                            }}
+                        >
                             {filteredItems.map((item) => (
-                                <div key={item.id} className="mb-4 break-inside-avoid">
+                                <motion.div
+                                    key={item.id}
+                                    className="mb-4 break-inside-avoid"
+                                    variants={{
+                                        hidden: { opacity: 0, y: 20 },
+                                        show: { opacity: 1, y: 0 }
+                                    }}
+                                >
                                     <DigestCard
                                         item={item}
                                         onQuickFilter={onQuickFilter}
                                         lastVisitTime={lastVisitTime}
                                     />
-                                </div>
+                                </motion.div>
                             ))}
-                        </div>
+                        </motion.div>
                     ) : items.length === 0 ? (
                         // No data at all - possible ingestion issue
                         <div className="text-center py-20 bg-gradient-to-br from-amber-50 to-orange-50 rounded-3xl border border-dashed border-amber-200">
