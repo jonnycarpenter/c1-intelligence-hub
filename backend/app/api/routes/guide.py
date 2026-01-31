@@ -14,7 +14,7 @@ from app.agents.guide import get_guide_agent
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/guide", tags=["guide"])
+router = APIRouter()
 
 
 class GuideMessage(BaseModel):

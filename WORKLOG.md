@@ -21,6 +21,27 @@ Without reliable daily ingestion:
 ## 🚨 TODO / Open Issues
 
 - [x] Investigate `Minified React error #310` when clicking a category theme on the Market Intelligence tab (likely a Hook violation)
+- [x] Fix 'Intelligence Hub Guide' returning 404 errors when opened
+
+---
+## 📅 SESSION 99: Intelligence Hub Guide 404 Fix (January 30, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Problem
+The 'Intelligence Hub Guide' was returning 404 errors when accessed. This feature uses the `/api/guide` endpoints.
+
+### 💡 Root Cause
+A double prefix configuration in the backend routing:
+- `backend/app/main.py` included the router with `prefix="/api/guide"`
+- `backend/app/api/routes/guide.py` defined the router with `prefix="/guide"`
+This resulted in the actual endpoints being mounted at `/api/guide/guide/chat` instead of `/api/guide/chat`.
+
+### ✅ Fix
+Removed the redundant `prefix="/guide"` from the `APIRouter` definition in `backend/app/api/routes/guide.py`.
+
+### 📁 Files Modified
+- `backend/app/api/routes/guide.py`
 
 ---
 ## 📅 SESSION 98: Market Intelligence React Error Fix (January 30, 2026)
