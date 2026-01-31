@@ -174,7 +174,7 @@ class ApiClient {
    * Returns actionable guidance bullets for high-priority items
    */
   async getBulletinBoard(): Promise<{
-    bullets: string[]
+    market_pulse: string
     total_priority_items: number
     categories_covered: string[]
     time_window_hours: number
@@ -187,7 +187,7 @@ class ApiClient {
       // Return empty fallback if endpoint not yet implemented
       if (response.status === 404) {
         return {
-          bullets: [],
+          market_pulse: "Explore the categories below for the latest intelligence.",
           total_priority_items: 0,
           categories_covered: [],
           time_window_hours: 72,

@@ -137,7 +137,7 @@ function CategoryRow({
       config.color,
       isSelected && "ring-2 ring-teal-500/30 shadow-md"
     )}>
-      <div className="grid grid-cols-[180px_1fr_80px_140px] items-center p-3">
+      <div className="grid grid-cols-[200px_1fr_70px_120px] items-center p-2">
         {/* Label Column - Clickable */}
         <button
           onClick={() => onSelectCategory(category)}
@@ -717,7 +717,7 @@ const DiscoveryView = forwardRef<DiscoveryViewRef, DiscoveryViewProps>(
                 <div className="flex-1 p-6">
                   <div className="flex gap-6" style={{ minHeight: '500px' }}>
                     {/* Left Column: Category List */}
-                    <div className="w-[400px] shrink-0">
+                    <div className="w-[480px] shrink-0">
                       <div className="flex items-center gap-2 mb-4">
                         <TrendingUp size={16} className="text-slate-500" />
                         <h2 className="text-sm font-semibold text-slate-600 uppercase tracking-wide">

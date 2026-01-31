@@ -66,23 +66,23 @@ class BulletinBoardGenerator:
         return """Generate 1-3 brief bullet points guiding users to priority content. 
 Return JSON array of strings only."""
     
-    async def generate(
+    async def generate_market_pulse(
         self,
         priority_items: List[Dict[str, Any]],
         hours_window: int = 72,
         extended: bool = False
     ) -> Dict[str, Any]:
         """
-        Generate bulletin board content.
+        Generate a single 'Market Pulse' strategic summary sentence.
         
         Args:
-            priority_items: List of HIGH/CRITICAL articles with category, title, published_at
-            hours_window: Time window used (72 or 168)
-            extended: Whether we extended from 72h to 7 days due to no items
+            priority_items: List of HIGH/CRITICAL articles
+            hours_window: Time window used
+            extended: Whether we extended to 7 days
             
         Returns:
             {
-                "bullets": ["bullet 1", "bullet 2", ...],
+                "market_pulse": "Single sentence summary...",
                 "total_priority_items": int,
                 "categories_covered": ["Market", ...],
                 "time_window_hours": int,
@@ -102,9 +102,8 @@ Return JSON array of strings only."""
         sorted_categories = sorted(by_category.items(), key=lambda x: len(x[1]), reverse=True)[:3]
         
         if not sorted_categories:
-            # No priority items
             return {
-                "bullets": ["All clear – no urgent items in the last few days. Explore the themes below."],
+                "market_pulse": "No critical signals detected in the last few days.",
                 "total_priority_items": 0,
                 "categories_covered": [],
                 "time_window_hours": hours_window,
@@ -117,14 +116,13 @@ Return JSON array of strings only."""
         
         # Call Haiku
         try:
-            bullets = await self._call_haiku(context)
+            market_pulse = await self._call_haiku_pulse(context)
         except Exception as e:
-            logger.error(f"Haiku call failed: {e}")
-            # Fallback to templated bullets
-            bullets = self._generate_fallback_bullets(sorted_categories)
+            logger.error(f"Haiku pulse call failed: {e}")
+            market_pulse = self._generate_fallback_pulse(sorted_categories)
         
         return {
-            "bullets": bullets,
+            "market_pulse": market_pulse,
             "total_priority_items": len(priority_items),
             "categories_covered": [cat for cat, _ in sorted_categories],
             "time_window_hours": hours_window,
@@ -152,98 +150,32 @@ Return JSON array of strings only."""
             # Add up to 5 sample titles with recency
             for item in items[:5]:
                 title = item.get("title", "Untitled")[:80]
-                pub_at = item.get("published_at")
-                recency = ""
-                if pub_at:
-                    try:
-                        if isinstance(pub_at, str):
-                            pub_dt = datetime.fromisoformat(pub_at.replace("Z", "+00:00"))
-                        else:
-                            pub_dt = pub_at
-                        hours_ago = (now - pub_dt.replace(tzinfo=None)).total_seconds() / 3600
-                        if hours_ago < 1:
-                            recency = " (just now)"
-                        elif hours_ago < 6:
-                            recency = f" ({int(hours_ago)}h ago)"
-                        elif hours_ago < 24:
-                            recency = " (today)"
-                        elif hours_ago < 48:
-                            recency = " (yesterday)"
-                    except:
-                        pass
-                lines.append(f"  - {title}{recency}")
+                lines.append(f"  - {title}")
         
         return "\n".join(lines)
     
-    async def _call_haiku(self, context: str) -> List[str]:
-        """Call Claude Haiku to generate bullets."""
+    async def _call_haiku_pulse(self, context: str) -> str:
+        """Call Claude Haiku to generate a single pulse sentence."""
+        system_prompt = """You are a senior market intelligence analyst.
+Analyze the provided high-priority items and generate ONE single, powerful sentence that summarizes the current market state.
+Focus on the "So What?" - connect the dots between categories if possible.
+Style: Professional, concise, executive-level. No "Here is a summary". Just the insight.
+Max 20 words."""
+
         # Synchronous call (Anthropic SDK)
         response = self.client.messages.create(
             model="claude-3-5-haiku-latest",
-            max_tokens=300,
-            system=self._prompt_template,
+            max_tokens=100,
+            system=system_prompt,
             messages=[
                 {"role": "user", "content": context}
             ]
         )
         
-        # Parse response
-        content = response.content[0].text.strip()
-        
-        # Extract JSON array
-        if content.startswith("["):
-            try:
-                bullets = json.loads(content)
-                if isinstance(bullets, list) and all(isinstance(b, str) for b in bullets):
-                    return bullets[:3]  # Max 3
-            except json.JSONDecodeError:
-                pass
-        
-        # Try to find JSON in response
-        match = re.search(r'\[.*?\]', content, re.DOTALL)
-        if match:
-            try:
-                bullets = json.loads(match.group())
-                if isinstance(bullets, list):
-                    return [str(b) for b in bullets[:3]]
-            except:
-                pass
-        
-        # Fallback: treat as single bullet
-        return [content[:200]] if content else ["Check out the priority items below."]
+        return response.content[0].text.strip()
     
-    def _generate_fallback_bullets(
-        self,
-        sorted_categories: List[tuple]
-    ) -> List[str]:
-        """Generate templated bullets without LLM."""
-        now = datetime.utcnow()
-        bullets = []
-        
-        for category, items in sorted_categories[:3]:
-            display_name = CATEGORY_DISPLAY_NAMES.get(category, category.replace("_", " ").title())
-            count = len(items)
-            
-            # Find most recent item
-            recency = ""
-            if items:
-                most_recent = items[0]
-                pub_at = most_recent.get("published_at")
-                if pub_at:
-                    try:
-                        if isinstance(pub_at, str):
-                            pub_dt = datetime.fromisoformat(pub_at.replace("Z", "+00:00"))
-                        else:
-                            pub_dt = pub_at
-                        hours_ago = (now - pub_dt.replace(tzinfo=None)).total_seconds() / 3600
-                        if hours_ago < 3:
-                            recency = f", latest just {int(hours_ago)} hours ago"
-                        elif hours_ago < 24:
-                            recency = ", latest today"
-                    except:
-                        pass
-            
-            bullet = f"Check out {display_name} – {count} priority item{'s' if count != 1 else ''}{recency}."
-            bullets.append(bullet)
-        
-        return bullets
+    def _generate_fallback_pulse(self, sorted_categories: List[tuple]) -> str:
+        """Generate templated pulse sentence without LLM."""
+        top_cat = CATEGORY_DISPLAY_NAMES.get(sorted_categories[0][0], sorted_categories[0][0])
+        count = len(sorted_categories[0][1])
+        return f"High volume of activity detected in {top_cat} with {count} critical items."

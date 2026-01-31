@@ -680,7 +680,7 @@ async def get_discovery_category_summary(category: str):
 
 class BulletinBoardResponse(BaseModel):
     """Contextual guidance for the Market Intelligence bulletin board."""
-    bullets: List[str]
+    market_pulse: str
     total_priority_items: int
     categories_covered: List[str] = []
     time_window_hours: int
@@ -691,11 +691,10 @@ class BulletinBoardResponse(BaseModel):
 @router.get("/bulletin", response_model=BulletinBoardResponse)
 async def get_bulletin_board():
     """
-    Get contextual guidance bullets for the Market Intelligence bulletin board.
+    Get contextual guidance for the Market Intelligence bulletin board.
     
     Analyzes HIGH/CRITICAL priority items from the last 72 hours (or 7 days if none).
-    Uses Haiku LLM to generate 1-3 brief, actionable guidance bullets pointing
-    users to the most important content.
+    Uses Haiku LLM to generate a single 'Market Pulse' strategic summary sentence.
     """
     request_start = time.time()
     logger.info("[BULLETIN_BOARD] Endpoint START")
@@ -762,10 +761,10 @@ async def get_bulletin_board():
         # 4. Generate bulletin board content
         try:
             generator = BulletinBoardGenerator(anthropic_api_key=settings.anthropic_api_key)
-            result = await generator.generate(priority_items, hours_window=hours, extended=extended)
+            result = await generator.generate_market_pulse(priority_items, hours_window=hours, extended=extended)
             
             elapsed = time.time() - request_start
-            logger.info(f"[BULLETIN_BOARD] Endpoint COMPLETE: {elapsed:.2f}s, bullets={len(result.get('bullets', []))}")
+            logger.info(f"[BULLETIN_BOARD] Endpoint COMPLETE: {elapsed:.2f}s")
             
             return BulletinBoardResponse(**result)
             
@@ -773,7 +772,7 @@ async def get_bulletin_board():
             logger.error(f"[BULLETIN_BOARD] Generator failed: {gen_error}")
             # Fallback response
             return BulletinBoardResponse(
-                bullets=["Check out the category themes below for the latest intelligence."],
+                market_pulse="Check out the newest critical signals in the themes below.",
                 total_priority_items=len(priority_items),
                 categories_covered=[],
                 time_window_hours=hours,
@@ -786,7 +785,7 @@ async def get_bulletin_board():
         logger.error(f"[BULLETIN_BOARD] Endpoint FAILED: {elapsed:.2f}s, error={str(e)}", exc_info=True)
         # Return graceful fallback
         return BulletinBoardResponse(
-            bullets=["Explore the categories below for the latest intelligence."],
+            market_pulse="Explore the industry themes below for the latest intelligence.",
             total_priority_items=0,
             categories_covered=[],
             time_window_hours=72,

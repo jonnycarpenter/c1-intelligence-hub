@@ -37,6 +37,60 @@ Without reliable daily ingestion:
 - [ ] **Saved Filter Presets** - Let users save filter combinations
 
 ---
+## 📅 SESSION 104: Market Pulse Implementation (January 31, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Goals
+Eliminate redundancy between the top-of-page "Bulletin Board" and the side "Detail Panel" by transforming the top section into a strategic "Market Pulse" summary.
+
+### ✅ Completed
+
+1.  **Backend Transformation**
+    - Refactored `BulletinBoardGenerator.py` to replace the bullet-point generator with a `generate_market_pulse` method.
+    - Now uses Claude Haiku to generate a **single high-impact sentence** summarizing the market state (max 20 words).
+    - Updated `BulletinBoardResponse` model in `discovery.py` to return `market_pulse` instead of `bullets`.
+
+2.  **Frontend Redesign**
+    - Updated `BulletinBoard.tsx` to the new "Market Pulse" design.
+    - Replaced the list view with a large, centered "Hero Text" display.
+    - Maintained premium styling (gradients, glassmorphism) but focused entirely on the single insight.
+
+### 📁 Files Modified
+- `backend/app/ingestion/generators/bulletin_board.py` - Logic change.
+- `backend/app/api/routes/discovery.py` - API contract update.
+- `frontend/src/lib/api.ts` - Client type update.
+- `frontend/src/components/feed/BulletinBoard.tsx` - UI Redesign.
+
+### 🧪 Verification
+- `npm run build` ✅ Compiled successfully.
+
+---
+## 📅 SESSION 103: Market Intelligence Category Cropping Fix (January 31, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Goals
+Fix UI layout issues where category titles and the "AI Summary" button were being truncated in the Market Intelligence (Discovery) tab.
+
+### ✅ Completed
+
+1.  **Widened Category List Container**
+    - Increased width from `400px` to `480px` to provide more breathing room for long titles.
+
+2.  **Optimized Grid Columns**
+    - Adjusted grid definition from `[180px 1fr 80px 140px]` to `[200px 1fr 70px 120px]`.
+    - Gives 20px more to the Label column (fixing "Expansion & Investment" truncation).
+    - Reduces unused space in Count and Action columns.
+    - Reduced padding from `p-3` to `p-2` to gain 8px extra horizontal space.
+
+### 📁 Files Modified
+- `frontend/src/components/feed/DiscoveryView.tsx` - Layout adjustments.
+
+### 🧪 Verification
+- `npm run build` ✅ Compiled successfully.
+
+---
 ## 📅 SESSION 102: Full Feed UX Polish Sprint (January 31, 2026)
 
 **Status**: ✅ COMPLETE
