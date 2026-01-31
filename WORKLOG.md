@@ -4790,3 +4790,25 @@ SESSION 7 COMPLETED:
 -   `backend/app/mcp/tools/pipeline_search.py`
 -   `frontend/src/types/index.ts`
 -   `frontend/src/components/pipeline/SearchBlockCard.tsx`
+
+---
+##  SESSION 97: Market Intelligence UX & Full Feed Fix (January 30, 2026)
+
+**Status**:  COMPLETE
+
+###  Problem
+1. **Misalignment**: Category Themes list had misaligned columns (Label, Priority, Count) due to flexbox layout.
+2. **UX Clutter**: 'Live Intelligence' header was taking up too much vertical space.
+3. **Weak Styling**: 'AI Summary' button looked generic.
+4. **Missing Data**: Full Feed appeared empty because default filter was 'Last 7 Days' (week) but test data is older.
+
+###  Fixes
+1. **Grid Layout**: Refactored \CategoryRow\ in \DiscoveryView.tsx\ to use CSS Grid (\180px 1fr 80px 140px\) for perfect column alignment.
+2. **Header Removal**: Removed the 'Live Intelligence' / 'Good evening Team' header block to move content above the fold.
+3. **Button Styling**: Redesigned 'AI Summary' button with premium teal styling and hover effects.
+4. **Default Filter**: Changed Full Feed default time range to 'month' (30 days) in \FullFeedView.tsx\.
+
+###  Files Modified
+- \rontend/src/components/feed/DiscoveryView.tsx\
+- \rontend/src/components/feed/FullFeedView.tsx\
+

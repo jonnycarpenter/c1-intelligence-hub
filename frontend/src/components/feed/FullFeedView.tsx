@@ -46,7 +46,7 @@ export default function FullFeedView({
     const [selectedPriority, setSelectedPriority] = useState<string>('all')
     const [selectedSource, setSelectedSource] = useState<string>('all')
     const [selectedIndustry, setSelectedIndustry] = useState<string>('all')
-    const [timeRange, setTimeRange] = useState<string>('week') // Default: 7 days
+    const [timeRange, setTimeRange] = useState<string>('month') // Default: 30 days
     const [sortBy, setSortBy] = useState<'priority' | 'newest' | 'oldest' | 'relevance'>('priority')
 
     // Shuffle state
@@ -197,7 +197,7 @@ export default function FullFeedView({
         setSelectedPriority('all')
         setSelectedSource('all')
         setSelectedIndustry('all')
-        setTimeRange('week')
+        setTimeRange('month')
         setIsShuffled(false)
         setShuffledOrder([])
         setSortBy('priority')
@@ -208,7 +208,7 @@ export default function FullFeedView({
         selectedPriority !== 'all' ||
         selectedSource !== 'all' ||
         selectedIndustry !== 'all' ||
-        timeRange !== 'week' ||
+        timeRange !== 'month' ||
         isShuffled
 
     // =============================================================================
@@ -405,9 +405,9 @@ export default function FullFeedView({
                                 {selectedIndustry}
                             </span>
                         )}
-                        {timeRange !== 'week' && (
+                        {timeRange !== 'month' && (
                             <span className="px-2 py-0.5 bg-amber-500/10 text-amber-600 rounded-md text-[10px] font-bold uppercase">
-                                {timeRange === 'today' ? 'Today' : timeRange === 'twoWeeks' ? '14 Days' : '30 Days'}
+                                {timeRange === 'today' ? 'Today' : timeRange === 'week' ? '7 Days' : timeRange === 'twoWeeks' ? '14 Days' : '30 Days'}
                             </span>
                         )}
                     </div>

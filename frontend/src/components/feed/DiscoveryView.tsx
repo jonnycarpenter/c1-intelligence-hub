@@ -103,7 +103,7 @@ const CATEGORY_PRIORITY: Record<string, number> = {
 }
 
 // =============================================================================
-// Category Row Component (simplified - no inline expansion)
+// Category Row Component (aligned grid layout)
 // =============================================================================
 
 interface CategoryRowProps {
@@ -133,58 +133,72 @@ function CategoryRow({
 
   return (
     <div className={cn(
-      "border-l-4 rounded-r-lg bg-white shadow-sm overflow-hidden transition-all duration-200",
+      "border-l-4 rounded-r-lg bg-white shadow-sm overflow-hidden transition-all duration-200 group",
       config.color,
       isSelected && "ring-2 ring-teal-500/30 shadow-md"
     )}>
-      <div className="flex items-center justify-between p-4">
-        {/* Left: Category info - click to show cards */}
+      <div className="grid grid-cols-[180px_1fr_80px_140px] items-center p-3">
+        {/* Label Column - Clickable */}
         <button
           onClick={() => onSelectCategory(category)}
-          className={cn(
-            "flex items-center gap-3 hover:opacity-80 transition-opacity",
-            isSelected && selectedMode === 'cards' && "text-teal-700"
-          )}
+          className="flex items-center gap-2 text-left hover:opacity-70 transition-opacity min-w-0"
         >
           <span className={cn(
-            "font-semibold",
-            isSelected && selectedMode === 'cards' ? "text-teal-700" : "text-slate-800"
+            "font-bold truncate text-sm",
+            isSelected && selectedMode === 'cards' ? "text-teal-700" : "text-slate-700"
           )}>
             {config.label}
           </span>
-          {highPriorityCount > 0 && (
-            <span className="text-xs font-medium text-amber-600">
-              {highPriorityCount} high priority
-            </span>
-          )}
-          <span className="text-sm text-slate-400">{items.length} items</span>
-          <ChevronRight size={16} className={cn(
-            "text-slate-400 transition-transform",
+          <ChevronRight size={14} className={cn(
+            "text-slate-300 transition-transform shrink-0",
             isSelected && selectedMode === 'cards' && "text-teal-500 rotate-90"
           )} />
         </button>
 
-        {/* Right: AI Summary button */}
+        {/* Priority Column - Clickable */}
         <button
-          onClick={(e) => {
-            e.stopPropagation()
-            onShowSummary(category)
-          }}
-          className={cn(
-            "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border shadow-sm",
-            isSelected && selectedMode === 'summary'
-              ? "bg-gradient-to-r from-teal-500 to-emerald-500 text-white border-white/20 ring-2 ring-teal-500/20 shadow-lg scale-105"
-              : "bg-white text-teal-600 border-teal-500/30 hover:bg-teal-50 hover:border-teal-500/50 active:scale-95"
-          )}
+          onClick={() => onSelectCategory(category)}
+          className="flex items-center justify-start hover:opacity-70 transition-opacity"
         >
-          <Sparkles
-            size={12}
-            className={cn(
-              isSelected && selectedMode === 'summary' ? "text-white" : "text-teal-500"
-            )}
-          />
-          AI Summary
+          {highPriorityCount > 0 ? (
+            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-100 text-[10px] font-bold text-amber-600 uppercase tracking-wide">
+              <Flame size={10} className="fill-amber-500 text-amber-500" />
+              {highPriorityCount} High Priority
+            </span>
+          ) : <span />}
         </button>
+
+        {/* Count Column - Clickable */}
+        <button
+          onClick={() => onSelectCategory(category)}
+          className="text-right hover:opacity-70 transition-opacity"
+        >
+          <span className="text-xs font-semibold text-slate-400">{items.length} items</span>
+        </button>
+
+        {/* Action Column - AI Summary Button */}
+        <div className="flex justify-end pl-2">
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onShowSummary(category)
+            }}
+            className={cn(
+              "flex items-center justify-center gap-2 w-full py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all",
+              isSelected && selectedMode === 'summary'
+                ? "bg-teal-600 text-white shadow-lg ring-2 ring-teal-200"
+                : "bg-slate-50 text-slate-600 hover:bg-teal-50 hover:text-teal-700 border border-slate-100 hover:border-teal-200"
+            )}
+          >
+            <Sparkles
+              size={12}
+              className={cn(
+                isSelected && selectedMode === 'summary' ? "text-yellow-300 fill-yellow-300" : "text-slate-400 group-hover:text-teal-500"
+              )}
+            />
+            AI Summary
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -610,33 +624,8 @@ const DiscoveryView = forwardRef<DiscoveryViewRef, DiscoveryViewProps>(
       <div className="h-full overflow-y-auto bg-slate-200 p-4">
         {/* Main Content Area */}
         <div className="min-h-full flex flex-col bg-white rounded-2xl shadow-sm border border-slate-100/60">
-          {/* Header */}
-          <div className="shrink-0 px-6 py-4 bg-white border-b border-slate-200 rounded-t-2xl">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-full">
-                  <Radio size={12} className="animate-pulse" />
-                  <span className="text-xs font-semibold">Live Intelligence</span>
-                </div>
-                <div>
-                  <h1 className="text-xl font-bold text-slate-800">{getGreeting()}, Team</h1>
-                  <p className="text-sm text-slate-500">
-                    We've analyzed <span className="font-medium text-slate-700">{totalItems}</span> signals
-                    {criticalCount > 0 && (
-                      <span className="ml-1">
-                        • <span className="text-red-600 font-medium">{criticalCount} critical</span>
-                      </span>
-                    )}
-                    {highCount > 0 && (
-                      <span className="ml-1">
-                        • <span className="text-emerald-600 font-medium">{highCount} high priority</span>
-                      </span>
-                    )}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
+          {/* Header removed for cleaner layout */}
+          <div className="h-2" />
 
           {/* Priority Spotlight - AI-generated guidance */}
           <div className="shrink-0 px-6 py-3 border-b border-slate-100">
