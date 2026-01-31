@@ -154,7 +154,7 @@ class KeyMetric(BaseModel):
         super().__init__(**data)
 
 class ExecutiveSummary(BaseModel):
-    headline: str
+    headline: str = ""  # Default to prevent validation error if LLM omits
     key_points: List[str] = Field(default_factory=list)
     key_metrics: List[KeyMetric] = Field(default_factory=list)
     key_point_citations: List[Citation] = Field(default_factory=list, description="Citation for each key point, order matches key_points")
@@ -294,11 +294,11 @@ class ValidatorOutput(BaseModel):
     warnings: List[str] = Field(default_factory=list)
 
 class SynthesisAgentOutput(BaseModel):
-    report_id: str
-    generated_at: str
-    query: str
-    data_completeness: DataCompletenessLevel
-    overall_confidence: ConfidenceLevel
+    report_id: str = ""  # Default to prevent validation error
+    generated_at: str = ""  # Default to prevent validation error
+    query: str = ""  # Default to prevent validation error
+    data_completeness: DataCompletenessLevel = DataCompletenessLevel.PARTIAL
+    overall_confidence: ConfidenceLevel = ConfidenceLevel.MEDIUM
     executive_summary: ExecutiveSummary
     sections: List[FindingSection]
     # Extended thinking output from Claude - shows model's reasoning process

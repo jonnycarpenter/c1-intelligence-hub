@@ -555,8 +555,22 @@ async def run_deep_research(request: DeepResearchRequest):
                     
                     yield _emit_event("report", report_data)
                 else:
-                    logger.error(f"Workflow completed but no final_report in state. Keys: {list(final_state.keys())}")
-                    yield _emit_event("error", {"message": "Research completed but no report was generated", "type": "missing_report"})
+                    # Check for synthesis errors in state for better error message
+                    all_errors = final_state.get("errors") or accumulated_state.get("errors") or []
+                    synthesis_error = next(
+                        (e for e in all_errors if e.get("node") == "synthesis"),
+                        None
+                    )
+                    if synthesis_error:
+                        logger.error(f"Synthesis failed: {synthesis_error}")
+                        yield _emit_event("error", {
+                            "message": f"Report generation failed: {synthesis_error.get('error', 'Unknown error')[:200]}",
+                            "type": "synthesis_failed",
+                            "details": synthesis_error
+                        })
+                    else:
+                        logger.error(f"Workflow completed but no final_report in state. Keys: {list(final_state.keys())}")
+                        yield _emit_event("error", {"message": "Research completed but no report was generated", "type": "missing_report"})
                 
                 # Category/sales intelligence (Phase 2)
                 if final_state.get("category_output"):

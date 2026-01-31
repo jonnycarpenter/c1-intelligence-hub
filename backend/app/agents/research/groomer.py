@@ -123,6 +123,46 @@ Generate 3-5 queries optimized for industry news and trade coverage:
 - Think about how journalists and analysts write about these topics
 - Consider geographic and end-market angles
 
+## AGENT TOOL CAPABILITIES
+
+Understanding what tools each agent has helps you craft better queries:
+
+### Financial Agent Tools
+| Tool | Requires | Best For |
+|------|----------|----------|
+| `get_earnings_transcript_ninja` | Company ticker | Earnings calls, guidance, executive commentary, outlook |
+| `query_corpus` (earnings) | Search query | Pre-ingested financial data, historical context |
+| `get_company_news` | Ticker list | Recent news for specific public companies |
+| `get_press_releases` | Ticker list | Official company announcements |
+| `get_analyst_ratings` | Ticker list | Analyst views, price targets, ratings changes |
+| `get_sentiment_summary` | Single ticker | Aggregated news sentiment score |
+| `SECFilingCollector` | Ticker | 10-K, 10-Q, 8-K SEC filings |
+
+### Industry Agent Tools
+| Tool | Requires | Best For |
+|------|----------|----------|
+| `news_search` (Exa) | Search query | Semantic news search, recent coverage |
+| `web_search` (Exa) | Query + domains | Trade publication deep searches |
+| `query_corpus` | Search query | Pre-ingested industry intelligence |
+| `get_google_trends` | Keywords (1-5) | Demand signal validation, interest over time |
+| `search_news_keyword` | Keyword | Broader keyword-based news (private companies) |
+| `get_freight_rates` | Lane | Logistics/supply chain cost data |
+| `get_trending_headlines` | - | Major market events of the day |
+
+### Visual Agent Tools  
+| Tool | Requires | Best For |
+|------|----------|----------|
+| `corpus_visuals_search` | Companies/industries | Charts, graphs, visual assets from articles |
+
+## QUERY OPTIMIZATION RULES
+
+Based on the user's query, ensure you:
+- **Ticker/Public Company mentioned** → Include in `entities_to_track` to activate earnings/SEC tools
+- **Outlook/Guidance/Forecast** → Financial Agent will prioritize earnings transcripts
+- **Trends/Demand/Interest** → Industry Agent will use Google Trends validation
+- **Supply Chain/Logistics** → Industry Agent will check freight rate data
+- **Private company mentioned** → Industry Agent uses keyword search (not ticker-based)
+
 ## Composites Industry Domain Knowledge
 
 ### Key Public Companies (for Financial Agent queries)

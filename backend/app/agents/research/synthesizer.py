@@ -482,8 +482,61 @@ OUTPUT FORMAT (valid JSON):
         
     except Exception as e:
         logger.error(f"[SYNTHESIZER] Failed to parse LLM output: {e}")
+        # Log raw response for debugging (first 2000 chars)
+        logger.error(f"[SYNTHESIZER] Raw LLM response (first 2000 chars): {content[:2000] if content else 'EMPTY'}")
         logger.error(f"[SYNTHESIZER] Output data keys: {list(output_data.keys()) if 'output_data' in dir() else 'N/A'}")
-        state["errors"].append({"node": "synthesis", "error": str(e)})
-        state["current_status"] = "synthesis_failed"
+        
+        # FALLBACK: Generate minimal valid report so user gets SOMETHING
+        try:
+            from app.agents.research.state import ExecutiveSummary, FindingSection, ReportBlock, BlockType
+            
+            # Create a minimal valid report from raw research data
+            fallback_report = SynthesisAgentOutput(
+                report_id=f"REP-FALLBACK-{int(time.time())}",
+                generated_at=datetime.now().isoformat(),
+                query=user_query,
+                data_completeness="partial",
+                overall_confidence="low",
+                executive_summary=ExecutiveSummary(
+                    headline=f"Research Results for: {user_query[:100]}",
+                    key_points=["Report generation encountered an issue - raw research data available below"],
+                    data_caveat="This is a fallback report due to synthesis error."
+                ),
+                sections=[
+                    FindingSection(
+                        section_id="fallback_financial",
+                        section_title="Financial Research (Raw)",
+                        blocks=[ReportBlock(
+                            block_type=BlockType.PARAGRAPH,
+                            block_id="fb_1",
+                            data={"text": f"Financial findings: {len(financial.findings) if financial else 0} items collected. Review logs for details."}
+                        )]
+                    ),
+                    FindingSection(
+                        section_id="fallback_industry",
+                        section_title="Industry Research (Raw)",
+                        blocks=[ReportBlock(
+                            block_type=BlockType.PARAGRAPH,
+                            block_id="fb_2",
+                            data={"text": f"Industry findings: {len(industry.findings) if industry else 0} items collected. Review logs for details."}
+                        )]
+                    )
+                ],
+                warnings=[f"Fallback report: {str(e)[:200]}"]
+            )
+            fallback_report.research_time_seconds = time.time() - start_time
+            state["final_report"] = fallback_report
+            state["current_status"] = "synthesis_complete_with_fallback"
+            logger.warning("[SYNTHESIZER] Generated FALLBACK report due to parsing error")
+        except Exception as fallback_error:
+            logger.error(f"[SYNTHESIZER] Fallback report generation also failed: {fallback_error}")
+            state["errors"].append({
+                "node": "synthesis", 
+                "error": str(e),
+                "response_preview": content[:500] if content else "Empty response"
+            })
+            state["current_status"] = "synthesis_failed"
         
     return state
+
+
