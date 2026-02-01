@@ -1,6 +1,6 @@
 'use client'
 
-import { Activity, Search, Package, Building2, Factory, FileText, Settings, ChevronLeft, ChevronRight, Database, Users, ShoppingCart, Construction, Mic, GitBranch, Ship, Compass } from 'lucide-react'
+import { Activity, Search, Package, Building2, Factory, FileText, ChevronLeft, ChevronRight, Database, Users, ShoppingCart, Construction, Mic, GitBranch, Ship, Compass } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import type { Mode } from '@/types'
@@ -211,17 +211,20 @@ export default function Sidebar({
 
       {/* Footer */}
       <div className="p-2 border-t border-slate-800/50">
-        <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800/40 hover:text-slate-200 transition-colors">
-          <Settings size={18} />
-          {!collapsed && <span className="text-sm">Settings</span>}
-        </button>
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2 mt-2 rounded-lg text-slate-500 hover:bg-slate-800/40 hover:text-slate-300 transition-colors"
+          className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-slate-500 hover:bg-slate-800/40 hover:text-slate-300 transition-colors"
         >
           {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
           {!collapsed && <span className="text-xs">Collapse</span>}
         </button>
+        {/* Branding */}
+        {!collapsed && (
+          <div className="text-center mt-3 pt-3 border-t border-slate-800/30">
+            <p className="text-[10px] text-slate-600 uppercase tracking-wider">Powered by</p>
+            <p className="text-xs text-slate-500 font-medium">KZ Intel</p>
+          </div>
+        )}
       </div>
     </aside>
   )

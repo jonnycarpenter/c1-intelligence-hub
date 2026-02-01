@@ -1,20 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Lock, User, Users, Loader2 } from 'lucide-react'
+import { Lock, User, Loader2 } from 'lucide-react'
 
 const AUTH_KEY = 'c1_hub_authenticated'
 const USER_NAME_KEY = 'userName'  // Must match api.ts expectations
 const USER_TEAM_KEY = 'userTeam'  // Must match api.ts expectations
-
-// Teams based on C1 org structure
-const TEAMS = [
-  'Sales East',
-  'Sales West',
-  'Marketing',
-  'Product/Supplier',
-  'All Others'
-] as const
 
 interface PasswordGateProps {
   children: React.ReactNode
@@ -25,7 +16,6 @@ export function PasswordGate({ children }: PasswordGateProps) {
   const [loading, setLoading] = useState(true)
   const [password, setPassword] = useState('')
   const [userName, setUserName] = useState('')
-  const [userTeam, setUserTeam] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
@@ -54,17 +44,14 @@ export function PasswordGate({ children }: PasswordGateProps) {
     e.preventDefault()
     setError('')
 
-    // Validate team selection
-    if (!userTeam) {
-      setError('Please select your team.')
-      return
-    }
-
     // Validate name
     if (!userName.trim()) {
       setError('Please enter your name.')
       return
     }
+
+    // Default team for simplified login
+    const defaultTeam = 'All Others'
 
     setSubmitting(true)
 
@@ -79,7 +66,7 @@ export function PasswordGate({ children }: PasswordGateProps) {
         // Store user info in localStorage (for API headers)
         const trimmedName = userName.trim()
         localStorage.setItem(USER_NAME_KEY, trimmedName)
-        localStorage.setItem(USER_TEAM_KEY, userTeam)
+        localStorage.setItem(USER_TEAM_KEY, defaultTeam)
 
         setAuthenticated(true)
         setSubmitting(false)
@@ -93,7 +80,7 @@ export function PasswordGate({ children }: PasswordGateProps) {
         body: JSON.stringify({
           password,
           user_name: userName.trim(),
-          user_team: userTeam
+          user_team: defaultTeam
         })
       })
 
@@ -104,7 +91,7 @@ export function PasswordGate({ children }: PasswordGateProps) {
         // Store user info in localStorage (for API headers)
         const trimmedName = userName.trim()
         localStorage.setItem(USER_NAME_KEY, trimmedName)
-        localStorage.setItem(USER_TEAM_KEY, userTeam)
+        localStorage.setItem(USER_TEAM_KEY, defaultTeam)
 
         setAuthenticated(true)
       } else {
@@ -166,30 +153,6 @@ export function PasswordGate({ children }: PasswordGateProps) {
               required
               autoComplete="name"
             />
-          </div>
-
-          {/* Team Selection */}
-          <div>
-            <label className="block text-slate-300 text-sm font-medium mb-2">
-              <Users className="w-4 h-4 inline mr-2" />
-              Your Team
-            </label>
-            <select
-              value={userTeam}
-              onChange={(e) => setUserTeam(e.target.value)}
-              className="w-full p-3 rounded-lg bg-slate-700 text-white border border-slate-600 
-                         focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none
-                         appearance-none cursor-pointer"
-              required
-            >
-              <option value="" disabled className="text-slate-400">Select your team</option>
-              {TEAMS.map(team => (
-                <option key={team} value={team}>{team}</option>
-              ))}
-            </select>
-            <p className="text-xs text-slate-500 mt-1">
-              This helps personalize your intelligence feed
-            </p>
           </div>
 
           {/* Password Field */}
