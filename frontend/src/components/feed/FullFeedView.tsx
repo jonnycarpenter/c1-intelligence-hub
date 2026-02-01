@@ -59,9 +59,14 @@ export default function FullFeedView({
     const [selectedIndex, setSelectedIndex] = useState<number>(-1)
     const cardRefs = React.useRef<Record<string, DigestCardHandle | null>>({})
 
-    // Reset selection when filters change
+    // Infinite Scroll State
+    const [visibleCount, setVisibleCount] = useState(20)
+    const observerTarget = React.useRef<HTMLDivElement>(null)
+
+    // Reset selection and visible count when filters change
     useEffect(() => {
         setSelectedIndex(-1)
+        setVisibleCount(20)
     }, [searchQuery, selectedCategory, selectedPriority, selectedSource, selectedIndustry, timeRange, sortBy, isShuffled])
 
     // Last visit time for NEW badges
@@ -203,6 +208,29 @@ export default function FullFeedView({
     }, [items, searchQuery, selectedCategory, selectedPriority,
         selectedSource, selectedIndustry, timeRange, sortBy,
         isShuffled, shuffledOrder])
+
+    // Visible items subset for infinite scroll
+    const visibleItems = useMemo(() => {
+        return filteredItems.slice(0, visibleCount)
+    }, [filteredItems, visibleCount])
+
+    // Infinite Scroll Observer
+    useEffect(() => {
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting && visibleCount < filteredItems.length) {
+                    setVisibleCount((prev) => Math.min(prev + 20, filteredItems.length))
+                }
+            },
+            { threshold: 0.1, rootMargin: '400px' }
+        )
+
+        if (observerTarget.current) {
+            observer.observe(observerTarget.current)
+        }
+
+        return () => observer.disconnect()
+    }, [filteredItems.length, visibleCount])
 
     // Keyboard Event Listener
     useEffect(() => {
@@ -557,7 +585,7 @@ export default function FullFeedView({
                                 }
                             }}
                         >
-                            {filteredItems.map((item, index) => (
+                            {visibleItems.map((item, index) => (
                                 <motion.div
                                     key={item.id}
                                     className="mb-4 break-inside-avoid"
@@ -577,6 +605,8 @@ export default function FullFeedView({
                                     />
                                 </motion.div>
                             ))}
+                            {/* Sentinel for Infinite Scroll */}
+                            <div ref={observerTarget} className="h-20 w-full" />
                         </motion.div>
                     ) : items.length === 0 ? (
                         // No data at all - possible ingestion issue
