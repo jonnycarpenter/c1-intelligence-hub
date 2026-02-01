@@ -1,15 +1,16 @@
 'use client'
 
 import { useState } from 'react'
-import { HelpCircle, ArrowRight } from 'lucide-react'
+import { HelpCircle, ArrowRight, X } from 'lucide-react'
 import { Button, MarkdownContent } from '@/components/ui'
 
 interface ClarificationPromptProps {
     question: any
     onResponse: (response: string) => void
+    onDismiss?: () => void  // Optional dismiss handler
 }
 
-export default function ClarificationPrompt({ question, onResponse }: ClarificationPromptProps) {
+export default function ClarificationPrompt({ question, onResponse, onDismiss }: ClarificationPromptProps) {
     const [response, setResponse] = useState('')
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -21,8 +22,18 @@ export default function ClarificationPrompt({ question, onResponse }: Clarificat
     }
 
     return (
-        <div className="bg-white rounded-2xl border-2 border-emerald-100 shadow-xl p-6 max-w-2xl mx-auto">
-            <div className="flex items-center gap-3 mb-6">
+        <div className="bg-white rounded-2xl border-2 border-emerald-100 shadow-xl p-6 max-w-2xl mx-auto relative">
+            {/* Dismiss button */}
+            {onDismiss && (
+                <button
+                    onClick={onDismiss}
+                    className="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-700 transition-colors"
+                    title="Dismiss and start a new query"
+                >
+                    <X size={16} />
+                </button>
+            )}
+            <div className="flex items-center gap-3 mb-6 pr-8">
                 <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
                     <HelpCircle size={24} />
                 </div>

@@ -22,25 +22,6 @@ from app.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-def _normalize_codes(codes: list) -> List[str]:
-    """
-    Normalize SIC/NAICS codes to strings.
-    Apollo API may return codes as strings or objects like {"code": "1234", "name": "Description"}.
-    """
-    if not codes:
-        return []
-    result = []
-    for code in codes:
-        if isinstance(code, str):
-            result.append(code)
-        elif isinstance(code, dict):
-            # Extract code or name from object
-            result.append(str(code.get("code") or code.get("name") or code))
-        else:
-            result.append(str(code))
-    return result
-
-
 # =============================================================================
 # DATA CLASSES
 # =============================================================================
@@ -346,9 +327,9 @@ class ApolloService:
                     technologies=[t.get("name") for t in org.get("current_technologies", []) if t.get("name")],
                     keywords=org.get("keywords", [])[:20],
                     
-                    # Codes - normalize to strings for consistent frontend rendering
-                    sic_codes=_normalize_codes(org.get("sic_codes", [])),
-                    naics_codes=_normalize_codes(org.get("naics_codes", [])),
+                    # Codes
+                    sic_codes=org.get("sic_codes", []),
+                    naics_codes=org.get("naics_codes", []),
                     
                     # Additional Firmographics
                     retail_location_count=org.get("retail_location_count"),
@@ -726,9 +707,9 @@ class ApolloService:
                         technologies=[t.get("name") for t in org.get("current_technologies", []) if t.get("name")],
                         keywords=org.get("keywords", [])[:20],
                         
-                        # Codes - normalize to strings for consistent frontend rendering
-                        sic_codes=_normalize_codes(org.get("sic_codes", [])),
-                        naics_codes=_normalize_codes(org.get("naics_codes", [])),
+                        # Codes
+                        sic_codes=org.get("sic_codes", []),
+                        naics_codes=org.get("naics_codes", []),
                         
                         # Additional Firmographics
                         retail_location_count=org.get("retail_location_count"),

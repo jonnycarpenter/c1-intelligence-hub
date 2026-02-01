@@ -75,12 +75,12 @@ export default function Sidebar({
       <div className="h-16 flex items-center px-4 border-b border-slate-800/50">
         {!collapsed ? (
           <div className="flex flex-col">
-            <h1 className="text-slate-100 font-semibold text-base leading-tight">Composites One</h1>
+            <h1 className="text-slate-100 font-semibold text-base leading-tight">Composites Industry</h1>
             <p className="text-slate-400 text-xs">Intelligence Hub</p>
           </div>
         ) : (
           <div className="flex items-center justify-center w-full">
-            <span className="text-slate-100 font-bold text-lg">C1</span>
+            <span className="text-slate-100 font-bold text-lg">CI</span>
           </div>
         )}
       </div>

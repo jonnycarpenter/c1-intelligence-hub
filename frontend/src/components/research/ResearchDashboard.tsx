@@ -52,6 +52,8 @@ interface ResearchDashboardProps {
   onAddToReport: (item: ReportItem) => void
   onScrollToSection?: (sectionId: string) => void
   onCancelResearch?: () => void
+  onDismissClarification?: () => void  // Dismiss clarification modal without answering
+  onResetAll?: () => void              // Full reset (clear everything)
 
   // Deep research props
   isResearching?: boolean
@@ -93,6 +95,8 @@ export default function ResearchDashboard({
   onAddToReport,
   onScrollToSection,
   onCancelResearch,
+  onDismissClarification,
+  onResetAll,
   isResearching,
   researchStatus,
   clarification,
@@ -185,14 +189,20 @@ export default function ResearchDashboard({
     }, 100)
   }
 
-  // Clear conversation
+  // Clear conversation and reset all research state
   const clearConversation = () => {
     setConversationHistory([])
     onSectionsUpdate([])
+    // Also call onResetAll to clear clarification and deep research state
+    if (onResetAll) {
+      onResetAll()
+    }
   }
 
   const hasConversation = conversationHistory.length > 0
   const hasReport = deepResearchReport !== null && deepResearchReport !== undefined
+  // Show clear button when there's any state to clear
+  const showClearButton = hasConversation || clarification || isResearching || hasReport || researchError || isTimeout
 
   return (
     <div className="h-full flex flex-col overflow-hidden bg-slate-200 p-4">
@@ -211,12 +221,13 @@ export default function ResearchDashboard({
                 <p className="text-xs text-slate-500">Deep market intelligence</p>
               </div>
             </div>
-            {hasConversation && (
+            {showClearButton && (
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={clearConversation}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-slate-400 hover:text-red-500 hover:bg-red-50"
+                title="Clear all and start fresh"
               >
                 <Trash2 size={14} />
                 Clear
@@ -402,6 +413,7 @@ export default function ResearchDashboard({
                   <ClarificationPrompt
                     question={clarification}
                     onResponse={(resp) => onStartResearch(resp)}
+                    onDismiss={onDismissClarification}
                   />
                 </div>
               )}

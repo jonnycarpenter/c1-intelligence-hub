@@ -70,7 +70,7 @@ steps:
 substitutions:
   _REGION: 'us-central1'
   _REPOSITORY: 'c1-intelligence-hub'
-  _SITE_PASSWORD: 'c1hub'
+  _SITE_PASSWORD: 'ketzero'
   _SERVICE_NAME: 'c1-hub'
   _DATA_BUCKET: 'gen-lang-client-0436975498-c1-hub-data'
   _TAG: 'latest'

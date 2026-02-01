@@ -116,6 +116,7 @@ interface ResearchCanvasProps {
   deepResearchReport?: any | null
   onStartResearch?: (prompt: string) => void
   onCancelResearch?: () => void
+  onDismissClarification?: () => void  // Dismiss clarification modal without answering
   
   // Progress tracking props
   nodeStatuses?: NodeStatus[]
@@ -150,6 +151,7 @@ export default function ResearchCanvas({
   deepResearchReport,
   onStartResearch,
   onCancelResearch,
+  onDismissClarification,
   nodeStatuses,
   toolProgress,
   activeNode,
@@ -311,6 +313,7 @@ export default function ResearchCanvas({
               <ClarificationPrompt
                 question={clarification}
                 onResponse={(resp) => onStartResearch(resp)}
+                onDismiss={onDismissClarification}
               />
             </div>
           )}

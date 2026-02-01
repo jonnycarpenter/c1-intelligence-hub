@@ -55,6 +55,11 @@ export default function Home() {
   const [recentSearches, setRecentSearches] = useState<RecentSearch[]>([])
   const researchIdCounter = useRef(0)
 
+  // Track original query and conversation history for clarification handling
+  // This prevents the groomer from asking repetitive questions
+  const [deepResearchOriginalQuery, setDeepResearchOriginalQuery] = useState<string | null>(null)
+  const [deepResearchHistory, setDeepResearchHistory] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([])
+
   // Fetch digest data from API
   // Pulse = 7 days (168 hrs), Discovery = 30 days (720 hrs), others = 24 hrs
   // Discovery needs more items (500) for richer category groupings, Pulse can stay at 100
@@ -215,7 +220,38 @@ export default function Home() {
   // Handle research-specific message sending
   const handleResearchMessage = useCallback(async (content: string) => {
     if (activeMode === 'research') {
-      // Create a new section for this research
+      // Check if this is a clarification response (we have a pending clarification and an original query)
+      if (clarification && deepResearchOriginalQuery) {
+        // Build conversation history with:
+        // 1. Original query (already a HumanMessage on backend)
+        // 2. Clarifying question (AIMessage)
+        // 3. User's clarification response (HumanMessage)
+        const clarifyingQuestion = clarification.question || (typeof clarification === 'string' ? clarification : '')
+        const newHistory = [
+          ...deepResearchHistory,
+          { role: 'assistant' as const, content: clarifyingQuestion },
+          { role: 'user' as const, content: content },
+        ]
+        
+        // Update tracked history
+        setDeepResearchHistory(newHistory)
+        
+        // Add clarification response to chat for visual feedback
+        const userMessage: Message = {
+          id: `user_${Date.now()}`,
+          role: 'user',
+          content,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        }
+        setMessages(prev => [...prev, userMessage])
+        
+        // Continue research with ORIGINAL query and full history
+        // This ensures the groomer sees the original context + clarification exchange
+        await startDeepResearch(deepResearchOriginalQuery, newHistory)
+        return
+      }
+
+      // New research query - create a new section
       const sectionId = `research-${Date.now()}-${researchIdCounter.current++}`
       const newSection: ResearchSection = {
         id: sectionId,
@@ -249,6 +285,10 @@ export default function Home() {
       }
       setMessages(prev => [...prev, userMessage])
 
+      // Track original query and reset history for new research
+      setDeepResearchOriginalQuery(content)
+      setDeepResearchHistory([])
+
       // Start deep research instead of regular streaming chat
       await startDeepResearch(content, [])
       return
@@ -256,7 +296,7 @@ export default function Home() {
 
     // Send to streaming chat
     await sendMessage(content, activeMode)
-  }, [activeMode, sendMessage])
+  }, [activeMode, sendMessage, clarification, deepResearchOriginalQuery, deepResearchHistory, startDeepResearch, setMessages])
 
   // Update active research section with streaming content
   const updateResearchSectionContent = useCallback((content: string) => {
@@ -305,6 +345,38 @@ export default function Home() {
       setActiveSectionId(null)
     }
   }, [isStreaming, activeSectionId, researchSections])
+
+  // Clear clarification tracking state when deep research completes
+  // This resets for the next research query
+  useEffect(() => {
+    if (deepResearchReport && !isResearching) {
+      // Research completed successfully - clear tracking state
+      setDeepResearchOriginalQuery(null)
+      setDeepResearchHistory([])
+    }
+  }, [deepResearchReport, isResearching])
+
+  // Dismiss clarification modal - allows user to start a new query
+  const handleDismissClarification = useCallback(() => {
+    // Reset the deep research state (clears clarification)
+    resetResearch()
+    // Also clear our tracking state
+    setDeepResearchOriginalQuery(null)
+    setDeepResearchHistory([])
+  }, [resetResearch])
+
+  // Full reset - clears everything including conversation history
+  const handleResetAllResearch = useCallback(() => {
+    // Reset deep research state
+    resetResearch()
+    // Clear tracking state
+    setDeepResearchOriginalQuery(null)
+    setDeepResearchHistory([])
+    // Clear research sections
+    setResearchSections([])
+    setActiveSectionId(null)
+    setRecentSearches([])
+  }, [resetResearch])
 
   // Scroll to a specific section in the canvas
   const handleScrollToSection = useCallback((sectionId: string) => {
@@ -386,6 +458,8 @@ export default function Home() {
                 onAddToReport={handleAddReportItem}
                 onScrollToSection={handleScrollToSection}
                 onCancelResearch={cancelResearch}
+                onDismissClarification={handleDismissClarification}
+                onResetAll={handleResetAllResearch}
                 // Deep research state
                 isResearching={isResearching}
                 researchStatus={researchStatus}

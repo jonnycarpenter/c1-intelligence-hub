@@ -11,5 +11,3 @@ export type { Industry, IndustryFilters, IndustriesResponse } from './useIndustr
 export { useBriefing, useWeeklyBriefing, useAdHocBriefing, useBriefingHistory } from './useBriefing'
 export { useDeepResearch } from './useDeepResearch'
 export { usePipeline } from './usePipeline'
-export { useGuideChat } from './useGuideChat'
-export type { GuideMessage } from './useGuideChat'
