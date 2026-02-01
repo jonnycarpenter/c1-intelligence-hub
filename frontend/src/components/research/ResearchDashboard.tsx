@@ -195,9 +195,10 @@ export default function ResearchDashboard({
   const hasReport = deepResearchReport !== null && deepResearchReport !== undefined
 
   return (
-    <div className="h-full flex bg-slate-50">
+    <div className="h-full flex flex-col overflow-hidden bg-slate-200 p-4">
+      <div className="flex-1 flex gap-4 min-h-0">
       {/* Left Panel - Chat Interface (Pipeline style) */}
-      <div className="w-[400px] shrink-0 flex flex-col border-r border-slate-200 bg-white">
+      <div className="w-[400px] shrink-0 flex flex-col bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100/60">
         {/* Header */}
         <div className="shrink-0 px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-emerald-50 to-white">
           <div className="flex items-center justify-between mb-3">
@@ -336,7 +337,7 @@ export default function ResearchDashboard({
       </div>
 
       {/* Right Panel - Research Results */}
-      <div className="flex-1 flex flex-col bg-white overflow-hidden">
+      <div className="flex-1 flex flex-col bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100/60">
         {/* Right Panel Header */}
         <div className="shrink-0 px-4 py-3 bg-white border-b border-slate-200 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -505,6 +506,7 @@ export default function ResearchDashboard({
             </div>
           </div>
         )}
+      </div>
       </div>
     </div>
   )
