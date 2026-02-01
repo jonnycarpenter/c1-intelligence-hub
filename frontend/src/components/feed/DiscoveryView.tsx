@@ -720,11 +720,16 @@ const DiscoveryView = forwardRef<DiscoveryViewRef, DiscoveryViewProps>(
                   <div className="flex gap-6" style={{ minHeight: '500px' }}>
                     {/* Left Column: Category List */}
                     <div className="w-[480px] shrink-0">
-                      <div className="flex items-center gap-2 mb-4">
-                        <TrendingUp size={16} className="text-slate-500" />
-                        <h2 className="text-sm font-semibold text-slate-600 uppercase tracking-wide">
-                          Category Themes
-                        </h2>
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                          <TrendingUp size={16} className="text-slate-500" />
+                          <h2 className="text-sm font-semibold text-slate-600 uppercase tracking-wide">
+                            Category Themes
+                          </h2>
+                        </div>
+                        <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-full">
+                          Last 30 days
+                        </span>
                       </div>
 
                       <motion.div

@@ -14,9 +14,10 @@ interface FuturePage {
   tooltip: string
 }
 
+// Hidden for demo - will re-enable when features are ready
 const futurePages: FuturePage[] = [
-  { id: 'customer-analytics', label: 'Customer Analytics', icon: Users, description: 'Customer insights', tooltip: 'Advanced customer file analytics with trend identification and opportunity discovery' },
-  { id: 'ecommerce-analytics', label: 'Ecommerce Analytics', icon: ShoppingCart, description: 'Sales analytics', tooltip: 'Full site analytics, behavioral insights, and conversion optimization' },
+  // { id: 'customer-analytics', label: 'Customer Analytics', icon: Users, description: 'Customer insights', tooltip: 'Advanced customer file analytics with trend identification and opportunity discovery' },
+  // { id: 'ecommerce-analytics', label: 'Ecommerce Analytics', icon: ShoppingCart, description: 'Sales analytics', tooltip: 'Full site analytics, behavioral insights, and conversion optimization' },
 ]
 
 interface NavItem {
@@ -35,7 +36,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { id: 'pulse', label: 'The Brief', icon: Activity, description: 'Strategic Priorities', color: 'text-emerald-500', bg: 'bg-emerald-500' },
-  { id: 'discovery', label: 'Market Intelligence', icon: Compass, description: 'Industry landscape', color: 'text-teal-500', bg: 'bg-teal-500', tooltip: 'Explore market intelligence with AI assistant' },
+  { id: 'discovery', label: 'Market', icon: Compass, description: 'Industry landscape', color: 'text-teal-500', bg: 'bg-teal-500', tooltip: 'Explore market intelligence with AI assistant' },
   { id: 'research', label: 'Research', icon: Search, description: 'Deep analysis', color: 'text-emerald-500', bg: 'bg-emerald-500' },
   { id: 'pipeline', label: 'Pipeline', icon: GitBranch, description: 'Prospect discovery', color: 'text-purple-500', bg: 'bg-purple-500', tooltip: 'Find similar companies and decision makers' },
   // { id: 'importyeti', label: 'Trade Intel', icon: Ship, description: 'Supply chain tracking', color: 'text-indigo-500', bg: 'bg-indigo-500' }, // ARCHIVED
