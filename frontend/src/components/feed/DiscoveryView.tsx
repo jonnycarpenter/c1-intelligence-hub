@@ -79,7 +79,7 @@ function groupByCategory(items: DigestItem[]): Map<Category, DigestItem[]> {
 const CATEGORY_CONFIG: Record<string, { label: string; color: string; bgLight: string }> = {
   'Competitor': { label: 'Competitor Moves', color: 'border-l-rose-500', bgLight: 'bg-rose-50' },
   'Market': { label: 'Market Dynamics', color: 'border-l-blue-500', bgLight: 'bg-blue-50' },
-  'Regulatory': { label: 'Health & Regulatory', color: 'border-l-amber-500', bgLight: 'bg-amber-50' },
+  'Regulatory': { label: 'Regulatory', color: 'border-l-amber-500', bgLight: 'bg-amber-50' },
   'Product': { label: 'Product News', color: 'border-l-cyan-500', bgLight: 'bg-cyan-50' },
   'Earnings': { label: 'Earnings & Financial', color: 'border-l-emerald-500', bgLight: 'bg-emerald-50' },
   'Partnership': { label: 'Partnerships', color: 'border-l-violet-500', bgLight: 'bg-violet-50' },
@@ -91,7 +91,7 @@ const CATEGORY_CONFIG: Record<string, { label: string; color: string; bgLight: s
   // Legacy lowercase
   'market': { label: 'Market Dynamics', color: 'border-l-blue-500', bgLight: 'bg-blue-50' },
   'supply-chain': { label: 'Supply Chain', color: 'border-l-orange-500', bgLight: 'bg-orange-50' },
-  'regulatory': { label: 'Health & Regulatory', color: 'border-l-amber-500', bgLight: 'bg-amber-50' },
+  'regulatory': { label: 'Regulatory', color: 'border-l-amber-500', bgLight: 'bg-amber-50' },
   'competitor': { label: 'Competitor Moves', color: 'border-l-rose-500', bgLight: 'bg-rose-50' },
   'pricing': { label: 'Pricing & Financial', color: 'border-l-emerald-500', bgLight: 'bg-emerald-50' },
   'product': { label: 'Product News', color: 'border-l-cyan-500', bgLight: 'bg-cyan-50' },

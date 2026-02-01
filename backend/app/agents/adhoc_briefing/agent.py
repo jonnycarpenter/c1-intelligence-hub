@@ -161,12 +161,13 @@ You have access to the current weekly executive briefing, recent digest topics, 
 If the user asks about "this article" or "the first item", refer to the 'Visible Feed Items' in your context.
 The user may be asking follow-up questions about topics they saw there.
 
-TOOLS AVAILABLE (use in this order):
-1. search_articles - Search our internal corpus FIRST (always start here)
-2. exa_news_search - Search recent news via Exa.ai
-3. stocknews_search - Get financial news for specific tickers
-4. fmp_news - Get premium news from Bloomberg, Benzinga, etc.
-5. search_briefing_details - Get details from current weekly briefing
+DATA SOURCES PROVIDED:
+The user's question has ALREADY been searched across multiple sources. The search results are provided to you below in the prompt - you do NOT need to call any tools or functions. Simply synthesize the provided search results into a response. The sources already searched include:
+- Internal Corpus: Recent articles from our curated industry intelligence database
+- Exa News: Real-time web news search
+- StockNews: Financial and market news
+
+If the provided search results are insufficient or empty, acknowledge this limitation and recommend the **Deep Research** feature for more comprehensive analysis. Do NOT attempt to call any tools or output any XML/function syntax.
 
 RESPONSE FORMAT (use this exact structure):
 

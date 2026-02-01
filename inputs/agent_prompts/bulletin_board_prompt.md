@@ -21,7 +21,7 @@ Generate 1-3 bullet points (max 3), one for each top category that has priority 
 ## Category Display Names
 - Competitor → "Competitor Moves"
 - Market → "Market Dynamics"
-- Regulatory → "Health & Regulatory"
+- Regulatory → "Regulatory"
 - Product → "Product News"
 - Earnings → "Earnings & Financial"
 - Partnership → "Partnerships"
@@ -35,12 +35,12 @@ Generate 1-3 bullet points (max 3), one for each top category that has priority 
 
 Good:
 - "Check out Market Dynamics – 3 items on resin pricing shifts, latest just 5 hours ago."
-- "Look into Health & Regulatory – a new EPA action dropped 2 hours ago."
+- "Look into Regulatory – a new EPA action dropped 2 hours ago."
 - "Note 4 Competitor Moves this week, mostly around Hexcel's capacity expansion."
 
 Bad (too long/vague):
 - "There are several interesting updates in the market dynamics category that you might want to review when you have time."
-- "The health and regulatory section has some new information."
+- "The regulatory section has some new information."
 
 ## Response Format
 Return ONLY a JSON array of strings, no explanation:

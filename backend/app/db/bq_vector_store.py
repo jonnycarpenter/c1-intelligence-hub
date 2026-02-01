@@ -722,6 +722,7 @@ class BigQueryVectorStore:
         
         # BigQuery VECTOR_SEARCH query
         # Using ML.DISTANCE for cosine similarity
+        # Include chunk_text for actual content (critical for ad-hoc agent responses)
         query = f"""
         WITH query_embedding AS (
             SELECT [{embedding_str}] AS embedding
@@ -729,6 +730,7 @@ class BigQueryVectorStore:
         SELECT
             base.article_id,
             base.title,
+            base.chunk_text,
             base.category,
             base.priority,
             base.source_type,
@@ -754,7 +756,9 @@ class BigQueryVectorStore:
                 results.append({
                     "id": row.article_id,
                     "title": row.title,
+                    "document": row.chunk_text or "",  # Actual content for agent responses
                     "metadata": {
+                        "title": row.title,  # Also in metadata for backwards compatibility
                         "category": row.category,
                         "priority": row.priority,
                         "source_type": row.source_type,
@@ -797,7 +801,7 @@ class BigQueryVectorStore:
         
         # Fetch all embeddings (limited for performance)
         query = f"""
-        SELECT article_id, title, category, priority, source_type, published_at, embedding
+        SELECT article_id, title, chunk_text, category, priority, source_type, published_at, embedding
         FROM `{table_id}`
         {where_sql}
         ORDER BY published_at DESC
@@ -849,7 +853,9 @@ class BigQueryVectorStore:
                 results.append({
                     "id": row.article_id,
                     "title": row.title,
+                    "document": row.chunk_text or "",  # Actual content for agent responses
                     "metadata": {
+                        "title": row.title,  # Also in metadata for backwards compatibility
                         "category": row.category,
                         "priority": row.priority,
                         "source_type": row.source_type,
