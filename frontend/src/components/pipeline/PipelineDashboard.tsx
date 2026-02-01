@@ -311,7 +311,7 @@ export default function PipelineDashboard() {
         </div>
 
         {/* Right Panel - Results / Saved */}
-        <div className="flex-1 flex flex-col bg-slate-50 rounded-2xl overflow-hidden shadow-sm border border-slate-100/60">
+        <div className="flex-1 flex flex-col min-h-0 bg-slate-50 rounded-2xl overflow-hidden shadow-sm border border-slate-100/60">
           {/* Panel Toggle */}
           <div className="shrink-0 p-4 border-b border-slate-200">
             <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
