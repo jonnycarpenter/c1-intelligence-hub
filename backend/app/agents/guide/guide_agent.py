@@ -8,7 +8,7 @@ Designed to showcase value without revealing technical implementation details.
 
 import logging
 from typing import Optional
-from anthropic import Anthropic
+from anthropic import AsyncAnthropic
 
 from app.config.settings import settings
 from .guide_knowledge import get_full_knowledge_base
@@ -73,7 +73,7 @@ class GuideAgent:
     """AI agent for guiding prospective users through the platform."""
     
     def __init__(self):
-        self.client = Anthropic(api_key=settings.anthropic_api_key)
+        self.client = AsyncAnthropic(api_key=settings.anthropic_api_key)
         self.model = "claude-sonnet-4-5-20250514"
         self.knowledge_base = get_full_knowledge_base()
         self.system_prompt = GUIDE_SYSTEM_PROMPT.format(knowledge_base=self.knowledge_base)
@@ -109,8 +109,8 @@ class GuideAgent:
             
             logger.info(f"[GUIDE] Processing message: {message[:100]}...")
             
-            # Call Claude
-            response = self.client.messages.create(
+            # Call Claude (async)
+            response = await self.client.messages.create(
                 model=self.model,
                 max_tokens=1024,
                 system=self.system_prompt,
