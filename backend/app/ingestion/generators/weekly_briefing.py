@@ -802,7 +802,7 @@ FINAL BRIEFING JSON FORMAT:
                 try:
                     logger.info(f"Calling ElevenLabs Text-to-Dialogue API (attempt {attempt + 1}/{max_retries})")
                     
-                    async with httpx.AsyncClient(timeout=120.0) as client:
+                    async with httpx.AsyncClient(timeout=300.0) as client:  # Increased from 120s for longer dialogues
                         response = await client.post(
                             "https://api.elevenlabs.io/v1/text-to-dialogue",
                             headers={
@@ -833,8 +833,15 @@ FINAL BRIEFING JSON FORMAT:
                                 retry_delay *= 2
                                 continue
                             
+                except httpx.TimeoutException as e:
+                    logger.error(f"ElevenLabs API timeout after 300s: {type(e).__name__}")
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(retry_delay)
+                        retry_delay *= 2
+                        continue
+                    raise
                 except Exception as e:
-                    logger.error(f"Error calling ElevenLabs API: {e}")
+                    logger.error(f"Error calling ElevenLabs API: {type(e).__name__}: {e}")
                     if attempt < max_retries - 1:
                         await asyncio.sleep(retry_delay)
                         retry_delay *= 2
