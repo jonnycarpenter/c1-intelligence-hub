@@ -755,7 +755,9 @@ class BigQueryDataStorage(DataStorageInterface):
         await self._create_freight_rates_table()
         await self._create_pre_briefings_table()
         await self._create_user_logins_table()
-        
+        await self._create_podcast_episodes_table()
+        await self._create_podcast_quotes_table()
+
         self._initialized = True
         logger.info("BigQuery storage initialized")
     
@@ -851,6 +853,12 @@ class BigQueryDataStorage(DataStorageInterface):
             bigquery.SchemaField("classified_at", "TIMESTAMP", mode="REQUIRED"),
             bigquery.SchemaField("ingested_at", "TIMESTAMP", mode="REQUIRED"),
             bigquery.SchemaField("is_hero", "BOOL"),  # Flagged for hero/breaking section
+            # Narrative enrichment fields (added Feb 2026)
+            bigquery.SchemaField("event_type", "STRING"),  # acquisition, partnership, expansion, contract, etc.
+            bigquery.SchemaField("sentiment", "STRING"),  # positive, negative, neutral
+            bigquery.SchemaField("geography", "STRING"),  # JSON array of regions/countries
+            bigquery.SchemaField("themes", "STRING"),  # JSON array of narrative themes (reshoring, sustainability, etc.)
+            bigquery.SchemaField("narrative_enriched_at", "TIMESTAMP"),  # When narrative enrichment was applied
         ]
         
         table = bigquery.Table(table_id, schema=schema)
@@ -3148,6 +3156,12 @@ class BigQueryDataStorage(DataStorageInterface):
                 "ingested_at": now,
                 "feed_eligible": item.get("feed_eligible", True),
                 "is_hero": item.get("is_hero", False),
+                # Narrative enrichment fields
+                "event_type": item.get("event_type", ""),
+                "sentiment": item.get("sentiment", "neutral"),
+                "geography": json.dumps(item.get("geography", [])),
+                "themes": json.dumps(item.get("themes", [])),
+                "narrative_enriched_at": item.get("narrative_enriched_at"),
             })
         
         errors = self.client.insert_rows_json(table_id, rows)
@@ -3473,6 +3487,214 @@ class BigQueryDataStorage(DataStorageInterface):
             # Never fail the login flow due to tracking errors
             logger.warning(f"[LOGIN_TRACKING] Error logging login: {e}")
             return False
+
+
+    # =========================================================================
+    # Podcast Ingestion Tables
+    # =========================================================================
+
+    async def _create_podcast_episodes_table(self):
+        """Create podcast_episodes table for episode metadata + transcripts."""
+        from google.cloud import bigquery
+
+        table_id = f"{self.config.full_dataset_id}.podcast_episodes"
+        schema = [
+            bigquery.SchemaField("id", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("podcast_id", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("podcast_name", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("guid", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("title", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("description", "STRING"),
+            bigquery.SchemaField("audio_url", "STRING"),
+            bigquery.SchemaField("audio_duration_seconds", "INT64"),
+            bigquery.SchemaField("website_url", "STRING"),
+            bigquery.SchemaField("youtube_video_id", "STRING"),
+            bigquery.SchemaField("published_at", "TIMESTAMP", mode="REQUIRED"),
+            bigquery.SchemaField("transcript_text", "STRING"),
+            bigquery.SchemaField("transcript_source", "STRING"),
+            bigquery.SchemaField("transcript_has_speakers", "BOOLEAN"),
+            bigquery.SchemaField("transcript_word_count", "INT64"),
+            bigquery.SchemaField("transcript_cost_usd", "FLOAT64"),
+            bigquery.SchemaField("guest_name", "STRING"),
+            bigquery.SchemaField("guest_title", "STRING"),
+            bigquery.SchemaField("guest_company", "STRING"),
+            bigquery.SchemaField("quotes_extracted", "INT64"),
+            bigquery.SchemaField("processing_status", "STRING"),
+            bigquery.SchemaField("error_message", "STRING"),
+            bigquery.SchemaField("ingested_at", "TIMESTAMP", mode="REQUIRED"),
+        ]
+
+        table = bigquery.Table(table_id, schema=schema)
+        table.time_partitioning = bigquery.TimePartitioning(
+            field="published_at",
+            type_=bigquery.TimePartitioningType.MONTH,
+        )
+        table.clustering_fields = ["podcast_id"]
+
+        try:
+            self.client.create_table(table)
+            logger.info(f"Created table {table_id}")
+        except Exception as e:
+            if "Already Exists" in str(e):
+                logger.info(f"Table {table_id} already exists")
+            else:
+                raise
+
+    async def _create_podcast_quotes_table(self):
+        """Create podcast_quotes table for extracted speaker-attributed quotes."""
+        from google.cloud import bigquery
+
+        table_id = f"{self.config.full_dataset_id}.podcast_quotes"
+        schema = [
+            bigquery.SchemaField("id", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("episode_id", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("podcast_name", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("episode_title", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("episode_url", "STRING"),
+            bigquery.SchemaField("published_at", "TIMESTAMP", mode="REQUIRED"),
+            bigquery.SchemaField("quote_text", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("context_summary", "STRING"),
+            bigquery.SchemaField("speaker_name", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("speaker_role", "STRING"),
+            bigquery.SchemaField("speaker_title", "STRING"),
+            bigquery.SchemaField("speaker_company", "STRING"),
+            bigquery.SchemaField("themes", "STRING"),  # JSON array
+            bigquery.SchemaField("relevance_score", "FLOAT64"),
+            bigquery.SchemaField("extraction_model", "STRING"),
+            bigquery.SchemaField("extracted_at", "TIMESTAMP", mode="REQUIRED"),
+        ]
+
+        table = bigquery.Table(table_id, schema=schema)
+        table.time_partitioning = bigquery.TimePartitioning(
+            field="published_at",
+            type_=bigquery.TimePartitioningType.MONTH,
+        )
+        table.clustering_fields = ["podcast_name"]
+
+        try:
+            self.client.create_table(table)
+            logger.info(f"Created table {table_id}")
+        except Exception as e:
+            if "Already Exists" in str(e):
+                logger.info(f"Table {table_id} already exists")
+            else:
+                raise
+
+    async def store_podcast_episodes(self, episodes: List[Dict[str, Any]]) -> int:
+        """Store podcast episode records in BigQuery."""
+        if not episodes:
+            return 0
+        table_id = f"{self.config.full_dataset_id}.podcast_episodes"
+        try:
+            errors = self.client.insert_rows_json(table_id, episodes)
+            if errors:
+                logger.error(f"[PODCAST_STORAGE] Episode insert errors: {errors}")
+                return len(episodes) - len(errors)
+            logger.info(f"[PODCAST_STORAGE] Stored {len(episodes)} episode(s)")
+            return len(episodes)
+        except Exception as e:
+            logger.error(f"[PODCAST_STORAGE] Failed to store episodes: {e}", exc_info=True)
+            return 0
+
+    async def store_podcast_quotes(self, quotes: List[Dict[str, Any]]) -> int:
+        """Store podcast quote records in BigQuery."""
+        if not quotes:
+            return 0
+        table_id = f"{self.config.full_dataset_id}.podcast_quotes"
+        try:
+            errors = self.client.insert_rows_json(table_id, quotes)
+            if errors:
+                logger.error(f"[PODCAST_STORAGE] Quote insert errors: {errors}")
+                return len(quotes) - len(errors)
+            logger.info(f"[PODCAST_STORAGE] Stored {len(quotes)} quote(s)")
+            return len(quotes)
+        except Exception as e:
+            logger.error(f"[PODCAST_STORAGE] Failed to store quotes: {e}", exc_info=True)
+            return 0
+
+    async def check_episode_exists(self, guid: str) -> bool:
+        """Check if an episode with this RSS GUID already exists."""
+        try:
+            query = f"""
+                SELECT COUNT(*) as cnt
+                FROM `{self.config.full_dataset_id}.podcast_episodes`
+                WHERE guid = @guid
+            """
+            from google.cloud.bigquery import ScalarQueryParameter, QueryJobConfig
+            job_config = QueryJobConfig(
+                query_parameters=[ScalarQueryParameter("guid", "STRING", guid)]
+            )
+            result = self.client.query(query, job_config=job_config).result()
+            for row in result:
+                return row.cnt > 0
+            return False
+        except Exception as e:
+            logger.warning(f"[PODCAST_STORAGE] Episode existence check failed: {e}")
+            return False
+
+    async def get_podcast_quotes(
+        self,
+        search_query: Optional[str] = None,
+        themes: Optional[List[str]] = None,
+        podcast_name: Optional[str] = None,
+        speaker_name: Optional[str] = None,
+        days: int = 90,
+        limit: int = 20,
+    ) -> List[Dict[str, Any]]:
+        """Query podcast quotes with filters."""
+        try:
+            conditions = [
+                f"published_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {days} DAY)"
+            ]
+            params = []
+
+            from google.cloud.bigquery import ScalarQueryParameter, QueryJobConfig
+
+            if search_query:
+                conditions.append(
+                    "(LOWER(quote_text) LIKE @search_pattern "
+                    "OR LOWER(context_summary) LIKE @search_pattern "
+                    "OR LOWER(speaker_name) LIKE @search_pattern)"
+                )
+                params.append(ScalarQueryParameter("search_pattern", "STRING", f"%{search_query.lower()}%"))
+
+            if podcast_name:
+                conditions.append("LOWER(podcast_name) LIKE @podcast_pattern")
+                params.append(ScalarQueryParameter("podcast_pattern", "STRING", f"%{podcast_name.lower()}%"))
+
+            if speaker_name:
+                conditions.append("LOWER(speaker_name) LIKE @speaker_pattern")
+                params.append(ScalarQueryParameter("speaker_pattern", "STRING", f"%{speaker_name.lower()}%"))
+
+            if themes:
+                theme_conditions = []
+                for i, theme in enumerate(themes):
+                    param_name = f"theme_{i}"
+                    theme_conditions.append(f"LOWER(themes) LIKE @{param_name}")
+                    params.append(ScalarQueryParameter(param_name, "STRING", f"%{theme.lower()}%"))
+                conditions.append(f"({' OR '.join(theme_conditions)})")
+
+            where_clause = " AND ".join(conditions)
+
+            query = f"""
+                SELECT *
+                FROM `{self.config.full_dataset_id}.podcast_quotes`
+                WHERE {where_clause}
+                ORDER BY relevance_score DESC, published_at DESC
+                LIMIT {limit}
+            """
+
+            job_config = QueryJobConfig(query_parameters=params)
+            rows = self.client.query(query, job_config=job_config).result()
+
+            results = []
+            for row in rows:
+                results.append(dict(row))
+            return results
+
+        except Exception as e:
+            logger.error(f"[PODCAST_STORAGE] Quote query failed: {e}", exc_info=True)
+            return []
 
 
 # =============================================================================

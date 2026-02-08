@@ -65,6 +65,12 @@ class Settings(BaseSettings):
         default=""
     )
     
+    # AssemblyAI (for podcast transcript speaker diarization)
+    assemblyai_api_key: str = Field(
+        validation_alias=AliasChoices("ASSEMBLYAI_API_KEY", "ASSEMBLY_AI_API_KEY"),
+        default=""
+    )
+
     # Freightos API (for freight/container rates)
     freightos_api_key: str = ""
     

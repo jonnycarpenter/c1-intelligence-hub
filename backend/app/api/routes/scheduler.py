@@ -312,6 +312,95 @@ async def trigger_maintenance(
 
 
 # =============================================================================
+# Podcast Ingestion Endpoint
+# =============================================================================
+
+class PodcastIngestRequest(BaseModel):
+    """Request body for podcast ingestion trigger."""
+    podcast_ids: Optional[list[str]] = Field(
+        default=None,
+        description="Podcast IDs to process. If None, processes all active feeds."
+    )
+    days: int = Field(
+        default=14,
+        ge=1,
+        le=90,
+        description="Number of days back to fetch episodes (default: 14)"
+    )
+
+
+class PodcastIngestResponse(BaseModel):
+    """Response for podcast ingestion trigger."""
+    status: Literal["success", "error"]
+    podcasts_processed: int = 0
+    episodes_discovered: int = 0
+    episodes_new: int = 0
+    episodes_transcribed: int = 0
+    quotes_extracted: int = 0
+    total_cost_usd: float = 0.0
+    message: str
+    execution_time_seconds: float
+
+
+@router.post("/podcast-ingest", response_model=PodcastIngestResponse)
+async def trigger_podcast_ingestion(
+    request: PodcastIngestRequest = PodcastIngestRequest(),
+):
+    """
+    Trigger podcast ingestion pipeline.
+
+    Discovers episodes from RSS feeds, resolves transcripts
+    (YouTube -> site scraping -> AssemblyAI), extracts speaker-attributed
+    quotes with C1 theme taxonomy, and stores in BigQuery.
+
+    Called by Cloud Scheduler weekly (Mondays at 6:00 AM CST).
+    """
+    import time
+    start_time = time.time()
+
+    logger.info(
+        f"[PODCAST_PIPELINE] Scheduler trigger received: "
+        f"podcast_ids={request.podcast_ids}, days={request.days}"
+    )
+
+    try:
+        from app.ingestion.podcasts.pipeline import PodcastPipeline
+
+        pipeline = PodcastPipeline()
+        stats = await pipeline.run(
+            podcast_ids=request.podcast_ids,
+            days=request.days,
+        )
+
+        execution_time = time.time() - start_time
+
+        return PodcastIngestResponse(
+            status="success",
+            podcasts_processed=stats.get("podcasts_processed", 0),
+            episodes_discovered=stats.get("episodes_discovered", 0),
+            episodes_new=stats.get("episodes_new", 0),
+            episodes_transcribed=stats.get("episodes_transcribed", 0),
+            quotes_extracted=stats.get("quotes_extracted", 0),
+            total_cost_usd=stats.get("total_cost_usd", 0.0),
+            message=(
+                f"Podcast ingestion complete: "
+                f"{stats.get('episodes_new', 0)} new episodes, "
+                f"{stats.get('quotes_extracted', 0)} quotes extracted"
+            ),
+            execution_time_seconds=execution_time,
+        )
+
+    except Exception as e:
+        execution_time = time.time() - start_time
+        logger.error(f"[PODCAST_PIPELINE] Scheduler trigger failed: {e}", exc_info=True)
+        return PodcastIngestResponse(
+            status="error",
+            message=f"Podcast ingestion failed: {str(e)}",
+            execution_time_seconds=execution_time,
+        )
+
+
+# =============================================================================
 # Status Endpoint
 # =============================================================================
 

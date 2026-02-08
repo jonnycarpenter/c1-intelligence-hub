@@ -62,7 +62,7 @@ steps:
       - '--add-volume-mount'
       - 'volume=data-volume,mount-path=/app/data'
       - '--set-secrets'
-      - 'ANTHROPIC_API_KEY=anthropic-api-key:latest,OPENAI_API_KEY=OPENAI_API_KEY:latest,API_NINJA_KEY=api-ninja-key:latest,TAVILY_API_KEY=tavily-api-key:latest,FMP_API_KEY=FMP_API_KEY:latest,SEC_IO_KEY=SEC_IO_KEY:latest,IMPORTYETI_API_KEY=importyeti-api-key:latest,APOLLO_API_KEY=APOLLO_API_KEY:latest,EXA_API_KEY=EXA_API_KEY:latest,LOGO_DEV_TOKEN=LOGO_DEV_TOKEN:latest,STOCKNEWS_API_KEY=STOCKNEWS_API_KEY:latest,ELEVENLABS_API_KEY=ELEVENLABS_API_KEY:latest'
+      - 'ANTHROPIC_API_KEY=anthropic-api-key:latest,OPENAI_API_KEY=OPENAI_API_KEY:latest,API_NINJA_KEY=api-ninja-key:latest,TAVILY_API_KEY=tavily-api-key:latest,FMP_API_KEY=FMP_API_KEY:latest,SEC_IO_KEY=SEC_IO_KEY:latest,IMPORTYETI_API_KEY=importyeti-api-key:latest,APOLLO_API_KEY=APOLLO_API_KEY:latest,EXA_API_KEY=EXA_API_KEY:latest,LOGO_DEV_TOKEN=LOGO_DEV_TOKEN:latest,STOCKNEWS_API_KEY=STOCKNEWS_API_KEY:latest,ELEVENLABS_API_KEY=ELEVENLABS_API_KEY:latest,ASSEMBLYAI_API_KEY=ASSEMBLYAI_API_KEY:latest'
       - '--set-env-vars'
       - 'ENVIRONMENT=production,GCP_PROJECT_ID=${PROJECT_ID},GCP_DATASET_ID=c1_intelligence,GCS_BUCKET_NAME=${_DATA_BUCKET},KNOWLEDGE_PERSIST_DIR=/app/data/knowledge_db,SITE_ACCESS_PASSWORD=${_SITE_PASSWORD}'
 
