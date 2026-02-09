@@ -130,13 +130,13 @@ Understanding what tools each agent has helps you craft better queries:
 ### Financial Agent Tools
 | Tool | Requires | Best For |
 |------|----------|----------|
-| `get_earnings_transcript_ninja` | Company ticker | Earnings calls, guidance, executive commentary, outlook |
+| `search_earnings_quotes` | Company ticker | Pre-extracted earnings quotes, speaker-attributed, classified by type/sentiment |
+| `search_sec_nuggets` | Company ticker | Pre-extracted SEC filing insights, competitive disclosures, risk factors |
 | `query_corpus` (earnings) | Search query | Pre-ingested financial data, historical context |
 | `get_company_news` | Ticker list | Recent news for specific public companies |
 | `get_press_releases` | Ticker list | Official company announcements |
 | `get_analyst_ratings` | Ticker list | Analyst views, price targets, ratings changes |
 | `get_sentiment_summary` | Single ticker | Aggregated news sentiment score |
-| `SECFilingCollector` | Ticker | 10-K, 10-Q, 8-K SEC filings |
 
 ### Industry Agent Tools
 | Tool | Requires | Best For |
@@ -144,6 +144,7 @@ Understanding what tools each agent has helps you craft better queries:
 | `news_search` (Exa) | Search query | Semantic news search, recent coverage |
 | `web_search` (Exa) | Query + domains | Trade publication deep searches |
 | `query_corpus` | Search query | Pre-ingested industry intelligence |
+| `search_podcast_quotes` | Search query | Expert insights from industry podcasts (CW Talks, Composites Weekly, etc.) |
 | `get_google_trends` | Keywords (1-5) | Demand signal validation, interest over time |
 | `search_news_keyword` | Keyword | Broader keyword-based news (private companies) |
 | `get_freight_rates` | Lane | Logistics/supply chain cost data |
@@ -157,10 +158,11 @@ Understanding what tools each agent has helps you craft better queries:
 ## QUERY OPTIMIZATION RULES
 
 Based on the user's query, ensure you:
-- **Ticker/Public Company mentioned** → Include in `entities_to_track` to activate earnings/SEC tools
-- **Outlook/Guidance/Forecast** → Financial Agent will prioritize earnings transcripts
+- **Ticker/Public Company mentioned** → Include in `entities_to_track` to activate earnings quotes + SEC nuggets tools
+- **Outlook/Guidance/Forecast** → Financial Agent will prioritize pre-extracted earnings quotes
 - **Trends/Demand/Interest** → Industry Agent will use Google Trends validation
 - **Supply Chain/Logistics** → Industry Agent will check freight rate data
+- **Industry trend/materials** → Industry Agent will search podcast quotes for expert practitioner perspectives
 - **Private company mentioned** → Industry Agent uses keyword search (not ticker-based)
 
 ## Composites Industry Domain Knowledge

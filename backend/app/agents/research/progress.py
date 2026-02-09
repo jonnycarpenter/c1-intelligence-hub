@@ -83,9 +83,11 @@ TOOL_DESCRIPTIONS = {
     "query_analysis": "Analyzing query and generating research plan",
     
     # Financial agent tools
+    "earnings_quotes": "Searching pre-extracted earnings quotes",
+    "sec_nuggets": "Searching SEC filing insights",
     "sec_filings": "Fetching SEC filings",
     "sec_10k": "Fetching 10-K annual report",
-    "sec_10q": "Fetching 10-Q quarterly report", 
+    "sec_10q": "Fetching 10-Q quarterly report",
     "sec_8k": "Fetching 8-K current report",
     "earnings_call": "Retrieving earnings transcript",
     "corpus_earnings": "Searching internal earnings data",
@@ -93,8 +95,9 @@ TOOL_DESCRIPTIONS = {
     "sentiment_summary": "Analyzing news sentiment",
     "press_releases": "Fetching press releases",
     "company_news": "Fetching company news",
-    
+
     # Industry agent tools
+    "podcast_quotes": "Searching industry podcast quotes",
     "corpus": "Searching internal intelligence",
     "exa_trade_pubs": "Searching trade publications",
     "exa_news": "Searching recent news",

@@ -483,12 +483,16 @@ You build the report by stacking these blocks. Choose the best block for the dat
    - constraint: You MUST copy the `visual_id` exactly from the input.
 
 4. `quote`: A styled executive quote callout.
-   - Use for: Verbatim CEO/CFO quotes from earnings calls that ground the narrative.
+   - Use for: Verbatim quotes from earnings calls, podcasts, or SEC filings that ground the narrative.
    - source: Must come from `direct_quote` in findings.
    - REQUIRED fields in data:
      - text: The actual quote text (copy exactly from direct_quote)
      - speaker: Full name and title (e.g., "Gary McGuire, CEO")
-     - context: Source event (e.g., "Q3 2025 Earnings Call", "Investor Day 2025")
+     - context: Source event — format depends on source_type:
+       - For earnings_call: "{Quarter} {Year} Earnings Call" (e.g., "Q3 2025 Earnings Call")
+       - For podcast: "{Episode Title}, {Podcast Name}" (e.g., "Wind Blade Recycling, CW Talks")
+       - For sec_filing: "{Filing Type}, {Section}" (e.g., "10-K Annual Report, Risk Factors")
+     - source_type: "earnings_call" | "podcast" | "sec_filing" | "other" (REQUIRED — determines styling)
      - sentiment: "positive" | "neutral" | "negative" (optional)
 
 5. `table`: A structured data table.

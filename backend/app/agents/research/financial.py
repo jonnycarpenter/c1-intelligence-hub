@@ -4,7 +4,8 @@ from app.agents.research.state import DeepResearchState, FinancialAgentOutput, F
 from app.agents.research.progress import emit_progress_sync, ToolProgress, get_tool_description
 from app.utils.resilient_llm import create_resilient_llm_with_openai_fallback
 from app.config.settings import settings
-from app.mcp.tools.api_ninja_earnings import get_earnings_transcript_ninja, search_earnings_keywords
+from app.mcp.tools.earnings_quotes import search_earnings_quotes
+from app.mcp.tools.sec_nuggets import search_sec_nuggets
 from app.mcp.tools.corpus_query import query_corpus
 from app.mcp.tools.stocknews_api import (
     get_company_news,
@@ -12,7 +13,6 @@ from app.mcp.tools.stocknews_api import (
     get_analyst_ratings,
     get_sentiment_summary,
 )
-from app.tools.sec_filings.collector import SECFilingCollector
 from app.utils.grounding import load_companies
 import json
 import time
@@ -283,11 +283,13 @@ def _rank_financial_results(raw_results: List[Dict], original_query: str) -> Lis
     Prioritizes: SEC filings > earnings calls > analyst ratings > news.
     """
     source_priority = {
-        "sec_10k": 10,
+        "earnings_quotes": 10,     # Pre-extracted, speaker-attributed quotes
+        "sec_nuggets": 10,         # Pre-extracted, classified SEC insights
+        "sec_10k": 10,             # Legacy corpus results
         "sec_10q": 10,
         "sec_8k": 9,
         "earnings_call": 9,
-        "earnings_call_quotes": 10,  # High priority for keyword-matched quotes
+        "earnings_call_quotes": 10,
         "corpus_earnings": 8,
         "stocknews_analyst_ratings": 7,
         "stocknews_sentiment": 6,
@@ -314,80 +316,22 @@ def _rank_financial_results(raw_results: List[Dict], original_query: str) -> Lis
     return ranked
 
 
-def _extract_quote_keywords(original_query: str, financial_queries: Optional[List[str]]) -> List[str]:
-    """
-    Extract key topics from the user query for targeted earnings call keyword search.
-    
-    Returns a list of keywords that are likely to yield valuable executive quotes:
-    - Industry/market terms (aerospace, wind, automotive)
-    - Financial terms (revenue, margin, guidance)
-    - Strategic terms (expansion, acquisition, capacity)
-    - Material terms (carbon fiber, composites, resin)
-    """
-    keywords = []
-    
-    # Combine original query and financial queries for analysis
-    all_text = original_query.lower()
-    if financial_queries:
-        all_text += " " + " ".join(q.lower() for q in financial_queries)
-    
-    # High-value keyword categories for executive quote extraction
-    keyword_categories = {
-        # Industry/market terms
-        "aerospace": ["aerospace", "aircraft", "aviation", "narrowbody", "widebody", "commercial aircraft"],
-        "wind": ["wind", "wind energy", "wind turbine", "renewable"],
-        "automotive": ["automotive", "ev", "electric vehicle", "battery"],
-        "defense": ["defense", "military", "dod"],
-        # Financial terms
-        "guidance": ["guidance", "outlook", "forecast", "expect", "projection"],
-        "revenue": ["revenue", "sales", "growth", "quarterly", "annual"],
-        "margin": ["margin", "profit", "profitability", "operating income"],
-        "capex": ["capex", "capital expenditure", "investment", "capacity"],
-        # Strategic terms
-        "expansion": ["expansion", "facility", "new plant", "capacity"],
-        "demand": ["demand", "orders", "backlog", "customer"],
-        "competition": ["competition", "market share", "competitor"],
-        # Material terms
-        "carbon fiber": ["carbon fiber", "carbon fibre", "prepreg"],
-        "composites": ["composite", "composites", "advanced materials"],
-        "pricing": ["pricing", "price", "cost", "raw material"],
-        "supply chain": ["supply chain", "supply", "manufacturing"],
-    }
-    
-    # Find matching categories
-    for category, terms in keyword_categories.items():
-        if any(term in all_text for term in terms):
-            # Add the matched term(s) as keywords
-            for term in terms:
-                if term in all_text and term not in keywords:
-                    keywords.append(term)
-                    break  # One term per category is enough
-    
-    # Add any company names mentioned (single words, >3 chars)
-    words = all_text.split()
-    company_indicators = ["hexcel", "toray", "solvay", "owens", "tpi", "boeing", "airbus", "vestas"]
-    for word in words:
-        if word in company_indicators and word not in keywords:
-            keywords.append(word)
-    
-    # Fallback: If no specific keywords found, use generic financial terms
-    if not keywords:
-        keywords = ["guidance", "outlook", "demand", "growth"]
-    
-    return keywords[:8]  # Limit to 8 keywords
-
 FINANCIAL_AGENT_SYSTEM_PROMPT = """
 You are a Financial Research Agent specializing in the composites industry. Your job is to extract specific, data-driven financial insights AND verbatim executive quotes that ground those insights.
 
 ## Your Responsibilities
 
-1. ANALYZE financial documents (SEC 10-K, 10-Q, 8-K, and Earnings Call Transcripts)
+1. ANALYZE pre-extracted earnings quotes and SEC filing insights from BigQuery
 2. PRIORITY: Check the internal `query_corpus` FIRST for pre-ingested financial data and earnings
-3. USE SEC filings for official metrics and risk factors
+3. USE pre-extracted SEC nuggets for competitive disclosures, risk factors, and strategic insights (nuggets include signal_strength and is_new_disclosure flags)
 4. USE StockNewsAPI tools for real-time news, analyst ratings, and sentiment
 5. EXTRACT key metrics, strategic outlooks, and financial headwinds
 6. ATTRIBUTE every finding with a precise citation
 7. **ALWAYS INCLUDE EXECUTIVE QUOTES** - The reader wants proof, not just summaries
+
+## DATA SOURCE NOTES
+- **earnings_quotes** results arrive pre-attributed: each quote has speaker name, role, company, quarter, sentiment, and confidence_level. Copy these attributions directly into your citations.
+- **sec_nuggets** results include signal_strength (explicit/hedged/buried/new), is_new_disclosure, is_actionable, competitors_named, and relevance_score. Use these fields to prioritize the most impactful insights.
 
 ## EXECUTIVE QUOTES ARE YOUR MOST VALUABLE OUTPUT
 
@@ -524,73 +468,53 @@ async def financial_research_node(state: DeepResearchState) -> Dict[str, Any]:
             pass  # Corpus miss is not critical
     
     # =========================================================================
-    # STEP 3: SEC Filings and External Earnings Calls (Per Ticker)
-    # - SEC filings: Always fetch for resolved tickers
-    # - External Earnings API: Only if user mentioned specific companies
-    #   (Corpus already queried in Step 2 - that's always allowed)
+    # STEP 3: Pre-extracted Earnings Quotes & SEC Nuggets (Per Ticker)
+    # Uses BigQuery pre-extracted data instead of live API calls:
+    # - search_earnings_quotes: Pre-classified, speaker-attributed quotes
+    # - search_sec_nuggets: Pre-extracted SEC filing insights
+    # Both gated on has_company_mention (requires resolved ticker)
     # =========================================================================
-    for ticker in all_tickers:
-        # SEC Filings - official 10-K, 10-Q, 8-K filings (always fetch)
-        emit_progress_sync(ToolProgress(tool_name="sec_filings", message=f"Fetching SEC filings for {ticker}", ticker=ticker))
-        try:
-            collector = SECFilingCollector()
-            sec_results = collector.collect_for_company(company_id=ticker, ticker=ticker)
-            for f in sec_results:
-                content = f"TICKER: {ticker} | Form {f.form_type} filed at {f.filed_at}\n"
-                if f.sections:
-                    for s_id, s_text in f.sections.items():
-                        content += f"Section {s_id}: {s_text[:2000]}...\n"
-                elif f.full_text:
-                    content += f.full_text[:5000]
-                raw_results.append({
-                    "query": f"SEC filings for {ticker}",
-                    "source": f"sec_{f.form_type.lower()}",
-                    "content": content,
-                    "url": f.filing_url,
-                    "ticker": ticker
-                })
-        except Exception as e:
-            errors.append({"node": "financial_research", "ticker": ticker, "error": f"SEC: {str(e)}"})
-        
-        # External Earnings Call Transcripts API - ONLY if user mentioned specific companies
-        # This gates expensive external API calls for generic industry queries
-        # The corpus (Step 2) already provides 40+ pre-ingested transcripts for common companies
-        if has_company_mention:
-            emit_progress_sync(ToolProgress(tool_name="earnings_call", message=f"Retrieving earnings transcript for {ticker}", ticker=ticker))
+    if has_company_mention:
+        for ticker in all_tickers:
+            # STEP 3a: Pre-extracted earnings quotes (replaces api_ninja_earnings)
+            emit_progress_sync(ToolProgress(tool_name="earnings_quotes", message=f"Searching pre-extracted earnings quotes for {ticker}", ticker=ticker))
             try:
-                result = get_earnings_transcript_ninja.invoke({"ticker": ticker})
+                result = await search_earnings_quotes.ainvoke({
+                    "query": brief.original_query,
+                    "ticker": ticker,
+                    "quotable_only": True,
+                    "limit": 10,
+                })
                 if result and str(result).strip():
                     raw_results.append({
-                        "query": f"Earnings call for {ticker}",
-                        "source": "earnings_call",
+                        "query": f"Earnings quotes for {ticker}",
+                        "source": "earnings_quotes",
                         "content": result,
-                        "ticker": ticker
-                    })
-            except Exception as e:
-                errors.append({"node": "financial_research", "ticker": ticker, "error": f"Earnings: {str(e)}"})
-            
-            # STEP 3b: Keyword-based earnings search for targeted quote extraction
-            # Search for relevant sections with speaker attribution
-            emit_progress_sync(ToolProgress(tool_name="earnings_keywords", message=f"Searching earnings for key topics ({ticker})", ticker=ticker))
-            try:
-                # Extract key topics from the original query and brief
-                search_keywords = _extract_quote_keywords(brief.original_query, brief.financial_agent_queries)
-                if search_keywords:
-                    keyword_result = search_earnings_keywords.invoke({
                         "ticker": ticker,
-                        "keywords": search_keywords[:5],  # Limit to top 5 keywords
+                        "note": "Pre-extracted, speaker-attributed quotes from earnings calls"
                     })
-                    if keyword_result and str(keyword_result).strip():
-                        raw_results.append({
-                            "query": f"Earnings keyword search for {ticker}",
-                            "source": "earnings_call_quotes",
-                            "content": keyword_result,
-                            "ticker": ticker,
-                            "note": "Contains speaker-attributed quotes matching key topics"
-                        })
             except Exception as e:
-                # Non-critical - keyword search is supplementary
-                logger.debug(f"Earnings keyword search failed for {ticker}: {e}")
+                errors.append({"node": "financial_research", "ticker": ticker, "error": f"Earnings quotes: {str(e)}"})
+
+            # STEP 3b: Pre-extracted SEC filing nuggets (replaces SECFilingCollector)
+            emit_progress_sync(ToolProgress(tool_name="sec_nuggets", message=f"Searching SEC filing insights for {ticker}", ticker=ticker))
+            try:
+                sec_result = await search_sec_nuggets.ainvoke({
+                    "query": brief.original_query,
+                    "ticker": ticker,
+                    "actionable_only": False,
+                    "limit": 10,
+                })
+                if sec_result and str(sec_result).strip():
+                    raw_results.append({
+                        "query": f"SEC filing insights for {ticker}",
+                        "source": "sec_nuggets",
+                        "content": sec_result,
+                        "ticker": ticker,
+                        "note": "Pre-extracted insights from SEC filings with signal strength and actionability flags"
+                    })
+            except Exception as e:
+                errors.append({"node": "financial_research", "ticker": ticker, "error": f"SEC nuggets: {str(e)}"})
     
     # =========================================================================
     # STEP 4: StockNewsAPI Calls (Batched by Ticker List)
@@ -697,6 +621,8 @@ For each company in the results, extract 2-4 verbatim quotes from earnings calls
 - **Risk Quote**: Any headwinds, challenges, or concerns mentioned
 - **Strategy Quote**: Capital allocation, facility expansion, M&A plans
 
+**NOTE**: Results from `earnings_quotes` source are pre-structured with `speaker.name`, `speaker.role`, `speaker.company`, `source.quarter`, `sentiment`, and `confidence_level`. Copy these attributions directly into your findings.
+
 Format each quote in the `direct_quote` field as:
 "[Exact words in quotes] — [Name], [Title], [Company] [Quarter] Earnings Call"
 
@@ -709,7 +635,7 @@ Example:
 
 ## PRIORITY 3: Other Financial Intelligence
 - M&A, facility expansions, new contracts
-- Risk factors from SEC filings
+- Risk factors and competitive disclosures from SEC nuggets (check `competitors_named`, `signal_strength`, `is_new_disclosure` fields)
 - Analyst ratings and price targets
 
 ## Confidence Rules
@@ -736,7 +662,7 @@ Respond ONLY with a JSON object matching this EXACT schema:
       "confidence": "high" | "medium" | "low",
       "relevance_score": 0.0 to 1.0,
       "citation": {{
-        "source_type": "sec_10k|sec_10q|sec_8k|earnings_call|investor_presentation|financial_news|press_release",
+        "source_type": "earnings_call|sec_filing|sec_10k|sec_10q|sec_8k|investor_presentation|financial_news|press_release",
         "source_title": "Document or article title",
         "source_url": "COPY the 'url' field from the raw result - REQUIRED for clickable links",
         "source_date": "YYYY-MM-DD or null",

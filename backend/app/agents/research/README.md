@@ -6,9 +6,20 @@ Multi-agent research pipeline for comprehensive industry intelligence reports.
 
 Deep Research is a **6-node** LangGraph workflow that orchestrates specialized agents to produce executive-ready research reports. It combines financial data, industry news, and visual assets into a single deliverable.
 
-**Status: ✅ PRODUCTION READY** (January 16, 2026)
+**Status: ✅ PRODUCTION READY** (February 9, 2026)
 
-**Recent Changes (Session 105):**
+**Recent Changes (Session 106):**
+- **Pre-extracted Data Tools** - Replaced live API earnings/SEC tools with BigQuery pre-extracted data:
+  - `search_earnings_quotes` replaces `get_earnings_transcript_ninja` + `search_earnings_keywords`
+  - `search_sec_nuggets` replaces `SECFilingCollector`
+  - `search_podcast_quotes` added to Industry Agent
+- **Enhanced Quote Formatting** - `BlockQuote.tsx` now renders source-type-specific styling:
+  - Earnings: amber accent + `TrendingUp` icon badge
+  - Podcast: purple accent + `Mic` icon badge
+  - SEC Filing: blue accent + `FileText` icon badge
+- **Synthesizer source_type** - Quote blocks now include `source_type` field for frontend differentiation
+
+**Previous Changes (Session 105):**
 - **Visual URL Hydration** - `_hydrate_visual_blocks()` injects `image_url` into blocks referencing `visual_id`
 - **Citation Display Fix** - All citations shown (URL-linked and non-linked)
 - **Quote Block Prompt** - Explicit required fields (`text`, `speaker`, `context`)
@@ -21,7 +32,7 @@ Deep Research is a **6-node** LangGraph workflow that orchestrates specialized a
 
 **Key Features:**
 - Parallel execution of Financial + Industry + Visual agents (~60% faster)
-- **Executive Quote Extraction** - Verbatim quotes from earnings calls ground insights
+- **Executive Quote Extraction** - Pre-extracted, speaker-attributed quotes from earnings calls, podcasts, and SEC filings
 - Real-time SSE streaming with granular tool progress
 - In-memory query caching (1-hour TTL)
 - LangSmith observability for cost/latency tracking
@@ -113,25 +124,25 @@ system_content = f"{GROOMER_SYSTEM_PROMPT}\n\n{prior_context}"
 ### 2. Financial Research (`financial.py`)
 **Purpose**: Financial data and corporate intelligence
 
-**Conditional External API Gating:**
-External earnings API is only called when user mentions specific companies:
+**Conditional Tool Gating:**
+Pre-extracted earnings quotes and SEC nuggets are only queried when user mentions specific companies:
 
-| Query Type | Corpus Query | SEC Filings | External Earnings API |
-|------------|--------------|-------------|----------------------|
-| "Wind energy trends" | ✅ | ✅ | ❌ |
-| "Deep dive on Hexcel" | ✅ | ✅ | ✅ |
-| "Who's growing in aerospace?" | ✅ | ✅ | ✅ (if companies found) |
+| Query Type | Corpus Query | Earnings Quotes | SEC Nuggets | StockNews |
+|------------|--------------|-----------------|-------------|-----------|
+| "Wind energy trends" | ✅ | ❌ | ❌ | ❌ |
+| "Deep dive on Hexcel" | ✅ | ✅ | ✅ | ✅ |
+| "Who's growing in aerospace?" | ✅ | ✅ (if tickers found) | ✅ (if tickers found) | ✅ |
 
-This gating saves API costs on generic industry queries while still providing corpus data (40+ pre-ingested transcripts).
+This gating saves costs on generic industry queries while still providing corpus data.
 
 **Tools Used**:
-- `get_earnings_transcript_ninja` - Earnings call transcripts (**conditional - only if company mentioned**)
 - `query_corpus` - Pre-ingested financial articles (**always runs**)
+- `search_earnings_quotes` - Pre-extracted, speaker-attributed earnings quotes from BigQuery (**conditional - only if company mentioned**)
+- `search_sec_nuggets` - Pre-extracted SEC filing insights with signal_strength and competitive disclosures (**conditional - only if company mentioned**)
 - `get_company_news` - Recent company news by ticker
 - `get_press_releases` - Official announcements
 - `get_analyst_ratings` - Upgrades, downgrades, price targets
 - `get_sentiment_summary` - Aggregated news sentiment
-- SEC filings (10-K, 10-Q, 8-K)
 
 **Output**: `FinancialAgentOutput` with findings, citations, metrics
 
@@ -139,8 +150,9 @@ This gating saves API costs on generic industry queries while still providing co
 **Purpose**: Market intelligence and competitive landscape
 
 **Tools Used**:
+- `query_corpus` - Pre-ingested industry articles (**always runs**)
+- `search_podcast_quotes` - Expert practitioner insights from industry podcasts (**conditional - needs_trade_news or needs_demand_signals**)
 - `news_search` / `web_search` - Exa.ai semantic search
-- `query_corpus` - Pre-ingested industry articles
 - `get_market_signals` - Aggregated market indicators
 - `get_google_trends` - Demand signal validation
 - `get_freight_rates` - Supply chain cost data
@@ -205,7 +217,7 @@ The Synthesizer agent has been upgraded from generating flat text to designing a
 - **`paragraph`**: Standard text analysis with inline citation pills
 - **`metric_grid`**: A horizontal row of key comparison metrics (e.g., Revenue $1.2B | YoY +12%)
 - **`visual_split`**: A high-impact side-by-side layout pairing analysis text with a specific chart from the Visual agent
-- **`quote`**: A styled, verbatim callout for CEO/CFO quotes that ground the narrative
+- **`quote`**: A styled, verbatim callout for quotes that ground the narrative (earnings calls, podcasts, SEC filings). Includes `source_type` field for frontend differentiation: `earnings_call` (amber), `podcast` (purple), `sec_filing` (blue)
 
 **Key Features:**
 - **Visual Agency**: The agent explicitly chooses *where* to place visuals using the `visual_split` block, integrating them into the narrative flow rather than appending them as an afterthought.
@@ -412,8 +424,8 @@ await memory.store_report(report_id, query, state)
 | File | Purpose | Key Features |
 |------|---------|--------------|
 | `groomer.py` | Query grooming node | Explicit JSON schema, empty message filtering, **context injection** |
-| `financial.py` | Financial research node | SEC filings, earnings, explicit JSON schema, **conditional earnings API** |
-| `industry.py` | Industry research node | Exa search, Google Trends, explicit JSON schema |
+| `financial.py` | Financial research node | Pre-extracted earnings quotes, SEC nuggets, explicit JSON schema, **conditional on company mention** |
+| `industry.py` | Industry research node | Exa search, Google Trends, podcast quotes, explicit JSON schema |
 | `synthesizer.py` | Report synthesis node | Merges outputs, executive summary, explicit JSON schema |
 | `category.py` | Sales intelligence node | Territory insights, product recommendations |
 | `validator.py` | Citation verification node | URL validation, unsubstantiated claim detection |

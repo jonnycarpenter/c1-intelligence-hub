@@ -238,6 +238,9 @@ function ToolProgressItem({ tool, isLatest }: ToolProgressItemProps) {
  */
 function formatToolName(name: string): string {
     const toolLabels: Record<string, string> = {
+        'earnings_quotes': 'Earnings Quotes',
+        'sec_nuggets': 'SEC Insights',
+        'podcast_quotes': 'Podcast Quotes',
         'get_earnings_transcript_ninja': 'Earnings Transcript',
         'query_corpus': 'Corpus Search',
         'get_company_news': 'Company News',

@@ -14,6 +14,7 @@ from app.mcp.tools.stocknews_api import (
     get_trending_headlines,
 )
 from app.mcp.tools.timeseries_data import get_freight_rates
+from app.mcp.tools.podcast_quotes import search_podcast_quotes
 from app.utils.grounding import load_companies
 import json
 import time
@@ -171,7 +172,8 @@ You are an Industry Research Agent specializing in the qualitative market realit
 6. TRACK competitor qualitative moves (partnerships, management changes, plant openings)
 7. IDENTIFY demand signals and market sentiment
 8. USE `get_freight_rates` for shipping cost spikes, logistics headwinds, and trade lane inflation
-9. ANALYZE historical trends vs real-time developments
+9. USE `search_podcast_quotes` for expert practitioner insights from industry podcasts (CW Talks, Composites Weekly, The Chemical Show, ICIS Chemical, Uptime Wind Energy)
+10. ANALYZE historical trends vs real-time developments
 
 ## Key Trade Publications (prioritize these sources)
 - CompositesWorld, JEC Group, Reinforced Plastics (industry core)
@@ -186,6 +188,7 @@ You are an Industry Research Agent specializing in the qualitative market realit
 - Gauge SENTIMENT (positive, neutral, negative)
 - Note demand signals like "increasing interest in hydrogen storage" or "aerospace recovery"
 - Cross-reference Google Trends data to validate "hot" topics
+- Cite podcast quotes with speaker name and podcast source for practitioner credibility
 
 ## Output Format
 Always respond with valid JSON matching the IndustryAgentOutput schema.
@@ -329,6 +332,7 @@ def _rank_results_by_relevance(raw_results: List[Dict], original_query: str) -> 
     source_priority = {
         "corpus": 10,
         "exa_trade_pubs": 9,
+        "podcast_quotes": 8,    # Expert practitioner insights
         "market_signals": 8,
         "exa_news": 7,
         "stocknews_company": 6,
@@ -425,6 +429,21 @@ async def industry_research_node(state: DeepResearchState) -> Dict[str, Any]:
         except Exception as e:
             errors.append({"node": "industry_research", "query": q, "error": f"Corpus query: {str(e)}"})
         
+        # 1.5. PODCAST QUOTES - Expert practitioner insights from industry podcasts
+        # Run if: user wants trade news or demand signals (broad industry topics)
+        if query_type["needs_trade_news"] or query_type["needs_demand_signals"]:
+            emit_progress_sync(ToolProgress(tool_name="podcast_quotes", message="Searching industry podcast quotes", query=q[:50]))
+            try:
+                podcast_result = search_podcast_quotes.invoke({
+                    "search_query": q,
+                    "days": 90,
+                    "limit": 10,
+                })
+                if podcast_result and str(podcast_result).strip():
+                    raw_results.append({"query": q, "source": "podcast_quotes", "content": podcast_result})
+            except Exception as e:
+                errors.append({"node": "industry_research", "query": q, "error": f"Podcast quotes: {str(e)}"})
+
         # 2. EXA WEB SEARCH - Trade publications (domain-filtered for high-quality industry content)
         # Run if: user wants trade/industry news
         if query_type["needs_trade_news"]:
@@ -570,8 +589,9 @@ RAW RESULTS (ranked by relevance):
 INSTRUCTIONS:
 1. Prioritize findings from trade publications and internal corpus
 2. Cross-reference Google Trends data to validate demand signals
-3. Note any conflicting information in the warnings field
-4. Include tickers resolved: {list(all_resolved_tickers) if all_resolved_tickers else 'None'}
+3. Podcast quotes provide expert practitioner perspectives - cite with speaker name and podcast source
+4. Note any conflicting information in the warnings field
+5. Include tickers resolved: {list(all_resolved_tickers) if all_resolved_tickers else 'None'}
 
 Respond ONLY with a JSON object matching this EXACT schema:
 
@@ -587,7 +607,7 @@ Respond ONLY with a JSON object matching this EXACT schema:
       "confidence": "high" | "medium" | "low",
       "relevance_score": 0.0 to 1.0,
       "citation": {{
-        "source_type": "trade_publication|industry_news|press_release|earnings_call|sec_10k|sec_10q|financial_news",
+        "source_type": "trade_publication|industry_news|press_release|podcast|earnings_call|sec_10k|sec_10q|financial_news",
         "source_title": "Article or document title",
         "source_url": "COPY the 'url' field from the raw result - REQUIRED for clickable links",
         "source_date": "YYYY-MM-DD or null",

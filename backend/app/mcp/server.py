@@ -13,7 +13,8 @@ Use `get_all_mcp_tools()` which returns a flat list of all available tools.
 from typing import List
 from langchain_core.tools import BaseTool
 
-# Earnings transcript tools
+# Earnings transcript tools (DEPRECATED for Deep Research - replaced by search_earnings_quotes)
+# Kept registered for ad-hoc briefing agent compatibility
 from app.mcp.tools.api_ninja_earnings import (
     get_earnings_transcript_ninja,
     search_earnings_keywords,
