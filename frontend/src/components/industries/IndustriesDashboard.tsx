@@ -14,6 +14,7 @@ import {
   ChevronUp,
   Newspaper,
   X,
+  Sparkles,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useIndustryNarratives, type MonthlyData } from '@/hooks'
@@ -232,14 +233,53 @@ function ArticleDrawer({
 }
 
 // ============================================
+// Narrative Banner (90-day arc + key insight)
+// ============================================
+
+function NarrativeBanner({
+  narrative,
+  keyInsight,
+  enrichmentSources,
+}: {
+  narrative: string
+  keyInsight: string
+  enrichmentSources: number
+}) {
+  return (
+    <div className="mx-6 mt-4 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 p-5 text-white shadow-lg">
+      <div className="flex items-start gap-3 mb-3">
+        <Sparkles size={20} className="text-purple-200 shrink-0 mt-0.5" />
+        <div>
+          <h3 className="font-semibold text-sm mb-2">90-Day Narrative Arc</h3>
+          <p className="text-sm leading-relaxed text-purple-100">{narrative}</p>
+        </div>
+      </div>
+      <div className="mt-4 pt-3 border-t border-purple-400/30">
+        <div className="flex items-start gap-2">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-purple-300 shrink-0 mt-0.5">
+            Key Insight
+          </span>
+          <p className="text-sm font-medium text-white">{keyInsight}</p>
+        </div>
+      </div>
+      <div className="mt-2 text-[10px] text-purple-300">
+        Synthesized from {enrichmentSources} earnings quotes &amp; SEC filings
+      </div>
+    </div>
+  )
+}
+
+// ============================================
 // Month Column
 // ============================================
 
 function MonthColumn({
   data,
+  monthNarrative,
   onViewArticles,
 }: {
   data: MonthlyData
+  monthNarrative?: string
   onViewArticles: (month: string, label: string) => void
 }) {
   return (
@@ -257,6 +297,19 @@ function MonthColumn({
       </div>
 
       <div className="p-4 space-y-4 flex-1">
+        {/* Month Narrative (if generated) */}
+        {monthNarrative && (
+          <div className="bg-purple-50 border border-purple-100 rounded-lg p-3">
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <Sparkles size={12} className="text-purple-500" />
+              <span className="text-[10px] font-semibold text-purple-600 uppercase tracking-wider">
+                Narrative
+              </span>
+            </div>
+            <p className="text-xs text-purple-900 leading-relaxed">{monthNarrative}</p>
+          </div>
+        )}
+
         {/* Event Types */}
         <CollapsibleSection title="Event Types">
           <div className="space-y-1">
@@ -385,6 +438,10 @@ export default function IndustriesDashboard() {
     isLoadingTimeline,
     error,
     refresh,
+    narrative,
+    isGeneratingNarrative,
+    narrativeError,
+    generateNarrative,
   } = useIndustryNarratives()
 
   const [drawer, setDrawer] = useState<{ industry: string; month: string; label: string } | null>(null)
@@ -392,6 +449,14 @@ export default function IndustriesDashboard() {
   const handleViewArticles = (month: string, label: string) => {
     if (selectedIndustry) {
       setDrawer({ industry: selectedIndustry, month, label: `${timeline?.industry} — ${label}` })
+    }
+  }
+
+  // Build a lookup for month narratives
+  const monthNarrativeMap = new Map<string, string>()
+  if (narrative?.monthly_narratives) {
+    for (const mn of narrative.monthly_narratives) {
+      monthNarrativeMap.set(mn.month, mn.narrative)
     }
   }
 
@@ -511,7 +576,43 @@ export default function IndustriesDashboard() {
                 )}
               </p>
             </div>
+            <div className="ml-auto">
+              <button
+                onClick={generateNarrative}
+                disabled={isGeneratingNarrative}
+                className={cn(
+                  'inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all',
+                  isGeneratingNarrative
+                    ? 'bg-purple-100 text-purple-400 cursor-not-allowed'
+                    : 'bg-purple-600 text-white hover:bg-purple-700 shadow-sm hover:shadow'
+                )}
+              >
+                {isGeneratingNarrative ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <Sparkles size={16} />
+                )}
+                {isGeneratingNarrative ? 'Generating...' : 'Generate Narrative'}
+              </button>
+            </div>
           </div>
+
+          {/* Narrative Error */}
+          {narrativeError && (
+            <div className="mx-6 mt-3 flex items-center gap-2 p-3 bg-red-50 text-red-700 rounded-lg">
+              <AlertCircle size={16} />
+              <span className="text-sm">{narrativeError}</span>
+            </div>
+          )}
+
+          {/* Overall Narrative Banner */}
+          {narrative && (
+            <NarrativeBanner
+              narrative={narrative.industry_narrative}
+              keyInsight={narrative.key_insight}
+              enrichmentSources={narrative.enrichment_sources_used}
+            />
+          )}
 
           {/* Monthly Timeline Grid */}
           <div className="flex-1 overflow-auto p-6">
@@ -533,6 +634,7 @@ export default function IndustriesDashboard() {
                   <MonthColumn
                     key={month.month}
                     data={month}
+                    monthNarrative={monthNarrativeMap.get(month.month)}
                     onViewArticles={handleViewArticles}
                   />
                 ))}

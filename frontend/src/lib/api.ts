@@ -813,6 +813,31 @@ class ApiClient {
     return response.json()
   }
 
+  /**
+   * Generate LLM narrative synthesis for an industry's 90-day timeline
+   */
+  async generateIndustryNarrative(industry: string): Promise<{
+    industry: string
+    industry_narrative: string
+    monthly_narratives: Array<{
+      month: string
+      narrative: string
+    }>
+    key_insight: string
+    enrichment_sources_used: number
+    generated_at: string
+  }> {
+    const response = await fetch(
+      `${this.baseUrl}/api/industry-narratives/${encodeURIComponent(industry)}/narrative`,
+      { method: 'POST' }
+    )
+    if (!response.ok) {
+      const detail = await response.text().catch(() => response.statusText)
+      throw new Error(`Failed to generate narrative: ${detail}`)
+    }
+    return response.json()
+  }
+
   // =====================================
   // Memory / Long-term Storage
   // =====================================

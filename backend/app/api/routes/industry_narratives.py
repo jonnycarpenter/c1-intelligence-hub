@@ -7,13 +7,16 @@ showing how news narratives evolve by composites end-market.
 Endpoints:
     GET  /api/industry-narratives/industries          - Curated industry list with counts
     GET  /api/industry-narratives/{industry}/timeline  - Monthly breakdown with MoM deltas
+    POST /api/industry-narratives/{industry}/narrative  - LLM narrative synthesis (on-demand)
     GET  /api/industry-narratives/{industry}/articles   - Paginated article drill-down
 """
 
+import asyncio
 import json
 import logging
+import time
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
@@ -363,6 +366,360 @@ async def get_industry_timeline(
         raise
     except Exception as e:
         logger.error(f"[INDUSTRY_NARRATIVES] timeline error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ---------------------------------------------------------------------------
+# POST /{industry}/narrative  — LLM narrative synthesis (on-demand)
+# ---------------------------------------------------------------------------
+
+_bq_storage = None
+
+
+async def _get_bq_storage():
+    """Lazy-init BigQuery storage for enrichment queries."""
+    global _bq_storage
+    if _bq_storage is not None:
+        return _bq_storage
+    try:
+        from app.db.gcp_storage import BigQueryDataStorage, gcp_config
+        if gcp_config.is_configured:
+            storage = BigQueryDataStorage(gcp_config)
+            await storage.initialize()
+            _bq_storage = storage
+            return storage
+    except Exception as e:
+        logger.warning(f"[INDUSTRY_NARRATIVES] BigQuery storage not available: {e}")
+    return None
+
+
+def _extract_top_companies(monthly_data: List[Dict]) -> List[str]:
+    """Extract deduplicated top companies across all months, ranked by total count."""
+    company_totals: Dict[str, int] = defaultdict(int)
+    for month in monthly_data:
+        for c in month.get("top_companies", []):
+            company_totals[c["name"]] += c["count"]
+    ranked = sorted(company_totals.items(), key=lambda x: -x[1])
+    return [name for name, _ in ranked[:8]]
+
+
+def _compress_monthly_for_prompt(monthly_data: List[Dict]) -> str:
+    """Compress monthly timeline data into a concise prompt-friendly format."""
+    parts = []
+    for m in monthly_data:
+        month_label = m["month_label"]
+        count = m["article_count"]
+        delta = m.get("delta_vs_prior")
+        delta_str = f" (Δ {delta:+d} vs prior month)" if delta is not None else ""
+
+        # Top 5 event types
+        events = ", ".join(
+            f"{e['name']}({e['count']})" for e in m.get("event_types", [])[:5]
+        )
+        # Top 5 companies
+        companies = ", ".join(
+            f"{c['name']}({c['count']})" for c in m.get("top_companies", [])[:5]
+        )
+        # Top 5 themes
+        themes = ", ".join(
+            f"{t['name']}({t['count']})" for t in m.get("top_themes", [])[:5]
+        )
+        # Sentiment
+        sen = m.get("sentiment", {})
+        sen_str = f"pos={sen.get('positive', 0)}, neu={sen.get('neutral', 0)}, neg={sen.get('negative', 0)}"
+        # Top geos
+        geos = ", ".join(g["name"] for g in m.get("top_geographies", [])[:3])
+        # Top article titles (just titles for context)
+        titles = "; ".join(
+            a["title"][:80] for a in m.get("top_articles", [])[:3]
+        )
+
+        parts.append(
+            f"### {month_label} — {count} articles{delta_str}\n"
+            f"Events: {events}\n"
+            f"Companies: {companies}\n"
+            f"Themes: {themes}\n"
+            f"Sentiment: {sen_str}\n"
+            f"Geographies: {geos}\n"
+            f"Key headlines: {titles}"
+        )
+    return "\n\n".join(parts)
+
+
+def _format_enrichment_for_prompt(
+    earnings_quotes: List[Dict], sec_nuggets: List[Dict]
+) -> str:
+    """Format enrichment data as text blocks for the LLM prompt."""
+    parts = []
+
+    if earnings_quotes:
+        eq_lines = ["=== EARNINGS CALL QUOTES ==="]
+        for q in earnings_quotes:
+            speaker = q.get("speaker_name", "Unknown")
+            role = q.get("speaker_role", "")
+            ticker = q.get("ticker", "")
+            company = q.get("company_name", "")
+            text = q.get("quote_text", "")
+            quarter = q.get("quarter", "")
+            year = q.get("year", "")
+            eq_lines.append(
+                f"[{company} ({ticker}) — {speaker}, {role} — Q{quarter} {year}]\n\"{text[:300]}\""
+            )
+        parts.append("\n\n".join(eq_lines))
+
+    if sec_nuggets:
+        sec_lines = ["=== SEC FILING DISCLOSURES ==="]
+        for n in sec_nuggets:
+            ticker = n.get("ticker", "N/A")
+            filing_type = n.get("filing_type", "")
+            nugget_type = n.get("nugget_type", "")
+            text = n.get("nugget_text", "")
+            signal = n.get("signal_strength", "")
+            sec_lines.append(
+                f"[{ticker} / {filing_type}] ({nugget_type}, signal: {signal})\n{text[:300]}"
+            )
+        parts.append("\n\n".join(sec_lines))
+
+    if not parts:
+        return "No enrichment data available."
+    return "\n\n".join(parts)
+
+
+NARRATIVE_SYSTEM_PROMPT = """You are a composites industry analyst synthesizing intelligence for Composites One (C1), a leading composites materials distributor. Your audience is C1's executive leadership team who need to understand how end-market narratives are evolving.
+
+Your task is to weave together article trends, executive commentary from earnings calls, and SEC filing disclosures into a connected narrative — NOT just a summary of themes, but a STORY that identifies:
+- Inflection points and catalysts driving change
+- Continuing themes vs genuinely new signals
+- Sentiment shifts and what's driving them
+- How different data points (articles, earnings quotes, SEC filings) corroborate or contradict each other
+
+Write in a direct, analytical tone. Avoid generic filler. Every sentence should convey specific, actionable intelligence."""
+
+
+def _build_narrative_prompt(
+    industry: str,
+    compressed_monthly: str,
+    enrichment_text: str,
+    total_articles: int,
+    num_months: int,
+) -> str:
+    return f"""Analyze the following {num_months}-month timeline data for the **{industry}** composites end-market ({total_articles} total articles) and synthesize a cohesive narrative.
+
+## MONTHLY TIMELINE DATA
+{compressed_monthly}
+
+## ENRICHMENT: EXECUTIVE COMMENTARY & SEC DISCLOSURES
+{enrichment_text}
+
+## OUTPUT FORMAT (respond with valid JSON only)
+{{
+  "industry_narrative": "<3-5 sentences: the overarching 90-day story arc for this end-market. What is the dominant narrative? What shifted? What should C1 leadership pay attention to?>",
+  "monthly_narratives": [
+    {{
+      "month": "<YYYY-MM>",
+      "narrative": "<2-3 sentences: what happened THIS month specifically, how it connects to the prior month, and any notable inflection points. Reference specific companies, quotes, or filings where relevant.>"
+    }}
+  ],
+  "key_insight": "<1 sentence: the single most important takeaway for C1's commercial strategy>"
+}}
+
+IMPORTANT:
+- monthly_narratives must be in chronological order (oldest first)
+- Include one entry per month from the timeline data
+- Reference specific companies, earnings quotes, or SEC filings when they strengthen the narrative
+- Do NOT just list themes — tell a STORY with causality and connections
+- The key_insight should be specific and actionable for a composites distributor"""
+
+
+@router.post("/{industry}/narrative")
+async def generate_industry_narrative(industry: str):
+    """Generate LLM-synthesized narrative for an industry's 90-day timeline."""
+    start_time = time.time()
+    logger.info(f"[INDUSTRY_NARRATIVES] Narrative generation START: {industry}")
+
+    try:
+        # 1. Get timeline data (reuse existing logic)
+        timeline_response = await get_industry_timeline(industry, days=90)
+        monthly_data = timeline_response.get("monthly_data", [])
+        display_name = timeline_response.get("industry", industry)
+        totals = timeline_response.get("totals", {})
+
+        if not monthly_data:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No timeline data found for '{display_name}' in the last 90 days",
+            )
+
+        # 2. Extract top companies for enrichment queries
+        top_companies = _extract_top_companies(monthly_data)
+        logger.info(
+            f"[INDUSTRY_NARRATIVES] Top companies for enrichment: {top_companies}"
+        )
+
+        # 3. Fetch enrichment data (earnings quotes + SEC nuggets) in parallel
+        all_earnings_quotes = []
+        all_sec_nuggets = []
+        seen_quote_ids = set()
+        seen_nugget_ids = set()
+        enrichment_sources = 0
+
+        bq_storage = await _get_bq_storage()
+        if bq_storage:
+            enrich_start = time.time()
+
+            # Build coroutines for parallel fetching
+            async def fetch_earnings(company: str):
+                try:
+                    return await bq_storage.get_earnings_quotes(
+                        search_query=company,
+                        quotable_only=True,
+                        min_relevance=0.3,
+                        limit=3,
+                    )
+                except Exception as e:
+                    logger.warning(f"[INDUSTRY_NARRATIVES] Earnings fetch failed for '{company}': {e}")
+                    return []
+
+            async def fetch_sec(company: str):
+                try:
+                    return await bq_storage.get_sec_filing_nuggets(
+                        search_query=company,
+                        min_relevance=0.3,
+                        limit=3,
+                    )
+                except Exception as e:
+                    logger.warning(f"[INDUSTRY_NARRATIVES] SEC fetch failed for '{company}': {e}")
+                    return []
+
+            # Run all enrichment queries in parallel
+            tasks = []
+            for company in top_companies:
+                tasks.append(("earnings", company, fetch_earnings(company)))
+                tasks.append(("sec", company, fetch_sec(company)))
+
+            results = await asyncio.gather(
+                *[t[2] for t in tasks], return_exceptions=True
+            )
+
+            for i, result in enumerate(results):
+                if isinstance(result, Exception):
+                    continue
+                query_type = tasks[i][0]
+                if query_type == "earnings":
+                    for q in result:
+                        qid = q.get("quote_id", q.get("id", ""))
+                        if qid and qid not in seen_quote_ids:
+                            seen_quote_ids.add(qid)
+                            all_earnings_quotes.append(q)
+                elif query_type == "sec":
+                    for n in result:
+                        nid = n.get("nugget_id", n.get("id", ""))
+                        if nid and nid not in seen_nugget_ids:
+                            seen_nugget_ids.add(nid)
+                            all_sec_nuggets.append(n)
+
+            # Sort by relevance and cap
+            all_earnings_quotes.sort(
+                key=lambda x: x.get("relevance_score", 0), reverse=True
+            )
+            all_earnings_quotes = all_earnings_quotes[:10]
+            all_sec_nuggets.sort(
+                key=lambda x: x.get("relevance_score", 0), reverse=True
+            )
+            all_sec_nuggets = all_sec_nuggets[:10]
+            enrichment_sources = len(all_earnings_quotes) + len(all_sec_nuggets)
+
+            enrich_elapsed = time.time() - enrich_start
+            logger.info(
+                f"[INDUSTRY_NARRATIVES] Enrichment COMPLETE: {enrich_elapsed:.2f}s, "
+                f"{len(all_earnings_quotes)} quotes, {len(all_sec_nuggets)} SEC nuggets"
+            )
+        else:
+            logger.warning("[INDUSTRY_NARRATIVES] BigQuery storage unavailable, skipping enrichment")
+
+        # 4. Build prompt
+        compressed_monthly = _compress_monthly_for_prompt(monthly_data)
+        enrichment_text = _format_enrichment_for_prompt(
+            all_earnings_quotes, all_sec_nuggets
+        )
+        prompt = _build_narrative_prompt(
+            industry=display_name,
+            compressed_monthly=compressed_monthly,
+            enrichment_text=enrichment_text,
+            total_articles=totals.get("total_articles", 0),
+            num_months=len(monthly_data),
+        )
+
+        # 5. Call Claude Sonnet via resilient client
+        from app.config.settings import settings
+        from app.utils.resilient_llm import get_resilient_async_client
+
+        client = get_resilient_async_client(
+            anthropic_api_key=settings.anthropic_api_key,
+            openai_api_key=settings.openai_api_key,
+        )
+
+        llm_start = time.time()
+        try:
+            response = await asyncio.wait_for(
+                client.messages_create(
+                    model="claude-sonnet-4-5-20250929",
+                    max_tokens=4096,
+                    system=NARRATIVE_SYSTEM_PROMPT,
+                    messages=[{"role": "user", "content": prompt}],
+                ),
+                timeout=120.0,
+            )
+            llm_elapsed = time.time() - llm_start
+            logger.info(f"[INDUSTRY_NARRATIVES] LLM call COMPLETE: {llm_elapsed:.2f}s")
+        except asyncio.TimeoutError:
+            llm_elapsed = time.time() - llm_start
+            logger.error(f"[INDUSTRY_NARRATIVES] LLM call TIMEOUT: {llm_elapsed:.2f}s")
+            raise HTTPException(
+                status_code=504,
+                detail="Narrative generation timed out. Please try again.",
+            )
+
+        # 6. Parse JSON response
+        raw_text = response.content[0].text.strip()
+        # Strip markdown code fences if present
+        if raw_text.startswith("```"):
+            raw_text = raw_text.split("\n", 1)[1] if "\n" in raw_text else raw_text[3:]
+            if raw_text.endswith("```"):
+                raw_text = raw_text[:-3].strip()
+
+        try:
+            narrative_data = json.loads(raw_text)
+        except json.JSONDecodeError:
+            logger.error(f"[INDUSTRY_NARRATIVES] Failed to parse LLM JSON: {raw_text[:200]}")
+            raise HTTPException(
+                status_code=502,
+                detail="Failed to parse narrative response. Please try again.",
+            )
+
+        total_elapsed = time.time() - start_time
+        logger.info(
+            f"[INDUSTRY_NARRATIVES] Narrative generation COMPLETE: {display_name}, "
+            f"{total_elapsed:.2f}s total, {enrichment_sources} enrichment sources"
+        )
+
+        return {
+            "industry": display_name,
+            "industry_narrative": narrative_data.get("industry_narrative", ""),
+            "monthly_narratives": narrative_data.get("monthly_narratives", []),
+            "key_insight": narrative_data.get("key_insight", ""),
+            "enrichment_sources_used": enrichment_sources,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        elapsed = time.time() - start_time
+        logger.error(
+            f"[INDUSTRY_NARRATIVES] Narrative generation FAILED: {elapsed:.2f}s, {e}",
+            exc_info=True,
+        )
         raise HTTPException(status_code=500, detail=str(e))
 
 

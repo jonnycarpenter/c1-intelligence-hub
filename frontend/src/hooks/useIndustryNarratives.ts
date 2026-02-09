@@ -42,6 +42,18 @@ export interface TimelineResponse {
   }
 }
 
+export interface IndustryNarrative {
+  industry: string
+  industry_narrative: string
+  monthly_narratives: Array<{
+    month: string
+    narrative: string
+  }>
+  key_insight: string
+  enrichment_sources_used: number
+  generated_at: string
+}
+
 export function useIndustryNarratives() {
   const [industries, setIndustries] = useState<NarrativeIndustry[]>([])
   const [selectedIndustry, setSelectedIndustry] = useState<string | null>(null)
@@ -49,6 +61,11 @@ export function useIndustryNarratives() {
   const [isLoadingList, setIsLoadingList] = useState(true)
   const [isLoadingTimeline, setIsLoadingTimeline] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Narrative synthesis state
+  const [narrative, setNarrative] = useState<IndustryNarrative | null>(null)
+  const [isGeneratingNarrative, setIsGeneratingNarrative] = useState(false)
+  const [narrativeError, setNarrativeError] = useState<string | null>(null)
 
   // Fetch industry list on mount
   const fetchIndustries = useCallback(async () => {
@@ -94,9 +111,30 @@ export function useIndustryNarratives() {
     }
   }, [selectedIndustry, fetchTimeline])
 
+  // Clear narrative when industry changes
+  useEffect(() => {
+    setNarrative(null)
+    setNarrativeError(null)
+  }, [selectedIndustry])
+
   const selectIndustry = useCallback((id: string) => {
     setSelectedIndustry(id)
   }, [])
+
+  const generateNarrative = useCallback(async () => {
+    if (!selectedIndustry) return
+    setIsGeneratingNarrative(true)
+    setNarrativeError(null)
+    try {
+      const data = await api.generateIndustryNarrative(selectedIndustry)
+      setNarrative(data)
+    } catch (err) {
+      setNarrativeError(err instanceof Error ? err.message : 'Failed to generate narrative')
+      console.error('Error generating narrative:', err)
+    } finally {
+      setIsGeneratingNarrative(false)
+    }
+  }, [selectedIndustry])
 
   const refresh = useCallback(() => {
     fetchIndustries()
@@ -114,5 +152,9 @@ export function useIndustryNarratives() {
     isLoadingTimeline,
     error,
     refresh,
+    narrative,
+    isGeneratingNarrative,
+    narrativeError,
+    generateNarrative,
   }
 }
