@@ -705,7 +705,14 @@ class BigQueryVectorStore:
                 where_clauses.append(f"base.priority = '{where['priority']}'")
             if "source_type" in where:
                 where_clauses.append(f"base.source_type = '{where['source_type']}'")
-        
+            if "source_type_exclude" in where:
+                excludes = where["source_type_exclude"]
+                if isinstance(excludes, list):
+                    quoted = ", ".join(f"'{e}'" for e in excludes)
+                    where_clauses.append(f"base.source_type NOT IN ({quoted})")
+                else:
+                    where_clauses.append(f"base.source_type != '{excludes}'")
+
         # Time filtering: absolute date range takes precedence over relative hours
         if date_from:
             where_clauses.append(f"base.published_at >= TIMESTAMP('{date_from.isoformat()}')")
@@ -792,11 +799,18 @@ class BigQueryVectorStore:
                 where_clauses.append(f"category = '{where['category']}'")
             if "priority" in where:
                 where_clauses.append(f"priority = '{where['priority']}'")
-        
+            if "source_type_exclude" in where:
+                excludes = where["source_type_exclude"]
+                if isinstance(excludes, list):
+                    quoted = ", ".join(f"'{e}'" for e in excludes)
+                    where_clauses.append(f"source_type NOT IN ({quoted})")
+                else:
+                    where_clauses.append(f"source_type != '{excludes}'")
+
         if hours:
             cutoff = (datetime.utcnow() - timedelta(hours=hours)).isoformat()
             where_clauses.append(f"published_at >= TIMESTAMP('{cutoff}')")
-        
+
         where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
         
         # Fetch all embeddings (limited for performance)

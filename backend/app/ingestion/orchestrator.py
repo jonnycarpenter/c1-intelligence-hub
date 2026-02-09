@@ -302,14 +302,15 @@ class IngestionOrchestrator:
                     logger.info(f"Targeting Q{target_quarter} {target_year} earnings transcripts")
                     
                     # Get companies with stock tickers
-                    earnings_companies = [c for c in companies if c.get('stock_ticker')]
+                    # Note: get_companies() returns 'ticker' key (not 'stock_ticker')
+                    earnings_companies = [c for c in companies if c.get('ticker')]
                     logger.info(f"Checking {len(earnings_companies)} companies for earnings transcripts...")
-                    
+
                     for comp in earnings_companies:
                         try:
                             transcripts = self.earnings_collector.collect_for_company(
                                 company_id=comp.get('id'),
-                                ticker=comp['stock_ticker'],
+                                ticker=comp['ticker'],
                                 company_name=comp.get('name', ''),
                                 since=None  # We're using explicit quarter, not date filtering
                             )
@@ -318,7 +319,7 @@ class IngestionOrchestrator:
                                 if t.year == target_year and t.quarter == target_quarter:
                                     earnings_items.append(self._convert_earnings_to_article(t))
                         except Exception as e:
-                            logger.error(f"Earnings fetch failed for {comp.get('stock_ticker')}: {e}")
+                            logger.error(f"Earnings fetch failed for {comp.get('ticker')}: {e}")
                     
                     stats.earnings_transcripts_fetched = len(earnings_items)
                     logger.info(f"Earnings: {len(earnings_items)} transcripts collected for Q{target_quarter} {target_year}")
@@ -609,7 +610,11 @@ class IngestionOrchestrator:
                 
                 try:
                     stored_count += 1
-                    vector_docs.append(corpus_item)
+                    # Skip vector store for earnings transcripts and SEC filings.
+                    # Their large chunk counts (70-150 per doc) slow vector search.
+                    # Use dedicated tools (search_earnings_quotes, search_sec_nuggets) instead.
+                    if article.source_type not in ("earnings_transcript", "sec_filing"):
+                        vector_docs.append(corpus_item)
                     article_records.append(self._create_article_record(article, classification))
                     
                     # Prepare Digest Item with feed_eligible flag
@@ -889,15 +894,17 @@ class IngestionOrchestrator:
                 
                 try:
                     stored_count += 1
-                    vector_docs.append(corpus_item)
-                    
+                    # Skip vector store for earnings transcripts and SEC filings
+                    if article.source_type not in ("earnings_transcript", "sec_filing"):
+                        vector_docs.append(corpus_item)
+
                     # Build ArticleRecord for BigQuery articles table
                     article_records.append(self._create_article_record(article, classification))
                 except Exception as e:
                     stats.errors.append(str(e)[:100])
-                    
+
             stats.articles_stored = stored_count
-            
+
             # Store articles in BigQuery articles table
             logger.info("Storing articles in BigQuery...")
             if article_records:
@@ -1050,11 +1057,13 @@ class IngestionOrchestrator:
             for article, classification in classified:
                 mentions = self.entity_linker.link_article(article)
                 corpus_item = self._create_corpus_item(article, classification, mentions)
-                
+
                 try:
                     stored_count += 1
-                    vector_docs.append(corpus_item)
-                    
+                    # Skip vector store for earnings transcripts and SEC filings
+                    if article.source_type not in ("earnings_transcript", "sec_filing"):
+                        vector_docs.append(corpus_item)
+
                     # Build ArticleRecord for BigQuery articles table
                     article_records.append(self._create_article_record(article, classification))
                 except Exception as e:

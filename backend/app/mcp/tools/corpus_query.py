@@ -4,6 +4,10 @@ These tools query cached/indexed intelligence content for faster retrieval
 without making external API calls. Available to ALL agents.
 
 Uses BigQuery as the primary data store with vector search capabilities.
+
+Note: Earnings transcripts and SEC filings are excluded from vector search
+to improve query performance. Use dedicated tools (search_earnings_quotes,
+search_sec_nuggets) for that data instead.
 """
 
 import asyncio
@@ -19,6 +23,11 @@ from app.utils.grounding import load_companies, load_preferences
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+# Source types to exclude from general corpus vector search.
+# These have dedicated search tools (search_earnings_quotes, search_sec_nuggets)
+# and their large chunk counts (70-150 per document) slow down vector search.
+EXCLUDED_SOURCE_TYPES = ["earnings_transcript", "sec_filing"]
 
 
 async def _get_bq_storage():
@@ -186,12 +195,15 @@ def query_corpus(
                 where["category"] = parsed_category
             if parsed_priority:
                 where["priority"] = parsed_priority
-            
+            # Exclude earnings transcripts and SEC filings from general corpus search.
+            # These have dedicated tools and their large chunk counts slow vector search.
+            where["source_type_exclude"] = EXCLUDED_SOURCE_TYPES
+
             # Build search kwargs - include date range if provided
             search_kwargs = {
                 "query": query or "",  # Empty query returns recent items
                 "limit": limit,
-                "where": where if where else None,
+                "where": where,
             }
             
             # Add date filters if provided (these override the hours parameter)
@@ -362,6 +374,7 @@ def get_entity_mentions(
             vector_results = await vector_store.search(
                 query=f"{entity_name} news announcement activity",
                 limit=limit * 2,  # Fetch more to filter
+                where={"source_type_exclude": EXCLUDED_SOURCE_TYPES},
             )
             
             # Filter to items that likely mention the entity
@@ -563,7 +576,7 @@ def get_competitor_activity(
                 vector_results = await vector_store.search(
                     query=f"{competitor_name} news announcement partnership acquisition",
                     limit=limit,
-                    where={"category": "competitor"},
+                    where={"category": "competitor", "source_type_exclude": EXCLUDED_SOURCE_TYPES},
                 )
                 results = [_format_vector_result(r) for r in vector_results]
         else:
@@ -572,7 +585,7 @@ def get_competitor_activity(
                 vector_results = await vector_store.search(
                     query="competitor announcement news partnership acquisition manufacturer",
                     limit=limit,
-                    where={"category": "competitor"},
+                    where={"category": "competitor", "source_type_exclude": EXCLUDED_SOURCE_TYPES},
                 )
                 results = [_format_vector_result(r) for r in vector_results]
         
@@ -651,8 +664,8 @@ def get_market_signals(
         search_query = f"{parsed_industry or 'composites'} market trend demand forecast outlook"
         
         if vector_store.is_available:
-            where = {"category": "market"}
-            
+            where = {"category": "market", "source_type_exclude": EXCLUDED_SOURCE_TYPES}
+
             vector_results = await vector_store.search(
                 query=search_query,
                 limit=limit * 2,
@@ -730,7 +743,11 @@ def semantic_search(
                 "message": "Vector store not available. Use query_corpus for keyword search.",
             }
         
-        results = await vector_store.search(query=query, limit=limit)
+        results = await vector_store.search(
+            query=query,
+            limit=limit,
+            where={"source_type_exclude": EXCLUDED_SOURCE_TYPES},
+        )
         
         return {
             "status": "success",
