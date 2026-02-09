@@ -13,11 +13,13 @@ export interface MonthlyData {
   month: string
   month_label: string
   article_count: number
-  delta_vs_prior: number | null
-  event_types: Array<{ name: string; count: number; delta: number | null }>
-  top_companies: Array<{ name: string; count: number; delta: number | null }>
-  top_themes: Array<{ name: string; count: number; delta: number | null }>
-  top_geographies: Array<{ name: string; count: number }>
+  days_in_period: number
+  articles_per_day: number
+  delta_per_day: number | null
+  event_types: Array<{ name: string; count: number; per_day: number; delta: number | null }>
+  top_companies: Array<{ name: string; count: number; per_day: number; delta: number | null }>
+  top_themes: Array<{ name: string; count: number; per_day: number; delta: number | null }>
+  top_geographies: Array<{ name: string; count: number; per_day: number }>
   sentiment: { positive: number; neutral: number; negative: number }
   top_articles: Array<{
     id: string

@@ -24,6 +24,12 @@ import { api } from '@/lib/api'
 // Delta Indicator
 // ============================================
 
+function formatDelta(delta: number): string {
+  // Show as integer if whole number, otherwise 1 decimal place
+  if (Number.isInteger(delta)) return delta > 0 ? `+${delta}` : `${delta}`
+  return delta > 0 ? `+${delta.toFixed(1)}` : `${delta.toFixed(1)}`
+}
+
 function DeltaIndicator({ delta, showZero = false }: { delta: number | null; showZero?: boolean }) {
   if (delta === null) return <span className="text-xs text-slate-400">—</span>
   if (delta === 0 && !showZero) return <span className="text-xs text-slate-400">—</span>
@@ -31,14 +37,14 @@ function DeltaIndicator({ delta, showZero = false }: { delta: number | null; sho
     return (
       <span className="inline-flex items-center gap-0.5 text-xs font-medium text-emerald-600">
         <TrendingUp size={12} />
-        +{delta}
+        {formatDelta(delta)}
       </span>
     )
   }
   return (
     <span className="inline-flex items-center gap-0.5 text-xs font-medium text-red-500">
       <TrendingDown size={12} />
-      {delta}
+      {formatDelta(delta)}
     </span>
   )
 }
@@ -288,11 +294,14 @@ function MonthColumn({
       <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50 rounded-t-xl">
         <div className="flex items-center justify-between">
           <h3 className="font-semibold text-slate-900 text-sm">{data.month_label}</h3>
-          <DeltaIndicator delta={data.delta_vs_prior} showZero />
+          <DeltaIndicator delta={data.delta_per_day} showZero />
         </div>
         <div className="flex items-center gap-2 mt-1">
-          <span className="text-2xl font-bold text-slate-900">{data.article_count}</span>
-          <span className="text-xs text-slate-500">articles</span>
+          <span className="text-2xl font-bold text-slate-900">{data.articles_per_day}</span>
+          <span className="text-xs text-slate-500">articles / day</span>
+        </div>
+        <div className="text-[10px] text-slate-400 mt-0.5">
+          {data.article_count} total across {data.days_in_period} days
         </div>
       </div>
 
@@ -317,7 +326,7 @@ function MonthColumn({
               <div key={evt.name} className="flex items-center justify-between text-xs">
                 <span className="text-slate-700 truncate mr-2">{evt.name.replace(/_/g, ' ')}</span>
                 <div className="flex items-center gap-2 shrink-0">
-                  <span className="font-medium text-slate-900 tabular-nums">{evt.count}</span>
+                  <span className="font-medium text-slate-900 tabular-nums">{evt.per_day}/d</span>
                   <DeltaIndicator delta={evt.delta} />
                 </div>
               </div>
@@ -332,7 +341,7 @@ function MonthColumn({
               <div key={co.name} className="flex items-center justify-between text-xs">
                 <span className="text-slate-700 truncate mr-2">{co.name}</span>
                 <div className="flex items-center gap-2 shrink-0">
-                  <span className="font-medium text-slate-900 tabular-nums">{co.count}</span>
+                  <span className="font-medium text-slate-900 tabular-nums">{co.per_day}/d</span>
                   <DeltaIndicator delta={co.delta} />
                 </div>
               </div>
@@ -349,10 +358,10 @@ function MonthColumn({
                 className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] bg-purple-50 text-purple-700 rounded-full"
               >
                 {t.name.replace(/_/g, ' ')}
-                <span className="font-semibold">{t.count}</span>
+                <span className="font-semibold">{t.per_day}/d</span>
                 {t.delta !== null && t.delta !== 0 && (
                   <span className={t.delta > 0 ? 'text-emerald-600' : 'text-red-500'}>
-                    {t.delta > 0 ? '+' : ''}{t.delta}
+                    {formatDelta(t.delta)}
                   </span>
                 )}
               </span>
@@ -370,7 +379,7 @@ function MonthColumn({
                   className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] bg-slate-100 text-slate-600 rounded-full"
                 >
                   {g.name}
-                  <span className="font-semibold">{g.count}</span>
+                  <span className="font-semibold">{g.per_day}/d</span>
                 </span>
               ))}
             </div>
@@ -487,7 +496,7 @@ export default function IndustriesDashboard() {
 
         {/* Industry Selector Pills */}
         {!isLoadingList && industries.length > 0 && (
-          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+          <div className="flex gap-2 overflow-x-auto pb-2">
             {industries.map((ind) => {
               const isActive = selectedIndustry === ind.id
               return (

@@ -12,6 +12,7 @@ Endpoints:
 """
 
 import asyncio
+import calendar
 import json
 import logging
 import time
@@ -77,6 +78,24 @@ def _month_label(month_key: str) -> str:
         return month_key
 
 
+def _days_in_month_period(month_key: str) -> int:
+    """Return elapsed days for a month key (YYYY-MM).
+
+    For the current (partial) month, returns only days elapsed so far.
+    For past months, returns the full calendar length.
+    For future months (shouldn't happen), returns the full calendar length.
+    """
+    try:
+        y, m = int(month_key[:4]), int(month_key[5:7])
+        now = datetime.now(timezone.utc)
+        full_days = calendar.monthrange(y, m)[1]
+        if y == now.year and m == now.month:
+            return now.day  # partial month — only elapsed days
+        return full_days
+    except Exception:
+        return 30  # safe fallback
+
+
 def _compute_deltas(
     current: Dict[str, int], prior: Optional[Dict[str, int]]
 ) -> List[Dict[str, Any]]:
@@ -85,6 +104,30 @@ def _compute_deltas(
     for name, count in sorted(current.items(), key=lambda x: -x[1]):
         delta = None if prior is None else count - prior.get(name, 0)
         result.append({"name": name, "count": count, "delta": delta})
+    return result
+
+
+def _compute_deltas_per_day(
+    current: Dict[str, int],
+    current_days: int,
+    prior: Optional[Dict[str, int]],
+    prior_days: Optional[int],
+) -> List[Dict[str, Any]]:
+    """Build list of {name, count, per_day, delta_per_day} sorted by per_day desc."""
+    result = []
+    for name, count in sorted(current.items(), key=lambda x: -x[1]):
+        per_day = round(count / max(current_days, 1), 2)
+        delta_per_day = None
+        if prior is not None and prior_days:
+            prior_per_day = round(prior.get(name, 0) / max(prior_days, 1), 2)
+            delta_per_day = round(per_day - prior_per_day, 2)
+        result.append({
+            "name": name,
+            "count": count,
+            "per_day": per_day,
+            "delta": delta_per_day,
+        })
+    result.sort(key=lambda x: -x["per_day"])
     return result
 
 
@@ -134,10 +177,10 @@ async def list_industries(days: int = Query(90, ge=1, le=365)):
             ORDER BY industry, month_key DESC
         """
         trend_rows = list(client.query(trend_query).result())
-        # Group by industry -> [most_recent_month_count, prior_month_count]
-        trend_map: Dict[str, List[int]] = defaultdict(list)
+        # Group by industry -> [(month_key, count), ...] ordered most recent first
+        trend_map: Dict[str, List[tuple]] = defaultdict(list)
         for r in trend_rows:
-            trend_map[r.industry].append(r.cnt)
+            trend_map[r.industry].append((r.month_key, r.cnt))
 
         industries_out = []
         for name in CURATED_INDUSTRIES:
@@ -149,10 +192,15 @@ async def list_industries(days: int = Query(90, ge=1, le=365)):
                         cnt = v
                         break
 
-            trend_counts = trend_map.get(name.lower(), [])
-            if len(trend_counts) >= 2:
-                trend = "up" if trend_counts[0] > trend_counts[1] else (
-                    "down" if trend_counts[0] < trend_counts[1] else "flat"
+            trend_entries = trend_map.get(name.lower(), [])
+            if len(trend_entries) >= 2:
+                # Compare per-day rates (most recent vs prior)
+                recent_mk, recent_cnt = trend_entries[0]
+                prior_mk, prior_cnt = trend_entries[1]
+                recent_rate = recent_cnt / max(_days_in_month_period(recent_mk), 1)
+                prior_rate = prior_cnt / max(_days_in_month_period(prior_mk), 1)
+                trend = "up" if recent_rate > prior_rate else (
+                    "down" if recent_rate < prior_rate else "flat"
                 )
             else:
                 trend = "flat"
@@ -267,42 +315,58 @@ async def get_industry_timeline(
                 if g:
                     m["geographies"][g] += 1
 
-        # Sort months descending (most recent first)
-        sorted_months = sorted(months.keys(), reverse=True)
+        # Sort months ascending (oldest first → chronological left-to-right)
+        sorted_months = sorted(months.keys())
 
-        # ----- Build response with deltas -----
+        # ----- Build response with per-day normalization and deltas -----
         monthly_data = []
         for i, mk in enumerate(sorted_months):
             m = months[mk]
             article_count = len(m["articles"])
+            current_days = _days_in_month_period(mk)
+            articles_per_day = round(article_count / max(current_days, 1), 2)
 
-            # Prior month for deltas
-            prior_mk = sorted_months[i + 1] if i + 1 < len(sorted_months) else None
+            # Prior month for deltas (previous index in chronological order)
+            prior_mk = sorted_months[i - 1] if i > 0 else None
             prior = months.get(prior_mk) if prior_mk else None
             prior_count = len(prior["articles"]) if prior else None
+            prior_days = _days_in_month_period(prior_mk) if prior_mk else None
 
-            # Event types with deltas
-            event_types_list = _compute_deltas(
-                m["event_types"],
+            # Per-day delta for article count
+            if prior_count is not None and prior_days:
+                prior_per_day = round(prior_count / max(prior_days, 1), 2)
+                delta_per_day = round(articles_per_day - prior_per_day, 2)
+            else:
+                delta_per_day = None
+
+            # Event types with per-day deltas
+            event_types_list = _compute_deltas_per_day(
+                m["event_types"], current_days,
                 prior["event_types"] if prior else None,
+                prior_days,
             )
 
-            # Top companies (top 10) with deltas
-            companies_list = _compute_deltas(
-                m["companies"],
+            # Top companies (top 10) with per-day deltas
+            companies_list = _compute_deltas_per_day(
+                m["companies"], current_days,
                 prior["companies"] if prior else None,
+                prior_days,
             )[:10]
 
-            # Top themes (top 10) with deltas
-            themes_list = _compute_deltas(
-                m["themes"],
+            # Top themes (top 10) with per-day deltas
+            themes_list = _compute_deltas_per_day(
+                m["themes"], current_days,
                 prior["themes"] if prior else None,
+                prior_days,
             )[:10]
 
-            # Top geographies (top 5)
+            # Top geographies (top 5) — per-day as well
             geo_list = sorted(
-                [{"name": k, "count": v} for k, v in m["geographies"].items()],
-                key=lambda x: -x["count"],
+                [
+                    {"name": k, "count": v, "per_day": round(v / max(current_days, 1), 2)}
+                    for k, v in m["geographies"].items()
+                ],
+                key=lambda x: -x["per_day"],
             )[:5]
 
             # Top articles (top 5 by relevance_score)
@@ -316,7 +380,9 @@ async def get_industry_timeline(
                 "month": mk,
                 "month_label": _month_label(mk),
                 "article_count": article_count,
-                "delta_vs_prior": (article_count - prior_count) if prior_count is not None else None,
+                "days_in_period": current_days,
+                "articles_per_day": articles_per_day,
+                "delta_per_day": delta_per_day,
                 "event_types": event_types_list,
                 "top_companies": companies_list,
                 "top_themes": themes_list,
@@ -339,9 +405,12 @@ async def get_industry_timeline(
 
         total_articles = len(rows)
         avg_monthly = total_articles / max(len(sorted_months), 1)
+        # Trend based on per-day rate of most recent vs second-most-recent
         if len(monthly_data) >= 2:
-            trend = "up" if monthly_data[0]["article_count"] > monthly_data[1]["article_count"] else (
-                "down" if monthly_data[0]["article_count"] < monthly_data[1]["article_count"] else "flat"
+            latest_rate = monthly_data[-1]["articles_per_day"]
+            prior_rate = monthly_data[-2]["articles_per_day"]
+            trend = "up" if latest_rate > prior_rate else (
+                "down" if latest_rate < prior_rate else "flat"
             )
         else:
             trend = "flat"
