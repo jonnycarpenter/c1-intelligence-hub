@@ -117,6 +117,14 @@ from app.mcp.tools.datasheets import (
 # FMP Premium News tools - premium financial news from Benzinga, Bloomberg, etc.
 from app.mcp.tools.fmp_premium_news import get_fmp_premium_news
 
+# Supply chain tools - ImportYeti trade intelligence
+from app.mcp.tools.supply_chain import (
+    search_supply_chain_entity,
+    get_company_supply_chain,
+    get_supplier_customers,
+    query_supply_chain_db,
+)
+
 # SEC filing nuggets tools - pre-extracted strategic insights from SEC filings
 from app.mcp.tools.sec_nuggets import (
     search_sec_nuggets,
@@ -139,7 +147,7 @@ def get_all_mcp_tools() -> List[BaseTool]:
     Get ALL available MCP tools as a flat list.
     
     The unified agent has access to all tools - no persona-based filtering.
-    Total: 57 tools across 10 categories.
+    Total: 61 tools across 11 categories.
 
     Categories:
         - Data Management (11): Company/material/industry tracker CRUD
@@ -150,6 +158,7 @@ def get_all_mcp_tools() -> List[BaseTool]:
         - Google Trends (3): Search interest analysis
         - Product Intelligence (6): Catalog and competitive analysis
         - Datasheets (4): Product spec sheets from BigQuery (Phase 2)
+        - Supply Chain (4): ImportYeti trade intelligence - supplier/buyer networks
         - Specialized (6): Earnings, visualization, images, documents, FMP news
         - Document Extraction (2): PDF and document crawling
     
@@ -257,6 +266,14 @@ def get_all_mcp_tools() -> List[BaseTool]:
         get_products_by_industry,
     ]
     
+    # Supply Chain tools (4) - ImportYeti trade intelligence
+    supply_chain_tools = [
+        search_supply_chain_entity,
+        get_company_supply_chain,
+        get_supplier_customers,
+        query_supply_chain_db,
+    ]
+    
     all_tools = (
         data_management_tools +
         corpus_tools +
@@ -267,7 +284,8 @@ def get_all_mcp_tools() -> List[BaseTool]:
         product_tools +
         specialized_tools +
         document_tools +
-        datasheet_tools
+        datasheet_tools +
+        supply_chain_tools
     )
     
     logger.info(f"Loaded {len(all_tools)} MCP tools")

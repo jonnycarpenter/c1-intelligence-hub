@@ -10,13 +10,8 @@ from app.config.settings import settings
 from app.api.routes import chat, reports, data, digest, briefing, podcast, ingest, products, companies, industries, data_preferences, data_ingestion, scheduler, deep_research, exa_pipeline, datasheets, memory, auth, discovery, guide
 from app.utils.logger import setup_logging, get_logger
 
-# ImportYeti is optional - waiting on API access
-try:
-    from app.ingestion.importyeti import importyeti_router
-    IMPORTYETI_AVAILABLE = True
-except Exception as e:
-    IMPORTYETI_AVAILABLE = False
-    importyeti_router = None
+# ImportYeti supply chain data now handled via MCP tools (supply_chain.py)
+# No REST router needed - agents query via get_company_supply_chain etc.
 
 logger = get_logger(__name__)
 
@@ -71,8 +66,6 @@ app.include_router(data_preferences.router, tags=["data-preferences"])
 app.include_router(data_ingestion.router, prefix="/api", tags=["data-ingestion"])
 app.include_router(scheduler.router, prefix="/api", tags=["scheduler"])
 app.include_router(deep_research.router, prefix="/api/research/deep", tags=["deep-research"])
-if IMPORTYETI_AVAILABLE and importyeti_router:
-    app.include_router(importyeti_router, prefix="/api", tags=["importyeti"])
 app.include_router(exa_pipeline.router, prefix="/api/pipeline", tags=["exa-pipeline"])
 app.include_router(datasheets.router, prefix="/api/datasheets", tags=["datasheets"])
 app.include_router(memory.router, prefix="/api/memory", tags=["memory"])

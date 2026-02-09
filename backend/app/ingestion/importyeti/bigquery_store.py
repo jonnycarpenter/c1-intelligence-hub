@@ -1,834 +1,1139 @@
 """
-ImportYeti BigQuery Storage
-===========================
+BigQuery Storage for ImportYeti Supply Chain Graph
+===================================================
 
-Handles storing ImportYeti trade data in BigQuery tables.
-Tables are created in the c1_intelligence dataset.
+Replaces the SQLite Database class from the reference implementation.
+All CRUD operations target BigQuery tables in the c1_intelligence dataset.
+
+Tables:
+    iy_companies   — US importers (C1, competitors, discovered buyers)
+    iy_suppliers   — Overseas exporters/manufacturers
+    iy_edges       — Directional relationships (imports_from, supplies_to)
+    iy_ingestion_log — Audit trail per pipeline run
+
+Views:
+    iy_v_shared_suppliers      — Suppliers serving 2+ competitors (all-time)
+    iy_v_shared_suppliers_12m  — Same, filtered to 12-month active
+    iy_v_exclusive_suppliers   — Suppliers serving exactly 1 competitor
+    iy_v_competitor_activity_12m — Per-company summary
+    iy_v_buyer_overlap         — Discovered buyers in 2+ supplier networks
+
+Design:
+    - Upserts use MERGE statements for idempotency
+    - Entity type hierarchy preserved: target > competitor > discovered
+    - All operations are synchronous (BigQuery client is sync)
 """
 
-import os
 import json
 import logging
-from datetime import datetime, date
-from typing import List, Dict, Any, Optional
-from dataclasses import asdict
+import time
+from datetime import datetime
+from typing import Optional, List, Dict, Any
 
-from .models import (
-    Snapshot,
-    SupplierProfile,
-    CompanyProfile,
-    SupplierCustomerRelationship,
-    CompanySupplierRelationship,
-    ProductMarketResult,
-    ShipmentTrend,
-    ConcentrationMetrics,
-    CompetitorOverlap,
-    ChangeEvent,
+from google.cloud import bigquery
+from google.api_core import exceptions as gcp_exceptions
+
+from .config.settings import (
+    GCP_PROJECT_ID,
+    BQ_DATASET,
+    TABLE_COMPANIES,
+    TABLE_SUPPLIERS,
+    TABLE_EDGES,
+    TABLE_INGESTION_LOG,
 )
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("importyeti_bq")
 
 
-class ImportYetiBigQueryStore:
+class BigQueryStore:
     """
-    BigQuery storage for ImportYeti data.
-    
-    Usage:
-        store = ImportYetiBigQueryStore()
-        await store.initialize()
-        
-        # Store collection results
-        await store.store_snapshots(snapshots)
-        await store.store_supplier_customers(relationships)
+    BigQuery storage manager for the ImportYeti supply chain graph.
+
+    Handles table creation, upserts, edge insertion, and analytical queries.
+    Drop-in replacement for the SQLite Database class.
     """
-    
+
     def __init__(
         self,
         project_id: Optional[str] = None,
-        dataset_id: str = "c1_intelligence",
+        dataset_id: Optional[str] = None,
     ):
-        self.project_id = project_id or os.getenv("GCP_PROJECT_ID")
-        if not self.project_id:
-             # Try to get from gcp_config if available (avoids circular import issues)
-             try:
-                 from app.db.gcp_storage import gcp_config
-                 self.project_id = gcp_config.project_id
-             except (ImportError, AttributeError):
-                 pass
-                 
-        self.dataset_id = dataset_id
+        self.project_id = project_id or GCP_PROJECT_ID
+        self.dataset_id = dataset_id or BQ_DATASET
         self._client = None
-        self._initialized = False
-    
-    async def initialize(self):
-        """Initialize BigQuery client and ensure tables exist."""
-        if self._initialized:
-            return
-        
-        try:
-            from google.cloud import bigquery
-            self._client = bigquery.Client(project=self.project_id)
-            
-            # Ensure tables exist
-            await self._ensure_tables()
-            
-            self._initialized = True
-            logger.info(f"ImportYeti BigQuery store initialized: {self.project_id}.{self.dataset_id}")
-            
-        except Exception as e:
-            logger.error(f"Failed to initialize BigQuery store: {e}")
-            raise
-    
-    def _get_table_id(self, table_name: str) -> str:
-        """Get full table ID."""
-        return f"{self.project_id}.{self.dataset_id}.{table_name}"
-    
-    async def _ensure_tables(self):
-        """Ensure all ImportYeti tables exist."""
-        from google.cloud import bigquery
-        
-        tables = {
-            "iy_snapshots": self._get_snapshots_schema(),
-            "iy_suppliers": self._get_suppliers_schema(),
-            "iy_companies": self._get_companies_schema(),
-            "iy_supplier_customers": self._get_supplier_customers_schema(),
-            "iy_company_suppliers": self._get_company_suppliers_schema(),
-            "iy_product_market": self._get_product_market_schema(),
-            "iy_shipment_trends": self._get_shipment_trends_schema(),
-            "iy_concentration_metrics": self._get_concentration_schema(),
-            "iy_competitor_overlap": self._get_competitor_overlap_schema(),
-            "iy_change_events": self._get_change_events_schema(),
-        }
-        
-        for table_name, schema in tables.items():
-            table_id = self._get_table_id(table_name)
-            try:
-                self._client.get_table(table_id)
-                logger.debug(f"Table {table_name} exists")
-            except Exception:
-                # Create table
-                table = bigquery.Table(table_id, schema=schema)
-                
-                # Add partitioning for date-based tables
-                if table_name in ["iy_snapshots", "iy_supplier_customers", "iy_company_suppliers", 
-                                  "iy_product_market", "iy_shipment_trends", "iy_concentration_metrics",
-                                  "iy_competitor_overlap", "iy_change_events"]:
-                    if "snapshot_date" in [f.name for f in schema]:
-                        table.time_partitioning = bigquery.TimePartitioning(
-                            type_=bigquery.TimePartitioningType.DAY,
-                            field="snapshot_date"
-                        )
-                    elif "period_date" in [f.name for f in schema]:
-                        table.time_partitioning = bigquery.TimePartitioning(
-                            type_=bigquery.TimePartitioningType.DAY,
-                            field="period_date"
-                        )
-                    elif "detected_date" in [f.name for f in schema]:
-                        table.time_partitioning = bigquery.TimePartitioning(
-                            type_=bigquery.TimePartitioningType.DAY,
-                            field="detected_date"
-                        )
-                
-                self._client.create_table(table)
-                logger.info(f"Created table {table_name}")
-    
-    # =========================================================================
-    # Table Schemas
-    # =========================================================================
-    
-    def _get_snapshots_schema(self):
-        from google.cloud import bigquery
-        return [
-            bigquery.SchemaField("snapshot_id", "STRING", mode="REQUIRED"),
-            bigquery.SchemaField("snapshot_date", "TIMESTAMP", mode="REQUIRED"),
-            bigquery.SchemaField("endpoint_type", "STRING", mode="REQUIRED"),
-            bigquery.SchemaField("entity_key", "STRING", mode="REQUIRED"),
-            bigquery.SchemaField("entity_name", "STRING"),
-            bigquery.SchemaField("request_cost", "INTEGER"),
-            bigquery.SchemaField("credits_remaining", "INTEGER"),
-            bigquery.SchemaField("execution_time_ms", "INTEGER"),
-            bigquery.SchemaField("raw_response", "STRING"),  # JSON as string
-            bigquery.SchemaField("created_at", "TIMESTAMP"),
-        ]
-    
-    def _get_suppliers_schema(self):
-        from google.cloud import bigquery
-        return [
-            bigquery.SchemaField("supplier_id", "STRING", mode="REQUIRED"),
-            bigquery.SchemaField("supplier_name", "STRING", mode="REQUIRED"),
-            bigquery.SchemaField("also_known_names", "STRING", mode="REPEATED"),
-            bigquery.SchemaField("country", "STRING"),
-            bigquery.SchemaField("country_code", "STRING"),
-            bigquery.SchemaField("address", "STRING"),
-            bigquery.SchemaField("website", "STRING"),
-            bigquery.SchemaField("phone_number", "STRING"),
-            bigquery.SchemaField("total_shipments", "INTEGER"),
-            bigquery.SchemaField("total_us_customers", "INTEGER"),
-            bigquery.SchemaField("primary_hs_codes", "STRING"),  # JSON array
-            bigquery.SchemaField("is_c1_supplier", "BOOLEAN"),
-            bigquery.SchemaField("is_tracked_competitor", "BOOLEAN"),
-            bigquery.SchemaField("supplier_tier", "STRING"),
-            bigquery.SchemaField("first_seen_date", "DATE"),
-            bigquery.SchemaField("last_updated", "TIMESTAMP"),
-        ]
-    
-    def _get_companies_schema(self):
-        from google.cloud import bigquery
-        return [
-            bigquery.SchemaField("company_id", "STRING", mode="REQUIRED"),
-            bigquery.SchemaField("company_name", "STRING", mode="REQUIRED"),
-            bigquery.SchemaField("also_known_names", "STRING", mode="REPEATED"),
-            bigquery.SchemaField("country", "STRING"),
-            bigquery.SchemaField("country_code", "STRING"),
-            bigquery.SchemaField("address", "STRING"),
-            bigquery.SchemaField("website", "STRING"),
-            bigquery.SchemaField("phone_number", "STRING"),
-            bigquery.SchemaField("total_shipments", "INTEGER"),
-            bigquery.SchemaField("total_suppliers", "INTEGER"),
-            bigquery.SchemaField("primary_hs_codes", "STRING"),  # JSON array
-            bigquery.SchemaField("company_type", "STRING"),
-            bigquery.SchemaField("industries", "STRING", mode="REPEATED"),
-            bigquery.SchemaField("is_c1_customer", "BOOLEAN"),
-            bigquery.SchemaField("is_prospect", "BOOLEAN"),
-            bigquery.SchemaField("first_seen_date", "DATE"),
-            bigquery.SchemaField("last_updated", "TIMESTAMP"),
-        ]
-    
-    def _get_supplier_customers_schema(self):
-        from google.cloud import bigquery
-        return [
-            bigquery.SchemaField("relationship_id", "STRING", mode="REQUIRED"),
-            bigquery.SchemaField("snapshot_date", "DATE", mode="REQUIRED"),
-            bigquery.SchemaField("supplier_id", "STRING", mode="REQUIRED"),
-            bigquery.SchemaField("supplier_name", "STRING"),
-            bigquery.SchemaField("supplier_country", "STRING"),
-            bigquery.SchemaField("customer_name", "STRING", mode="REQUIRED"),
-            bigquery.SchemaField("customer_name_normalized", "STRING"),
-            bigquery.SchemaField("customer_address", "STRING"),
-            bigquery.SchemaField("customer_country", "STRING"),
-            bigquery.SchemaField("customer_key", "STRING"),
-            bigquery.SchemaField("total_shipments_to_customer", "INTEGER"),
-            bigquery.SchemaField("shipments_pct_of_supplier", "FLOAT64"),
-            bigquery.SchemaField("shipments_pct_of_customer", "FLOAT64"),
-            bigquery.SchemaField("shipments_12m", "INTEGER"),
-            bigquery.SchemaField("total_weight_kg", "FLOAT64"),
-            bigquery.SchemaField("total_teu", "FLOAT64"),
-            bigquery.SchemaField("hs_code_chapters", "STRING"),  # JSON array
-            bigquery.SchemaField("product_descriptions", "STRING", mode="REPEATED"),
-            bigquery.SchemaField("customer_top_suppliers", "STRING"),  # JSON array
-            bigquery.SchemaField("relationship_time_series", "STRING"),  # JSON array
-            bigquery.SchemaField("first_shipment_date", "DATE"),
-            bigquery.SchemaField("most_recent_shipment_date", "DATE"),
-            bigquery.SchemaField("business_length", "STRING"),
-            bigquery.SchemaField("is_new_customer", "BOOLEAN"),
-            bigquery.SchemaField("first_seen_date", "DATE"),
-            bigquery.SchemaField("last_seen_date", "DATE"),
-            bigquery.SchemaField("is_active", "BOOLEAN"),
-            bigquery.SchemaField("created_at", "TIMESTAMP"),
-        ]
-    
-    def _get_company_suppliers_schema(self):
-        from google.cloud import bigquery
-        return [
-            bigquery.SchemaField("relationship_id", "STRING", mode="REQUIRED"),
-            bigquery.SchemaField("snapshot_date", "DATE", mode="REQUIRED"),
-            bigquery.SchemaField("company_id", "STRING", mode="REQUIRED"),
-            bigquery.SchemaField("company_name", "STRING"),
-            bigquery.SchemaField("supplier_name", "STRING", mode="REQUIRED"),
-            bigquery.SchemaField("supplier_name_normalized", "STRING"),
-            bigquery.SchemaField("supplier_address", "STRING"),
-            bigquery.SchemaField("supplier_country", "STRING"),
-            bigquery.SchemaField("supplier_key", "STRING"),
-            bigquery.SchemaField("total_shipments_from_supplier", "INTEGER"),
-            bigquery.SchemaField("shipments_pct_of_company", "FLOAT64"),
-            bigquery.SchemaField("shipments_pct_of_supplier", "FLOAT64"),
-            bigquery.SchemaField("shipments_12m", "INTEGER"),
-            bigquery.SchemaField("total_weight_kg", "FLOAT64"),
-            bigquery.SchemaField("total_teu", "FLOAT64"),
-            bigquery.SchemaField("hs_code_chapters", "STRING"),  # JSON
-            bigquery.SchemaField("product_descriptions", "STRING", mode="REPEATED"),
-            bigquery.SchemaField("supplier_top_companies", "STRING"),  # JSON
-            bigquery.SchemaField("relationship_time_series", "STRING"),  # JSON
-            bigquery.SchemaField("first_shipment_date", "DATE"),
-            bigquery.SchemaField("most_recent_shipment_date", "DATE"),
-            bigquery.SchemaField("business_length", "STRING"),
-            bigquery.SchemaField("first_seen_date", "DATE"),
-            bigquery.SchemaField("last_seen_date", "DATE"),
-            bigquery.SchemaField("is_active", "BOOLEAN"),
-            bigquery.SchemaField("created_at", "TIMESTAMP"),
-        ]
-    
-    def _get_product_market_schema(self):
-        from google.cloud import bigquery
-        return [
-            bigquery.SchemaField("record_id", "STRING", mode="REQUIRED"),
-            bigquery.SchemaField("snapshot_date", "DATE", mode="REQUIRED"),
-            bigquery.SchemaField("product_search_term", "STRING", mode="REQUIRED"),
-            bigquery.SchemaField("result_type", "STRING", mode="REQUIRED"),
-            bigquery.SchemaField("entity_name", "STRING", mode="REQUIRED"),
-            bigquery.SchemaField("entity_link", "STRING"),
-            bigquery.SchemaField("entity_country", "STRING"),
-            bigquery.SchemaField("entity_country_code", "STRING"),
-            bigquery.SchemaField("entity_address", "STRING"),
-            bigquery.SchemaField("matching_shipments", "INTEGER"),
-            bigquery.SchemaField("specialization_pct", "FLOAT64"),
-            bigquery.SchemaField("total_shipments", "INTEGER"),
-            bigquery.SchemaField("experience_years", "FLOAT64"),
-            bigquery.SchemaField("relevance_score", "FLOAT64"),
-            bigquery.SchemaField("total_weight_kg", "FLOAT64"),
-            bigquery.SchemaField("related_entities", "STRING", mode="REPEATED"),
-            bigquery.SchemaField("total_related_count", "INTEGER"),
-            bigquery.SchemaField("product_descriptions", "STRING", mode="REPEATED"),
-            bigquery.SchemaField("created_at", "TIMESTAMP"),
-        ]
-    
-    def _get_shipment_trends_schema(self):
-        from google.cloud import bigquery
-        return [
-            bigquery.SchemaField("trend_id", "STRING", mode="REQUIRED"),
-            bigquery.SchemaField("period_date", "DATE", mode="REQUIRED"),
-            bigquery.SchemaField("period_type", "STRING"),
-            bigquery.SchemaField("dimension_type", "STRING", mode="REQUIRED"),
-            bigquery.SchemaField("dimension_key", "STRING", mode="REQUIRED"),
-            bigquery.SchemaField("dimension_name", "STRING"),
-            bigquery.SchemaField("dimension_key_2", "STRING"),
-            bigquery.SchemaField("dimension_name_2", "STRING"),
-            bigquery.SchemaField("shipment_count", "INTEGER"),
-            bigquery.SchemaField("weight_kg", "FLOAT64"),
-            bigquery.SchemaField("teu", "FLOAT64"),
-            bigquery.SchemaField("unique_counterparties", "INTEGER"),
-            bigquery.SchemaField("shipment_count_prev", "INTEGER"),
-            bigquery.SchemaField("shipment_count_change", "INTEGER"),
-            bigquery.SchemaField("shipment_count_change_pct", "FLOAT64"),
-            bigquery.SchemaField("created_at", "TIMESTAMP"),
-        ]
-    
-    def _get_concentration_schema(self):
-        from google.cloud import bigquery
-        return [
-            bigquery.SchemaField("metric_id", "STRING", mode="REQUIRED"),
-            bigquery.SchemaField("snapshot_date", "DATE", mode="REQUIRED"),
-            bigquery.SchemaField("entity_type", "STRING", mode="REQUIRED"),
-            bigquery.SchemaField("entity_id", "STRING", mode="REQUIRED"),
-            bigquery.SchemaField("entity_name", "STRING"),
-            bigquery.SchemaField("total_counterparties", "INTEGER"),
-            bigquery.SchemaField("top_counterparty_name", "STRING"),
-            bigquery.SchemaField("top_counterparty_pct", "FLOAT64"),
-            bigquery.SchemaField("top_3_counterparty_pct", "FLOAT64"),
-            bigquery.SchemaField("top_5_counterparty_pct", "FLOAT64"),
-            bigquery.SchemaField("top_10_counterparty_pct", "FLOAT64"),
-            bigquery.SchemaField("hhi_index", "FLOAT64"),
-            bigquery.SchemaField("total_countries", "INTEGER"),
-            bigquery.SchemaField("top_country", "STRING"),
-            bigquery.SchemaField("top_country_pct", "FLOAT64"),
-            bigquery.SchemaField("china_pct", "FLOAT64"),
-            bigquery.SchemaField("total_hs_chapters", "INTEGER"),
-            bigquery.SchemaField("top_hs_chapter", "STRING"),
-            bigquery.SchemaField("top_hs_chapter_name", "STRING"),
-            bigquery.SchemaField("top_hs_chapter_pct", "FLOAT64"),
-            bigquery.SchemaField("created_at", "TIMESTAMP"),
-        ]
-    
-    def _get_competitor_overlap_schema(self):
-        from google.cloud import bigquery
-        return [
-            bigquery.SchemaField("overlap_id", "STRING", mode="REQUIRED"),
-            bigquery.SchemaField("snapshot_date", "DATE", mode="REQUIRED"),
-            bigquery.SchemaField("supplier_id", "STRING", mode="REQUIRED"),
-            bigquery.SchemaField("supplier_name", "STRING"),
-            bigquery.SchemaField("supplier_country", "STRING"),
-            bigquery.SchemaField("shipments_to_c1", "INTEGER"),
-            bigquery.SchemaField("other_customer_name", "STRING", mode="REQUIRED"),
-            bigquery.SchemaField("other_customer_normalized", "STRING"),
-            bigquery.SchemaField("other_customer_type", "STRING"),
-            bigquery.SchemaField("other_customer_industry", "STRING"),
-            bigquery.SchemaField("shipments_to_other", "INTEGER"),
-            bigquery.SchemaField("c1_vs_other_ratio", "FLOAT64"),
-            bigquery.SchemaField("shared_hs_codes", "STRING", mode="REPEATED"),
-            bigquery.SchemaField("shared_products", "STRING", mode="REPEATED"),
-            bigquery.SchemaField("overlap_type", "STRING"),
-            bigquery.SchemaField("threat_level", "STRING"),
-            bigquery.SchemaField("opportunity_flag", "BOOLEAN"),
-            bigquery.SchemaField("insight_summary", "STRING"),
-            bigquery.SchemaField("created_at", "TIMESTAMP"),
-        ]
-    
-    def _get_change_events_schema(self):
-        from google.cloud import bigquery
-        return [
-            bigquery.SchemaField("event_id", "STRING", mode="REQUIRED"),
-            bigquery.SchemaField("detected_date", "TIMESTAMP", mode="REQUIRED"),
-            bigquery.SchemaField("snapshot_id", "STRING"),
-            bigquery.SchemaField("event_type", "STRING", mode="REQUIRED"),
-            bigquery.SchemaField("event_category", "STRING"),
-            bigquery.SchemaField("primary_entity_type", "STRING"),
-            bigquery.SchemaField("primary_entity_id", "STRING"),
-            bigquery.SchemaField("primary_entity_name", "STRING"),
-            bigquery.SchemaField("secondary_entity_name", "STRING"),
-            bigquery.SchemaField("previous_value", "FLOAT64"),
-            bigquery.SchemaField("new_value", "FLOAT64"),
-            bigquery.SchemaField("change_absolute", "FLOAT64"),
-            bigquery.SchemaField("change_pct", "FLOAT64"),
-            bigquery.SchemaField("hs_codes", "STRING", mode="REPEATED"),
-            bigquery.SchemaField("products", "STRING", mode="REPEATED"),
-            bigquery.SchemaField("summary", "STRING", mode="REQUIRED"),
-            bigquery.SchemaField("significance", "STRING", mode="REQUIRED"),
-            bigquery.SchemaField("digest_item_id", "STRING"),
-            bigquery.SchemaField("acknowledged", "BOOLEAN"),
-            bigquery.SchemaField("acknowledged_by", "STRING"),
-            bigquery.SchemaField("acknowledged_at", "TIMESTAMP"),
-            bigquery.SchemaField("created_at", "TIMESTAMP"),
-        ]
-    
-    # =========================================================================
-    # Storage Methods
-    # =========================================================================
-    
-    async def store_supplier_customers(
-        self,
-        relationships: List[SupplierCustomerRelationship]
-    ) -> int:
-        """Store supplier-customer relationships."""
-        if not relationships:
-            return 0
-        
-        table_id = self._get_table_id("iy_supplier_customers")
-        
-        rows = []
-        for rel in relationships:
-            row = {
-                "relationship_id": rel.relationship_id,
-                "snapshot_date": rel.snapshot_date.isoformat(),
-                "supplier_id": rel.supplier_id,
-                "supplier_name": rel.supplier_name,
-                "supplier_country": rel.supplier_country,
-                "customer_name": rel.customer_name,
-                "customer_name_normalized": rel.customer_name_normalized,
-                "customer_address": rel.customer_address,
-                "customer_country": rel.customer_country,
-                "customer_key": rel.customer_key,
-                "total_shipments_to_customer": rel.total_shipments_to_customer,
-                "shipments_pct_of_supplier": rel.shipments_pct_of_supplier,
-                "shipments_pct_of_customer": rel.shipments_pct_of_customer,
-                "shipments_12m": rel.shipments_12m,
-                "total_weight_kg": rel.total_weight_kg,
-                "total_teu": rel.total_teu,
-                "hs_code_chapters": json.dumps([asdict(hs) for hs in rel.hs_code_chapters]),
-                "product_descriptions": rel.product_descriptions,
-                "customer_top_suppliers": json.dumps([asdict(s) for s in rel.customer_top_suppliers]),
-                "relationship_time_series": json.dumps([asdict(t) for t in rel.relationship_time_series]),
-                "first_shipment_date": rel.first_shipment_date.isoformat() if rel.first_shipment_date else None,
-                "most_recent_shipment_date": rel.most_recent_shipment_date.isoformat() if rel.most_recent_shipment_date else None,
-                "business_length": rel.business_length,
-                "is_new_customer": rel.is_new_customer,
-                "first_seen_date": rel.first_seen_date.isoformat() if rel.first_seen_date else None,
-                "last_seen_date": rel.last_seen_date.isoformat() if rel.last_seen_date else None,
-                "is_active": rel.is_active,
-                "created_at": rel.created_at.isoformat(),
-            }
-            rows.append(row)
-        
-        errors = self._client.insert_rows_json(table_id, rows)
-        if errors:
-            logger.error(f"BigQuery insert errors: {errors[:3]}")
-            raise Exception(f"Failed to insert {len(errors)} rows")
-        
-        logger.info(f"Stored {len(rows)} supplier-customer relationships")
-        return len(rows)
-    
-    async def store_company_suppliers(
-        self,
-        relationships: List[CompanySupplierRelationship]
-    ) -> int:
-        """Store company-supplier relationships."""
-        if not relationships:
-            return 0
-        
-        table_id = self._get_table_id("iy_company_suppliers")
-        
-        rows = []
-        for rel in relationships:
-            row = {
-                "relationship_id": rel.relationship_id,
-                "snapshot_date": rel.snapshot_date.isoformat(),
-                "company_id": rel.company_id,
-                "company_name": rel.company_name,
-                "supplier_name": rel.supplier_name,
-                "supplier_name_normalized": rel.supplier_name_normalized,
-                "supplier_address": rel.supplier_address,
-                "supplier_country": rel.supplier_country,
-                "supplier_key": rel.supplier_key,
-                "total_shipments_from_supplier": rel.total_shipments_from_supplier,
-                "shipments_pct_of_company": rel.shipments_pct_of_company,
-                "shipments_pct_of_supplier": rel.shipments_pct_of_supplier,
-                "shipments_12m": rel.shipments_12m,
-                "total_weight_kg": rel.total_weight_kg,
-                "total_teu": rel.total_teu,
-                "hs_code_chapters": json.dumps([asdict(hs) for hs in rel.hs_code_chapters]),
-                "product_descriptions": rel.product_descriptions,
-                "supplier_top_companies": json.dumps([asdict(c) for c in rel.supplier_top_companies]),
-                "relationship_time_series": json.dumps([asdict(t) for t in rel.relationship_time_series]),
-                "first_shipment_date": rel.first_shipment_date.isoformat() if rel.first_shipment_date else None,
-                "most_recent_shipment_date": rel.most_recent_shipment_date.isoformat() if rel.most_recent_shipment_date else None,
-                "business_length": rel.business_length,
-                "first_seen_date": rel.first_seen_date.isoformat() if rel.first_seen_date else None,
-                "last_seen_date": rel.last_seen_date.isoformat() if rel.last_seen_date else None,
-                "is_active": rel.is_active,
-                "created_at": rel.created_at.isoformat(),
-            }
-            rows.append(row)
-        
-        errors = self._client.insert_rows_json(table_id, rows)
-        if errors:
-            logger.error(f"BigQuery insert errors: {errors[:3]}")
-            raise Exception(f"Failed to insert {len(errors)} rows")
-        
-        logger.info(f"Stored {len(rows)} company-supplier relationships")
-        return len(rows)
-    
-    async def store_suppliers(self, suppliers: List[SupplierProfile]) -> int:
-        """Store/update supplier profiles."""
-        if not suppliers:
-            return 0
-        
-        table_id = self._get_table_id("iy_suppliers")
-        
-        rows = []
-        for s in suppliers:
-            row = {
-                "supplier_id": s.supplier_id,
-                "supplier_name": s.supplier_name,
-                "also_known_names": s.also_known_names,
-                "country": s.country,
-                "country_code": s.country_code,
-                "address": s.address,
-                "website": s.website,
-                "phone_number": s.phone_number,
-                "total_shipments": s.total_shipments,
-                "total_us_customers": s.total_us_customers,
-                "primary_hs_codes": json.dumps([asdict(hs) for hs in s.primary_hs_codes]),
-                "is_c1_supplier": s.is_c1_supplier,
-                "is_tracked_competitor": s.is_tracked_competitor,
-                "supplier_tier": s.supplier_tier.value if s.supplier_tier else None,
-                "first_seen_date": s.first_seen_date.isoformat() if s.first_seen_date else None,
-                "last_updated": s.last_updated.isoformat() if s.last_updated else None,
-            }
-            rows.append(row)
-        
-        # Use MERGE for upsert behavior
-        # For simplicity, using insert (you'd want MERGE in production)
-        errors = self._client.insert_rows_json(table_id, rows)
-        if errors:
-            logger.error(f"BigQuery insert errors: {errors[:3]}")
-        
-        logger.info(f"Stored {len(rows)} suppliers")
-        return len(rows)
-    
-    async def store_companies(self, companies: List[CompanyProfile]) -> int:
-        """Store/update company profiles."""
-        if not companies:
-            return 0
-        
-        table_id = self._get_table_id("iy_companies")
-        
-        rows = []
-        for c in companies:
-            row = {
-                "company_id": c.company_id,
-                "company_name": c.company_name,
-                "also_known_names": c.also_known_names,
-                "country": c.country,
-                "country_code": c.country_code,
-                "address": c.address,
-                "website": c.website,
-                "phone_number": c.phone_number,
-                "total_shipments": c.total_shipments,
-                "total_suppliers": c.total_suppliers,
-                "primary_hs_codes": json.dumps([asdict(hs) for hs in c.primary_hs_codes]),
-                "company_type": c.company_type.value if c.company_type else None,
-                "industries": c.industries,
-                "is_c1_customer": c.is_c1_customer,
-                "is_prospect": c.is_prospect,
-                "first_seen_date": c.first_seen_date.isoformat() if c.first_seen_date else None,
-                "last_updated": c.last_updated.isoformat() if c.last_updated else None,
-            }
-            rows.append(row)
-        
-        errors = self._client.insert_rows_json(table_id, rows)
-        if errors:
-            logger.error(f"BigQuery insert errors: {errors[:3]}")
-        
-        logger.info(f"Stored {len(rows)} companies")
-        return len(rows)
-    
-    async def store_change_events(self, events: List[ChangeEvent]) -> int:
-        """Store change events."""
-        if not events:
-            return 0
-        
-        table_id = self._get_table_id("iy_change_events")
-        
-        rows = []
-        for e in events:
-            row = {
-                "event_id": e.event_id,
-                "detected_date": e.detected_date.isoformat(),
-                "snapshot_id": e.snapshot_id,
-                "event_type": e.event_type.value,
-                "event_category": e.event_category,
-                "primary_entity_type": e.primary_entity_type,
-                "primary_entity_id": e.primary_entity_id,
-                "primary_entity_name": e.primary_entity_name,
-                "secondary_entity_name": e.secondary_entity_name,
-                "previous_value": e.previous_value,
-                "new_value": e.new_value,
-                "change_absolute": e.change_absolute,
-                "change_pct": e.change_pct,
-                "hs_codes": e.hs_codes,
-                "products": e.products,
-                "summary": e.summary,
-                "significance": e.significance.value,
-                "digest_item_id": e.digest_item_id,
-                "acknowledged": e.acknowledged,
-                "acknowledged_by": e.acknowledged_by,
-                "acknowledged_at": e.acknowledged_at.isoformat() if e.acknowledged_at else None,
-                "created_at": e.created_at.isoformat(),
-            }
-            rows.append(row)
-        
-        errors = self._client.insert_rows_json(table_id, rows)
-        if errors:
-            logger.error(f"BigQuery insert errors: {errors[:3]}")
-        
-        logger.info(f"Stored {len(rows)} change events")
-        return len(rows)
-    
-    # =========================================================================
-    # Query Methods
-    # =========================================================================
-    
-    async def get_previous_supplier_customers(
-        self,
-        supplier_id: str,
-        before_date: date,
-    ) -> List[Dict[str, Any]]:
-        """Get previous snapshot's supplier customers for change detection."""
-        query = f"""
-        SELECT *
-        FROM `{self._get_table_id('iy_supplier_customers')}`
-        WHERE supplier_id = @supplier_id
-          AND snapshot_date = (
-              SELECT MAX(snapshot_date)
-              FROM `{self._get_table_id('iy_supplier_customers')}`
-              WHERE supplier_id = @supplier_id
-                AND snapshot_date < @before_date
-          )
-        """
-        
-        from google.cloud import bigquery
-        job_config = bigquery.QueryJobConfig(
-            query_parameters=[
-                bigquery.ScalarQueryParameter("supplier_id", "STRING", supplier_id),
-                bigquery.ScalarQueryParameter("before_date", "DATE", before_date.isoformat()),
-            ]
-        )
-        
-        result = self._client.query(query, job_config=job_config)
-        return [dict(row) for row in result]
-    
-    async def get_latest_snapshot_date(self) -> Optional[date]:
-        """Get the most recent snapshot date."""
-        query = f"""
-        SELECT MAX(snapshot_date) as latest_date
-        FROM `{self._get_table_id('iy_supplier_customers')}`
-        """
-        
-        result = self._client.query(query)
-        for row in result:
-            if row.latest_date:
-                return row.latest_date
-        return None
 
-    async def get_dashboard_stats(self) -> Dict[str, Any]:
-        """Get high-level dashboard statistics."""
-        # Get latest snapshot date
-        latest_date = await self.get_latest_snapshot_date()
-        if not latest_date:
-            return {"suppliers": 0, "shipments": 0, "companies": 0, "relationships": 0}
-            
-        dataset = f"{self.project_id}.{self.dataset_id}"
-        
-        query = f"""
-        WITH stats AS (
-            SELECT 
-                (SELECT COUNT(*) FROM `{dataset}.iy_suppliers`) as total_suppliers,
-                (SELECT COUNT(*) FROM `{dataset}.iy_companies` WHERE company_type = 'oem') as total_oems,
-                (SELECT COUNT(*) FROM `{dataset}.iy_supplier_customers` WHERE snapshot_date = @snapshot_date) as active_relationships,
-                (SELECT SUM(total_shipments_to_customer) FROM `{dataset}.iy_supplier_customers` WHERE snapshot_date = @snapshot_date) as tracked_shipments
-        )
-        SELECT * FROM stats
+    @property
+    def client(self) -> bigquery.Client:
+        if self._client is None:
+            self._client = bigquery.Client(project=self.project_id)
+        return self._client
+
+    def _table_id(self, table_name: str) -> str:
+        return f"{self.project_id}.{self.dataset_id}.{table_name}"
+
+    def _streaming_insert_with_retry(
+        self, table_id: str, rows: list, max_retries: int = 3
+    ) -> list:
         """
-        
-        from google.cloud import bigquery
+        Streaming insert with retry for transient BQ errors
+        (e.g., table not yet propagated after creation).
+        Returns list of errors (empty = success).
+        """
+        for attempt in range(max_retries):
+            try:
+                errors = self.client.insert_rows_json(table_id, rows)
+                return errors
+            except gcp_exceptions.NotFound:
+                if attempt < max_retries - 1:
+                    wait = 5 * (attempt + 1)
+                    logger.warning(
+                        f"[IMPORTYETI_BQ] Table not found for streaming, "
+                        f"retrying in {wait}s (attempt {attempt + 1}/{max_retries})"
+                    )
+                    time.sleep(wait)
+                else:
+                    raise
+            except Exception:
+                if attempt < max_retries - 1:
+                    time.sleep(2)
+                else:
+                    raise
+        return []
+
+    # =============================================
+    # INITIALIZATION
+    # =============================================
+
+    def initialize(self, created_tables: bool = False):
+        """Create all tables and views if they don't exist."""
+        logger.info("[IMPORTYETI_BQ] Initializing BigQuery schema...")
+        t1 = self._ensure_companies_table()
+        t2 = self._ensure_suppliers_table()
+        t3 = self._ensure_edges_table()
+        t4 = self._ensure_ingestion_log_table()
+        self._ensure_views()
+
+        # BigQuery needs propagation time after table creation
+        # before streaming inserts work (typically 5-30 seconds)
+        if any([t1, t2, t3, t4]) or created_tables:
+            logger.info("[IMPORTYETI_BQ] New tables created — waiting 10s for BQ propagation")
+            time.sleep(10)
+
+        logger.info("[IMPORTYETI_BQ] Schema initialized successfully")
+
+    def _ensure_companies_table(self) -> bool:
+        table_id = self._table_id(TABLE_COMPANIES)
+        schema = [
+            bigquery.SchemaField("importyeti_key", "STRING", mode="REQUIRED",
+                                 description="e.g., company/sherwin-williams"),
+            bigquery.SchemaField("name", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("also_known_names", "STRING",
+                                 description="JSON array of alternate names"),
+            bigquery.SchemaField("address", "STRING"),
+            bigquery.SchemaField("country", "STRING", default_value_expression="'United States'"),
+            bigquery.SchemaField("country_code", "STRING", default_value_expression="'US'"),
+            bigquery.SchemaField("website", "STRING"),
+            bigquery.SchemaField("phone_number", "STRING"),
+            bigquery.SchemaField("total_shipments", "INTEGER"),
+            bigquery.SchemaField("entity_type", "STRING", mode="REQUIRED",
+                                 description="target, competitor, or discovered"),
+            bigquery.SchemaField("category", "STRING",
+                                 description="From competitors.json"),
+            bigquery.SchemaField("ticker", "STRING"),
+            bigquery.SchemaField("notes", "STRING"),
+            bigquery.SchemaField("shipments_by_country", "STRING",
+                                 description="JSON: {China: 1234, India: 567}"),
+            bigquery.SchemaField("raw_api_response", "STRING",
+                                 description="Full JSON from ImportYeti"),
+            bigquery.SchemaField("ingested_at", "TIMESTAMP",
+                                 default_value_expression="CURRENT_TIMESTAMP()"),
+            bigquery.SchemaField("updated_at", "TIMESTAMP",
+                                 default_value_expression="CURRENT_TIMESTAMP()"),
+        ]
+        return self._create_table_if_not_exists(table_id, schema)
+
+    def _ensure_suppliers_table(self) -> bool:
+        table_id = self._table_id(TABLE_SUPPLIERS)
+        schema = [
+            bigquery.SchemaField("importyeti_key", "STRING", mode="REQUIRED",
+                                 description="e.g., supplier/basf"),
+            bigquery.SchemaField("name", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("also_known_names", "STRING",
+                                 description="JSON array"),
+            bigquery.SchemaField("address", "STRING"),
+            bigquery.SchemaField("address_country", "STRING"),
+            bigquery.SchemaField("address_country_code", "STRING"),
+            bigquery.SchemaField("country", "STRING"),
+            bigquery.SchemaField("country_code", "STRING"),
+            bigquery.SchemaField("website", "STRING"),
+            bigquery.SchemaField("phone_number", "STRING"),
+            bigquery.SchemaField("total_shipments", "INTEGER"),
+            bigquery.SchemaField("raw_api_response", "STRING"),
+            bigquery.SchemaField("ingested_at", "TIMESTAMP",
+                                 default_value_expression="CURRENT_TIMESTAMP()"),
+            bigquery.SchemaField("updated_at", "TIMESTAMP",
+                                 default_value_expression="CURRENT_TIMESTAMP()"),
+        ]
+        return self._create_table_if_not_exists(table_id, schema)
+
+    def _ensure_edges_table(self) -> bool:
+        table_id = self._table_id(TABLE_EDGES)
+        schema = [
+            bigquery.SchemaField("source_type", "STRING", mode="REQUIRED",
+                                 description="company or supplier"),
+            bigquery.SchemaField("source_key", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("target_type", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("target_key", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("relationship_type", "STRING", mode="REQUIRED",
+                                 description="imports_from or supplies_to"),
+            bigquery.SchemaField("discovered_from", "STRING", mode="REQUIRED",
+                                 description="company_profile or supplier_profile"),
+            bigquery.SchemaField("total_shipments", "INTEGER"),
+            bigquery.SchemaField("shipments_12m", "INTEGER"),
+            bigquery.SchemaField("shipment_pct_of_source", "FLOAT"),
+            bigquery.SchemaField("shipment_pct_of_target", "FLOAT"),
+            bigquery.SchemaField("total_weight", "INTEGER"),
+            bigquery.SchemaField("total_teus", "INTEGER"),
+            bigquery.SchemaField("supplier_country", "STRING"),
+            bigquery.SchemaField("supplier_country_code", "STRING"),
+            bigquery.SchemaField("most_recent_shipment", "STRING"),
+            bigquery.SchemaField("first_shipment", "STRING"),
+            bigquery.SchemaField("business_length", "STRING"),
+            bigquery.SchemaField("is_new_relationship", "BOOLEAN"),
+            bigquery.SchemaField("ingested_at", "TIMESTAMP",
+                                 default_value_expression="CURRENT_TIMESTAMP()"),
+        ]
+        return self._create_table_if_not_exists(table_id, schema)
+
+    def _ensure_ingestion_log_table(self) -> bool:
+        table_id = self._table_id(TABLE_INGESTION_LOG)
+        schema = [
+            bigquery.SchemaField("run_id", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("phase", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("entity_name", "STRING"),
+            bigquery.SchemaField("entity_key", "STRING"),
+            bigquery.SchemaField("status", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("error_message", "STRING"),
+            bigquery.SchemaField("api_credits_used", "INTEGER", default_value_expression="0"),
+            bigquery.SchemaField("duration_ms", "INTEGER"),
+            bigquery.SchemaField("timestamp", "TIMESTAMP",
+                                 default_value_expression="CURRENT_TIMESTAMP()"),
+        ]
+        return self._create_table_if_not_exists(table_id, schema)
+
+    def _create_table_if_not_exists(self, table_id: str, schema: list) -> bool:
+        """Create a BigQuery table if it doesn't already exist. Returns True if created."""
+        try:
+            self.client.get_table(table_id)
+            logger.debug(f"[IMPORTYETI_BQ] Table exists: {table_id}")
+            return False
+        except Exception:
+            table = bigquery.Table(table_id, schema=schema)
+            self.client.create_table(table)
+            logger.info(f"[IMPORTYETI_BQ] Created table: {table_id}")
+            return True
+
+    def _ensure_views(self):
+        """Create analytical views (with dedup for append-only supplier rows)."""
+        # Dedup CTE fragment used by all views that join iy_suppliers.
+        # Streaming inserts are append-only, so Phase 2 (basic) + Phase 3
+        # (full profile) produce 2 rows per supplier. We pick the latest.
+        suppliers_dedup = f"""
+            SELECT * EXCEPT(_rn) FROM (
+                SELECT *, ROW_NUMBER() OVER (
+                    PARTITION BY importyeti_key ORDER BY updated_at DESC
+                ) AS _rn
+                FROM `{self._table_id(TABLE_SUPPLIERS)}`
+            ) WHERE _rn = 1
+        """
+
+        views = {
+            # Shared suppliers: suppliers serving 2+ tracked entities
+            self._table_id("iy_v_shared_suppliers"): f"""
+                WITH s_dedup AS ({suppliers_dedup})
+                SELECT
+                    s.name AS supplier_name,
+                    s.importyeti_key AS supplier_key,
+                    s.country AS supplier_country,
+                    COUNT(DISTINCT c.importyeti_key) AS num_competitors_served,
+                    STRING_AGG(DISTINCT c.name, ', ' ORDER BY c.name) AS competitors_served,
+                    SUM(e.total_shipments) AS total_shipments_across_competitors
+                FROM `{self._table_id(TABLE_EDGES)}` e
+                JOIN s_dedup s ON e.target_key = s.importyeti_key
+                JOIN `{self._table_id(TABLE_COMPANIES)}` c ON e.source_key = c.importyeti_key
+                WHERE e.relationship_type = 'imports_from'
+                  AND c.entity_type IN ('target', 'competitor')
+                GROUP BY s.name, s.importyeti_key, s.country
+                HAVING COUNT(DISTINCT c.importyeti_key) >= 2
+                ORDER BY num_competitors_served DESC, total_shipments_across_competitors DESC
+            """,
+
+            # Shared suppliers (12-month active)
+            self._table_id("iy_v_shared_suppliers_12m"): f"""
+                WITH s_dedup AS ({suppliers_dedup})
+                SELECT
+                    s.name AS supplier_name,
+                    s.importyeti_key AS supplier_key,
+                    s.country AS supplier_country,
+                    COUNT(DISTINCT c.importyeti_key) AS num_competitors_served,
+                    STRING_AGG(DISTINCT c.name, ', ' ORDER BY c.name) AS competitors_served,
+                    SUM(e.shipments_12m) AS shipments_12m_across_competitors
+                FROM `{self._table_id(TABLE_EDGES)}` e
+                JOIN s_dedup s ON e.target_key = s.importyeti_key
+                JOIN `{self._table_id(TABLE_COMPANIES)}` c ON e.source_key = c.importyeti_key
+                WHERE e.relationship_type = 'imports_from'
+                  AND c.entity_type IN ('target', 'competitor')
+                  AND COALESCE(e.shipments_12m, 0) > 0
+                GROUP BY s.name, s.importyeti_key, s.country
+                HAVING COUNT(DISTINCT c.importyeti_key) >= 2
+                ORDER BY num_competitors_served DESC, shipments_12m_across_competitors DESC
+            """,
+
+            # Exclusive suppliers (serve exactly 1 tracked entity)
+            self._table_id("iy_v_exclusive_suppliers"): f"""
+                WITH s_dedup AS ({suppliers_dedup})
+                SELECT
+                    s.name AS supplier_name,
+                    s.importyeti_key AS supplier_key,
+                    s.country AS supplier_country,
+                    c.name AS exclusive_to,
+                    c.entity_type,
+                    e.total_shipments,
+                    e.shipments_12m
+                FROM `{self._table_id(TABLE_EDGES)}` e
+                JOIN s_dedup s ON e.target_key = s.importyeti_key
+                JOIN `{self._table_id(TABLE_COMPANIES)}` c ON e.source_key = c.importyeti_key
+                WHERE e.relationship_type = 'imports_from'
+                  AND c.entity_type IN ('target', 'competitor')
+                  AND s.importyeti_key NOT IN (
+                      SELECT e2.target_key
+                      FROM `{self._table_id(TABLE_EDGES)}` e2
+                      JOIN `{self._table_id(TABLE_COMPANIES)}` c2 ON e2.source_key = c2.importyeti_key
+                      WHERE e2.relationship_type = 'imports_from'
+                        AND c2.entity_type IN ('target', 'competitor')
+                      GROUP BY e2.target_key
+                      HAVING COUNT(DISTINCT e2.source_key) >= 2
+                  )
+                ORDER BY e.total_shipments DESC
+            """,
+
+            # Competitor activity (12-month) — no iy_suppliers join needed
+            self._table_id("iy_v_competitor_activity_12m"): f"""
+                SELECT
+                    c.name AS company_name,
+                    c.importyeti_key AS company_key,
+                    c.entity_type,
+                    c.total_shipments AS company_total_shipments,
+                    COUNT(DISTINCT e.target_key) AS total_suppliers,
+                    COUNTIF(COALESCE(e.shipments_12m, 0) > 0) AS active_suppliers_12m,
+                    COUNTIF(COALESCE(e.shipments_12m, 0) = 0) AS dormant_suppliers,
+                    SUM(e.shipments_12m) AS total_shipments_12m
+                FROM `{self._table_id(TABLE_COMPANIES)}` c
+                LEFT JOIN `{self._table_id(TABLE_EDGES)}` e
+                    ON c.importyeti_key = e.source_key
+                    AND e.relationship_type = 'imports_from'
+                WHERE c.entity_type IN ('target', 'competitor')
+                GROUP BY c.name, c.importyeti_key, c.entity_type, c.total_shipments
+                ORDER BY total_shipments_12m DESC
+            """,
+
+            # Buyer overlap (discovered buyers appearing in 2+ supplier networks)
+            self._table_id("iy_v_buyer_overlap"): f"""
+                WITH s_dedup AS ({suppliers_dedup})
+                SELECT
+                    c.name AS buyer_name,
+                    c.importyeti_key AS buyer_key,
+                    COUNT(DISTINCT e.source_key) AS num_suppliers,
+                    STRING_AGG(DISTINCT s.name, ', ' ORDER BY s.name) AS suppliers,
+                    SUM(e.total_shipments) AS total_shipments
+                FROM `{self._table_id(TABLE_EDGES)}` e
+                JOIN `{self._table_id(TABLE_COMPANIES)}` c ON e.target_key = c.importyeti_key
+                JOIN s_dedup s ON e.source_key = s.importyeti_key
+                WHERE e.relationship_type = 'supplies_to'
+                GROUP BY c.name, c.importyeti_key
+                HAVING COUNT(DISTINCT e.source_key) >= 2
+                ORDER BY num_suppliers DESC, total_shipments DESC
+            """,
+        }
+
+        for view_id, query in views.items():
+            try:
+                view = bigquery.Table(view_id)
+                view.view_query = query
+                self.client.create_table(view, exists_ok=True)
+                logger.debug(f"[IMPORTYETI_BQ] View ensured: {view_id}")
+            except Exception as e:
+                # Update view if it exists with different SQL
+                try:
+                    view = bigquery.Table(view_id)
+                    view.view_query = query
+                    self.client.update_table(view, ["view_query"])
+                    logger.debug(f"[IMPORTYETI_BQ] View updated: {view_id}")
+                except Exception as e2:
+                    logger.warning(f"[IMPORTYETI_BQ] Could not create/update view {view_id}: {e2}")
+
+    # =============================================
+    # COMPANIES — UPSERT / READ
+    # =============================================
+
+    def upsert_company(
+        self,
+        importyeti_key: str,
+        name: str,
+        entity_type: str = "discovered",
+        also_known_names: Optional[list] = None,
+        address: Optional[str] = None,
+        country: str = "United States",
+        country_code: str = "US",
+        website: Optional[str] = None,
+        phone_number: Optional[str] = None,
+        total_shipments: Optional[int] = None,
+        category: Optional[str] = None,
+        ticker: Optional[str] = None,
+        notes: Optional[str] = None,
+        shipments_by_country: Optional[dict] = None,
+        raw_api_response: Optional[dict] = None,
+    ):
+        """
+        Insert or update a company record.
+        Entity type hierarchy preserved: target > competitor > discovered.
+        """
+        akn_json = json.dumps(also_known_names) if also_known_names else None
+        sbc_json = json.dumps(shipments_by_country) if shipments_by_country else None
+        raw_json = json.dumps(raw_api_response) if raw_api_response else None
+
+        table_id = self._table_id(TABLE_COMPANIES)
+
+        query = f"""
+            MERGE `{table_id}` T
+            USING (SELECT @importyeti_key AS importyeti_key) S
+            ON T.importyeti_key = S.importyeti_key
+            WHEN MATCHED THEN UPDATE SET
+                name = COALESCE(@name, T.name),
+                also_known_names = COALESCE(@also_known_names, T.also_known_names),
+                address = COALESCE(@address, T.address),
+                country = COALESCE(@country, T.country),
+                country_code = COALESCE(@country_code, T.country_code),
+                website = COALESCE(@website, T.website),
+                phone_number = COALESCE(@phone_number, T.phone_number),
+                total_shipments = COALESCE(@total_shipments, T.total_shipments),
+                shipments_by_country = COALESCE(@shipments_by_country, T.shipments_by_country),
+                raw_api_response = COALESCE(@raw_api_response, T.raw_api_response),
+                entity_type = CASE
+                    WHEN T.entity_type = 'target' THEN 'target'
+                    WHEN T.entity_type = 'competitor' THEN
+                        CASE WHEN @entity_type = 'target' THEN 'target' ELSE 'competitor' END
+                    ELSE @entity_type
+                END,
+                updated_at = CURRENT_TIMESTAMP()
+            WHEN NOT MATCHED THEN INSERT (
+                importyeti_key, name, entity_type, also_known_names,
+                address, country, country_code, website, phone_number,
+                total_shipments, category, ticker, notes,
+                shipments_by_country, raw_api_response, ingested_at, updated_at
+            ) VALUES (
+                @importyeti_key, @name, @entity_type, @also_known_names,
+                @address, @country, @country_code, @website, @phone_number,
+                @total_shipments, @category, @ticker, @notes,
+                @shipments_by_country, @raw_api_response, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP()
+            )
+        """
+
         job_config = bigquery.QueryJobConfig(
             query_parameters=[
-                bigquery.ScalarQueryParameter("snapshot_date", "DATE", latest_date),
+                bigquery.ScalarQueryParameter("importyeti_key", "STRING", importyeti_key),
+                bigquery.ScalarQueryParameter("name", "STRING", name),
+                bigquery.ScalarQueryParameter("entity_type", "STRING", entity_type),
+                bigquery.ScalarQueryParameter("also_known_names", "STRING", akn_json),
+                bigquery.ScalarQueryParameter("address", "STRING", address),
+                bigquery.ScalarQueryParameter("country", "STRING", country),
+                bigquery.ScalarQueryParameter("country_code", "STRING", country_code),
+                bigquery.ScalarQueryParameter("website", "STRING", website),
+                bigquery.ScalarQueryParameter("phone_number", "STRING", phone_number),
+                bigquery.ScalarQueryParameter("total_shipments", "INT64", total_shipments),
+                bigquery.ScalarQueryParameter("category", "STRING", category),
+                bigquery.ScalarQueryParameter("ticker", "STRING", ticker),
+                bigquery.ScalarQueryParameter("notes", "STRING", notes),
+                bigquery.ScalarQueryParameter("shipments_by_country", "STRING", sbc_json),
+                bigquery.ScalarQueryParameter("raw_api_response", "STRING", raw_json),
             ]
         )
-        
-        result = self._client.query(query, job_config=job_config)
-        rows = list(result)
+
+        self.client.query(query, job_config=job_config).result()
+        logger.debug(f"[IMPORTYETI_BQ] Upserted company: {name} ({importyeti_key})")
+
+    def get_company(self, importyeti_key: str) -> Optional[Dict[str, Any]]:
+        """Fetch a company by its ImportYeti key."""
+        query = f"""
+            SELECT * FROM `{self._table_id(TABLE_COMPANIES)}`
+            WHERE importyeti_key = @key
+        """
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("key", "STRING", importyeti_key),
+            ]
+        )
+        rows = list(self.client.query(query, job_config=job_config).result())
         if rows:
             return dict(rows[0])
-        return {"suppliers": 0, "shipments": 0, "companies": 0, "relationships": 0}
+        return None
 
-    async def get_suppliers_list(
-        self, 
-        limit: int = 50, 
-        offset: int = 0,
-        search: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
-        """Get list of tracked suppliers."""
-        dataset = f"{self.project_id}.{self.dataset_id}"
-        
-        where_clause = "WHERE 1=1"
-        params = []
-        
-        from google.cloud import bigquery
-        
-        if search:
-            where_clause += " AND LOWER(supplier_name) LIKE @search"
-            params.append(bigquery.ScalarQueryParameter("search", "STRING", f"%{search.lower()}%"))
-            
+    def company_exists(self, importyeti_key: str) -> bool:
+        """Check if a company is already in the database."""
+        return self.get_company(importyeti_key) is not None
+
+    def search_companies_by_name(self, name: str) -> List[Dict[str, Any]]:
+        """LIKE search for companies by name."""
         query = f"""
-        SELECT 
-            supplier_id,
-            supplier_name,
-            country,
-            supplier_tier,
-            total_shipments,
-            total_us_customers,
-            is_c1_supplier,
-            last_updated
-        FROM `{dataset}.iy_suppliers`
-        {where_clause}
-        ORDER BY total_shipments DESC
-        LIMIT @limit OFFSET @offset
-        """
-        
-        params.extend([
-            bigquery.ScalarQueryParameter("limit", "INTEGER", limit),
-            bigquery.ScalarQueryParameter("offset", "INTEGER", offset),
-        ])
-        
-        job_config = bigquery.QueryJobConfig(query_parameters=params)
-        result = self._client.query(query, job_config=job_config)
-        
-        return [dict(row) for row in result]
-
-    async def get_supplier_details(self, supplier_id: str) -> Optional[Dict[str, Any]]:
-        """Get detailed supplier info including recent customers."""
-        dataset = f"{self.project_id}.{self.dataset_id}"
-        
-        # Get profile
-        query_profile = f"""
-        SELECT * FROM `{dataset}.iy_suppliers`
-        WHERE supplier_id = @supplier_id
-        LIMIT 1
-        """
-        
-        from google.cloud import bigquery
-        job_config = bigquery.QueryJobConfig(
-            query_parameters=[bigquery.ScalarQueryParameter("supplier_id", "STRING", supplier_id)]
-        )
-        
-        result = self._client.query(query_profile, job_config=job_config)
-        profile_rows = list(result)
-        if not profile_rows:
-            return None
-            
-        profile = dict(profile_rows[0])
-        
-        # Get customers from latest snapshot
-        latest_date = await self.get_latest_snapshot_date()
-        if latest_date:
-            query_customers = f"""
-            SELECT 
-                customer_name,
-                customer_country,
-                total_shipments_to_customer,
-                shipments_pct_of_supplier,
-                product_descriptions
-            FROM `{dataset}.iy_supplier_customers`
-            WHERE supplier_id = @supplier_id
-              AND snapshot_date = @snapshot_date
-            ORDER BY total_shipments_to_customer DESC
+            SELECT * FROM `{self._table_id(TABLE_COMPANIES)}`
+            WHERE LOWER(name) LIKE LOWER(@pattern)
+               OR LOWER(also_known_names) LIKE LOWER(@pattern)
+            ORDER BY total_shipments DESC
             LIMIT 20
+        """
+        pattern = f"%{name}%"
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("pattern", "STRING", pattern),
+            ]
+        )
+        rows = list(self.client.query(query, job_config=job_config).result())
+        return [dict(r) for r in rows]
+
+    def get_all_companies(self, entity_types: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+        """Get all companies, optionally filtered by entity type."""
+        if entity_types:
+            placeholders = ", ".join(f"'{et}'" for et in entity_types)
+            query = f"""
+                SELECT * FROM `{self._table_id(TABLE_COMPANIES)}`
+                WHERE entity_type IN ({placeholders})
+                ORDER BY total_shipments DESC
             """
-            
-            job_config = bigquery.QueryJobConfig(
+        else:
+            query = f"""
+                SELECT * FROM `{self._table_id(TABLE_COMPANIES)}`
+                ORDER BY total_shipments DESC
+            """
+        rows = list(self.client.query(query).result())
+        return [dict(r) for r in rows]
+
+    # =============================================
+    # SUPPLIERS — UPSERT / READ
+    # =============================================
+
+    def upsert_supplier(
+        self,
+        importyeti_key: str,
+        name: str,
+        also_known_names: Optional[list] = None,
+        address: Optional[str] = None,
+        address_country: Optional[str] = None,
+        address_country_code: Optional[str] = None,
+        country: Optional[str] = None,
+        country_code: Optional[str] = None,
+        website: Optional[str] = None,
+        phone_number: Optional[str] = None,
+        total_shipments: Optional[int] = None,
+        raw_api_response: Optional[dict] = None,
+    ):
+        """Insert or update a supplier record."""
+        akn_json = json.dumps(also_known_names) if also_known_names else None
+        raw_json = json.dumps(raw_api_response) if raw_api_response else None
+
+        table_id = self._table_id(TABLE_SUPPLIERS)
+
+        query = f"""
+            MERGE `{table_id}` T
+            USING (SELECT @importyeti_key AS importyeti_key) S
+            ON T.importyeti_key = S.importyeti_key
+            WHEN MATCHED THEN UPDATE SET
+                name = COALESCE(@name, T.name),
+                also_known_names = COALESCE(@also_known_names, T.also_known_names),
+                address = COALESCE(@address, T.address),
+                address_country = COALESCE(@address_country, T.address_country),
+                address_country_code = COALESCE(@address_country_code, T.address_country_code),
+                country = COALESCE(@country, T.country),
+                country_code = COALESCE(@country_code, T.country_code),
+                website = COALESCE(@website, T.website),
+                phone_number = COALESCE(@phone_number, T.phone_number),
+                total_shipments = COALESCE(@total_shipments, T.total_shipments),
+                raw_api_response = COALESCE(@raw_api_response, T.raw_api_response),
+                updated_at = CURRENT_TIMESTAMP()
+            WHEN NOT MATCHED THEN INSERT (
+                importyeti_key, name, also_known_names, address,
+                address_country, address_country_code, country, country_code,
+                website, phone_number, total_shipments, raw_api_response,
+                ingested_at, updated_at
+            ) VALUES (
+                @importyeti_key, @name, @also_known_names, @address,
+                @address_country, @address_country_code, @country, @country_code,
+                @website, @phone_number, @total_shipments, @raw_api_response,
+                CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP()
+            )
+        """
+
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("importyeti_key", "STRING", importyeti_key),
+                bigquery.ScalarQueryParameter("name", "STRING", name),
+                bigquery.ScalarQueryParameter("also_known_names", "STRING", akn_json),
+                bigquery.ScalarQueryParameter("address", "STRING", address),
+                bigquery.ScalarQueryParameter("address_country", "STRING", address_country),
+                bigquery.ScalarQueryParameter("address_country_code", "STRING", address_country_code),
+                bigquery.ScalarQueryParameter("country", "STRING", country),
+                bigquery.ScalarQueryParameter("country_code", "STRING", country_code),
+                bigquery.ScalarQueryParameter("website", "STRING", website),
+                bigquery.ScalarQueryParameter("phone_number", "STRING", phone_number),
+                bigquery.ScalarQueryParameter("total_shipments", "INT64", total_shipments),
+                bigquery.ScalarQueryParameter("raw_api_response", "STRING", raw_json),
+            ]
+        )
+
+        self.client.query(query, job_config=job_config).result()
+        logger.debug(f"[IMPORTYETI_BQ] Upserted supplier: {name} ({importyeti_key})")
+
+    def batch_insert_suppliers(self, suppliers: List[Dict[str, Any]]) -> int:
+        """
+        Bulk-insert new supplier records via streaming inserts.
+        Use for initial ingestion when records are known to be new.
+        Skips duplicates silently (BQ streaming is append-only, caller
+        should ensure dedup or use upsert_supplier for known-existing).
+
+        Args:
+            suppliers: List of dicts with keys matching iy_suppliers schema.
+                Required: importyeti_key, name.
+
+        Returns:
+            Number of rows successfully inserted.
+        """
+        if not suppliers:
+            return 0
+
+        table_id = self._table_id(TABLE_SUPPLIERS)
+        now = datetime.utcnow().isoformat()
+
+        rows = []
+        for s in suppliers:
+            rows.append({
+                "importyeti_key": s["importyeti_key"],
+                "name": s["name"],
+                "also_known_names": json.dumps(s["also_known_names"]) if s.get("also_known_names") else None,
+                "address": s.get("address"),
+                "address_country": s.get("address_country"),
+                "address_country_code": s.get("address_country_code"),
+                "country": s.get("country"),
+                "country_code": s.get("country_code"),
+                "website": s.get("website"),
+                "phone_number": s.get("phone_number"),
+                "total_shipments": s.get("total_shipments"),
+                "raw_api_response": json.dumps(s["raw_api_response"]) if s.get("raw_api_response") else None,
+                "ingested_at": now,
+                "updated_at": now,
+            })
+
+        errors = self._streaming_insert_with_retry(table_id, rows)
+        if errors:
+            logger.warning(f"[IMPORTYETI_BQ] Batch supplier insert had {len(errors)} errors: {errors[:3]}")
+        inserted = len(rows) - len(errors)
+        logger.info(f"[IMPORTYETI_BQ] Batch inserted {inserted}/{len(rows)} suppliers")
+        return inserted
+
+    def batch_insert_edges(self, edges: List[Dict[str, Any]]) -> int:
+        """
+        Bulk-insert edge records via streaming inserts.
+        No dedup check — caller must ensure no duplicates.
+
+        Args:
+            edges: List of dicts with keys matching iy_edges schema.
+                Required: source_type, source_key, target_type, target_key,
+                         relationship_type, discovered_from.
+
+        Returns:
+            Number of rows successfully inserted.
+        """
+        if not edges:
+            return 0
+
+        table_id = self._table_id(TABLE_EDGES)
+        now = datetime.utcnow().isoformat()
+
+        rows = []
+        for e in edges:
+            rows.append({
+                "source_type": e["source_type"],
+                "source_key": e["source_key"],
+                "target_type": e["target_type"],
+                "target_key": e["target_key"],
+                "relationship_type": e["relationship_type"],
+                "discovered_from": e["discovered_from"],
+                "total_shipments": e.get("total_shipments"),
+                "shipments_12m": e.get("shipments_12m"),
+                "shipment_pct_of_source": e.get("shipment_pct_of_source"),
+                "shipment_pct_of_target": e.get("shipment_pct_of_target"),
+                "total_weight": e.get("total_weight"),
+                "total_teus": e.get("total_teus"),
+                "supplier_country": e.get("supplier_country"),
+                "supplier_country_code": e.get("supplier_country_code"),
+                "most_recent_shipment": e.get("most_recent_shipment"),
+                "first_shipment": e.get("first_shipment"),
+                "business_length": e.get("business_length"),
+                "is_new_relationship": e.get("is_new_relationship"),
+                "ingested_at": now,
+            })
+
+        errors = self._streaming_insert_with_retry(table_id, rows)
+        if errors:
+            logger.warning(f"[IMPORTYETI_BQ] Batch edge insert had {len(errors)} errors: {errors[:3]}")
+        inserted = len(rows) - len(errors)
+        logger.info(f"[IMPORTYETI_BQ] Batch inserted {inserted}/{len(rows)} edges")
+        return inserted
+
+    def batch_insert_companies(self, companies: List[Dict[str, Any]]) -> int:
+        """
+        Bulk-insert new company records via streaming inserts.
+        For initial discovered-buyer inserts during Phase 3.
+        """
+        if not companies:
+            return 0
+
+        table_id = self._table_id(TABLE_COMPANIES)
+        now = datetime.utcnow().isoformat()
+
+        rows = []
+        for c in companies:
+            rows.append({
+                "importyeti_key": c["importyeti_key"],
+                "name": c["name"],
+                "entity_type": c.get("entity_type", "discovered"),
+                "also_known_names": json.dumps(c["also_known_names"]) if c.get("also_known_names") else None,
+                "address": c.get("address"),
+                "country": c.get("country", "United States"),
+                "country_code": c.get("country_code", "US"),
+                "website": c.get("website"),
+                "phone_number": c.get("phone_number"),
+                "total_shipments": c.get("total_shipments"),
+                "category": c.get("category"),
+                "ticker": c.get("ticker"),
+                "notes": c.get("notes"),
+                "shipments_by_country": json.dumps(c["shipments_by_country"]) if c.get("shipments_by_country") else None,
+                "raw_api_response": json.dumps(c["raw_api_response"]) if c.get("raw_api_response") else None,
+                "ingested_at": now,
+                "updated_at": now,
+            })
+
+        errors = self._streaming_insert_with_retry(table_id, rows)
+        if errors:
+            logger.warning(f"[IMPORTYETI_BQ] Batch company insert had {len(errors)} errors: {errors[:3]}")
+        inserted = len(rows) - len(errors)
+        logger.info(f"[IMPORTYETI_BQ] Batch inserted {inserted}/{len(rows)} companies")
+        return inserted
+
+    def get_supplier(self, importyeti_key: str) -> Optional[Dict[str, Any]]:
+        """Fetch a supplier by its ImportYeti key (latest version if dupes exist)."""
+        query = f"""
+            SELECT * FROM `{self._table_id(TABLE_SUPPLIERS)}`
+            WHERE importyeti_key = @key
+            ORDER BY updated_at DESC
+            LIMIT 1
+        """
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("key", "STRING", importyeti_key),
+            ]
+        )
+        rows = list(self.client.query(query, job_config=job_config).result())
+        if rows:
+            return dict(rows[0])
+        return None
+
+    def supplier_exists(self, importyeti_key: str) -> bool:
+        return self.get_supplier(importyeti_key) is not None
+
+    def search_suppliers_by_name(self, name: str) -> List[Dict[str, Any]]:
+        """LIKE search for suppliers by name (deduped to latest version)."""
+        query = f"""
+            WITH ranked AS (
+                SELECT *, ROW_NUMBER() OVER (
+                    PARTITION BY importyeti_key ORDER BY updated_at DESC
+                ) AS _rn
+                FROM `{self._table_id(TABLE_SUPPLIERS)}`
+            )
+            SELECT * EXCEPT(_rn) FROM ranked
+            WHERE _rn = 1
+              AND (LOWER(name) LIKE LOWER(@pattern)
+                   OR LOWER(also_known_names) LIKE LOWER(@pattern))
+            ORDER BY total_shipments DESC
+            LIMIT 20
+        """
+        pattern = f"%{name}%"
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("pattern", "STRING", pattern),
+            ]
+        )
+        rows = list(self.client.query(query, job_config=job_config).result())
+        return [dict(r) for r in rows]
+
+    def get_all_supplier_keys(self) -> List[str]:
+        """Get all supplier importyeti_keys currently stored."""
+        query = f"SELECT DISTINCT importyeti_key FROM `{self._table_id(TABLE_SUPPLIERS)}`"
+        rows = list(self.client.query(query).result())
+        return [r["importyeti_key"] for r in rows]
+
+    # =============================================
+    # EDGES — INSERT / READ
+    # =============================================
+
+    def insert_edge(
+        self,
+        source_type: str,
+        source_key: str,
+        target_type: str,
+        target_key: str,
+        relationship_type: str,
+        discovered_from: str,
+        total_shipments: Optional[int] = None,
+        shipments_12m: Optional[int] = None,
+        shipment_pct_of_source: Optional[float] = None,
+        shipment_pct_of_target: Optional[float] = None,
+        total_weight: Optional[int] = None,
+        total_teus: Optional[int] = None,
+        supplier_country: Optional[str] = None,
+        supplier_country_code: Optional[str] = None,
+        most_recent_shipment: Optional[str] = None,
+        first_shipment: Optional[str] = None,
+        business_length: Optional[str] = None,
+        is_new_relationship: Optional[bool] = None,
+    ) -> bool:
+        """
+        Insert an edge if it doesn't already exist.
+        Deduplicates on (source_key, target_key, relationship_type, discovered_from).
+        Returns True if inserted, False if already existed.
+        """
+        table_id = self._table_id(TABLE_EDGES)
+
+        # Check for existing edge first
+        check_query = f"""
+            SELECT 1 FROM `{table_id}`
+            WHERE source_key = @source_key
+              AND target_key = @target_key
+              AND relationship_type = @relationship_type
+              AND discovered_from = @discovered_from
+            LIMIT 1
+        """
+        check_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("source_key", "STRING", source_key),
+                bigquery.ScalarQueryParameter("target_key", "STRING", target_key),
+                bigquery.ScalarQueryParameter("relationship_type", "STRING", relationship_type),
+                bigquery.ScalarQueryParameter("discovered_from", "STRING", discovered_from),
+            ]
+        )
+        existing = list(self.client.query(check_query, job_config=check_config).result())
+        if existing:
+            return False
+
+        # Insert new edge
+        rows = [{
+            "source_type": source_type,
+            "source_key": source_key,
+            "target_type": target_type,
+            "target_key": target_key,
+            "relationship_type": relationship_type,
+            "discovered_from": discovered_from,
+            "total_shipments": total_shipments,
+            "shipments_12m": shipments_12m,
+            "shipment_pct_of_source": shipment_pct_of_source,
+            "shipment_pct_of_target": shipment_pct_of_target,
+            "total_weight": total_weight,
+            "total_teus": total_teus,
+            "supplier_country": supplier_country,
+            "supplier_country_code": supplier_country_code,
+            "most_recent_shipment": most_recent_shipment,
+            "first_shipment": first_shipment,
+            "business_length": business_length,
+            "is_new_relationship": is_new_relationship,
+            "ingested_at": datetime.utcnow().isoformat(),
+        }]
+
+        errors = self._streaming_insert_with_retry(table_id, rows)
+        if errors:
+            logger.error(f"[IMPORTYETI_BQ] Edge insert errors: {errors}")
+            return False
+        return True
+
+    def get_company_suppliers(self, company_key: str) -> List[Dict[str, Any]]:
+        """Get all suppliers for a company from edges (deduped)."""
+        query = f"""
+            WITH s_dedup AS (
+                SELECT * EXCEPT(_rn) FROM (
+                    SELECT *, ROW_NUMBER() OVER (
+                        PARTITION BY importyeti_key ORDER BY updated_at DESC
+                    ) AS _rn
+                    FROM `{self._table_id(TABLE_SUPPLIERS)}`
+                ) WHERE _rn = 1
+            )
+            SELECT
+                s.name AS supplier_name,
+                s.importyeti_key AS supplier_key,
+                s.country AS supplier_country,
+                s.total_shipments AS supplier_total_shipments,
+                e.total_shipments,
+                e.shipments_12m,
+                e.shipment_pct_of_source,
+                e.shipment_pct_of_target,
+                e.most_recent_shipment,
+                e.first_shipment,
+                e.business_length,
+                e.is_new_relationship
+            FROM `{self._table_id(TABLE_EDGES)}` e
+            JOIN s_dedup s ON e.target_key = s.importyeti_key
+            WHERE e.source_key = @company_key
+              AND e.relationship_type = 'imports_from'
+            ORDER BY e.shipments_12m DESC NULLS LAST, e.total_shipments DESC NULLS LAST
+        """
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("company_key", "STRING", company_key),
+            ]
+        )
+        rows = list(self.client.query(query, job_config=job_config).result())
+        return [dict(r) for r in rows]
+
+    def get_supplier_buyers(self, supplier_key: str) -> List[Dict[str, Any]]:
+        """Get all buyers for a supplier from edges."""
+        query = f"""
+            SELECT
+                c.name AS buyer_name,
+                c.importyeti_key AS buyer_key,
+                c.entity_type AS buyer_entity_type,
+                c.total_shipments AS buyer_total_shipments,
+                e.total_shipments,
+                e.shipments_12m,
+                e.shipment_pct_of_source,
+                e.shipment_pct_of_target,
+                e.most_recent_shipment,
+                e.first_shipment,
+                e.business_length,
+                e.is_new_relationship
+            FROM `{self._table_id(TABLE_EDGES)}` e
+            JOIN `{self._table_id(TABLE_COMPANIES)}` c ON e.target_key = c.importyeti_key
+            WHERE e.source_key = @supplier_key
+              AND e.relationship_type = 'supplies_to'
+            ORDER BY e.shipments_12m DESC NULLS LAST, e.total_shipments DESC NULLS LAST
+        """
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("supplier_key", "STRING", supplier_key),
+            ]
+        )
+        rows = list(self.client.query(query, job_config=job_config).result())
+        return [dict(r) for r in rows]
+
+    # =============================================
+    # INGESTION LOG
+    # =============================================
+
+    def log_ingestion(
+        self,
+        run_id: str,
+        phase: str,
+        entity_name: Optional[str] = None,
+        entity_key: Optional[str] = None,
+        status: str = "success",
+        error_message: Optional[str] = None,
+        api_credits_used: int = 0,
+        duration_ms: Optional[int] = None,
+    ):
+        """Write an audit trail entry."""
+        table_id = self._table_id(TABLE_INGESTION_LOG)
+        rows = [{
+            "run_id": run_id,
+            "phase": phase,
+            "entity_name": entity_name,
+            "entity_key": entity_key,
+            "status": status,
+            "error_message": error_message,
+            "api_credits_used": api_credits_used,
+            "duration_ms": duration_ms,
+            "timestamp": datetime.utcnow().isoformat(),
+        }]
+        errors = self._streaming_insert_with_retry(table_id, rows)
+        if errors:
+            logger.error(f"[IMPORTYETI_BQ] Ingestion log insert errors: {errors}")
+
+    # =============================================
+    # ANALYTICS QUERIES
+    # =============================================
+
+    def get_shared_suppliers(self, active_12m_only: bool = False) -> List[Dict[str, Any]]:
+        """Query shared suppliers view."""
+        view = "iy_v_shared_suppliers_12m" if active_12m_only else "iy_v_shared_suppliers"
+        query = f"SELECT * FROM `{self._table_id(view)}` LIMIT 50"
+        rows = list(self.client.query(query).result())
+        return [dict(r) for r in rows]
+
+    def get_competitor_activity(self) -> List[Dict[str, Any]]:
+        """Query competitor activity view."""
+        query = f"SELECT * FROM `{self._table_id('iy_v_competitor_activity_12m')}`"
+        rows = list(self.client.query(query).result())
+        return [dict(r) for r in rows]
+
+    def get_buyer_overlap(self) -> List[Dict[str, Any]]:
+        """Query buyer overlap view."""
+        query = f"SELECT * FROM `{self._table_id('iy_v_buyer_overlap')}` LIMIT 50"
+        rows = list(self.client.query(query).result())
+        return [dict(r) for r in rows]
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Get summary counts for all tables (deduped for suppliers)."""
+        stats = {}
+        for table_name in [TABLE_COMPANIES, TABLE_SUPPLIERS, TABLE_EDGES, TABLE_INGESTION_LOG]:
+            table_id = self._table_id(table_name)
+            try:
+                if table_name == TABLE_SUPPLIERS:
+                    query = f"SELECT COUNT(DISTINCT importyeti_key) as cnt FROM `{table_id}`"
+                else:
+                    query = f"SELECT COUNT(*) as cnt FROM `{table_id}`"
+                rows = list(self.client.query(query).result())
+                stats[table_name] = rows[0]["cnt"] if rows else 0
+            except Exception:
+                stats[table_name] = 0
+
+        # Entity type breakdown
+        try:
+            query = f"""
+                SELECT entity_type, COUNT(*) as cnt
+                FROM `{self._table_id(TABLE_COMPANIES)}`
+                GROUP BY entity_type
+            """
+            rows = list(self.client.query(query).result())
+            stats["companies_by_type"] = {r["entity_type"]: r["cnt"] for r in rows}
+        except Exception:
+            stats["companies_by_type"] = {}
+
+        # Edge type breakdown
+        try:
+            query = f"""
+                SELECT relationship_type, COUNT(*) as cnt
+                FROM `{self._table_id(TABLE_EDGES)}`
+                GROUP BY relationship_type
+            """
+            rows = list(self.client.query(query).result())
+            stats["edges_by_type"] = {r["relationship_type"]: r["cnt"] for r in rows}
+        except Exception:
+            stats["edges_by_type"] = {}
+
+        return stats
+
+    def search_by_name(self, name: str) -> Dict[str, List[Dict[str, Any]]]:
+        """Search both companies and suppliers by name. Used by MCP tools."""
+        return {
+            "companies": self.search_companies_by_name(name),
+            "suppliers": self.search_suppliers_by_name(name),
+        }
+
+    # =============================================
+    # GRAPH DATA FOR VISUALIZATION
+    # =============================================
+
+    def get_network_graph_data(
+        self,
+        entity_types: Optional[List[str]] = None,
+        min_shipments_12m: int = 0,
+    ) -> Dict[str, Any]:
+        """
+        Get nodes and edges for the frontend network graph visualization.
+
+        Returns:
+            {"nodes": [...], "edges": [...], "stats": {...}}
+        """
+        # Get tracked companies as nodes
+        if entity_types is None:
+            entity_types = ["target", "competitor"]
+
+        placeholders = ", ".join(f"'{et}'" for et in entity_types)
+
+        # Company nodes
+        company_query = f"""
+            SELECT importyeti_key, name, entity_type, total_shipments, category, ticker
+            FROM `{self._table_id(TABLE_COMPANIES)}`
+            WHERE entity_type IN ({placeholders})
+        """
+        companies = list(self.client.query(company_query).result())
+
+        nodes = []
+        company_keys = set()
+        for c in companies:
+            company_keys.add(c["importyeti_key"])
+            nodes.append({
+                "id": c["importyeti_key"],
+                "label": c["name"],
+                "type": "company",
+                "entity_type": c["entity_type"],
+                "total_shipments": c["total_shipments"],
+                "category": c["category"],
+                "ticker": c["ticker"],
+            })
+
+        # Get edges for these companies -> their suppliers
+        if company_keys:
+            keys_list = ", ".join(f"'{k}'" for k in company_keys)
+            edge_query = f"""
+                WITH s_dedup AS (
+                    SELECT * EXCEPT(_rn) FROM (
+                        SELECT *, ROW_NUMBER() OVER (
+                            PARTITION BY importyeti_key ORDER BY updated_at DESC
+                        ) AS _rn
+                        FROM `{self._table_id(TABLE_SUPPLIERS)}`
+                    ) WHERE _rn = 1
+                )
+                SELECT
+                    e.source_key, e.target_key, e.relationship_type,
+                    e.total_shipments, e.shipments_12m,
+                    s.name AS supplier_name, s.country AS supplier_country
+                FROM `{self._table_id(TABLE_EDGES)}` e
+                JOIN s_dedup s ON e.target_key = s.importyeti_key
+                WHERE e.source_key IN ({keys_list})
+                  AND e.relationship_type = 'imports_from'
+                  AND COALESCE(e.shipments_12m, 0) >= @min_shipments
+            """
+            edge_config = bigquery.QueryJobConfig(
                 query_parameters=[
-                    bigquery.ScalarQueryParameter("supplier_id", "STRING", supplier_id),
-                    bigquery.ScalarQueryParameter("snapshot_date", "DATE", latest_date),
+                    bigquery.ScalarQueryParameter("min_shipments", "INT64", min_shipments_12m),
                 ]
             )
-            
-            customers_result = self._client.query(query_customers, job_config=job_config)
-            profile["customers"] = [dict(row) for row in customers_result]
-            
-        return profile
+            edges_data = list(self.client.query(edge_query, job_config=edge_config).result())
 
-    async def get_network_graph(self) -> Dict[str, List[Any]]:
-        """Get nodes and links for network visualization."""
-        latest_date = await self.get_latest_snapshot_date()
-        if not latest_date:
-            return {"nodes": [], "links": []}
-            
-        dataset = f"{self.project_id}.{self.dataset_id}"
-        
-        # Get top relationships
-        query = f"""
-        SELECT 
-            t1.supplier_name,
-            t1.customer_name,
-            t1.total_shipments_to_customer,
-            t2.supplier_tier
-        FROM `{dataset}.iy_supplier_customers` t1
-        LEFT JOIN `{dataset}.iy_suppliers` t2 ON t1.supplier_id = t2.supplier_id
-        WHERE t1.snapshot_date = @snapshot_date
-        ORDER BY t1.total_shipments_to_customer DESC
-        LIMIT 200
-        """
-        
-        from google.cloud import bigquery
-        job_config = bigquery.QueryJobConfig(
-            query_parameters=[bigquery.ScalarQueryParameter("snapshot_date", "DATE", latest_date)]
-        )
-        
-        result = self._client.query(query, job_config=job_config)
-        
-        nodes = {}
-        links = []
-        
-        for row in result:
-            # Add supplier node
-            s_name = row.supplier_name
-            if s_name not in nodes:
-                nodes[s_name] = {"id": s_name, "type": "supplier", "tier": row.supplier_tier or "unknown"}
-            
-            # Add customer node
-            c_name = row.customer_name
-            if c_name not in nodes:
-                nodes[c_name] = {"id": c_name, "type": "customer"}
-                
-            # Add link
-            links.append({
-                "source": s_name,
-                "target": c_name,
-                "value": row.total_shipments_to_customer
-            })
-            
+            # Add supplier nodes and edges
+            supplier_keys_seen = set()
+            edges = []
+            for e in edges_data:
+                if e["target_key"] not in supplier_keys_seen:
+                    supplier_keys_seen.add(e["target_key"])
+                    nodes.append({
+                        "id": e["target_key"],
+                        "label": e["supplier_name"],
+                        "type": "supplier",
+                        "country": e["supplier_country"],
+                    })
+
+                edges.append({
+                    "source": e["source_key"],
+                    "target": e["target_key"],
+                    "relationship": e["relationship_type"],
+                    "total_shipments": e["total_shipments"],
+                    "shipments_12m": e["shipments_12m"],
+                })
+        else:
+            edges = []
+
         return {
-            "nodes": list(nodes.values()),
-            "links": links
+            "nodes": nodes,
+            "edges": edges,
+            "stats": {
+                "total_companies": len([n for n in nodes if n["type"] == "company"]),
+                "total_suppliers": len([n for n in nodes if n["type"] == "supplier"]),
+                "total_edges": len(edges),
+            },
         }

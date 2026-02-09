@@ -1,0 +1,82 @@
+{
+    "target_companies": [
+        {
+            "name": "Composites One",
+            "search_terms": ["composites one", "composites one llc"],
+            "category": "composites_distributor",
+            "notes": "Target company - largest composites distributor in North America. Distributes fiberglass, carbon fiber, resins, core materials, and process supplies."
+        }
+    ],
+    "competitors": [
+        {
+            "name": "Hexcel",
+            "search_terms": ["hexcel", "hexcel corporation"],
+            "category": "carbon_fiber_prepreg",
+            "ticker": "HXL",
+            "notes": "Carbon fiber, prepreg, honeycomb. Supplier to C1 AND sells direct to OEMs. ~$1.8B revenue."
+        },
+        {
+            "name": "Toray Composite Materials America",
+            "search_terms": ["toray composite materials", "toray industries", "toray"],
+            "category": "carbon_fiber_prepreg",
+            "ticker": "TRYIY",
+            "notes": "World's largest carbon fiber producer. Japanese parent, major US presence. Supplier AND direct competitor."
+        },
+        {
+            "name": "Solvay",
+            "search_terms": ["solvay", "solvay composite materials", "cytec"],
+            "category": "advanced_composites_resins",
+            "ticker": "SOLB",
+            "notes": "Advanced composites, specialty resins, adhesives. Acquired Cytec in 2015. Supplier AND direct competitor."
+        },
+        {
+            "name": "Huntsman",
+            "search_terms": ["huntsman", "huntsman corporation", "huntsman advanced materials"],
+            "category": "epoxy_resins_adhesives",
+            "ticker": "HUN",
+            "notes": "Epoxy resins, polyurethanes, adhesives. Key upstream supplier also going direct. ~$6B revenue."
+        },
+        {
+            "name": "Owens Corning",
+            "search_terms": ["owens corning", "owens corning composites"],
+            "category": "fiberglass_composites",
+            "ticker": "OC",
+            "notes": "World's largest fiberglass producer. Major C1 supplier AND competes direct to large OEMs. ~$10B revenue."
+        },
+        {
+            "name": "Gurit",
+            "search_terms": ["gurit", "gurit services"],
+            "category": "composite_materials_tooling",
+            "ticker": "GUR",
+            "notes": "Swiss composite materials, tooling, engineering. Wind energy and marine focus. Direct to OEM."
+        },
+        {
+            "name": "Teijin",
+            "search_terms": ["teijin", "toho tenax", "teijin automotive"],
+            "category": "carbon_fiber_thermoplastics",
+            "ticker": "3401",
+            "notes": "Japanese carbon fiber (Toho Tenax brand), thermoplastic composites. Growing US automotive presence."
+        },
+        {
+            "name": "Mitsubishi Chemical",
+            "search_terms": ["mitsubishi chemical", "mitsubishi rayon", "mitsubishi chemical america"],
+            "category": "carbon_fiber_composites",
+            "ticker": "4188",
+            "notes": "Carbon fiber (via Mitsubishi Rayon), MMA, composites. Japanese parent, large US manufacturing."
+        },
+        {
+            "name": "SGL Carbon",
+            "search_terms": ["sgl carbon", "sgl group"],
+            "category": "carbon_fiber_graphite",
+            "ticker": "SGL",
+            "notes": "German carbon fiber, graphite materials. Industrial composites, automotive. JV with BMW."
+        },
+        {
+            "name": "Jushi Group",
+            "search_terms": ["jushi group", "jushi usa", "jushi fiber"],
+            "category": "fiberglass",
+            "ticker": "600176",
+            "notes": "Chinese fiberglass giant. Massive US import volumes — very rich ImportYeti data. Direct price competitor."
+        }
+    ]
+}
