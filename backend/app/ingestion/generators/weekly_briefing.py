@@ -1127,73 +1127,106 @@ The script may contain executive quotes, SEC filing references, or expert podcas
             total_words = sum(len(turn["text"].split()) for turn in dialogue)
             logger.info(f"[PODCAST] Final dialogue: {len(dialogue)} turns, ~{total_words} words")
             
-            # 2. Convert dialogue to ElevenLabs Text-to-Dialogue format
-            inputs = []
+            # 2. Convert dialogue to ElevenLabs Text-to-Dialogue format and chunk
+            # ElevenLabs text-to-dialogue has a 5000 char limit per request
+            CHAR_LIMIT = 4800  # Leave margin below 5000
+            
+            all_inputs = []
             for turn in dialogue:
                 voice_id = self.host_voice_id if turn["speaker"] == "host" else self.analyst_voice_id
-                inputs.append({
+                all_inputs.append({
                     "text": turn["text"],
                     "voice_id": voice_id
                 })
             
-            # 3. Call ElevenLabs Text-to-Dialogue API (single call for entire conversation)
+            total_chars = sum(len(inp["text"]) for inp in all_inputs)
+            logger.info(f"[PODCAST] Total dialogue chars: {total_chars} (limit per call: {CHAR_LIMIT})")
+            
+            # Split inputs into chunks that fit within the character limit
+            chunks = []
+            current_chunk = []
+            current_chars = 0
+            for inp in all_inputs:
+                inp_chars = len(inp["text"])
+                if current_chunk and current_chars + inp_chars > CHAR_LIMIT:
+                    chunks.append(current_chunk)
+                    current_chunk = [inp]
+                    current_chars = inp_chars
+                else:
+                    current_chunk.append(inp)
+                    current_chars += inp_chars
+            if current_chunk:
+                chunks.append(current_chunk)
+            
+            logger.info(f"[PODCAST] Split into {len(chunks)} API chunks: {[sum(len(i['text']) for i in c) for c in chunks]} chars each")
+            
+            # 3. Call ElevenLabs Text-to-Dialogue API for each chunk
+            audio_segments = []
             max_retries = 3
-            retry_delay = 2
-            audio_data = None
             
-            for attempt in range(max_retries):
-                try:
-                    logger.info(f"Calling ElevenLabs Text-to-Dialogue API (attempt {attempt + 1}/{max_retries})")
-                    
-                    async with httpx.AsyncClient(timeout=300.0) as client:  # Increased from 120s for longer dialogues
-                        response = await client.post(
-                            "https://api.elevenlabs.io/v1/text-to-dialogue",
-                            headers={
-                                "xi-api-key": elevenlabs_api_key,
-                                "Content-Type": "application/json"
-                            },
-                            json={
-                                "inputs": inputs,
-                                "model_id": "eleven_v3",
-                                "apply_text_normalization": "on"
-                            }
-                        )
+            for chunk_idx, chunk_inputs in enumerate(chunks):
+                retry_delay = 2
+                chunk_audio = None
+                
+                for attempt in range(max_retries):
+                    try:
+                        logger.info(f"Calling ElevenLabs API chunk {chunk_idx + 1}/{len(chunks)} (attempt {attempt + 1}/{max_retries}, {sum(len(i['text']) for i in chunk_inputs)} chars)")
                         
-                        if response.status_code == 200:
-                            audio_data = response.content
-                            logger.info(f"Generated dialogue audio ({len(audio_data)} bytes)")
-                            break
-                        elif response.status_code == 429:
-                            logger.warning(f"Rate limited by ElevenLabs, retrying in {retry_delay}s...")
-                            if attempt < max_retries - 1:
-                                await asyncio.sleep(retry_delay)
-                                retry_delay *= 2
-                                continue
-                        else:
-                            logger.error(f"ElevenLabs API error: {response.status_code} - {response.text}")
-                            if attempt < max_retries - 1:
-                                await asyncio.sleep(retry_delay)
-                                retry_delay *= 2
-                                continue
+                        async with httpx.AsyncClient(timeout=300.0) as client:
+                            response = await client.post(
+                                "https://api.elevenlabs.io/v1/text-to-dialogue",
+                                headers={
+                                    "xi-api-key": elevenlabs_api_key,
+                                    "Content-Type": "application/json"
+                                },
+                                json={
+                                    "inputs": chunk_inputs,
+                                    "model_id": "eleven_v3",
+                                    "apply_text_normalization": "on"
+                                }
+                            )
                             
-                except httpx.TimeoutException as e:
-                    logger.error(f"ElevenLabs API timeout after 300s: {type(e).__name__}")
-                    if attempt < max_retries - 1:
-                        await asyncio.sleep(retry_delay)
-                        retry_delay *= 2
-                        continue
-                    raise
-                except Exception as e:
-                    logger.error(f"Error calling ElevenLabs API: {type(e).__name__}: {e}")
-                    if attempt < max_retries - 1:
-                        await asyncio.sleep(retry_delay)
-                        retry_delay *= 2
-                        continue
-                    raise
+                            if response.status_code == 200:
+                                chunk_audio = response.content
+                                logger.info(f"Chunk {chunk_idx + 1}/{len(chunks)} generated ({len(chunk_audio)} bytes)")
+                                break
+                            elif response.status_code == 429:
+                                logger.warning(f"Rate limited by ElevenLabs, retrying in {retry_delay}s...")
+                                if attempt < max_retries - 1:
+                                    await asyncio.sleep(retry_delay)
+                                    retry_delay *= 2
+                                    continue
+                            else:
+                                logger.error(f"ElevenLabs API error: {response.status_code} - {response.text}")
+                                if attempt < max_retries - 1:
+                                    await asyncio.sleep(retry_delay)
+                                    retry_delay *= 2
+                                    continue
+                                
+                    except httpx.TimeoutException as e:
+                        logger.error(f"ElevenLabs API timeout after 300s: {type(e).__name__}")
+                        if attempt < max_retries - 1:
+                            await asyncio.sleep(retry_delay)
+                            retry_delay *= 2
+                            continue
+                        raise
+                    except Exception as e:
+                        logger.error(f"Error calling ElevenLabs API: {type(e).__name__}: {e}")
+                        if attempt < max_retries - 1:
+                            await asyncio.sleep(retry_delay)
+                            retry_delay *= 2
+                            continue
+                        raise
+                
+                if not chunk_audio:
+                    logger.error(f"Failed to generate audio for chunk {chunk_idx + 1} after all retries")
+                    return None
+                
+                audio_segments.append(chunk_audio)
             
-            if not audio_data:
-                logger.error("Failed to generate audio after all retries")
-                return None
+            # Concatenate MP3 segments (MP3 frames are self-contained, simple concat works)
+            audio_data = b"".join(audio_segments)
+            logger.info(f"[PODCAST] Combined {len(audio_segments)} segments: {len(audio_data)} bytes total")
             
             # 4. Upload to Google Cloud Storage
             from google.cloud import storage

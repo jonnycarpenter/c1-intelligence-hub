@@ -20,7 +20,49 @@ Without reliable daily ingestion:
 
 ## 🚨 TODO / Open Issues
 
-(none currently)
+### Earnings Transcript Ingestion (API Ninja) — Check if broken
+- Last successful fetch was **January 5, 2026** — over a month stale
+- Investigate whether the API Ninja earnings endpoint is returning empty results, erroring, or if the scheduler job is silently failing
+- Check Cloud Run logs for the `ingest-financial` scheduler job (`earnings` source)
+
+### Break Out Transcripts & SEC Filings into Dedicated BigQuery Tables
+- Currently, earnings transcripts and SEC filings are stored in the `articles` table with `source_type` filters (`earnings_transcript`, `sec_filing`)
+- This pollutes the articles table with non-article content (full transcripts, filing HTML)
+- **Plan**: Create dedicated `earnings_transcripts` and `sec_filings` BigQuery tables
+- Migrate existing rows from `articles` where `source_type IN ('earnings_transcript', 'sec_filing')`
+- Update `earnings_quotes` and `sec_filing_nuggets` to reference the new source tables instead of parsing from `articles`
+- Update ingestion orchestrator to write to the new tables instead of `articles`
+- Keep `articles` table clean — actual news articles, press releases, and research only
+
+---
+## 📅 SESSION 93: Scheduler Fix, Voice Enrichment Docs & Briefing Regeneration (February 9, 2026)
+
+**Status**: 🔧 IN PROGRESS
+
+### 🎯 Goal
+
+Fix the failed Monday Cloud Scheduler `weekly-executive-briefing` job, document Voice Enrichment (Session 92+), and regenerate this week's briefing.
+
+### ✅ Completed
+
+1. **Startup Probe Fix** — Root cause: expanded import chain (earnings, sec_filings, importyeti, podcasts) pushed cold start to ~65s, exceeding the 65s startup probe limit. Fixed `failureThreshold` from 12→36 (190s allowed). Applied immediately via `gcloud` and persistently in `cloudbuild.yaml` (commit `94d52ea`).
+2. **Briefing Regeneration** — Triggered on production Cloud Run. Agent 1 processed 172 items in 5 batches → Agent 2 synthesized with Opus 4.5 (Exa peripheral search, voice enrichment) → saved to BigQuery. Two briefings generated (duplicate trigger). Podcast generation **failed on both** — needs investigation.
+3. **Voice Enrichment README** — Updated `backend/app/ingestion/generators/README.md` with Voice Enrichment section (SEC nuggets, earnings quotes, podcast quotes), corrected Exa iteration count, updated podcast scaffold docs.
+
+### 🔍 Investigating Now
+
+- **Podcast generation failure** — Both Feb 9 briefing runs logged `Podcast generation failed or skipped - briefing will be saved without podcast`. Root cause: **ElevenLabs Text-to-Dialogue API has a 5,000 character limit per request.** The naturalized dialogue was 9,355 characters (42 turns, ~1344 words) — nearly 2x the limit. Previous weeks' briefings had shorter dialogues that fit within the limit.
+  - **Fix**: Chunked the dialogue into batches under 4,800 characters each. Multiple API calls are made sequentially, and the resulting MP3 segments are concatenated (MP3 frames are self-contained, so byte concatenation works). Modified `_generate_podcast()` in `weekly_briefing.py`.
+- **Duplicate briefing cleanup** — Two Feb 9 briefings existed in `weekly_briefings` table (`bfe304dd` and `8f60f092`). Deleted the older one (`bfe304dd`) via table swap (CREATE AS SELECT + DROP + ALTER RENAME) since BigQuery streaming buffer blocks direct DELETE on recent rows.
+
+### 📊 BigQuery State (weekly_briefings)
+
+| ID (prefix) | generated_at | period_end | podcast | notes |
+|-------------|-------------|------------|---------|-------|
+| `8f60f092` | Feb 9 15:49 | Feb 9 | ❌ | **CURRENT** — latest, served on frontend |
+| `bfe304dd` | Feb 9 15:37 | Feb 9 | ❌ | **DELETE** — duplicate from first trigger |
+| `433a266e` | Feb 2 14:33 | Feb 2 | ✅ | Last week (has podcast) |
+| `e838b122` | Jan 26 14:33 | Jan 26 | ✅ | Two weeks ago |
 
 ---
 ## 📅 SESSION 92: SEC Filing Nugget Extraction Pipeline (February 8, 2026)

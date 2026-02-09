@@ -16,9 +16,10 @@ The weekly executive briefing uses a **2-agent pipeline**:
 │  │   Pre-Brief     │ ──────►  │ Executive Synthesizer  │ ─────► │
 │  │   Generator     │          │                        │        │
 │  │                 │          │ • Historical context   │◄─┐     │
-│  │   claude-sonnet │          │ • Exa peripheral       │  │     │
-│  │   (fast, cheap) │          │ • Source linking       │  │     │
-│  └─────────────────┘          │ • BLUF generation      │  │     │
+│  │   claude-sonnet │          │ • Voice enrichment     │  │     │
+│  │   (fast, cheap) │          │ • Exa peripheral       │  │     │
+│  └─────────────────┘          │ • Source linking       │  │     │
+│         │                     │ • BLUF generation      │  │     │
 │         │                     │                        │  │     │
 │         │                     │   claude-opus-4-5      │  │     │
 │         ▼                     │   (high quality)       │  │     │
@@ -94,11 +95,34 @@ Agent 2 produces briefings with this structure:
 
 ## Key Features
 
+### Voice Enrichment (Session 93)
+
+Before synthesis, Agent 2 pre-fetches **authoritative voice data** from three BigQuery sources to ground analysis in real quotes:
+
+| Source | Table | Purpose |
+|--------|-------|---------|
+| SEC Filing Nuggets | `sec_filing_nuggets` | Legally mandated disclosures — competitive shifts, risk factors, forward guidance |
+| Earnings Call Quotes | `earnings_quotes` | Executive quotes from Q&A sessions — management sentiment, market outlook |
+| Industry Podcast Quotes | `podcast_quotes` | Practitioner insights — technology adoption, supply chain signals |
+
+**How it works** (`_fetch_voice_enrichment()`):
+1. Extracts topics and companies from Agent 1's pre-brief
+2. Queries each BigQuery table with targeted keyword search (top 10 results each)
+3. Formats into an `<enrichment_context>` block injected into the synthesis prompt
+4. Agent 2 selectively weaves quotes into insights with clear attribution: `(SEC Filing)`, `(Earnings Call)`, `(Industry Podcast)`
+
+**Guidelines for Agent 2**:
+- Only include quotes that genuinely reinforce a strategic theme
+- Do NOT force-fit quotes — if nothing is relevant, proceed without
+- Attribute clearly: "As [Speaker], [Role] at [Company] noted in [Source]..."
+
+Each enrichment fetch is wrapped in try/except so a single source failure doesn't break the pipeline.
+
 ### Podcast Generation
 After Agent 2 completes, briefing text goes through a 3-step podcast pipeline:
 
-1. **Scaffold** (`_build_podcast_dialogue()`) — Deterministic extraction of briefing content into host/analyst turns
-2. **Naturalize** (`_naturalize_dialogue()`) — Claude rewrites the scaffold into natural conversation with reactions, interjections, and varied energy. Falls back to original scaffold on failure.
+1. **Scaffold** (`_build_podcast_dialogue()`) — Deterministic extraction of briefing content into host/analyst turns. Voice-enriched insights (containing SEC, earnings, or podcast attribution markers) get special handling with analyst delivery and host reactions.
+2. **Naturalize** (`_naturalize_dialogue()`) — Claude Sonnet rewrites the scaffold into natural conversation with reactions, interjections, and varied energy. The LLM is instructed to preserve executive/expert quotes verbatim and deliver them naturally (e.g., "the CFO actually said, and I quote..."). Falls back to original scaffold on failure.
 3. **TTS** (`_generate_podcast()`) — ElevenLabs Text-to-Dialogue API generates multi-voice audio
 
 Result:
@@ -165,7 +189,7 @@ Each insight is tagged:
 Agent 2 can use `search_peripheral_intelligence()` to find adjacent signals:
 - Validates high-conviction claims
 - Fills gaps in coverage
-- Limited to 3 searches per briefing
+- Up to 5 iterations (search loop with scratchpad notes across iterations)
 
 ### Week Date Calculation
 Briefings always reference **this week's Monday** as the period_end date:
