@@ -57,7 +57,6 @@ steps:
       - 'gen2'
       - '--cpu-boost'
       - '--no-cpu-throttling'
-      - '--startup-cpu-boost'
       - '--startup-probe'
       - 'httpGet.path=/api/health,httpGet.port=8080,initialDelaySeconds=10,periodSeconds=5,timeoutSeconds=5,failureThreshold=36'
       - '--add-volume'
