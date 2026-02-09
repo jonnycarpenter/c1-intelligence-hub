@@ -14,6 +14,15 @@ import { IndustriesDashboard } from '@/components/industries'
 import { FieldIntelDashboard } from '@/components/field-intel'
 import { PipelineDashboard } from '@/components/pipeline'
 // import { ImportYetiDashboard } from '@/components/importyeti' // ARCHIVED - Trade Intel feature
+import dynamic from 'next/dynamic'
+const SupplyNetworkDashboard = dynamic(() => import('@/components/supply-network/SupplyNetworkDashboard'), {
+  ssr: false,
+  loading: () => (
+    <div className="h-full flex items-center justify-center">
+      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-500" />
+    </div>
+  ),
+})
 import DataPreferencesDashboard from '@/components/data-preferences/DataPreferencesDashboard'
 import { DiscoveryView } from '@/components/feed'
 import { GuidePanel } from '@/components/guide'
@@ -534,6 +543,9 @@ export default function Home() {
             {activeMode === 'pipeline' && (
               <PipelineDashboard />
             )}
+            {activeMode === 'supply-network' && (
+              <SupplyNetworkDashboard />
+            )}
             {/* ARCHIVED - Trade Intel feature */}
             {/* {activeMode === 'importyeti' && (
               <ImportYetiDashboard />
@@ -545,8 +557,8 @@ export default function Home() {
             )}
           </div>
 
-          {/* Right panel - Chat (hidden for pulse, discovery, research, pipeline, products, field-sales, and data-preferences) */}
-          {activeMode !== 'pulse' && activeMode !== 'discovery' && activeMode !== 'research' && activeMode !== 'pipeline' && activeMode !== 'products' && activeMode !== 'field-sales' && activeMode !== 'data-preferences' && (
+          {/* Right panel - Chat (hidden for pulse, discovery, research, pipeline, supply-network, products, field-sales, and data-preferences) */}
+          {activeMode !== 'pulse' && activeMode !== 'discovery' && activeMode !== 'research' && activeMode !== 'pipeline' && activeMode !== 'supply-network' && activeMode !== 'products' && activeMode !== 'field-sales' && activeMode !== 'data-preferences' && (
             <div className="w-[400px] shrink-0 border-l border-slate-200 bg-white">
               <ChatInterface
                 mode={activeMode}

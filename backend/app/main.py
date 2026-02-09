@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
 from app.config.settings import settings
-from app.api.routes import chat, reports, data, digest, briefing, podcast, ingest, products, companies, industries, data_preferences, data_ingestion, scheduler, deep_research, exa_pipeline, datasheets, memory, auth, discovery, guide
+from app.api.routes import chat, reports, data, digest, briefing, podcast, ingest, products, companies, industries, data_preferences, data_ingestion, scheduler, deep_research, exa_pipeline, datasheets, memory, auth, discovery, guide, supply_network
 from app.utils.logger import setup_logging, get_logger
 
 # ImportYeti supply chain data now handled via MCP tools (supply_chain.py)
@@ -72,6 +72,7 @@ app.include_router(memory.router, prefix="/api/memory", tags=["memory"])
 app.include_router(auth.router, prefix="/api", tags=["auth"])
 app.include_router(discovery.router, prefix="/api/discovery", tags=["discovery"])
 app.include_router(guide.router, prefix="/api/guide", tags=["guide"])
+app.include_router(supply_network.router, prefix="/api/supply-network", tags=["supply-network"])
 
 
 @app.get("/api/health")

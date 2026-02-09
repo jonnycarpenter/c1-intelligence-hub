@@ -1,7 +1,7 @@
 // ============================================
 // Core Types
 // ============================================
-export type Mode = 'pulse' | 'discovery' | 'research' | 'products' | 'field-sales' | 'pipeline' | 'companies' | 'industries' | 'data-preferences' // | 'importyeti' // ARCHIVED
+export type Mode = 'pulse' | 'discovery' | 'research' | 'products' | 'field-sales' | 'pipeline' | 'supply-network' | 'companies' | 'industries' | 'data-preferences' // | 'importyeti' // ARCHIVED
 export type ViewMode = 'grid' | 'list'
 export type Priority = 'critical' | 'high' | 'medium' | 'low'
 // Categories aligned with backend ContentCategory/DigestCategory enums
@@ -576,6 +576,7 @@ export const chatSuggestions: Record<Mode, string[]> = {
   products: ['Hexcel prepreg SKUs for aerospace', 'Compare epoxy resin options', 'T700 carbon fiber specs'],
   'field-sales': ['Record field intel', 'Voice memo from customer visit', 'Log competitor sighting'],
   pipeline: ['Composite buyers at Boeing', 'Aerospace contacts in my territory', 'New prospect recommendations'],
+  'supply-network': ['Show shared suppliers', 'Hexcel supplier network', 'Which suppliers does Toray use?'],
   companies: ['Show tracked companies', 'Latest Hexcel news', 'Compare Toray vs SGL Carbon'],
   industries: ['Aerospace market overview', 'Which industries are growing fastest?', 'EV composites trends'],
   'data-preferences': ['Update my tracked companies', 'Change my material preferences', 'Set industry focus'],
@@ -590,6 +591,7 @@ export const welcomeMessages: Record<Mode, string> = {
   products: "Welcome to Product Intelligence.\n\nI can help you with:\n• **SKU lookups** — competitor catalogs\n• **Spec comparisons** — technical specs\n• **Gap analysis** — opportunities",
   'field-sales': "Welcome to Field Intel. Coming soon!\n\nYou'll be able to:\n• **Record voice memos** — capture field intelligence\n• **Log competitor sightings** — track field observations\n• **Share insights** — distribute intel to the team",
   pipeline: "Welcome to Pipeline.\n\nDiscover new prospects and contacts using AI-powered semantic search:\n• **Find Similar Companies** — Enter a customer URL to find lookalikes\n• **Search Companies** — Natural language company discovery\n• **Find Contacts** — Decision makers by role and industry",
+  'supply-network': "Welcome to Supply Network.\n\nVisualize supply chain relationships:\n• **Network graph** — C1 and 10 competitors with their suppliers\n• **Drill-down** — Click any node to see supplier or buyer details\n• **Shared suppliers** — Identify overlapping supply chains",
   companies: "Welcome to Company Intelligence.\n\nI can help you with:\n• **Company tracking** — competitors, suppliers, customers\n• **Earnings analysis** — financial performance\n• **Market position** — competitive landscape",
   industries: "Welcome to Industry Intelligence.\n\nI can help you with:\n• **Market analysis** — size, growth, trends\n• **Industry trends** — emerging applications\n• **Sector comparisons** — cross-industry insights",
   'data-preferences': "Welcome to Data Preferences.\n\nI can help you with:\n• **Company tracking** — add or remove companies\n• **Material preferences** — focus materials\n• **Industry settings** — customize your focus areas",

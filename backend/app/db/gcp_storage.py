@@ -801,7 +801,12 @@ class BigQueryDataStorage(DataStorageInterface):
                 raise
                 
     async def get_articles_by_ids(self, article_ids: List[str]) -> List[Dict[str, Any]]:
-        """Get articles by their IDs from BigQuery."""
+        """Get articles by their IDs from BigQuery.
+        
+        IMPORTANT: Returns articles in the SAME ORDER as article_ids.
+        This is critical for citation mapping — citation [N] must map to article_ids[N-1].
+        Articles not found in BigQuery are represented as placeholder dicts with just the id.
+        """
         if not article_ids:
             return []
             
@@ -815,10 +820,32 @@ class BigQueryDataStorage(DataStorageInterface):
             query_job = self.client.query(query)
             results = query_job.result()
             
-            articles = []
+            # Build a lookup dict by id
+            articles_by_id = {}
             for row in results:
-                articles.append(dict(row))
-            return articles
+                row_dict = dict(row)
+                articles_by_id[row_dict.get('id', '')] = row_dict
+            
+            # Return in the SAME ORDER as article_ids (critical for citation mapping)
+            ordered_articles = []
+            missing_count = 0
+            for aid in article_ids:
+                if aid in articles_by_id:
+                    ordered_articles.append(articles_by_id[aid])
+                else:
+                    # Placeholder for missing articles — preserves positional indexing
+                    missing_count += 1
+                    ordered_articles.append({
+                        'id': aid,
+                        'title': 'Article not found',
+                        'url': '',
+                        'published_at': None,
+                    })
+            
+            if missing_count > 0:
+                logger.warning(f"get_articles_by_ids: {missing_count}/{len(article_ids)} articles not found in BQ")
+            
+            return ordered_articles
         except Exception as e:
             logger.error(f"Error fetching articles by IDs from BigQuery: {e}")
             return []
@@ -1750,6 +1777,10 @@ class BigQueryDataStorage(DataStorageInterface):
             bigquery.SchemaField("article_ids", "STRING"),  # JSON array
             bigquery.SchemaField("quarter", "STRING"),
             bigquery.SchemaField("week_of_year", "INT64"),
+            # Podcast metadata (added Session 94)
+            bigquery.SchemaField("podcast_url", "STRING"),
+            bigquery.SchemaField("podcast_duration_seconds", "FLOAT64"),
+            bigquery.SchemaField("podcast_generated_at", "TIMESTAMP"),
         ]
         
         table = bigquery.Table(table_id, schema=schema)
@@ -1765,6 +1796,21 @@ class BigQueryDataStorage(DataStorageInterface):
         except Exception as e:
             if "Already Exists" in str(e):
                 logger.info(f"Table {table_id} already exists")
+                # Ensure podcast columns exist (schema migration for existing tables)
+                try:
+                    existing_table = self.client.get_table(table_id)
+                    existing_field_names = {f.name for f in existing_table.schema}
+                    new_fields = []
+                    for field in schema:
+                        if field.name not in existing_field_names:
+                            new_fields.append(field)
+                    if new_fields:
+                        updated_schema = list(existing_table.schema) + new_fields
+                        existing_table.schema = updated_schema
+                        self.client.update_table(existing_table, ["schema"])
+                        logger.info(f"Added {len(new_fields)} new columns to {table_id}: {[f.name for f in new_fields]}")
+                except Exception as migrate_err:
+                    logger.warning(f"Schema migration for {table_id} failed (non-fatal): {migrate_err}")
             else:
                 raise
     

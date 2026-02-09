@@ -53,7 +53,7 @@ export interface ApiDigest {
 
 export interface ApiQueryRequest {
   message: string
-  mode: 'pulse' | 'discovery' | 'research' | 'products' | 'field-sales' | 'pipeline' | 'companies' | 'industries' | 'data-preferences' | 'importyeti'
+  mode: 'pulse' | 'discovery' | 'research' | 'products' | 'field-sales' | 'pipeline' | 'supply-network' | 'companies' | 'industries' | 'data-preferences' | 'importyeti'
   conversation_id?: string
   context?: {
     companies?: string[]
@@ -587,6 +587,113 @@ class ApiClient {
     return response.json()
   }
   */
+
+  // =====================================
+  // Supply Network
+  // =====================================
+
+  /**
+   * Get network graph data (nodes/edges) for visualization
+   */
+  async getSupplyNetworkGraph(
+    entityTypes: string = 'target,competitor',
+    minShipments12m: number = 0
+  ): Promise<{
+    nodes: Array<{
+      id: string
+      label: string
+      type: 'company' | 'supplier'
+      entity_type?: 'target' | 'competitor' | 'discovered'
+      total_shipments?: number
+      category?: string
+      ticker?: string
+      country?: string
+    }>
+    edges: Array<{
+      source: string
+      target: string
+      relationship: string
+      total_shipments?: number
+      shipments_12m?: number
+    }>
+    stats: {
+      total_companies: number
+      total_suppliers: number
+      total_edges: number
+    }
+  }> {
+    const params = new URLSearchParams({
+      entity_types: entityTypes,
+      min_shipments_12m: minShipments12m.toString(),
+    })
+    const response = await fetch(`${this.baseUrl}/api/supply-network/graph?${params}`)
+    if (!response.ok) {
+      throw new Error(`Failed to fetch network graph: ${response.statusText}`)
+    }
+    return response.json()
+  }
+
+  /**
+   * Get supply network database stats
+   */
+  async getSupplyNetworkStats(): Promise<Record<string, any>> {
+    const response = await fetch(`${this.baseUrl}/api/supply-network/stats`)
+    if (!response.ok) {
+      throw new Error(`Failed to fetch stats: ${response.statusText}`)
+    }
+    return response.json()
+  }
+
+  /**
+   * Get company drill-down (profile + supplier list)
+   */
+  async getCompanyDetail(importyetiKey: string): Promise<{
+    company: Record<string, any>
+    suppliers: Array<Record<string, any>>
+    supplier_count: number
+  }> {
+    const response = await fetch(
+      `${this.baseUrl}/api/supply-network/company/${encodeURIComponent(importyetiKey)}`
+    )
+    if (!response.ok) {
+      throw new Error(`Failed to fetch company: ${response.statusText}`)
+    }
+    return response.json()
+  }
+
+  /**
+   * Get supplier drill-down (profile + buyer list)
+   */
+  async getSupplierDetail(importyetiKey: string): Promise<{
+    supplier: Record<string, any>
+    buyers: Array<Record<string, any>>
+    buyer_count: number
+  }> {
+    const response = await fetch(
+      `${this.baseUrl}/api/supply-network/supplier/${encodeURIComponent(importyetiKey)}`
+    )
+    if (!response.ok) {
+      throw new Error(`Failed to fetch supplier: ${response.statusText}`)
+    }
+    return response.json()
+  }
+
+  /**
+   * Get shared suppliers between competitors
+   */
+  async getSharedSuppliers(active12mOnly: boolean = false): Promise<{
+    shared_suppliers: Array<Record<string, any>>
+    total: number
+  }> {
+    const params = new URLSearchParams({
+      active_12m_only: active12mOnly.toString(),
+    })
+    const response = await fetch(`${this.baseUrl}/api/supply-network/shared-suppliers?${params}`)
+    if (!response.ok) {
+      throw new Error(`Failed to fetch shared suppliers: ${response.statusText}`)
+    }
+    return response.json()
+  }
 
   // =====================================
   // Memory / Long-term Storage

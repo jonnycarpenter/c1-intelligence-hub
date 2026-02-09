@@ -40,6 +40,11 @@ const modeSuggestions: Record<Mode, string[]> = {
     "Aerospace contacts in my territory",
     "New prospect recommendations",
   ],
+  'supply-network': [
+    "Show shared suppliers between competitors",
+    "Hexcel supplier network",
+    "Which suppliers does Toray use?",
+  ],
   companies: [
     "Show me all tracked companies",
     "What's the latest on Hexcel's earnings?",
@@ -64,6 +69,7 @@ const welcomeMessages: Record<Mode, string> = {
   products: "Let's explore your product intelligence. I can help with SKU analysis, alternatives, and supplier comparisons.",
   'field-sales': "Field Intel is coming soon! You'll be able to record voice memos, log competitor sightings, and share field observations.",
   pipeline: "Pipeline is coming soon! You'll be able to search contacts, find prospects in your territory, and get AI-powered lead recommendations.",
+  'supply-network': "Explore supply chain relationships for C1 and competitors. Click nodes on the graph to drill down into supplier or buyer details.",
   companies: "Let's explore company intelligence. I can track competitors, analyze earnings, and monitor market positions.",
   industries: "Ready to analyze industry trends. I can provide insights on market sizes, growth rates, and emerging applications.",
   'data-preferences': "Manage your tracked data and preferences. I can help add or remove companies, materials, and industries.",

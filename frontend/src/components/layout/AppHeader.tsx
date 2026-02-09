@@ -58,6 +58,13 @@ const modeConfig: Record<Mode, { icon: typeof Activity; title: string; subtitle:
     color: 'text-slate-500',
     bg: 'bg-slate-100',
   },
+  'supply-network': {
+    icon: Ship,
+    title: 'Supply Network',
+    subtitle: 'Supply chain graph & relationships',
+    color: 'text-indigo-500',
+    bg: 'bg-indigo-100',
+  },
   companies: {
     icon: Building2,
     title: 'Company Intelligence',

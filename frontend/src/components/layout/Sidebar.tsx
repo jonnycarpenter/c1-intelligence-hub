@@ -39,6 +39,7 @@ const navItems: NavItem[] = [
   { id: 'discovery', label: 'Market', icon: Compass, description: 'Industry landscape', color: 'text-teal-500', bg: 'bg-teal-500', tooltip: 'Explore market intelligence with AI assistant' },
   { id: 'research', label: 'Research', icon: Search, description: 'Deep analysis', color: 'text-emerald-500', bg: 'bg-emerald-500' },
   { id: 'pipeline', label: 'Pipeline', icon: GitBranch, description: 'Prospect discovery', color: 'text-purple-500', bg: 'bg-purple-500', tooltip: 'Find similar companies and decision makers' },
+  { id: 'supply-network', label: 'Supply Network', icon: Ship, description: 'Supply chain graph', color: 'text-indigo-500', bg: 'bg-indigo-500' },
   // { id: 'importyeti', label: 'Trade Intel', icon: Ship, description: 'Supply chain tracking', color: 'text-indigo-500', bg: 'bg-indigo-500' }, // ARCHIVED
   { id: 'products', label: 'Products', icon: Package, description: 'Product intelligence', color: 'text-blue-500', bg: 'bg-blue-500', isBeta: true, isHidden: true },
   { id: 'field-sales', label: 'Field Intel', icon: Mic, description: 'Field observations', color: 'text-emerald-500', bg: 'bg-emerald-500', isDemo: true, isHidden: true, tooltip: 'Capture field intelligence' },

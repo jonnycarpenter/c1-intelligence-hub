@@ -334,14 +334,19 @@ FINAL BRIEFING JSON FORMAT:
             return None
     
     async def _get_pre_brief_articles(self, article_ids: List[str]) -> List[Dict[str, Any]]:
-        """Get the full article objects for those referenced in the pre-brief."""
+        """Get the full article objects for those referenced in the pre-brief.
+        
+        Returns articles in the SAME ORDER as article_ids to preserve citation mapping.
+        Citation [N] in the briefing corresponds to article_ids[N-1].
+        """
         if not article_ids:
             return []
         
-        # Batch query for articles from BigQuery
+        # Batch query for articles from BigQuery (order-preserving)
         bq_storage = await self._get_bq_storage()
         if bq_storage:
             articles = await bq_storage.get_articles_by_ids(article_ids)
+            logger.info(f"Agent 2: Fetched {len(articles)} articles for {len(article_ids)} article_ids (order preserved)")
             return articles
         return []
     
@@ -1550,6 +1555,13 @@ Your response MUST be the final JSON briefing format, NOT a tool_calls request.
                             exa_id_to_unified
                         )
                     cleaned_insights.append(cleaned_insight)
+                
+                logger.info(
+                    f"Agent 2: Section '{section.get('header', 'Update')}' — "
+                    f"{len(valid_pre_brief_citations)} pre-brief citations, "
+                    f"{len(exa_citations)} exa citations, "
+                    f"{len(section_source_articles)} source articles built"
+                )
                 
                 processed_sections.append({
                     "header": section.get("header", "Update"),
