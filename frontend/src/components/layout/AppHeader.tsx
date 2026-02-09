@@ -74,8 +74,8 @@ const modeConfig: Record<Mode, { icon: typeof Activity; title: string; subtitle:
   },
   industries: {
     icon: Factory,
-    title: 'Industry Intelligence',
-    subtitle: 'Market trends & insights',
+    title: 'Industry Narratives',
+    subtitle: '90-day narrative timelines by end-market',
     color: 'text-purple-500',
     bg: 'bg-purple-100',
   },

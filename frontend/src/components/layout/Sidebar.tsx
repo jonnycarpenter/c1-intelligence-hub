@@ -44,7 +44,7 @@ const navItems: NavItem[] = [
   { id: 'products', label: 'Products', icon: Package, description: 'Product intelligence', color: 'text-blue-500', bg: 'bg-blue-500', isBeta: true, isHidden: true },
   { id: 'field-sales', label: 'Field Intel', icon: Mic, description: 'Field observations', color: 'text-emerald-500', bg: 'bg-emerald-500', isDemo: true, isHidden: true, tooltip: 'Capture field intelligence' },
   { id: 'companies', label: 'Companies', icon: Building2, description: 'Coming soon', color: 'text-slate-500', bg: 'bg-slate-500', isDisabled: true, isHidden: true },
-  { id: 'industries', label: 'Industries', icon: Factory, description: 'Coming soon', color: 'text-slate-500', bg: 'bg-slate-500', isDisabled: true, isHidden: true },
+  { id: 'industries', label: 'Industries', icon: Factory, description: 'Narrative timelines', color: 'text-purple-500', bg: 'bg-purple-500' },
   { id: 'data-preferences', label: 'Data & Prefs', icon: Database, description: 'Manage tracked data', color: 'text-cyan-500', bg: 'bg-cyan-500' },
 ]
 

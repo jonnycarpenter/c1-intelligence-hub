@@ -51,9 +51,9 @@ const modeSuggestions: Record<Mode, string[]> = {
     "Compare Toray vs SGL Carbon market position",
   ],
   industries: [
-    "Overview of aerospace composites market",
-    "Which industries are growing fastest?",
-    "What are the EV composites trends?",
+    "Show Aerospace narrative timeline",
+    "What themes are trending in Wind?",
+    "Compare Defense Space event types",
   ],
   'data-preferences': [
     "Add a new company to track",
@@ -71,7 +71,7 @@ const welcomeMessages: Record<Mode, string> = {
   pipeline: "Pipeline is coming soon! You'll be able to search contacts, find prospects in your territory, and get AI-powered lead recommendations.",
   'supply-network': "Explore supply chain relationships for C1 and competitors. Click nodes on the graph to drill down into supplier or buyer details.",
   companies: "Let's explore company intelligence. I can track competitors, analyze earnings, and monitor market positions.",
-  industries: "Ready to analyze industry trends. I can provide insights on market sizes, growth rates, and emerging applications.",
+  industries: "Explore industry narratives. See how news evolves over 90 days with monthly timelines, top companies, and themes.",
   'data-preferences': "Manage your tracked data and preferences. I can help add or remove companies, materials, and industries.",
 }
 

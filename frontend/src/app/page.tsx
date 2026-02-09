@@ -516,26 +516,7 @@ export default function Home() {
               </div>
             )}
             {activeMode === 'industries' && (
-              <div className="relative h-full">
-                {/* Disabled overlay */}
-                <div className="absolute inset-0 bg-slate-200/60 backdrop-blur-[1px] z-10 flex items-center justify-center">
-                  <div className="bg-white rounded-xl shadow-lg px-8 py-6 text-center max-w-md mx-4">
-                    <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-4">
-                      <span className="text-2xl">🏭</span>
-                    </div>
-                    <h3 className="text-lg font-semibold text-slate-800 mb-2">Industry Insights Coming Soon</h3>
-                    <p className="text-sm text-slate-500">We're building detailed industry analysis and trend tracking. Stay tuned!</p>
-                  </div>
-                </div>
-                {/* Greyed out content */}
-                <div className="grayscale pointer-events-none opacity-40">
-                  <IndustriesDashboard
-                    onAskAboutIndustry={handleSendMessage}
-                    displayIndustries={streamingState.industries.length > 0 ? streamingState.industries : undefined}
-                    onClearDisplayIndustries={clearIndustries}
-                  />
-                </div>
-              </div>
+              <IndustriesDashboard />
             )}
             {activeMode === 'field-sales' && (
               <FieldIntelDashboard />
@@ -558,7 +539,7 @@ export default function Home() {
           </div>
 
           {/* Right panel - Chat (hidden for pulse, discovery, research, pipeline, supply-network, products, field-sales, and data-preferences) */}
-          {activeMode !== 'pulse' && activeMode !== 'discovery' && activeMode !== 'research' && activeMode !== 'pipeline' && activeMode !== 'supply-network' && activeMode !== 'products' && activeMode !== 'field-sales' && activeMode !== 'data-preferences' && (
+          {activeMode !== 'pulse' && activeMode !== 'discovery' && activeMode !== 'research' && activeMode !== 'pipeline' && activeMode !== 'supply-network' && activeMode !== 'products' && activeMode !== 'field-sales' && activeMode !== 'industries' && activeMode !== 'data-preferences' && (
             <div className="w-[400px] shrink-0 border-l border-slate-200 bg-white">
               <ChatInterface
                 mode={activeMode}

@@ -696,6 +696,124 @@ class ApiClient {
   }
 
   // =====================================
+  // Industry Narratives
+  // =====================================
+
+  /**
+   * Get curated industry list with 90-day article counts
+   */
+  async getIndustryNarrativesList(): Promise<{
+    industries: Array<{
+      id: string
+      name: string
+      article_count_90d: number
+      trend: 'up' | 'down' | 'flat'
+    }>
+  }> {
+    const response = await fetch(`${this.baseUrl}/api/industry-narratives/industries`)
+    if (!response.ok) {
+      throw new Error(`Failed to fetch industries: ${response.statusText}`)
+    }
+    return response.json()
+  }
+
+  /**
+   * Get monthly timeline breakdown for an industry (event types, companies, themes, etc.)
+   */
+  async getIndustryTimeline(industry: string, days: number = 90): Promise<{
+    industry: string
+    period_days: number
+    monthly_data: Array<{
+      month: string
+      month_label: string
+      article_count: number
+      delta_vs_prior: number | null
+      event_types: Array<{ name: string; count: number; delta: number | null }>
+      top_companies: Array<{ name: string; count: number; delta: number | null }>
+      top_themes: Array<{ name: string; count: number; delta: number | null }>
+      top_geographies: Array<{ name: string; count: number }>
+      sentiment: { positive: number; neutral: number; negative: number }
+      top_articles: Array<{
+        id: string
+        title: string
+        url: string
+        source_name: string
+        published_at: string
+        summary: string
+        event_type: string | null
+        sentiment: string
+      }>
+    }>
+    totals: {
+      total_articles: number
+      avg_monthly: number
+      trend_direction: 'up' | 'down' | 'flat'
+    }
+  }> {
+    const params = new URLSearchParams({ days: days.toString() })
+    const response = await fetch(
+      `${this.baseUrl}/api/industry-narratives/${encodeURIComponent(industry)}/timeline?${params}`
+    )
+    if (!response.ok) {
+      throw new Error(`Failed to fetch industry timeline: ${response.statusText}`)
+    }
+    return response.json()
+  }
+
+  /**
+   * Get paginated articles for an industry with filters
+   */
+  async getIndustryArticles(
+    industry: string,
+    filters?: {
+      month?: string
+      event_type?: string
+      theme?: string
+      sentiment?: string
+      limit?: number
+      offset?: number
+    }
+  ): Promise<{
+    industry: string
+    filters_applied: Record<string, string>
+    total_count: number
+    articles: Array<{
+      id: string
+      title: string
+      url: string
+      source_name: string
+      published_at: string
+      summary: string
+      event_type: string | null
+      sentiment: string
+      themes: string[]
+      companies: string[]
+      geography: string[]
+    }>
+    pagination: {
+      limit: number
+      offset: number
+      has_more: boolean
+    }
+  }> {
+    const params = new URLSearchParams()
+    if (filters?.month) params.set('month', filters.month)
+    if (filters?.event_type) params.set('event_type', filters.event_type)
+    if (filters?.theme) params.set('theme', filters.theme)
+    if (filters?.sentiment) params.set('sentiment', filters.sentiment)
+    if (filters?.limit) params.set('limit', filters.limit.toString())
+    if (filters?.offset) params.set('offset', filters.offset.toString())
+
+    const response = await fetch(
+      `${this.baseUrl}/api/industry-narratives/${encodeURIComponent(industry)}/articles?${params}`
+    )
+    if (!response.ok) {
+      throw new Error(`Failed to fetch industry articles: ${response.statusText}`)
+    }
+    return response.json()
+  }
+
+  // =====================================
   // Memory / Long-term Storage
   // =====================================
 

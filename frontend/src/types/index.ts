@@ -578,7 +578,7 @@ export const chatSuggestions: Record<Mode, string[]> = {
   pipeline: ['Composite buyers at Boeing', 'Aerospace contacts in my territory', 'New prospect recommendations'],
   'supply-network': ['Show shared suppliers', 'Hexcel supplier network', 'Which suppliers does Toray use?'],
   companies: ['Show tracked companies', 'Latest Hexcel news', 'Compare Toray vs SGL Carbon'],
-  industries: ['Aerospace market overview', 'Which industries are growing fastest?', 'EV composites trends'],
+  industries: ['Show Aerospace narrative timeline', 'What themes are trending in Wind?', 'Compare Defense Space event types'],
   'data-preferences': ['Update my tracked companies', 'Change my material preferences', 'Set industry focus'],
 
   // importyeti: ['Show top suppliers', 'Analyze Jushi Group shipments', 'Find suppliers for fiberglass'], // ARCHIVED
@@ -593,7 +593,7 @@ export const welcomeMessages: Record<Mode, string> = {
   pipeline: "Welcome to Pipeline.\n\nDiscover new prospects and contacts using AI-powered semantic search:\n• **Find Similar Companies** — Enter a customer URL to find lookalikes\n• **Search Companies** — Natural language company discovery\n• **Find Contacts** — Decision makers by role and industry",
   'supply-network': "Welcome to Supply Network.\n\nVisualize supply chain relationships:\n• **Network graph** — C1 and 10 competitors with their suppliers\n• **Drill-down** — Click any node to see supplier or buyer details\n• **Shared suppliers** — Identify overlapping supply chains",
   companies: "Welcome to Company Intelligence.\n\nI can help you with:\n• **Company tracking** — competitors, suppliers, customers\n• **Earnings analysis** — financial performance\n• **Market position** — competitive landscape",
-  industries: "Welcome to Industry Intelligence.\n\nI can help you with:\n• **Market analysis** — size, growth, trends\n• **Industry trends** — emerging applications\n• **Sector comparisons** — cross-industry insights",
+  industries: "Welcome to Industry Narratives.\n\nExplore how news evolves over 90 days:\n• **Monthly timelines** — article counts, event types, deltas\n• **Top companies & themes** — who and what is driving each industry\n• **Drill-down** — click into any month for full article list",
   'data-preferences': "Welcome to Data Preferences.\n\nI can help you with:\n• **Company tracking** — add or remove companies\n• **Material preferences** — focus materials\n• **Industry settings** — customize your focus areas",
 
   // importyeti: "Welcome to Trade Intelligence.\n\nI can help you with:\n• **Shipment tracking** — Monitor import volumes\n• **Supplier analysis** — Deep dive into supplier relationships\n• **Competitive intel** — See who else is buying from your suppliers", // ARCHIVED
