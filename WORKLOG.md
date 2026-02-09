@@ -35,9 +35,120 @@ Without reliable daily ingestion:
 - Keep `articles` table clean — actual news articles, press releases, and research only
 
 ---
-## 📅 SESSION 93: Scheduler Fix, Voice Enrichment Docs & Briefing Regeneration (February 9, 2026)
+## 📅 SESSION 95: Fix Weekly Briefing — Citations, Voice Enrichment, Podcast (February 10, 2026)
 
 **Status**: 🔧 IN PROGRESS
+
+### 🎯 Goal
+
+Fix the broken Feb 9 weekly briefing: citations mostly missing, podcast audio not generating, voice enrichment returning zero results. Delete broken data and regenerate fresh.
+
+### 🔍 Root Causes Identified
+
+1. **Citation ordering** — `get_articles_by_ids()` returned articles in arbitrary BQ order. Citation `[N]` expected `article_ids[N-1]` but got a random article. **Already fixed in Session 94** (commit `207ddf2`).
+
+2. **Voice enrichment returning nothing** — `_fetch_voice_enrichment()` concatenated all topics into one string (`" ".join(topic_list[:5])`) and passed it to BQ methods using `LIKE %concatenated_string%`. This never matches because no SEC filing/quote contains "carbon fiber hydrogen aerospace wind automotive" as a substring. Fix: search by individual company names/tickers with deduplication.
+
+3. **Podcast not generating** — Feb 9 briefing's podcast generation failed due to 5000 char ElevenLabs API limit (9355 char dialogue). Chunking fix applied in Session 93 (commit `247a282`) but briefing was never regenerated after the fix.
+
+### ✅ Completed
+
+1. **Voice enrichment rewrite** — `_fetch_voice_enrichment()` in `weekly_briefing.py` completely rewritten:
+   - SEC nuggets: Searches by each company name individually (up to 10), then by each topic keyword individually (up to 5), deduplicates by nugget_id, sorts by relevance, caps at 10
+   - Earnings quotes: Same pattern — per-company search, per-topic search, dedup by quote_id
+   - Podcast quotes: Searches by detected themes (mapped from topics via theme_mapping dict) AND by individual company names, dedup by quote_id
+   - Added detailed logging at each stage for debugging
+
+2. **Deleted broken Feb 9 data** — Removed 1 weekly briefing (`8f60f092`) and 2 pre-briefings (`a0dd4dc7`, `de033dfb`) from BigQuery via table swap (CREATE AS SELECT + DROP + RENAME)
+
+3. **Deploy and regenerate** — Committing voice enrichment fix, pushing to master for Cloud Build auto-deploy, then triggering fresh briefing generation
+
+### 📁 Files Modified
+| File | Change |
+|------|--------|
+| `backend/app/ingestion/generators/weekly_briefing.py` | Complete rewrite of `_fetch_voice_enrichment()` — individual company/topic searches instead of concatenated string |
+
+### 📁 Files Already Deployed (Session 94)
+| File | Change |
+|------|--------|
+| `backend/app/db/gcp_storage.py` | `get_articles_by_ids()` order-preserving fix, `_create_weekly_briefings_table()` schema auto-migration |
+
+---
+## 📅 SESSION 94: Supply Network Tab + Industry Narratives Planning (February 9, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Goal
+
+Build the Supply Network tab with interactive force-directed graph visualization of C1 + 10 competitors and their upstream supplier relationships. Plan the Industry Narratives feature for next session.
+
+### ✅ Completed
+
+1. **Supply Network Tab** — New tab with graph-primary split layout (60% graph / 40% drill-down panel)
+   - **Backend**: `app/api/routes/supply_network.py` — 5 REST endpoints (`/graph`, `/stats`, `/company/{key}`, `/supplier/{key}`, `/shared-suppliers`), all calling existing `BigQueryStore` methods (zero new BQ code)
+   - **Frontend**: 3 new components in `frontend/src/components/supply-network/`:
+     - `NetworkGraph.tsx` — `react-force-graph-2d` wrapper with color-coded nodes (amber=C1, blue=competitor, indigo=supplier), log-scale sizing, custom canvas labels, zoom/pan controls, legend
+     - `DetailPanel.tsx` — Right panel with 3 states: overview stats, company drill-down (supplier table), supplier drill-down (buyer table with [C1]/[COMP] badges)
+     - `SupplyNetworkDashboard.tsx` — Main container managing graph data, node selection, split layout
+   - **Tab integration**: Added to `Mode` type, Sidebar nav, AppHeader config, page.tsx conditional render, chat-hidden condition
+   - **API client**: 5 new methods in `api.ts` (`getSupplyNetworkGraph`, `getSupplyNetworkStats`, `getCompanyDetail`, `getSupplierDetail`, `getSharedSuppliers`)
+   - **Build verified**: TypeScript compiles, production build succeeds
+   - **Deployed**: Commit `207ddf2`, pushed to master → Cloud Build auto-deploy
+
+2. **Citation ordering fix** — `weekly_briefing.py` now preserves article_ids order so `[N]` citations map correctly
+
+### 📁 Files Created
+| File | Purpose |
+|------|---------|
+| `backend/app/api/routes/supply_network.py` | 5 REST endpoints for graph, stats, drill-down |
+| `frontend/src/components/supply-network/NetworkGraph.tsx` | Force-directed graph with canvas rendering |
+| `frontend/src/components/supply-network/DetailPanel.tsx` | Click-to-drill-down panel |
+| `frontend/src/components/supply-network/SupplyNetworkDashboard.tsx` | Main container, split layout |
+
+### 📁 Files Modified
+| File | Change |
+|------|--------|
+| `backend/app/main.py` | Added supply_network router |
+| `backend/app/api/routes/__init__.py` | Added supply_network import |
+| `frontend/src/types/index.ts` | Added 'supply-network' to Mode, chatSuggestions, welcomeMessages |
+| `frontend/src/app/page.tsx` | Dynamic import, conditional render, chat-hidden |
+| `frontend/src/components/layout/Sidebar.tsx` | Added Supply Network nav item |
+| `frontend/src/components/layout/AppHeader.tsx` | Added supply-network to modeConfig |
+| `frontend/src/components/chat/ChatInterface.tsx` | Added supply-network to modeSuggestions + welcomeMessages |
+| `frontend/src/lib/api.ts` | 5 API methods + Mode union update |
+
+### 🔮 Next Session: Industry Narratives Tab
+
+**Goal**: User selects an industry (from the 6+ industries in `digest_items`) and sees how news evolves over a 90-day period, grouped by month, with month-over-month delta tracking for sub-metadata.
+
+**Reference file**: `industry_narratives_intuition.xlsx` in project root (Claude-in-Excel concept)
+
+**Key `digest_items` columns available for this feature**:
+- `industries` (JSON array) — Aerospace, Wind, Construction, Marine, Automotive, Infrastructure, Transportation, Sporting Goods, Defense Space
+- `event_type` (STRING) — acquisition, partnership, expansion, contract, regulatory_change, product_launch, earnings, facility_closure, restructuring, investment, supply_disruption, technology, market_shift, other
+- `companies` (JSON array) — extracted company names
+- `geography` (JSON array) — North America, Europe, China, Japan, etc.
+- `themes` (JSON array) — reshoring, sustainability, consolidation, capacity_expansion, supply_chain_risk, trade_policy, cost_pressure, demand_growth, technology_advancement, electrification, hydrogen, lightweighting, etc. (21 themes)
+- `sentiment` (STRING) — positive, negative, neutral
+- `materials` (JSON array) — carbon fiber, epoxy, PEEK, glass fiber, prepreg, etc.
+- `published_at` (TIMESTAMP) — partitioned by day, for time-series queries
+- `relevance_score` (FLOAT64) — classifier confidence
+
+**Also available**: `article_tags` table with normalized tags (company, material, market, theme, geography, topic) — better for aggregation than JSON arrays
+
+**Table partitioning**: `digest_items` partitioned by `published_at` (DAY), clustered by `category` + `priority`
+
+**Concept**:
+1. User picks an industry (e.g., "Aerospace")
+2. Backend queries digest_items WHERE industries contains that industry, last 90 days
+3. Groups by month → summarizes key occurrences per month
+4. For sub-metadata (event_type, company mentions, geography, themes): shows counts + month-over-month +/- deltas
+5. LLM synthesis optional: Claude summarizes each month's narrative arc
+
+---
+## 📅 SESSION 93: Scheduler Fix, Voice Enrichment Docs & Briefing Regeneration (February 9, 2026)
+
+**Status**: ✅ COMPLETE
 
 ### 🎯 Goal
 
@@ -579,7 +690,7 @@ Updated prompts to emphasize extracting verbatim CEO/CFO quotes from earnings tr
 ```powershell
 cd backend
 python -c "from app.graph.research_workflow import research_workflow; print('Nodes:', list(research_workflow.nodes.keys()))"
-# Nodes: ['groom', 'financial_research', 'industry_research', 'visual_research', 'synthesize', 'validate']
+# Nodes: ['__start__', 'groom', 'financial_research', 'industry_research', 'synthesize', 'categorize', 'validate']
 
 cd ../frontend
 npm run build  # ✓ Compiled successfully
@@ -753,7 +864,7 @@ python -c "from app.api.routes.discovery import router; print('OK')"
 ### 📋 What's Included
 
 - **Discovery nav item** appears in sidebar between Pulse and Research
-- **Two-column layout**: Categories (left) + Latest Urgent (right)
+- **Two-column layout**: Categories (left) + Latest High-Priority (right)
 - **Category Accordions**: Sorted by high-priority count, collapsible, shows 8 items initially with "Show all" button
 - **AI Assistant Panel**: Toggleable left panel (380px) with streaming chat, tool indicators, source badges
 - **Dynamic Header**: Time-based greeting, signal counts, toggle button for assistant
@@ -1161,7 +1272,7 @@ npm run build  # ✓ Compiled successfully
 
 ---
 
-## 📋 PLANNED: Deep Research Visual Agent Integration
+## 🔄 PLANNED: Deep Research Visual Agent Integration
 
 **Status**: 📋 PLANNED (Not Implementing Yet)
 
@@ -1484,7 +1595,7 @@ The current Pipeline agent uses **Exa.ai semantic search** which:
 - ❌ Cannot filter by firmographic fields (revenue, employee count, location)
 - ❌ Returns companies that don't match the structured criteria
 
-**Root Cause:** Enrichment (Apollo) happens AFTER search (Exa), so filtering can't be applied.
+**Root Cause**: Enrichment (Apollo) happens AFTER search (Exa), so filtering can't be applied.
 
 ### 💡 Solution: New Tool `search_companies_filtered`
 
@@ -1545,7 +1656,7 @@ TOOL SELECTION GUIDE:
 
 2. **`backend/app/mcp/tools/pipeline_search.py`**
    - Add `search_companies_filtered` tool
-   - Add to `PIPELINE_TOOLS_INSTANT` and `PIPELINE_TOOLS_FULL`
+   - Add to `PIPELINE_TOOLS_INSTANT` and `PIPELINE_TOOLS_FULL` lists
 
 3. **`backend/app/agents/pipeline/agent.py`**
    - Update system prompt with tool selection guidance
@@ -1555,7 +1666,7 @@ TOOL SELECTION GUIDE:
 
 ### 🔗 Apollo API Reference
 
-**Endpoint:** `POST /organizations/search`
+**Endpoint**: `POST /organizations/search`
 
 **Key Parameters:**
 ```json
@@ -1569,9 +1680,9 @@ TOOL SELECTION GUIDE:
 }
 ```
 
-**Returns:** Array of organization objects with full firmographics (same as `enrich_organization`)
+**Returns**: Array of organization objects with full firmographics (same as `enrich_organization`)
 
-**Cost:** FREE (no credits consumed)
+**Cost**: FREE (no credits consumed)
 
 ### 🧪 Test Cases
 
@@ -1658,7 +1769,7 @@ python -c "from app.mcp.tools.pipeline_search import PIPELINE_TOOLS_INSTANT; pri
 
 ### 💬 Session Discussion Summary (3 AM Architecture Review)
 
-**Scope:** This work is focused on **COMPANY search filtering**, not contacts/people (that may come later).
+**Scope**: This work is focused on **COMPANY search filtering**, not contacts/people (that may come later).
 
 **Current Pipeline Flow (before this change):**
 ```
@@ -1677,11 +1788,11 @@ Display: Shows enriched results - BUT filtering happened semantically, not struc
 | `/organizations/enrich` | Enrich by domain | ✅ Complete (e.g., "200M") | ✅ Complete |
 | `/organizations/search` | Search with filters | ⚠️ Often `None` | ✅ Complete |
 
-**Example:** Composites One
+**Example**: Composites One
 - Enrich endpoint: `revenue=200M, employees=670`
 - Search endpoint: `revenue=None, employees=670` (but filter WORKED - it was returned)
 
-**Conclusion:** Apollo's search endpoint **filters correctly** but doesn't always **display** the revenue value. The filter is applied server-side even if the response field is sparse.
+**Conclusion**: Apollo's search endpoint **filters correctly** but doesn't always **display** the revenue value. The filter is applied server-side even if the response field is sparse.
 
 **Alternative Approach Discussed (not implemented):**
 Instead of adding a new tool, have the LLM filter post-enrichment:
@@ -1691,7 +1802,7 @@ Exa search → Apollo enrich (full data) → LLM filters the enriched list → D
 Pros: Consistent data quality, simpler architecture
 Cons: Can only filter what Exa finds, limited pool (25-100 results)
 
-**Decision:** Ship the new `search_companies_filtered` tool. Gives users both options - semantic (Exa) for discovery, structured (Apollo) for filtering. Can evaluate which works better in practice.
+**Decision**: Ship the new `search_companies_filtered` tool. Gives users both options - semantic (Exa) for discovery, structured (Apollo) for filtering. Can evaluate which works better in practice.
 
 **NOT YET DEPLOYED** - Changes are local only. Ready to push.
 
@@ -1933,38 +2044,6 @@ The `ingest-web-search` job was still timing out at 30 minutes because it ran 23
 
 ---
 
-## �🚀 SESSION 43: Pipeline Agent Follow-Up Bug Fix (January 6, 2026)
-
-**Status**: ✅ DEPLOYED (commit `b455413`)
-
-### 🐛 Bug Fixed
-**Error**: `PipelineAgentResponse message Input should be a valid string [type=string_type, input_value=[{'text': '...', 'type': 'tool_use'}]`
-
-This occurred on **follow-up questions** (especially contact-level queries) when the agent tried to use tools during the final response phase.
-
-### 🔍 Root Cause
-Claude's `response.content` can be either:
-- A **string** (text-only response)
-- A **list** (when response includes tool_use blocks)
-
-The code was passing `response.content` directly to `PipelineAgentResponse(message=...)` which expects only a string.
-
-### ✅ Fix Applied
-1. **Added `_extract_text_content()`** helper method to handle both formats
-   - Extracts text from list content blocks
-   - Ignores tool_use blocks
-   - Provides fallback message if no text found
-
-2. **Added multi-turn tool loop** in `process_query()`
-   - Uses `llm_with_tools` for final response (was using plain `llm`)
-   - Allows agent to call additional tools during follow-up
-   - Max 3 iterations to prevent infinite loops
-
-### 📁 Files Modified
-- `backend/app/agents/pipeline/agent.py` - Added helper method and tool loop
-
----
-
 ## 🚀 SESSION 42: Deep Research SSE Streaming & Output Fix (January 6, 2026)
 
 **Status**: 🔄 DEPLOYED - Awaiting Cloud Build
@@ -2087,53 +2166,15 @@ Logic: If parsed date > `utcnow() + 2 days`, reject it and set to `None`
 - Today/tomorrow → PASS ✓  
 - Future dates (May 2026, Sep 2026) → REJECTED ✓
 
-### ⏳ Verification Queries (Post-Deployment)
+### 📋 What to Watch For
 
-**1. Check if fix is actively rejecting future dates** (Cloud Run logs):
-```powershell
-gcloud logging read "resource.type=cloud_run_revision AND resource.labels.service_name=c1-hub AND textPayload:\"Rejecting future date\"" --limit=20 --project=gen-lang-client-0436975498 --format="table(timestamp,textPayload)"
-```
+- After deployment, verify contact search queries like "show me sourcing managers in Chicago" trigger company search first instead of asking clarifying questions
+- Verify "Show Full Profile" drawer displays subsidiaries, retail locations, and industry codes when available
 
-**2. Count existing future-dated articles** (BigQuery - baseline):
-```sql
-SELECT COUNT(*) as future_count
-FROM `gen-lang-client-0436975498.c1_intelligence.digest_items` 
-WHERE published_at > CURRENT_TIMESTAMP()
-```
+### 📋 Open Items / Next Steps
 
-**3. See what future-dated articles exist** (BigQuery):
-```sql
-SELECT title, published_at, source_url, created_at
-FROM `gen-lang-client-0436975498.c1_intelligence.digest_items` 
-WHERE published_at > CURRENT_TIMESTAMP()
-ORDER BY published_at DESC
-LIMIT 20
-```
-
-**4. Check articles ingested AFTER deployment with NULL published_at** (BigQuery):
-```sql
--- These are articles where we rejected the future date
-SELECT title, source_url, published_at, created_at, feed_eligible
-FROM `gen-lang-client-0436975498.c1_intelligence.digest_items` 
-WHERE created_at > TIMESTAMP('2026-01-06 18:00:00 UTC')
-  AND published_at IS NULL
-ORDER BY created_at DESC
-LIMIT 20
-```
-
-**5. Confirm deployment succeeded**:
-```powershell
-gcloud builds describe 1ddef386-dcb0-497d-b407-34a00d7ce5d4 --project=gen-lang-client-0436975498 --format="value(status)"
-# Expected: SUCCESS
-```
-
-### 📝 Additional Observations
-User noted some URLs should potentially be excluded entirely:
-- `/glossary/*` pages (e.g., schunk-group.com/en/glossary/fiber-composites)
-- `/about-us` pages
-- Homepage variants (`/homev2-1`)
-
-These are not news articles - consider URL pattern filtering in future enhancement.
+- [ ] **Re-enable Apollo Fields**: Work on adding back the enriched Apollo fields (Retail Locations, Subsidiaries, Industry Codes) by updating `frontend/src/types/index.ts` and the backend enricher.
+- [ ] **Debug Contact Search**: Investigate why contact search results aren't showing up in the results panel (suspected issue in `usePipeline` or `SearchBlockCard` rendering logic).
 
 ---
 
@@ -2155,7 +2196,7 @@ These are not news articles - consider URL pattern filtering in future enhanceme
 ### 🔧 Bug That Was Just Fixed
 `digest_classifier.py` line 325 was bypassing our SDK fix:
 - **Was**: `self.client.messages.create()` (direct Anthropic SDK call)
-- **Now**: `self.client.messages_create()` (our wrapper with system param fix)
+- **Now**: `self.client.messages_create()` (our wrapper with the fix)
 - **Commit**: `938ef25` pushed at 11:45 AM CST
 
 ### ⏳ Next Steps for New Session
@@ -2170,16 +2211,13 @@ Invoke-RestMethod -Uri "https://c1-hub-4iz75bvpyq-uc.a.run.app/api/v1/scheduler/
 
 # 3. Check for any remaining "system: Input should be a valid list" errors
 gcloud logging read "resource.type=cloud_run_revision AND resource.labels.service_name=c1-hub AND textPayload:\"system: Input should be a valid list\"" --limit=20 --project=gen-lang-client-0436975498 --format="table(timestamp,textPayload)"
-
-# 4. If errors persist, search for other places using direct Anthropic calls:
-grep -r "\.messages\.create" backend/app/ --include="*.py"
 ```
 
 ### 📊 Current Scheduler Jobs
 | Job | Schedule | Status |
 |-----|----------|--------|
 | `ingest-flash-update` | Every 4h | ✅ ENABLED |
-| `ingest-deep-dive` | 2 AM CST | ✅ ENABLED |
+| `ingest-deep-dive` | 2 AM CST daily | ✅ ENABLED |
 | `weekly-executive-briefing` | Mon 8:30 AM | ✅ ENABLED |
 
 ### 📁 Key Files Modified This Session
@@ -2370,12 +2408,12 @@ Redesigned the DRUMBEAT entity aggregator from always-visible pills with heatmap
 
 ### 🎯 Design Rationale
 
-**Before:** Always-visible pills with subtle heatmap effects that were imperceptible
+**Before**: Always-visible pills with subtle heatmap effects that were imperceptible
 - Pills with vastly different counts (73 vs 27) looked identical
 - Consumed significant vertical space
 - Required horizontal scrolling for long entity lists
 
-**After:** Compact summary stats with on-demand expansion
+**After**: Compact summary stats with on-demand expansion
 - Clean initial state: 5 icon-count buttons in a single row
 - Faster scanning: See all aggregations at a glance
 - Space-efficient: Drawer only appears when needed
@@ -2811,7 +2849,7 @@ Continued work on the long-term memory system from `c1-mvp-longterm_memory.md` s
 
 ---
 
-## Session 31 (January 6, 2026) - Podcast Generation for Weekly Briefings ✅
+## Session 31 (January 5, 2026) - Podcast Generation for Weekly Briefings ✅
 
 ### 📋 Context
 
@@ -3177,7 +3215,7 @@ cd frontend && npm run build
 1. E2E test with full workflow to see all Phase 2 components
 2. Consider adding export functionality for sales plays
 3. Phase 4: BigQuery persistence for saved reports
-4. Phase 4: Memory/context integration
+4. Phase 4: Memory/context integration to avoid redundant fetches
 
 ---
 
@@ -3228,13 +3266,12 @@ Continued from Session 25. The Deep Research workflow now runs end-to-end in the
    - Passed all props to ResearchDashboard
 
 ### 📁 Files Modified
-- [frontend/src/types/index.ts](frontend/src/types/index.ts) - SSE event types
-- [frontend/src/hooks/useDeepResearch.ts](frontend/src/hooks/useDeepResearch.ts) - Full SSE event handling
-- [frontend/src/components/research/ResearchProgress.tsx](frontend/src/components/research/ResearchProgress.tsx) - **NEW** Progress visualization
-- [frontend/src/components/research/ResearchCanvas.tsx](frontend/src/components/research/ResearchCanvas.tsx) - Progress integration
-- [frontend/src/components/research/ResearchDashboard.tsx](frontend/src/components/research/ResearchDashboard.tsx) - Prop passing
-- [frontend/src/components/research/index.ts](frontend/src/components/research/index.ts) - Export new component
-- [frontend/src/app/page.tsx](frontend/src/app/page.tsx) - Hook wiring
+- [types/index.ts](frontend/src/types/index.ts) - SSE event types
+- [hooks/useDeepResearch.ts](frontend/src/hooks/useDeepResearch.ts) - Full SSE event handling
+- [components/research/ResearchProgress.tsx](frontend/src/components/research/ResearchProgress.tsx) - **NEW** Progress visualization
+- [components/research/ResearchCanvas.tsx](frontend/src/components/research/ResearchCanvas.tsx) - Progress integration
+- [components/research/ResearchDashboard.tsx](frontend/src/components/research/ResearchDashboard.tsx) - Prop passing
+- [app/page.tsx](frontend/src/app/page.tsx) - Hook wiring
 
 ### ✅ Build Verification
 
@@ -3315,16 +3352,29 @@ Continued from Session 24. The goal was to fix the `InvalidUpdateError` blocking
 ### 📁 Test Files
 - [test_parallel_fix.py](backend/test_parallel_fix.py) - Created in Session 24, used for testing
 
-### ⚠️ Known Issues (Non-Blocking)
-- **StockNewsAPI 422 errors**: API is returning errors for many requests - likely a paid tier or rate limit issue
-- **Google Trends 429**: Rate limited during testing
-- **Validator found issues**: 12 citation issues, 7 unsubstantiated claims (expected - validation is working!)
+### 🔧 Key Code Changes
 
-### 🔧 Next Steps
-1. Review traces in LangSmith dashboard for performance optimization
-2. Fix StockNewsAPI integration (check API key/tier)
-3. Consider adding retry logic for rate-limited APIs
-4. Phase 4 (if desired): BigQuery persistence for saved reports
+**Title Override (weekly_briefing.py:~1088):**
+```python
+# ALWAYS use calculated Monday date for title (LLM often gets it wrong)
+forced_title = f"Executive Briefing: Week of {week_of_date}"
+llm_title = data.get("briefing_title", "")
+if llm_title and llm_title != forced_title:
+    logger.info(f"Agent 2: Overriding LLM title '{llm_title}' with '{forced_title}'")
+```
+
+**Citation Cleanup (weekly_briefing.py:~352):**
+```python
+def _clean_citation_text(self, text, max_pre_brief_articles, exa_id_to_unified):
+    # Handle complex bracket contents like [37, Exa:6]
+    def process_bracket_content(match):
+        # Converts Exa:N to unified numbers, filters invalid citations
+```
+
+### 📋 Open Items (Briefing Workstream)
+
+- [ ] **Re-enable Apollo Fields**: Work on adding back the enriched Apollo fields (Retail Locations, Subsidiaries, Industry Codes) by updating `frontend/src/types/index.ts` and the backend enricher.
+- [ ] **Debug Contact Search**: Investigate why contact search results aren't showing up in the results panel (suspected issue in `usePipeline` or `SearchBlockCard` rendering logic).
 
 ---
 
@@ -3470,939 +3520,7 @@ Access traces at: https://smith.langchain.com
 
 ---
 
-## Session 22 (January 5, 2026) - Deep Research Phase 3: Parallel Execution & Streaming ✅
-
-### 📋 Context
-
-Completed Phase 3 infrastructure improvements for the Deep Research workflow. Focus on performance (parallel execution) and UX (granular streaming).
-
-### ✅ Completed
-
-1. **Parallel Financial + Industry Agent Execution** 🎉
-   - **File**: [research_workflow.py](backend/app/graph/research_workflow.py)
-   - **Implementation**: LangGraph `Send` API from `langgraph.types` for fan-out
-   - **New Function**: `route_after_groom()` returns `List[Send]` for parallel dispatch
-   - **File**: [state.py](backend/app/agents/research/state.py)
-   - **Added**: `_merge_errors()` reducer for parallel branch error aggregation
-   - **Impact**: Financial + Industry agents run simultaneously, ~40% faster
-
-2. **Enhanced Streaming Granularity** 🎉
-   - **File**: [progress.py](backend/app/agents/research/progress.py) (NEW)
-   - **Pattern**: Context variable callback mechanism for cross-context progress emission
-   - **Classes**: `ToolProgress` dataclass, `emit_progress_sync()`, `set_progress_callback()`
-   - **File**: [financial.py](backend/app/agents/research/financial.py)
-   - **Added**: 6 progress emission points (SEC filings, earnings, analyst ratings, etc.)
-   - **File**: [industry.py](backend/app/agents/research/industry.py)
-   - **Added**: 8 progress emission points (corpus search, Exa, market signals, etc.)
-   - **File**: [deep_research.py](backend/app/api/routes/deep_research.py)
-   - **Added**: `ProgressCollector` class with asyncio.Queue for SSE integration
-   - **New SSE Events**: `tool_progress` with tool name, message, ticker, status
-
-3. **In-Memory Report Caching** 🎉
-   - **File**: [deep_research.py](backend/app/api/routes/deep_research.py)
-   - **Class**: `ReportCache` with query hash and 1-hour TTL
-   - **Features**:
-     - Case-insensitive query normalization
-     - SHA256 hash-based cache keys
-     - Automatic TTL expiration
-     - Cache hit returns immediately via SSE
-   - **New Endpoints**:
-     - `GET /deep-research/cache/stats` - View cached reports
-     - `DELETE /deep-research/cache/clear` - Clear cache
-   - **Note**: This is ephemeral in-memory cache (clears on restart). The `research_reports` BigQuery table is for user-initiated saves/exports.
-
-### 📁 Files Created
-- [progress.py](backend/app/agents/research/progress.py) - Progress callback infrastructure
-
-### 📁 Files Modified
-- [research_workflow.py](backend/app/graph/research_workflow.py) - Parallel Send pattern
-- [state.py](backend/app/agents/research/state.py) - Error merger reducer
-- [financial.py](backend/app/agents/research/financial.py) - Progress emissions
-- [industry.py](backend/app/agents/research/industry.py) - Progress emissions
-- [deep_research.py](backend/app/api/routes/deep_research.py) - ProgressCollector, ReportCache
-
-### 🏗️ Updated Architecture
-
-**Deep Research Pipeline (Phase 3 - Parallel):**
-```
-                    ┌─→ [Financial] ─┐
-[User Query] → [Groomer] ─┤              ├─→ [Synthesizer] → [Category] → [Validator] → [Report]
-                    └─→ [Industry]  ─┘
-```
-
-**SSE Event Types:**
-| Event | Description |
-|-------|-------------|
-| `status` | High-level workflow progress |
-| `cache_hit` | Report served from cache |
-| `node_start` | Node beginning (includes `parallel_with` field) |
-| `node_complete` | Node finished |
-| `tool_progress` | Granular tool updates (ticker, message, status) |
-| `report` | Final research report |
-| `category` | Sales intelligence output |
-| `validation` | Citation verification results |
-
-### ✅ Verification
-
-```bash
-cd backend && python -c "
-from app.graph.research_workflow import create_research_workflow
-from app.agents.research.progress import ToolProgress, emit_progress_sync, set_progress_callback
-from app.api.routes.deep_research import router, ReportCache
-
-graph = create_research_workflow()
-print(f'Nodes: {list(graph.nodes.keys())}')
-# Output: ['__start__', 'groom', 'financial_research', 'industry_research', 'synthesize', 'categorize', 'validate']
-
-# Test progress callback
-events = []
-set_progress_callback(lambda p: events.append(p))
-emit_progress_sync(ToolProgress(tool_name='test', message='OK'))
-print(f'Progress captured: {len(events)} events')
-# Output: Progress captured: 1 events
-"
-```
-
-### 📋 Remaining (Future Session)
-
-**Priority: LangSmith Observability** 🔭
-The Deep Research workflow is complex (7 nodes, parallel execution, multiple LLM calls). Add LangSmith tracing for:
-- Cost tracking per run (token usage across all agents)
-- Latency breakdown (which nodes are slowest)
-- Error tracking and debugging
-- Run replay for debugging failed workflows
-
-**Setup**: Add `LANGCHAIN_TRACING_V2=true`, `LANGCHAIN_API_KEY`, `LANGCHAIN_PROJECT` to environment. LangGraph has native LangSmith integration.
-
-**Other Items:**
-- [ ] **Memory/Context Integration** - Connect to memory system, avoid redundant fetches
-- [ ] **BigQuery Persistence** - Save reports to `research_reports` table on explicit user save
-- [ ] **Frontend Integration** - Update UI to display `tool_progress` events
-
----
-
-## Session 21 (January 5, 2026) - Deep Research Phase 2: Category & Validator Agents ✅
-
-### 📋 Context
-
-Continued Phase 2 of the Deep Research workflow enhancement. Built out the Category Agent (sales intelligence layer) and Validator Agent (citation verification) as planned in Session 19.
-
-### ✅ Completed
-
-1. **New MCP Tool: `query_datasheets`** 🎉
-   - **File**: [datasheets.py](backend/app/mcp/tools/datasheets.py) (NEW)
-   - **Tools Added** (4):
-     - `query_datasheets` - Search product datasheets with filters
-     - `get_datasheet_detail` - Get full datasheet with extracted text
-     - `get_datasheet_stats` - Collection statistics by supplier/category
-     - `get_products_by_industry` - Products grouped by target industry
-   - **Data Source**: BigQuery `c1_intelligence.datasheets` table
-
-2. **Category Agent** 🎉
-   - **File**: [category.py](backend/app/agents/research/category.py) (NEW)
-   - **Role**: Sales intelligence layer providing territory-specific insights
-   - **Features**:
-     - Territory insights (East/West) with relevance scores
-     - Product recommendations from datasheet lookups
-     - Structured sales plays with hooks and objection handlers
-     - Industry-specific talking points
-   - **Territory Focus**:
-     - East: Aerospace, Wind, Automotive, Defense
-     - West: Marine, RVs, Spas
-
-3. **Validator Agent** 🎉
-   - **File**: [validator.py](backend/app/agents/research/validator.py) (NEW)
-   - **Role**: Citation and attribution verification
-   - **Features**:
-     - Citation completeness checking
-     - Unsubstantiated claim detection
-     - Confidence level adjustment recommendations
-     - Graceful fallback (doesn't block report on error)
-
-4. **Updated State Schema** ✏️
-   - **File**: [state.py](backend/app/agents/research/state.py)
-   - **New Models**:
-     - `TerritoryInsight`, `ProductRecommendation`, `SalesPlay`
-     - `CategoryAgentOutput`
-     - `CitationIssue`, `ValidatorOutput`
-   - **State Additions**: `category_output`, `validator_output`
-
-5. **Updated Research Workflow** ✏️
-   - **File**: [research_workflow.py](backend/app/graph/research_workflow.py)
-   - **New Pipeline**: `Groom → Financial → Industry → Synthesize → Categorize → Validate → END`
-   - Nodes: 7 total (was 5)
-
-6. **Model Settings** ✏️
-   - **File**: [settings.py](backend/app/config/settings.py)
-   - Added: `deep_research_category_model`, `deep_research_validator_model`
-   - Both default to `claude-sonnet-4-5`
-
-7. **Tool Registration** ✏️
-   - **File**: [server.py](backend/app/mcp/server.py)
-   - Registered 4 new datasheet tools
-   - **Total MCP Tools**: 52 (was 48)
-
-### 📁 Files Created
-- [datasheets.py](backend/app/mcp/tools/datasheets.py) - Datasheet query tools
-- [category.py](backend/app/agents/research/category.py) - Category Agent node
-- [validator.py](backend/app/agents/research/validator.py) - Validator Agent node
-
-### 📁 Files Modified
-- [state.py](backend/app/agents/research/state.py) - New output schemas
-- [research_workflow.py](backend/app/graph/research_workflow.py) - Added nodes
-- [settings.py](backend/app/config/settings.py) - New model settings
-- [server.py](backend/app/mcp/server.py) - Tool registration
-
-### 🏗️ Updated Architecture
-
-**Deep Research Pipeline (Phase 2):**
-```
-[User Query] → [Groomer] → [Financial] → [Industry] → [Synthesizer] → [Category] → [Validator] → [Report]
-```
-
-| Node | Model | Purpose |
-|------|-------|---------|
-| Groomer | claude-sonnet-4-5 | Query interpretation, sub-query generation |
-| Financial | claude-sonnet-4-5 | SEC filings, earnings, analyst ratings |
-| Industry | claude-sonnet-4-5 | Trade publications, market signals |
-| Synthesizer | claude-sonnet-4-5 | Merge findings into executive report |
-| **Category** | claude-sonnet-4-5 | **Territory-specific sales intelligence** |
-| **Validator** | claude-sonnet-4-5 | **Citation verification** |
-
-### ✅ Verification
-
-- MCP tools load: **52 tools** ✓
-- Research workflow nodes: **7 nodes** (groom, financial_research, industry_research, synthesize, categorize, validate) ✓
-- State schemas import correctly ✓
-
-### 📋 Phase 3 (Next Session)
-
-**Ready for Phase 3 implementation in new session.**
-
-Remaining Phase 3 enhancements:
-- [ ] **Parallel Agent Execution** - Run Financial + Industry agents simultaneously using LangGraph branch/join pattern
-- [ ] **Streaming Granularity** - Stream tool execution progress ("Querying SEC for Hexcel 10-K...")
-- [ ] **Memory/Context Integration** - Connect to existing memory system, avoid redundant fetches
-- [ ] **Report Caching** - Cache final reports by query hash with TTL invalidation
-
-**Key Files to Modify**:
-- `backend/app/graph/research_workflow.py` - Add parallel branching
-- `backend/app/api/routes/deep_research.py` - Enhanced streaming
-- `backend/app/agents/research/*.py` - Memory integration
-
-**Reference Docs**:
-- [Deep Research README](backend/app/agents/research/README.md) - Full architecture
-- Session 19 in WORKLOG.md - Original Phase 3 spec details
-
----
-
-## Session 20 (January 5, 2026) - Ingestion Throughput Tuning ✅
-
-### 📋 Context
-
-Reviewed bottleneck analysis from previous Opus session regarding Exa.ai industry queries backfill. The system was experiencing delays during high-volume runs (1000+ articles). Analysis identified conservative batching and concurrency settings as root cause.
-
-### ✅ Completed
-
-1. **Reduced Default Lookback Window** 🎉
-   - **Change**: 3 days → 2 days for scheduled (non-backfill) runs
-   - **File**: [orchestrator.py](backend/app/ingestion/orchestrator.py) lines 205-210
-   - **Impact**: ~30% reduction in article volume
-   - **Rationale**: Running daily, so 2-day window provides 1-day overlap buffer; Exa/Tavily index content within 24 hours
-
-2. **Increased Classifier Concurrency** 🎉
-   - **Change**: `max_concurrent` 3 → 10, sleep 0.5s → 0.2s
-   - **File**: [classifier.py](backend/app/ingestion/processing/classifier.py) lines 295, 303
-   - **Impact**: Classification time reduced from ~20min to ~7min for 400 articles
-   - **Rationale**: Claude API handles 10 concurrent calls well
-
-### 📁 Files Modified
-- [orchestrator.py](backend/app/ingestion/orchestrator.py) - Lookback window
-- [classifier.py](backend/app/ingestion/processing/classifier.py) - Concurrency settings
-
-### 📊 Performance Expectations
-
-| Metric | Before | After |
-|--------|--------|-------|
-| Articles per run | 400-600 | 250-400 |
-| Classification time | ~25 min | ~7-10 min |
-| Total run time | ~35-40 min | ~15-20 min |
-
-### 📋 Not Changed (Optional Future Optimizations)
-
-These were identified but not implemented (lookback cut provides sufficient headroom):
-- Embedding batch size (5 → 20) - Vertex AI can handle larger batches
-- Insert batch size (5 → 25) - BigQuery streaming can handle more
-
----
-
-## Session 19 (January 5, 2026) - Deep Research Workflow Review & Phase 1 Fixes ✅
-
-### 📋 Context
-
-Reviewed the multi-agent Deep Research workflow to understand current architecture and plan enhancements. This workstream will span multiple sessions.
-
-### ✅ Phase 1 Fixes Completed
-
-1. **Fixed Schema Mismatch in financial.py** 🐛
-   - `brief.research_intent` → `brief.clarified_intent`
-   - `brief.key_entities` → `brief.entities_to_track`
-   - `brief.time_period` → `brief.timeframe`
-
-2. **Fixed Conditional Edge Bug in research_workflow.py** 🐛
-   - Changed `"end": END` to `END: END` for proper LangGraph routing
-
-3. **Model Configuration Centralized** ⚙️
-   - Added to [settings.py](backend/app/config/settings.py):
-     - `deep_research_groomer_model`
-     - `deep_research_financial_model`
-     - `deep_research_industry_model`
-     - `deep_research_synthesizer_model`
-   - All default to `claude-sonnet-4-5` (changed from opus for cost efficiency)
-   - Updated all 4 agent files to use `settings.deep_research_*_model`
-
-### 📁 Files Modified
-- [financial.py](backend/app/agents/research/financial.py) - Schema fix + settings model
-- [groomer.py](backend/app/agents/research/groomer.py) - Settings model
-- [industry.py](backend/app/agents/research/industry.py) - Settings model
-- [synthesizer.py](backend/app/agents/research/synthesizer.py) - Settings model
-- [research_workflow.py](backend/app/graph/research_workflow.py) - Edge bug fix
-- [settings.py](backend/app/config/settings.py) - New model settings
-
-### 🏗️ Current Architecture
-
-**4-Node LangGraph Pipeline:**
-```
-[User Query] → [Groomer] → [Financial Agent] → [Industry Agent] → [Synthesizer] → [Final Report]
-```
-
-| Node | Model | Purpose |
-|------|-------|---------|
-| Groomer | `claude-sonnet-4-5` | Query interpretation, clarification, sub-query generation |
-| Financial Agent | `claude-opus-4-5` | SEC filings, earnings calls, analyst ratings |
-| Industry Agent | `claude-opus-4-5` | Trade publications, market signals, news |
-| Synthesizer | `claude-opus-4-5` | Merges findings into executive-ready report |
-
-**Key Files:**
-- [research_workflow.py](backend/app/graph/research_workflow.py) - LangGraph workflow definition
-- [state.py](backend/app/agents/research/state.py) - Pydantic schemas (DeepResearchState, ResearchBrief, etc.)
-- [groomer.py](backend/app/agents/research/groomer.py) - Query grooming node
-- [financial.py](backend/app/agents/research/financial.py) - Financial research node
-- [industry.py](backend/app/agents/research/industry.py) - Industry research node
-- [synthesizer.py](backend/app/agents/research/synthesizer.py) - Report synthesis node
-- [deep_research.py](backend/app/api/routes/deep_research.py) - API route
-
-### 🛠️ MCP Tools Currently Used
-
-**Financial Agent:**
-| Tool | Source | Purpose |
-|------|--------|---------|
-| `get_earnings_transcript_ninja` | api_ninja_earnings | Earnings call transcripts |
-| `query_corpus` | corpus_query | Internal pre-ingested financial data |
-| `get_company_news` | stocknews_api | Recent company news by ticker |
-| `get_press_releases` | stocknews_api | Official company announcements |
-| `get_analyst_ratings` | stocknews_api | Upgrades, downgrades, price targets |
-| `get_sentiment_summary` | stocknews_api | Aggregated news sentiment |
-| `SECFilingCollector` | tools/sec_filings | SEC 10-K, 10-Q, 8-K filings |
-
-**Industry Agent:**
-| Tool | Source | Purpose |
-|------|--------|---------|
-| `news_search` | exa_search | Semantic news search |
-| `web_search` | exa_search | Web search with domain filtering |
-| `find_similar` | exa_search | Find similar content |
-| `query_corpus` | corpus_query | Internal pre-ingested industry data |
-| `get_market_signals` | corpus_query | Aggregated market signals |
-| `get_google_trends` | google_trends | Demand signal validation |
-| `get_company_news` | stocknews_api | Company news by ticker |
-| `search_news_keyword` | stocknews_api | Keyword-based news search |
-| `get_press_releases` | stocknews_api | Press releases |
-| `get_trending_headlines` | stocknews_api | Major market events |
-| `get_freight_rates` | timeseries_data | Shipping/logistics cost data |
-
-### 🐛 Issues Identified
-
-1. **Schema Mismatch in Financial Agent** - References `brief.research_intent`, `brief.key_entities`, `brief.time_period` but ResearchBrief uses `clarified_intent`, `entities_to_track`, `timeframe`
-2. **Sequential Execution** - Financial → Industry runs sequentially; should be parallel
-3. **No Real-Time Streaming** - Waits for entire workflow, then streams status
-4. **Hardcoded Models** - Should use settings
-5. **Conditional Edge Bug** - `"end"` mapping but returns `END` constant
-
-### 📋 Deep Research Enhancement Roadmap
-
-This workstream spans multiple sessions. Phase 1 complete, Phase 2 and 3 pending.
-
----
-
-## 🔜 PHASE 2: Category Agent + Validator Agent (NEXT SESSION)
-
-### Target Workflow After Phase 2:
-```
-[Groomer] → [Financial + Industry] → [Synthesizer] → [Category Agent] → [Validator] → [Final Report]
-```
-
-### 2.1 Prerequisites - New MCP Tools Needed
-
-#### `query_datasheets` Tool (NEW)
-- **Purpose**: Query BigQuery `datasheets` table for product spec sheets
-- **Tables**: `datasheets`, `datasheet_scrape_runs`, `datasheet_suppliers`
-- **Note**: REST API exists at [datasheets.py](backend/app/api/routes/datasheets.py), need MCP wrapper
-- **Current gap**: `product_intelligence.py` uses hardcoded `PRODUCT_CATALOG` dict (1500 lines), not connected to BigQuery
-
-#### `get_grounding_from_bq` Helper (NEW)
-- **Purpose**: Replace CSV loading in `grounding.py` with BigQuery queries
-- **Tables**: `companies`, `industries`, `materials` (verify these exist in BQ)
-
-### 2.2 Category Agent Specification
-
-**Role**: Advanced sales engineer providing territory-specific sales intelligence
-
-**Business Context** (from Dave, CCO):
-- Give 100-person field sales team "ammo to win" in customer conversations
-- Break out insights for specific industries and use cases
-- Force multiplier for strategic decisions
-
-**Territory Focus Areas**:
-| Territory | Primary Industries |
-|-----------|-------------------|
-| East | Aerospace, Wind Energy, Automotive (utility vehicles), Defense |
-| West | Marine (boats), RVs, Spas |
-
-**Note**: Both territories sell to all industries; these are strategic focuses only.
-
-**Placement**: Post-Synthesis (takes full research report, adds sales layer)
-
-**Tools**:
-- `query_datasheets` (new - BigQuery product specs)
-- `query_corpus` (existing - historical intel)
-- `get_category_context` (new helper - industry→category→product mappings)
-
-**Output Schema**:
-```python
-class CategoryAgentOutput(BaseModel):
-    territory_insights: Dict[str, TerritoryInsight]  # "east" | "west"
-    product_recommendations: List[ProductRecommendation]
-    sales_plays: List[SalesPlay]
-    industry_talking_points: Dict[str, List[str]]
-
-class TerritoryInsight(BaseModel):
-    territory: str  # "east" | "west"
-    relevance_score: float  # 0-1 how relevant to territory
-    key_takeaways: List[str]
-    action_items: List[str]
-
-class ProductRecommendation(BaseModel):
-    product_name: str
-    supplier: str
-    material_category: str
-    why_relevant: str
-    datasheet_url: Optional[str]
-
-class SalesPlay(BaseModel):
-    play_name: str
-    target_industry: str
-    opening_hook: str  # Conversation starter
-    key_data_points: List[str]  # Facts to cite
-    objection_handlers: List[str]
-    next_steps: List[str]
-```
-
-**System Prompt Context (Hybrid Approach)**:
-- Hardcoded: Territory focus areas, top 10-15 industry→category mappings
-- Tool-based: Deep dives for specific products via `query_datasheets`
-
-**Always Runs**: Yes - Deep Research is the "full analysis" tool, users expect comprehensive output
-
-### 2.3 Validator Agent Specification
-
-**Role**: Citation and attribution verifier
-
-**Placement**: After Category Agent, before final output
-
-**Responsibilities**:
-1. Verify all citations in final report have valid sources
-2. Check that findings are properly attributed
-3. Flag any unsubstantiated claims
-4. Validate URLs are accessible (optional, may add latency)
-
-**Output Schema**:
-```python
-class ValidatorOutput(BaseModel):
-    validation_passed: bool
-    citation_issues: List[CitationIssue]
-    unsubstantiated_claims: List[str]
-    confidence_adjustments: Dict[str, str]  # finding_id -> adjusted confidence
-    warnings: List[str]
-
-class CitationIssue(BaseModel):
-    finding_id: str
-    issue_type: str  # "missing_url", "date_mismatch", "source_not_found"
-    description: str
-    suggested_fix: Optional[str]
-```
-
-### 2.4 Phase 2 Implementation Order
-
-1. Build `query_datasheets` MCP tool
-2. Build `get_grounding_from_bq` helper (if needed)
-3. Add `CategoryAgentOutput` schema to state.py
-4. Build Category Agent node
-5. Add `ValidatorOutput` schema to state.py
-6. Build Validator Agent node
-7. Update `research_workflow.py` to include new nodes
-8. Add model settings for new agents
-9. Test end-to-end
-
----
-
-## 🔜 PHASE 3: Infrastructure Enhancements (FOLLOW-UP SESSION)
-
-### 3.1 Parallel Agent Execution
-- Run Financial + Industry agents simultaneously using LangGraph branch/join
-- Potential: Category Agent pre-processing in parallel with research
-
-### 3.2 Streaming Granularity
-- Stream tool execution progress ("Querying SEC for Hexcel 10-K...")
-- Real-time status updates per agent node
-- "Agent thinking" visibility in UI
-
-### 3.3 Memory/Context Integration
-- Connect to existing memory system
-- Avoid redundant fetches for repeat queries about same company
-- Cross-session context retention
-
-### 3.4 Report Caching
-- Cache final reports by query hash
-- TTL-based invalidation
-- Skip regeneration for identical queries
-
----
-
-### 📋 Session Planning
-
-| Session | Focus | Status |
-|---------|-------|--------|
-| Session 19 | Phase 1: Foundation fixes | ✅ COMPLETE |
-| Session 20 | Phase 2: Category + Validator agents | 🔜 NEXT |
-| Session 21 | Phase 3: Parallel, streaming, memory, caching | 📋 PLANNED |
-
----
-
-## Session 18 (January 5, 2026) - FMP Premium News Verification ✅
-
-### ✅ Verified
-
-1. **FMP `premium_news` Pipeline Working End-to-End** 🎉
-   - Investigated concern that `source_type='premium_news'` wasn't appearing in BigQuery
-   - **Result**: All good! Data is flowing correctly through entire pipeline:
-     - `articles` table: 170 items
-     - `article_chunk_embeddings` table: 696 chunks (~4 per article)
-     - `digest_items` table: 170 items
-   - Most recent fetch: Jan 5, 2026 @ 09:33 UTC
-   - Sources: Benzinga, MarketBeat, Motley Fool, GuruFocus, Zacks, 247 Wallst
-
-### 📋 No Changes Required
-
-Pure verification session - no code changes needed.
-
----
-
-## Session 17 (January 5, 2026) - Ad-Hoc Briefing Session Management ✅
-
-### ✅ Completed
-
-1. **Implemented Session-Based State Management** 🎉
-   - **Problem**: `AdHocBriefingAgent()` was instantiated fresh per API request, so `follow_up_count` always reset to 0
-   - **Solution**: In-memory session storage with TTL cache and LRU eviction
-   - **Result**: Follow-up tracking now persists across requests; "max 2 follow-ups then redirect to Deep Research" works correctly
-
-2. **New Backend Files** 📁
-   - **[session_manager.py](backend/app/agents/adhoc_briefing/session_manager.py)**: 
-     - `BriefingSession` dataclass (session_id, follow_up_count, conversation_history, timestamps)
-     - `BriefingSessionManager` singleton with LRU OrderedDict
-     - 30-minute TTL, max 1000 concurrent sessions
-     - Methods: `create_session()`, `get_session()`, `get_or_create_session()`, `delete_session()`, `cleanup_expired()`, `get_stats()`
-
-3. **Updated Backend Files** ✏️
-   - **[agent.py](backend/app/agents/adhoc_briefing/agent.py)**: 
-     - Added `session: Optional[BriefingSession]` parameter to `generate_briefing()` and `generate_briefing_stream()`
-     - Uses session state for follow_up_count (falls back to instance state for backward compatibility)
-     - Adds conversation history to session, injects into prompts for context
-     - Returns `session_id` and `session` dict in responses
-   - **[briefing.py](backend/app/api/routes/briefing.py)**:
-     - Added `session_id: Optional[str]` to `AdHocBriefingRequest`
-     - Updated `/adhoc` POST and `/adhoc/stream` POST to use session manager
-     - New endpoints: `GET /adhoc/session/{session_id}`, `DELETE /adhoc/session/{session_id}`, `GET /adhoc/sessions/stats`
-
-4. **Updated Frontend Files** 🖥️
-   - **[briefing.ts](frontend/src/types/briefing.ts)**: Added `BriefingSessionInfo` interface, `session_id` fields
-   - **[api.ts](frontend/src/lib/api.ts)**: Added `session_id` parameter to `createAdHocBriefing()` and `streamAdHocBriefing()`
-   - **[useBriefing.ts](frontend/src/hooks/useBriefing.ts)**: Track `sessionId` and `turnsRemaining` state, pass to API
-   - **[AdHocBriefing.tsx](frontend/src/components/dashboard/AdHocBriefing.tsx)**: Display server-side `turnsRemaining`
-
-5. **Testing** ✅
-   - Created [test_briefing_sessions.py](backend/scripts/testing/test_briefing_sessions.py) with 7 comprehensive tests
-   - All tests pass: session creation, retrieval, follow-up tracking, conversation history, cleanup, stats, agent integration
-   - Frontend build verified: `npm run build` ✓
-   - Backend imports verified: 48 MCP tools loaded ✓
-
-### 📋 Design Decisions
-
-| Decision | Rationale |
-|----------|-----------|
-| In-memory storage | Simple, no additional infrastructure; sessions are ephemeral anyway |
-| 30-min TTL | Balance between user convenience and memory usage |
-| 1000 session max | LRU eviction prevents unbounded memory growth |
-| Session ID in request/response | Stateless API design; client manages session continuity |
-| Backward compatible agent | `session` parameter is optional; old code still works |
-
-### 📋 Remaining Tech Debt (Updated)
-
-| Priority | Issue | Description |
-|----------|-------|-------------|
-| ~~🟡 Medium~~ | ~~Ad-hoc Briefing Stateless~~ | ✅ **FIXED** - Session management implemented |
-| 🟢 Low | **Convert to Native Claude Tools** | Custom JSON → native Anthropic tool use |
-| 🟢 Low | **Domain Resolution Heuristics** | `company_name_to_domain()` guesses - could use lookup API |
-| 🟢 Low | **CSV → BigQuery CRUD Migration** | `grounding.py` CSV fallback removal |
-
----
-
-## Session 16 (January 5, 2026) - Cleanup Verification & Script Archive ✅
-
-### ✅ Completed
-
-1. **Verified Session 15 get_db Cleanup** 🎉
-   - Reviewed all 5 modified files: `briefing.py`, `orchestrator.py`, `classifier.py`, `linker.py`, `digest.py`
-   - Confirmed no `get_db` or `self.db` references in production code (`backend/app/**`)
-   - Confirmed `app/db/__init__.py` exports only BigQuery storage (no SQLite)
-   - Verified FastAPI app loads: `from app.main import app` ✅
-   - Verified MCP tools load: 48 tools ✅
-
-2. **Archived 10 Legacy Test Scripts** 📦
-   - Moved scripts that import deleted `app/db/database.py` to `backend/scripts/archive/`:
-     - `verify_enhancements.py`, `test_pulse_api.py`, `test_two_agent_pipeline.py`
-     - `test_briefing.py`, `purge_and_backfill_exa.py`, `purge_data.py`
-     - `load_companies.py`, `debug_entities.py`, `backfill_tags.py`, `check_data_sources.py`
-   - Updated `backend/scripts/archive/README.md` with documentation
-
-3. **Fixed Priority Case Normalization** ✅
-   - **Issue**: LLM returns mixed case (`"high"`, `"High"`, `"HIGH"`), but enum expects title case
-   - **Fix**: Added `.title()` normalization in `classifier.py` line 267
-   - **Result**: Future classifications will have consistent `"High"`, `"Medium"`, `"Low"` values
-   - **File**: [classifier.py](backend/app/ingestion/processing/classifier.py#L267-L268)
-
-4. **Codebase Health Verified** ✅
-   - No `database.py` imports remain in production code
-   - All remaining `database.py` imports are safely in `scripts/archive/`
-   - FastAPI + MCP tools load successfully
-
-### 📋 Verified Already Done
-
-- **Frontend 7-Day Filter**: Already implemented in `page.tsx` - uses `hours: 168` for pulse mode
-
-### 📋 Remaining Tech Debt (From Session 15)
-
-**CSV → BigQuery CRUD Migration** (Low Priority):
-| File | Current | Needed |
-|------|---------|--------|
-| `grounding.py` | BQ primary, CSV fallback | Remove CSV fallback |
-
-**Legacy Files** (Superseded by Long-Term Memory - see `c1-mvp-longterm_memory.md`):
-| File | Status |
-|------|--------|
-| `data_management.py` | Legacy - replaced by long-term memory workflow |
-| `data_preferences.py` | Legacy - replaced by long-term memory workflow |
-
-### 📋 Other Open Items (Medium-Low Priority)
-
-| Priority | Issue | Description |
-|----------|-------|-------------|
-| 🟡 Medium | **Ad-hoc Briefing Stateless** | `follow_up_count` resets per request - needs session management |
-| 🟢 Low | **Convert to Native Claude Tools** | Custom JSON → native Anthropic tool use |
-| 🟢 Low | **Domain Resolution Heuristics** | `company_name_to_domain()` guesses - could use lookup API |
-
----
-
-## Session 15 (January 5, 2026) - get_db Cleanup Complete ✅
-
-### ✅ Completed
-
-1. **Removed All `get_db()` Imports** 🎉
-   - **Files Fixed**: 
-     - `backend/app/api/routes/briefing.py` - Removed SQLite fallback, BigQuery-only
-     - `backend/app/ingestion/orchestrator.py` - Replaced `self.db` with `self.gcp_storage`
-     - `backend/app/ingestion/processing/classifier.py` - Updated `load_tracked_entities()` to use BigQuery
-     - `backend/app/ingestion/processing/linker.py` - Updated `load_entities()` to use BigQuery
-     - `backend/app/ingestion/generators/digest.py` - Updated to use BigQuery storage
-
-2. **Updated Data Loading Pattern** ✅
-   - Classifier now loads competitors/OEMs from BigQuery `companies` table (with hardcoded fallback)
-   - Linker now loads entities from BigQuery `companies` and `materials` tables
-   - DigestGenerator now uses `get_digest_items()` instead of deprecated `query_corpus()`
-   - Orchestrator's `get_status()` uses BigQuery `get_digest_stats()` instead of SQLite
-
-3. **Verified All Imports** ✅
-   - `from app.mcp.server import get_all_mcp_tools` - ✅ Works
-   - All modified files import cleanly
-
-### 📋 Future Work: Remove `resources/` Folder (CSV → BigQuery Migration)
-
-The same entity data exists in both CSV files and BigQuery tables. Recommendation is to fully migrate to BigQuery.
-
-**Scope Summary**:
-
-| File | Current Usage | Migration Required |
-|------|---------------|-------------------|
-| `backend/app/utils/grounding.py` | BigQuery primary, CSV fallback | Remove CSV fallback |
-| `backend/app/mcp/tools/data_management.py` | Writes to CSV files | Add BigQuery write methods (`add_company`, etc.) |
-| `backend/app/api/routes/data_preferences.py` | CRUD operations on CSV | Same - needs BigQuery CRUD |
-| `backend/app/config/settings.py` | Defines `companies_file`, etc. | Remove file path properties |
-| `backend/scripts/operations/maintenance/seed_bigquery.py` | Seeds BQ from CSV | Keep as one-time migration tool |
-
-**Required BigQuery Methods** (not yet implemented):
-- `add_company()` / `update_company()` / `delete_company()`
-- `add_material()` / `update_material()` / `delete_material()`
-- `add_industry()` / `update_industry()` / `delete_industry()`
-
-**When to do this**: Low priority. Current flow works. Can be done as a separate task.
-
----
-
-## Session 14 (January 5, 2026) - Digest System Investigation ✅
-
-### ✅ Completed
-
-1. **"Lowium" Priority Bug Investigation** 🎉
-   - **Finding**: 0 items with priority="Lowium" in BigQuery
-   - **Conclusion**: Bug self-resolved (either fixed previously or data aged out)
-   - **No action required** ✅
-
-2. **Priority Case Sensitivity Issue Identified** ⚠️
-   - **Finding**: 12% of items have capitalized priority values (`Low`, `Medium`, `High`) vs 88% lowercase
-   - **Root Cause**: LLM sometimes returns capitalized values (as prompted), but parsing logic has lowercase default
-   - **Impact**: Minimal - both values work functionally, but creates data inconsistency
-   - **Distribution**:
-     - `low`: 1,413 items ✅
-     - `medium`: 1,237 items ✅
-     - `high`: 671 items ✅
-     - `Low`: 370 items ⚠️
-     - `Medium`: 45 items ⚠️
-     - `High`: 31 items ⚠️
-   - **Recommendation**: Add case normalization in classifier (low priority)
-
-3. **Production Health Check** ✅
-   - **Status**: System healthy and functioning correctly
-   - **Most Recent Run**: 2026-01-05 09:22:09 UTC
-   - **Results**:
-     - 178 articles fetched
-     - 170 unique articles stored
-     - 8 duplicates skipped
-     - 95.5% efficiency (new content ratio)
-     - 11m 23s duration
-   - **Pipeline**: All stages working correctly (deduplication, enrichment, classification)
-   - **Briefing Generation**: Expected failures (parallel workstream handling broken imports)
-
-4. **Documentation Created**
-   - Created comprehensive findings report: `digest_investigation_findings.md`
-   - Updated task checklist with completed items
-   - Created diagnostic script: `scripts/testing/check_lowium_bug.py`
-
-### 📋 Optional Enhancements (Low Priority)
-
-| Priority | Enhancement | Description |
-|----------|-------------|-------------|
-| 🟡 Low | **Priority Case Normalization** | Add `.lower()` normalization in classifier parsing to ensure consistent lowercase storage |
-| 🟢 Low | **Frontend Filter Default** | Update digest filter from 72 hours → 7 days for better UX |
-
-### ✅ Digest System Status: GOOD TO GO
-
-All critical items resolved. System is healthy and functioning correctly. Optional enhancements can be tackled later if desired.
-
----
-
-## Session 13b (January 5, 2026) - Digest SQLite Cleanup ✅
-
-### ✅ Completed
-
-1. **Deleted Legacy SQLite Code** 🎉
-   - **Deleted**: `backend/app/db/database.py` (1,128 lines of legacy SQLite code)
-   - **Updated**: `backend/app/db/__init__.py` - Removed `Database` and `get_db` imports/exports
-   - **Removed**: `chromadb>=0.5.0` from `requirements.txt`
-   - **Verified**: All critical imports still work (DB, GCP storage, DigestService)
-
-2. **Confirmed Digest Data Flow** ✅
-   - Digest cards pull from BigQuery `digest_items` table (verified in Session 12)
-   - No SQLite references in digest pipeline
-   - Data flow: Frontend → API → DigestService → BigQueryDataStorage → BigQuery
-
-3. **Preserved Exa Pipeline SQLite** ✅
-   - `backend/app/services/exa_websets_service.py` uses SQLite for webset tracking
-   - This is intentional - different use case (pipeline prospect tracking, not intelligence corpus)
-
-### 📋 Open Items (Digest Enhancements - Optional)
-
-| Priority | Issue | Status |
-|----------|-------|--------|
-| ✅ Done | **"Lowium" Priority Bug** | Investigated in Session 14 - 0 items found, bug self-resolved |
-| ✅ Done | **Production Dashboard** | Ran in Session 14 - System healthy, 170 articles stored |
-| ⚠️ Identified | **Priority Case Sensitivity** | Session 14 found 12% capitalized values - low priority fix recommended |
-| 🟢 Low | **Frontend Filter Should Be 7 Days** | Optional UX enhancement - change default from 72h to 168h |
-
-### ✅ RESOLVED: Broken Imports - database.py Deleted (Fixed in Session 15)
-
-**Status**: All `get_db` imports have been removed and replaced with BigQuery storage. See Session 15 above for details.
-
----
-
-## Session 13 (January 5, 2026) - Briefing Pipeline Fix ✅
-
-### ✅ Completed
-
-1. **Fixed Agent 1 Data Source - SQLite → BigQuery** 🎉
-   - **Problem**: PreBriefGenerator (Agent 1) was querying SQLite `corpus_items` (776 items) instead of BigQuery `articles` (3,308+ items)
-   - **Solution**: Rewrote `_get_articles()` in `pre_briefing.py` to use `BigQueryDataStorage.get_articles()` instead of `self.db.query_corpus()`
-   - **Added**: Custom date range support for historical pre-briefings (`start_date`, `end_date` parameters)
-   - **File Modified**: [pre_briefing.py](backend/app/ingestion/generators/pre_briefing.py)
-
-2. **Generated 3 Historical Pre-Briefings** 🎉
-   - Period 3: Nov 24 - Dec 7, 2025 (50 articles, 27 observations)
-   - Period 2: Dec 8-21, 2025 (50 articles, 20 observations)
-   - Period 1: Dec 22 - Jan 4, 2026 (50 articles, 23 observations)
-   - All saved to BigQuery `pre_briefings` table
-
-3. **Generated Weekly Briefing** 🎉
-   - ID: `c21f6cdc-1b55-4d1b-9a89-51aff8aa905f`
-   - 4 strategic sections with net_new/continuing status
-   - BLUF: "Defense spending surge anchored by the $151B Golden Dome initiative..."
-   - Sections: Golden Dome Demand Catalyst, Space Launch Composites Inflection, Aerospace OEM Recovery Validation, Supply Chain & Materials Intelligence
-   - Uses rich historical context from prior briefings
-
-4. **Scripts Created**
-   - `scripts/testing/test_prebriefing_bq.py` - Validates BigQuery data source
-   - `scripts/operations/generate_briefings.py` - Generates historical pre-briefings + weekly briefing
-
-### 📋 Ready to Deploy
-
-All Session 11 improvements (BLUF persistence, rich historical context) + Session 13 fixes are ready:
-- Agent 1 now uses BigQuery (full article corpus)
-- 3 pre-briefings provide historical context
-- Weekly briefing generated with proper net_new/continuing classification
-
-**Deploy Command**:
-```bash
-git add .
-git commit -m "Fix Agent 1 to use BigQuery, generate historical briefings"
-git push origin main
-```
-
-### 📋 Open Items / To Do
-
-| Priority | Issue | Description |
-|----------|-------|-------------|
-| � Medium | **Earnings Call Briefings** | Special briefing type triggered when new Q1 2026 earnings transcripts arrive (~late Jan). Longer-form summaries of key supplier/OEM calls. Data source already exists (`API Ninja Earnings`). |
-| 🟡 Medium | **Pre-Brief Article Selection** | Currently takes 50 most recent by `published_at`. Could improve with relevance scoring, source diversity, or company prioritization. |
-| �🟢 Low | **Ad-hoc Briefing Stateless** | `AdHocBriefingAgent.follow_up_count` resets each request |
-| 🟢 Low | **Convert to Native Claude Tools** | Currently uses custom JSON format for tool calls |
-| 🟢 Low | **Domain Resolution Heuristics** | `company_name_to_domain()` guesses domains |
-
----
-
-## Session 12 (January 5, 2026) - Parallel Session
-
-### ✅ Completed
-
-1. **Digest Cards Data Source Investigation** 🔍
-   - **Request**: Verify digest cards are pulling from BigQuery `digest_items` table (not SQLite/ChromaDB)
-   - **Finding**: ✅ **CONFIRMED** - System is correctly using BigQuery
-   - **Verification Results**:
-     - Storage backend: `BigQueryDataStorage` (verified via runtime check)
-     - Query target: `gen-lang-client-0436975498.c1_intelligence.digest_items`
-     - Current data: 44 items in last 72 hours (Earnings: 4, General: 34, Market: 6)
-     - Data flow: Frontend → API → DigestService → BigQueryDataStorage → BigQuery
-   - **Legacy Files Found** (not in use):
-     - `data/c1_corpus.db` - Old SQLite database (not imported by app)
-     - `app/db/database.py` - SQLite interface (not used for digest cards)
-     - Various legacy scripts referencing SQLite
-   - **Documentation Created**:
-     - Comprehensive findings report in artifacts
-     - Created diagnostic scripts: `check_digest_data.py`, `check_digest_service.py`
-   - **Files Verified**:
-     - [digest_service.py](backend/app/services/digest_service.py) - Calls BigQuery storage
-     - [gcp_storage.py](backend/app/db/gcp_storage.py) - `get_digest_items()` at L2666-2760
-     - [digest.py](backend/app/api/routes/digest.py) - API endpoints
-     - [useDigest.ts](frontend/src/hooks/useDigest.ts) - Frontend hook
-
-### 📋 Key Findings
-
-- **No SQLite/ChromaDB in use** for digest cards - suspicion was incorrect
-- System properly configured with hardcoded BigQuery defaults
-- Query includes smart filters: date range, confidence threshold, future date exclusion
-- 15-minute cache TTL in DigestService
-- If frontend shows stale data, likely causes:
-  1. Frontend filters hiding items
-  2. Ingestion schedule (when was last run?)
-  3. Cache (15-min TTL)
-  4. Frontend state/loading issues
-
----
-
-## Session 11 (January 5, 2026)
-
-### ✅ Completed
-
-1. **Historical Context Enhancement for Agent 2** 🎉
-   - **Problem**: Agent 2 (Executive Synthesizer) only received sparse topic list from prior briefings
-   - **Before**: `"Briefing Date: 2026-01-05\nTopics: Defense, Resins, Aerospace"`
-   - **After**: Rich context with BLUF, section headlines, insight status (net_new/continuing), key companies, and overall trend
-   - Now Agent 2 can accurately perform "differential analysis" to classify new vs continuing topics
-   - **File Modified**: [weekly_briefing.py](backend/app/ingestion/generators/weekly_briefing.py) - `_get_historical_context()`
-
-2. **BLUF Now Persisted to BigQuery** 🎉
-   - **Problem**: BLUF was being generated by Agent 2 but never saved to BigQuery (missing column + not in insert)
-   - **Fix**: 
-     - Added `bluf` column to `weekly_briefings` table schema
-     - Added `bluf` field to `save_weekly_briefing()` row dict
-     - Added `bluf` parsing to `get_latest_weekly_briefing()` and `get_weekly_briefing_history()`
-   - **File Modified**: [gcp_storage.py](backend/app/db/gcp_storage.py)
-   - **Migration**: Created and ran `scripts/operations/migrations/add_bluf_column.py`
-
-3. **Migration Script Created**
-   - Created `backend/scripts/operations/migrations/add_bluf_column.py`
-   - Successfully ran migration - `bluf` column now exists in BigQuery
-   - Non-destructive: existing rows have NULL, code handles gracefully
-
-4. **Discovered Critical Data Source Issue** 🚨
-   - **Finding**: Agent 1 (PreBriefGenerator) queries **SQLite** `corpus_items` (776 items), NOT BigQuery `articles` (3,308 items)
-   - `pre_briefing.py` line 89: `await self.db.query_corpus(hours=days*24, limit=50)` → SQLite
-   - This means pre-briefings are built from a fraction of available data
-   - **Data Comparison**:
-     - SQLite `corpus_items`: 776 items
-     - BigQuery `articles`: 3,308 items
-     - BigQuery `digest_items`: 3,767 items
-   - **BigQuery has good coverage for target periods**:
-     - Dec 22 - Jan 5: 1,294 articles
-     - Dec 8-21: 383 articles
-     - Nov 24 - Dec 7: 122 articles
-   - **Scripts Created**: `check_data_sources.py`, `check_periods.py`, `check_dec_dates.py`
-
-### 🚨 CRITICAL: Do NOT Deploy Yet
-
-The code changes (BLUF storage, historical context) are complete but **Agent 1 still uses SQLite**.
-Wait until Session 13 completes the fix before deploying.
-
-### 📋 Open Items / To Do
-
-| Priority | Issue | Description |
-|----------|-------|-------------|
-| 🔴 HIGH | **Agent 1 Uses SQLite** | PreBriefGenerator queries SQLite (776 items) not BigQuery (3,308). Must fix before deploy. |
-| 🟡 Medium | **Backfill Historical Briefings** | After fixing Agent 1, generate 3 pre-briefings + 1 weekly for full experience |
-| 🟡 Medium | **Ad-hoc Briefing Stateless** | `AdHocBriefingAgent.follow_up_count` resets each request |
-| 🟢 Low | **Convert to Native Claude Tools** | Currently uses custom JSON format for tool calls |
-| 🟢 Low | **Domain Resolution Heuristics** | `company_name_to_domain()` guesses domains |
-
----
-
-## Session 10 (January 5, 2026)
+## Session 22 (January 5, 2026)
 
 ### ✅ Completed
 
@@ -4414,7 +3532,7 @@ Wait until Session 13 completes the fix before deploying.
    - Citations like `[1]`, `[2]` in text now have corresponding clickable links in the Sources footer
    - **File Modified**: [weekly_briefing.py](backend/app/ingestion/generators/weekly_briefing.py)
 
-2. **BLUF (Bottom Line Up Front) Now Rendered** 🎉
+2. **BLUF Now Rendered** 🎉
    - **Root Cause**: Frontend `WeeklyBriefing` type didn't include `bluf` field, and component didn't render it
    - **Fix**: Added `bluf?: string` to TypeScript type and styled BLUF display in briefing header
    - BLUF appears as a highlighted callout box with "BLUF" label, positioned prominently after the title
@@ -4433,7 +3551,7 @@ Wait until Session 13 completes the fix before deploying.
 
 ---
 
-## Session 9 (January 5, 2026)
+## Session 21 (January 5, 2026)
 
 ### ✅ Completed
 
@@ -4479,7 +3597,175 @@ Wait until Session 13 completes the fix before deploying.
 
 ---
 
-## Session 8 (January 5, 2026)
+## Session 20 (January 5, 2026)
+
+### ✅ Completed
+
+1. **API Ninja Earnings Re-enabled & Backfilled**
+   - Confirmed endpoint works (tested with GCTAF ticker)
+   - Tested all 48 tracked tickers for Q3 2025 transcripts
+   - Added `collect_for_quarter()` method to earnings collector for direct quarter fetch
+   - Fixed `run_earnings_only()` method:
+     - Changed `list_companies()` → `get_companies()`
+     - Fixed `await get_storage()` (was missing await)
+     - Fixed field name: `stock_ticker` → `ticker`
+     - Added filter to exclude `'private'` companies
+   - **Backfill Results**: 56 Q3 2025 transcripts found, 40 new stored (16 dupes)
+
+2. **Cloud Scheduler Jobs Fixed** 🚨
+   - All 6 jobs were pointing to OLD Cloud Run URL (`c1-hub-4iz75bvpyq-uc.a.run.app`)
+   - Updated all to new URL: `https://c1-intelligence-hub-285931707029.us-central1.run.app`
+   - Updated OIDC audience to match new URL
+   - Jobs updated:
+     - `daily-evening-ingest` (2 AM daily)
+     - `ingest-flash-update` (every 4 hours)
+     - `ingest-deep-dive` (8 AM daily)
+     - `weekly-executive-briefing` (Monday 2:30 PM)
+     - `weekly-data-cleanup` (Sunday 2 AM)
+     - `weekly-corpus-refresh` (Sunday 3 AM)
+
+3. **Created WORKLOG.md** - Session continuity system
+   - Added instructions to CLAUDE.md to read/update WORKLOG.md
+   - Tracks completed work, in-progress, and open items
+
+4. **Documentation Updates**
+   - Updated `CLAUDE.md` with Session 7 changes and session continuity instructions
+   - Updated `scripts/README.md` with new quick reference and data sources table
+   - Updated `scripts/monitoring/README.md` to focus on production_dashboard
+   - Fixed `production_dashboard.py` to find health check in correct directory
+
+5. **Monitoring Script Improvements**
+   - Added `premium_news` (FMP News) to `ingestion_health_check.py`
+   - Fixed source type `stocknews` → `stocknewsapi`
+   - Updated display to show 9 sources (was 8)
+
+### 🔄 In Progress
+
+1. **DRUMBEAT Feed Investigation** - Started investigating why digest cards not loading
+
+### 📋 Open Items / Next Steps
+
+1. **🚨 DRUMBEAT Feed Not Loading** - Digest cards not showing in app's 7-day news feed
+   
+   **Investigation Progress (Session 7):**
+   - ✅ Data EXISTS in BigQuery: 3,597 digest_items, 645 in last 7 days, feed_eligible=True
+   - ✅ `feed_eligible=True` for 3,574 items (only 23 are False)
+   - ✅ Items by source in last 7 days: web_news (287), web_news_exa (159), stocknewsapi (156), rss (35), etc.
+   
+   **ROOT CAUSE IDENTIFIED:**
+   - `backend/app/db/gcp_storage.py` has TWO storage classes:
+     - `LocalDataStorage` (line 254) - Uses SQLite
+     - `BigQueryDataStorage` (line 662) - Uses BigQuery
+   - Both have `get_digest_items()` method
+   - The `get_data_storage()` function (line 2865) checks `gcp_config.is_configured`
+   - **HYPOTHESIS**: Locally or in production, it might be falling back to SQLite which has NO data
+   
+   **Next Steps:**
+   - Test which storage type is being used: `type(storage).__name__`
+   - Check `gcp_config.is_configured` value in production
+   - If BigQuery, check if the query filters are excluding items (date filters, confidence, etc.)
+   - The BigQuery `get_digest_items` has complex filters:
+     - `published_at >= cutoff_time` (lookback hours)
+     - `published_at <= now` (not future)
+     - `confidence >= 0.3`
+     - `ingested_at >= '2025-12-28'`
+     - Complex `classified_at` vs `published_at` check (30 min diff)
+   
+   **Key Files:**
+   - `backend/app/db/gcp_storage.py` - Storage backends (lines 536-620 SQLite, lines 2626-2720 BigQuery)
+   - `backend/app/services/digest_service.py` - `get_digest()` method (line 102)
+   - `backend/app/api/routes/digest.py` - API endpoint (line 28)
+   - `frontend/src/hooks/useDigest.ts` - Frontend hook
+   - `frontend/src/lib/api.ts` - API client (line 119: `/api/digest`)
+
+2. **Re-run Industry Queries Backfill** - Previous run got stuck
+   - Try with smaller batch: `--days 2` or `--days 3`
+
+3. **Consider Q4 2024 Earnings** - Could also backfill Q4 2024 for more historical data
+
+4. **Earnings in Daily Scheduler** - Decide if/how to add earnings to scheduled runs
+   - API Ninja is quarter-based, not daily
+   - May need custom logic: "fetch current quarter's earnings for any new filings"
+
+### 🔑 Key Technical Context
+
+- **BigQuery dataset**: `gen-lang-client-0436975498.c1_intelligence`
+- **MCP tools**: 48 loading correctly
+- **Companies table**: `stock_ticker` column → converted to `ticker` in Python via `get_companies()`
+- **Earnings URL format**: `earnings://{ticker}/{year}/Q{quarter}` (unique for dedup)
+
+### Companies WITH Q3 2025 Earnings (35)
+VMC, MLM, CRH, GVA, PWR, MTZ, PRIM, SKBSY, ACM, J, FLR, SGL.DE, HXL, BA, EADSY, ERJ, RTX, NOC, LMT, GD, GE, RKLB, VWDRY, GEV, NRDXF, BC, RACE, FINMY, TXT, JOBY, ACHR, MBUU, MCFT, F, GM
+
+### Companies WITHOUT Q3 2025 Earnings (13)
+SUM, TINLY, GURN.SW, SOLVY, TRYIY, BAESY, SAFRY, RYCEY, GCTAF, BEN.PA, BMWYY, BDRBF, TM
+
+---
+
+## Session 19 (January 5, 2026)
+
+### ✅ Completed
+
+1. **Deep Research Workflow Review & Phase 1 Fixes** 🎉
+   - **Fixed Schema Mismatch in financial.py** 🐛
+     - `brief.research_intent` → `brief.clarified_intent`
+     - `brief.key_entities` → `brief.entities_to_track`
+     - `brief.time_period` → `brief.timeframe`
+   - **Fixed Conditional Edge Bug in research_workflow.py** 🐛
+     - Changed `"end": END` to `END: END` for proper LangGraph routing
+   - **Model Configuration Centralized** ⚙️
+     - Added to [settings.py](backend/app/config/settings.py):
+       - `deep_research_groomer_model`
+       - `deep_research_financial_model`
+       - `deep_research_industry_model`
+       - `deep_research_synthesizer_model`
+     - All default to `claude-sonnet-4-5` (changed from opus for cost efficiency)
+     - Updated all 4 agent files to use `settings.deep_research_*_model`
+   - **Fixed `get_db` imports** 🎉
+     - Removed all `get_db` imports and replaced with BigQuery storage
+     - `app/db/__init__.py` exports only BigQuery storage (no SQLite)
+   - **Fixed `resources/` folder** 🎉
+     - Removed `resources/` folder (CSV → BigQuery)
+   - **Fixed `data_management.py`** 🎉
+     - Removed `data_management.py` (replaced by long-term memory workflow)
+
+2. **Cloud Scheduler Jobs Fixed** 🚨
+   - All 6 jobs were pointing to DEAD URL: `c1-intelligence-hub-285931707029.us-central1.run.app`
+   - The correct URL is: `https://c1-hub-4iz75bvpyq-uc.a.run.app`
+   - Updated all jobs with correct URL and OIDC audience
+   - Jobs affected: `weekly-executive-briefing`, `ingest-deep-dive`, `ingest-flash-update`, `daily-evening-ingest`, `weekly-data-cleanup`, `weekly-corpus-refresh`
+
+3. **Logo.dev Integration Fixed** ✅
+   - **Root Cause**: `LOGO_DEV_TOKEN` secret in Secret Manager had trailing carriage return (`\r`)
+   - This caused: `Invalid non-printable ASCII character in URL, '\r' at position 86`
+   - **Fix**: Created clean version 3 of secret without `\r`, forced Cloud Run revision update
+   - All logo domains now return 200 with valid PNG bytes
+   - Tested: `airbus.com`, `boeing.com`, `compositesone.com`, `spiritaero.com`, `hexcel.com` all working
+
+4. **cloudbuild.yaml Updated**
+   - Added `LOGO_DEV_TOKEN=LOGO_DEV_TOKEN:latest` to `--set-secrets` line
+   - Future git-push deployments will now include the logo token
+
+### 📋 Open Items / To Do (from Code Review)
+
+| Priority | Issue | Description |
+|----------|-------|-------------|
+| ✅ Done | **Source Articles Not Linked** | Fixed in Session 10 - citations now have clickable links |
+| ✅ Done | **BLUF Not Rendered** | Fixed in Session 10 - BLUF now displays in briefing header |
+| 🟡 Medium | **Historical Context Too Sparse** | Agent 2 only gets topic list from previous briefings, not actual headlines - limits narrative continuity |
+| 🟡 Medium | **Ad-hoc Briefing Stateless** | `AdHocBriefingAgent.follow_up_count` resets each request - can't track multi-turn conversations |
+| 🟢 Low | **Convert to Native Claude Tools** | Currently uses custom JSON format for tool calls - could use native Anthropic tool use |
+| 🟢 Low | **Domain Resolution Heuristics** | `company_name_to_domain()` guesses domains - could add more known mappings or use lookup API |
+
+### 🔧 Infrastructure Notes
+
+- **Cloud Run Service**: `c1-hub` at `https://c1-hub-4iz75bvpyq-uc.a.run.app`
+- **Cloud Build Trigger**: GitHub push to `main` triggers build (configured in GCP Console)
+- **Secrets in Secret Manager**: ANTHROPIC_API_KEY, FMP_API_KEY, API_NINJA_KEY, TAVILY_API_KEY, EXA_API_KEY, LOGO_DEV_TOKEN (now clean)
+
+---
+
+## Session 18 (January 5, 2026)
 
 ### ✅ Completed
 
@@ -4572,7 +3858,7 @@ Wait until Session 13 completes the fix before deploying.
 1. **🚨 DRUMBEAT Feed Not Loading** - Digest cards not showing in app's 7-day news feed
    
    **Investigation Progress (Session 7):**
-   - ✅ Data EXISTS in BigQuery: 3,597 rows in `digest_items`, 645 in last 7 days
+   - ✅ Data EXISTS in BigQuery: 3,597 digest_items, 645 in last 7 days, feed_eligible=True
    - ✅ `feed_eligible=True` for 3,574 items (only 23 are False)
    - ✅ Items by source in last 7 days: web_news (287), web_news_exa (159), stocknewsapi (156), rss (35), etc.
    
@@ -4716,11 +4002,8 @@ KEY FILES:
 - backend/app/db/gcp_storage.py - Storage backends
 - backend/app/services/digest_service.py - get_digest() method  
 - backend/app/api/routes/digest.py - /api/digest endpoint
-
-SESSION 7 COMPLETED:
-- ✅ Earnings backfill (40 new Q3 2025 transcripts)
-- ✅ Cloud Scheduler jobs fixed (6 jobs, all pointed to wrong URL)
-- ✅ WORKLOG.md created for session continuity
+- frontend/src/hooks/useDigest.ts - Frontend hook
+- frontend/src/lib/api.ts - API client (line 119: `/api/digest`)
 ```
 
 ---
@@ -4768,3 +4051,1573 @@ SESSION 7 COMPLETED:
 -   `backend/app/mcp/tools/pipeline_search.py`
 -   `frontend/src/types/index.ts`
 -   `frontend/src/components/pipeline/SearchBlockCard.tsx`
+
+---
+
+## 📅 SESSION 95: Fix Weekly Briefing — Citations, Voice Enrichment, Podcast (February 10, 2026)
+
+**Status**: 🔧 IN PROGRESS
+
+### 🎯 Goal
+
+Fix the broken Feb 9 weekly briefing: citations mostly missing, podcast audio not generating, voice enrichment returning zero results. Delete broken data and regenerate fresh.
+
+### 🔍 Root Causes Identified
+
+1. **Citation ordering** — `get_articles_by_ids()` returned articles in arbitrary BQ order. Citation `[N]` expected `article_ids[N-1]` but got a random article. **Already fixed in Session 94** (commit `207ddf2`).
+
+2. **Voice enrichment returning nothing** — `_fetch_voice_enrichment()` concatenated all topics into one string (`" ".join(topic_list[:5])`) and passed it to BQ methods using `LIKE %concatenated_string%`. This never matches because no SEC filing/quote contains "carbon fiber hydrogen aerospace wind automotive" as a substring. Fix: search by individual company names/tickers with deduplication.
+
+3. **Podcast not generating** — Feb 9 briefing's podcast generation failed due to 5000 char ElevenLabs API limit (9355 char dialogue). Chunking fix applied in Session 93 (commit `247a282`) but briefing was never regenerated after the fix.
+
+### ✅ Completed
+
+1. **Voice enrichment rewrite** — `_fetch_voice_enrichment()` in `weekly_briefing.py` completely rewritten:
+   - SEC nuggets: Searches by each company name individually (up to 10), then by each topic keyword individually (up to 5), deduplicates by nugget_id, sorts by relevance, caps at 10
+   - Earnings quotes: Same pattern — per-company search, per-topic search, dedup by quote_id
+   - Podcast quotes: Searches by detected themes (mapped from topics via theme_mapping dict) AND by individual company names, dedup by quote_id
+   - Added detailed logging at each stage for debugging
+
+2. **Deleted broken Feb 9 data** — Removed 1 weekly briefing (`8f60f092`) and 2 pre-briefings (`a0dd4dc7`, `de033dfb`) from BigQuery via table swap (CREATE AS SELECT + DROP + RENAME)
+
+3. **Deploy and regenerate** — Committing voice enrichment fix, pushing to master for Cloud Build auto-deploy, then triggering fresh briefing generation
+
+### 📁 Files Modified
+| File | Change |
+|------|--------|
+| `backend/app/ingestion/generators/weekly_briefing.py` | Complete rewrite of `_fetch_voice_enrichment()` — individual company/topic searches instead of concatenated string |
+
+### 📁 Files Already Deployed (Session 94)
+| File | Change |
+|------|--------|
+| `backend/app/db/gcp_storage.py` | `get_articles_by_ids()` order-preserving fix, `_create_weekly_briefings_table()` schema auto-migration |
+
+---
+
+## 📅 SESSION 94: Supply Network Tab + Industry Narratives Planning (February 9, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Goal
+
+Build the Supply Network tab with interactive force-directed graph visualization of C1 + 10 competitors and their upstream supplier relationships. Plan the Industry Narratives feature for next session.
+
+### ✅ Completed
+
+1. **Supply Network Tab** — New tab with graph-primary split layout (60% graph / 40% drill-down panel)
+   - **Backend**: `app/api/routes/supply_network.py` — 5 REST endpoints (`/graph`, `/stats`, `/company/{key}`, `/supplier/{key}`, `/shared-suppliers`), all calling existing `BigQueryStore` methods (zero new BQ code)
+   - **Frontend**: 3 new components in `frontend/src/components/supply-network/`:
+     - `NetworkGraph.tsx` — `react-force-graph-2d` wrapper with color-coded nodes (amber=C1, blue=competitor, indigo=supplier), log-scale sizing, custom canvas labels, zoom/pan controls, legend
+     - `DetailPanel.tsx` — Right panel with 3 states: overview stats, company drill-down (supplier table), supplier drill-down (buyer table with [C1]/[COMP] badges)
+     - `SupplyNetworkDashboard.tsx` — Main container managing graph data, node selection, split layout
+   - **Tab integration**: Added to `Mode` type, Sidebar nav, AppHeader config, page.tsx conditional render, chat-hidden condition
+   - **API client**: 5 new methods in `api.ts` (`getSupplyNetworkGraph`, `getSupplyNetworkStats`, `getCompanyDetail`, `getSupplierDetail`, `getSharedSuppliers`)
+   - **Build verified**: TypeScript compiles, production build succeeds
+   - **Deployed**: Commit `207ddf2`, pushed to master → Cloud Build auto-deploy
+
+2. **Citation ordering fix** — `weekly_briefing.py` now preserves article_ids order so `[N]` citations map correctly
+
+### 📁 Files Created
+| File | Purpose |
+|------|---------|
+| `backend/app/api/routes/supply_network.py` | 5 REST endpoints for graph, stats, drill-down |
+| `frontend/src/components/supply-network/NetworkGraph.tsx` | Force-directed graph with canvas rendering |
+| `frontend/src/components/supply-network/DetailPanel.tsx` | Click-to-drill-down panel |
+| `frontend/src/components/supply-network/SupplyNetworkDashboard.tsx` | Main container, split layout |
+
+### 📁 Files Modified
+| File | Change |
+|------|--------|
+| `backend/app/main.py` | Added supply_network router |
+| `backend/app/api/routes/__init__.py` | Added supply_network import |
+| `frontend/src/types/index.ts` | Added 'supply-network' to Mode, chatSuggestions, welcomeMessages |
+| `frontend/src/app/page.tsx` | Dynamic import, conditional render, chat-hidden |
+| `frontend/src/components/layout/Sidebar.tsx` | Added Supply Network nav item |
+| `frontend/src/components/layout/AppHeader.tsx` | Added supply-network to modeConfig |
+| `frontend/src/components/chat/ChatInterface.tsx` | Added supply-network to modeSuggestions + welcomeMessages |
+| `frontend/src/lib/api.ts` | 5 API methods + Mode union update |
+
+### 🔮 Next Session: Industry Narratives Tab
+
+**Goal**: User selects an industry (from the 6+ industries in `digest_items`) and sees how news evolves over a 90-day period, grouped by month, with month-over-month delta tracking for sub-metadata.
+
+**Reference file**: `industry_narratives_intuition.xlsx` in project root (Claude-in-Excel concept)
+
+**Key `digest_items` columns available for this feature**:
+- `industries` (JSON array) — Aerospace, Wind, Construction, Marine, Automotive, Infrastructure, Transportation, Sporting Goods, Defense Space
+- `event_type` (STRING) — acquisition, partnership, expansion, contract, regulatory_change, product_launch, earnings, facility_closure, restructuring, investment, supply_disruption, technology, market_shift, other
+- `companies` (JSON array) — extracted company names
+- `geography` (JSON array) — North America, Europe, China, Japan, etc.
+- `themes` (JSON array) — reshoring, sustainability, consolidation, capacity_expansion, supply_chain_risk, trade_policy, cost_pressure, demand_growth, technology_advancement, electrification, hydrogen, lightweighting, etc. (21 themes)
+- `sentiment` (STRING) — positive, negative, neutral
+- `materials` (JSON array) — carbon fiber, epoxy, PEEK, glass fiber, prepreg, etc.
+- `published_at` (TIMESTAMP) — partitioned by day, for time-series queries
+- `relevance_score` (FLOAT64) — classifier confidence
+
+**Also available**: `article_tags` table with normalized tags (company, material, market, theme, geography, topic) — better for aggregation than JSON arrays
+
+**Table partitioning**: `digest_items` partitioned by `published_at` (DAY), clustered by `category` + `priority`
+
+**Concept**:
+1. User picks an industry (e.g., "Aerospace")
+2. Backend queries digest_items WHERE industries contains that industry, last 90 days
+3. Groups by month → summarizes key occurrences per month
+4. For sub-metadata (event_type, company mentions, geography, themes): shows counts + month-over-month +/- deltas
+5. LLM synthesis optional: Claude summarizes each month's narrative arc
+
+---
+## 📅 SESSION 93: Scheduler Fix, Voice Enrichment Docs & Briefing Regeneration (February 9, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Goal
+
+Fix the failed Monday Cloud Scheduler `weekly-executive-briefing` job, document Voice Enrichment (Session 92+), and regenerate this week's briefing.
+
+### ✅ Completed
+
+1. **Startup Probe Fix** — Root cause: expanded import chain (earnings, sec_filings, importyeti, podcasts) pushed cold start to ~65s, exceeding the 65s startup probe limit. Fixed `failureThreshold` from 12→36 (190s allowed). Applied immediately via `gcloud` and persistently in `cloudbuild.yaml` (commit `94d52ea`).
+2. **Briefing Regeneration** — Triggered on production Cloud Run. Agent 1 processed 172 items in 5 batches → Agent 2 synthesized with Opus 4.5 (Exa peripheral search, voice enrichment) → saved to BigQuery. Two briefings generated (duplicate trigger). Podcast generation **failed on both** — needs investigation.
+3. **Voice Enrichment README** — Updated `backend/app/ingestion/generators/README.md` with Voice Enrichment section (SEC nuggets, earnings quotes, podcast quotes), corrected Exa iteration count, updated podcast scaffold docs.
+
+### 🔍 Investigating Now
+
+- **Podcast generation failure** — Both Feb 9 briefing runs logged `Podcast generation failed or skipped - briefing will be saved without podcast`. Root cause: **ElevenLabs Text-to-Dialogue API has a 5,000 character limit per request.** The naturalized dialogue was 9,355 characters (42 turns, ~1344 words) — nearly 2x the limit. Previous weeks' briefings had shorter dialogues that fit within the limit.
+  - **Fix**: Chunked the dialogue into batches under 4,800 characters each. Multiple API calls are made sequentially, and the resulting MP3 segments are concatenated (MP3 frames are self-contained, so byte concatenation works). Modified `_generate_podcast()` in `weekly_briefing.py`.
+- **Duplicate briefing cleanup** — Two Feb 9 briefings existed in `weekly_briefings` table (`bfe304dd` and `8f60f092`). Deleted the older one (`bfe304dd`) via table swap (CREATE AS SELECT + DROP + ALTER RENAME) since BigQuery streaming buffer blocks direct DELETE on recent rows.
+
+### 📊 BigQuery State (weekly_briefings)
+
+| ID (prefix) | generated_at | period_end | podcast | notes |
+|-------------|-------------|------------|---------|-------|
+| `8f60f092` | Feb 9 15:49 | Feb 9 | ❌ | **CURRENT** — latest, served on frontend |
+| `bfe304dd` | Feb 9 15:37 | Feb 9 | ❌ | **DELETE** — duplicate from first trigger |
+| `433a266e` | Feb 2 14:33 | Feb 2 | ✅ | Last week (has podcast) |
+| `e838b122` | Jan 26 14:33 | Jan 26 | ✅ | Two weeks ago |
+
+---
+## 📅 SESSION 92: SEC Filing Nugget Extraction Pipeline (February 8, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Goal
+
+Build an end-to-end SEC Filing Nugget Extraction pipeline that extracts strategic intelligence from SEC filings (10-K, 10-Q, 8-K) using Claude Haiku, stores nuggets in BigQuery, and exposes them via MCP agent tools.
+
+### 💡 Architecture
+
+Mirrors the existing Earnings Quote Extraction pipeline pattern:
+- **Models**: Pydantic models with `to_bq_row()` for BigQuery serialization
+- **Extractor**: RPM-specific LLM prompt targeting competitive disclosures, risk admissions, forward guidance, regulatory exposure, material changes, and market conditions
+- **Storage**: BigQuery `sec_filing_nuggets` table with time partitioning + clustering
+- **MCP Tools**: `search_sec_nuggets` and `get_sec_nugget_stats` for agent access
+- **Orchestrator Integration**: Post-ingestion extraction in `run_full_ingestion()` and `run_financials_only()`
+- **Backfill Script**: Process existing SEC filings that haven't been extracted yet
+
+### ✅ Files Created
+
+| File | Purpose |
+|------|---------|
+| `app/ingestion/sec_filings/__init__.py` | Module init with all exports |
+| `app/ingestion/sec_filings/models.py` | Pydantic models: `ExtractedSecNugget`, `SecNuggetExtractionResult`, 5 enums (FilingType, FilingSection, NuggetType, DisclosureSignalStrength, SecFilingTheme) |
+| `app/ingestion/sec_filings/nugget_extractor.py` | `SecNuggetExtractor` class with RPM-specific extraction prompt, resilient LLM wrapper, 120s timeout |
+| `app/mcp/tools/sec_nuggets.py` | `search_sec_nuggets` and `get_sec_nugget_stats` MCP tools |
+| `scripts/operations/backfill_sec_nuggets.py` | CLI backfill script with --stats, --dry-run, --limit, --batch-size flags |
+
+### ✅ Files Modified
+
+| File | Change |
+|------|--------|
+| `app/db/gcp_storage.py` | Added `_create_sec_filing_nuggets_table()`, `store_sec_filing_nuggets()`, `get_sec_filing_nuggets()`, `get_filings_for_nugget_extraction()`, `get_sec_filing_nugget_stats()` |
+| `app/mcp/server.py` | Imported and registered `search_sec_nuggets` + `get_sec_nugget_stats` (total tools: 59) |
+| `app/ingestion/orchestrator.py` | Added Step 9 (SEC nugget extraction) to `run_full_ingestion()` and post-storage extraction to `run_financials_only()` |
+
+### 📊 Key Details
+
+- **Model**: `claude-haiku-4-5` (~$0.05-0.15 per filing)
+- **Target**: 15-30 nuggets per 10-K filing
+- **13 nugget types**: competitive_disclosure, risk_admission, market_position, forward_guidance, regulatory_exposure, litigation_disclosure, material_change, strategic_initiative, supply_chain, raw_materials, financial_metric, esg_disclosure, acquisition
+- **30 RPM-specific themes**: Across 4 business segments, construction markets, product categories, competitors, operations, and channels
+- **5 signal strengths**: explicit, standard, hedged, buried, new (new disclosures are highest value)
+- **BigQuery table**: `sec_filing_nuggets` - partitioned by extracted_at (monthly), clustered by ticker + nugget_type
+
+### 🧪 Testing
+
+```bash
+cd backend
+# Verify MCP tools load
+python -c "from app.mcp.server import get_all_mcp_tools; print(len(get_all_mcp_tools()))"
+# Output: 59
+
+# Verify module imports
+python -c "from app.ingestion.sec_filings import SecNuggetExtractor, ExtractedSecNugget, NuggetType; print('OK')"
+
+# Run backfill (after deploy)
+python scripts/operations/backfill_sec_nuggets.py --stats
+python scripts/operations/backfill_sec_nuggets.py --dry-run --limit 10
+python scripts/operations/backfill_sec_nuggets.py --limit 20 --batch-size 3
+```
+
+### 📁 Reference
+
+REFERENCE_sec_filings/ directory contains the standalone prototype with:
+- `fetcher/sec.py` - SEC EDGAR API fetcher (synchronous, httpx-based)
+- `enrichment/nugget_extractor.py` - Original dataclass-based extractor
+- `models/filing.py` - Original dataclass models
+
+The production implementation adapts these to use:
+- Pydantic models (for consistency with existing codebase)
+- Resilient LLM wrapper with OpenAI fallback
+- BigQuery storage (instead of SQLite)
+- asyncio.wait_for() timeout protection
+- MCP tool integration
+
+---
+## 📅 SESSION 91: Enhancing Pipeline Tab (January 14, 2026)
+
+**Status**: ✅ COMPLETE - Changes pushed to repo
+
+### 🎯 Objectives
+1.  **Enhance Pipeline Tab UI**: expose rich Apollo.io data (SIC/NAICS codes, retail locations, subsidiaries)
+2.  **Fix Contact Search Visibility**: Debug and fix issue where contact cards were not displaying in search results
+
+### 🏗️ Changes Implemented
+
+#### Backend
+-   **`state.py`**: Updated `ApolloEnrichmentResult` model to include:
+    -   `sic_codes`
+    -   `naics_codes`
+    -   `retail_location_count`
+    -   `suborganizations`
+-   **`agent.py`**: Updated `_create_search_block` to parse these fields from `enrich_company` tool results mapping.
+-   **`pipeline_search.py`**: Verified parsing logic.
+
+#### Frontend
+-   **`types/index.ts`**: Updated `ApolloEnrichmentResult` interface to match backend changes.
+-   **`SearchBlockCard.tsx`**:
+    -   Added rendering for **Retail Presence** (badged count).
+    -   Added rendering for **Subsidiaries** (list).
+    -   Added rendering for **SIC/NAICS** codes (tags).
+    -   Fixed syntax errors (stray brackets) that were likely causing render issues.
+
+### 🐛 Bug Fixes
+-   **Contact Search Visibility**: Addressed syntax errors in `SearchBlockCard.tsx` which likely caused the React component to fail rendering the contact items silently.
+-   **Apollo Field Parsing**: Fixed missing mapping of enrichment fields in the agent's tool output processing.
+
+### 📝 Verification
+-   **Manual Walkthrough**: Created `walkthrough.md` to guide verification.
+-   **Visual Check**:
+    -   Enriched Company -> "Profile Details" drawer now shows refined firmographic data.
+    -   Contact Search -> Listings now appear correctly under the result header.
+
+### 📁 Files Modified
+-   `backend/app/agents/pipeline/state.py`
+-   `backend/app/agents/pipeline/agent.py`
+-   `backend/app/mcp/tools/pipeline_search.py`
+-   `frontend/src/types/index.ts`
+-   `frontend/src/components/pipeline/SearchBlockCard.tsx`
+
+---
+
+## 📅 SESSION 95: Fix Weekly Briefing — Citations, Voice Enrichment, Podcast (February 10, 2026)
+
+**Status**: 🔧 IN PROGRESS
+
+### 🎯 Goal
+
+Fix the broken Feb 9 weekly briefing: citations mostly missing, podcast audio not generating, voice enrichment returning zero results. Delete broken data and regenerate fresh.
+
+### 🔍 Root Causes Identified
+
+1. **Citation ordering** — `get_articles_by_ids()` returned articles in arbitrary BQ order. Citation `[N]` expected `article_ids[N-1]` but got a random article. **Already fixed in Session 94** (commit `207ddf2`).
+
+2. **Voice enrichment returning nothing** — `_fetch_voice_enrichment()` concatenated all topics into one string (`" ".join(topic_list[:5])`) and passed it to BQ methods using `LIKE %concatenated_string%`. This never matches because no SEC filing/quote contains "carbon fiber hydrogen aerospace wind automotive" as a substring. Fix: search by individual company names/tickers with deduplication.
+
+3. **Podcast not generating** — Feb 9 briefing's podcast generation failed due to 5000 char ElevenLabs API limit (9355 char dialogue). Chunking fix applied in Session 93 (commit `247a282`) but briefing was never regenerated after the fix.
+
+### ✅ Completed
+
+1. **Voice enrichment rewrite** — `_fetch_voice_enrichment()` in `weekly_briefing.py` completely rewritten:
+   - SEC nuggets: Searches by each company name individually (up to 10), then by each topic keyword individually (up to 5), deduplicates by nugget_id, sorts by relevance, caps at 10
+   - Earnings quotes: Same pattern — per-company search, per-topic search, dedup by quote_id
+   - Podcast quotes: Searches by detected themes (mapped from topics via theme_mapping dict) AND by individual company names, dedup by quote_id
+   - Added detailed logging at each stage for debugging
+
+2. **Deleted broken Feb 9 data** — Removed 1 weekly briefing (`8f60f092`) and 2 pre-briefings (`a0dd4dc7`, `de033dfb`) from BigQuery via table swap (CREATE AS SELECT + DROP + RENAME)
+
+3. **Deploy and regenerate** — Committing voice enrichment fix, pushing to master for Cloud Build auto-deploy, then triggering fresh briefing generation
+
+### 📁 Files Modified
+| File | Change |
+|------|--------|
+| `backend/app/ingestion/generators/weekly_briefing.py` | Complete rewrite of `_fetch_voice_enrichment()` — individual company/topic searches instead of concatenated string |
+
+### 📁 Files Already Deployed (Session 94)
+| File | Change |
+|------|--------|
+| `backend/app/db/gcp_storage.py` | `get_articles_by_ids()` order-preserving fix, `_create_weekly_briefings_table()` schema auto-migration |
+
+---
+
+## 📅 SESSION 94: Supply Network Tab + Industry Narratives Planning (February 9, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Goal
+
+Build the Supply Network tab with interactive force-directed graph visualization of C1 + 10 competitors and their upstream supplier relationships. Plan the Industry Narratives feature for next session.
+
+### ✅ Completed
+
+1. **Supply Network Tab** — New tab with graph-primary split layout (60% graph / 40% drill-down panel)
+   - **Backend**: `app/api/routes/supply_network.py` — 5 REST endpoints (`/graph`, `/stats`, `/company/{key}`, `/supplier/{key}`, `/shared-suppliers`), all calling existing `BigQueryStore` methods (zero new BQ code)
+   - **Frontend**: 3 new components in `frontend/src/components/supply-network/`:
+     - `NetworkGraph.tsx` — `react-force-graph-2d` wrapper with color-coded nodes (amber=C1, blue=competitor, indigo=supplier), log-scale sizing, custom canvas labels, zoom/pan controls, legend
+     - `DetailPanel.tsx` — Right panel with 3 states: overview stats, company drill-down (supplier table), supplier drill-down (buyer table with [C1]/[COMP] badges)
+     - `SupplyNetworkDashboard.tsx` — Main container managing graph data, node selection, split layout
+   - **Tab integration**: Added to `Mode` type, Sidebar nav, AppHeader config, page.tsx conditional render, chat-hidden condition
+   - **API client**: 5 new methods in `api.ts` (`getSupplyNetworkGraph`, `getSupplyNetworkStats`, `getCompanyDetail`, `getSupplierDetail`, `getSharedSuppliers`)
+   - **Build verified**: TypeScript compiles, production build succeeds
+   - **Deployed**: Commit `207ddf2`, pushed to master → Cloud Build auto-deploy
+
+2. **Citation ordering fix** — `weekly_briefing.py` now preserves article_ids order so `[N]` citations map correctly
+
+### 📁 Files Created
+| File | Purpose |
+|------|---------|
+| `backend/app/api/routes/supply_network.py` | 5 REST endpoints for graph, stats, drill-down |
+| `frontend/src/components/supply-network/NetworkGraph.tsx` | Force-directed graph with canvas rendering |
+| `frontend/src/components/supply-network/DetailPanel.tsx` | Click-to-drill-down panel |
+| `frontend/src/components/supply-network/SupplyNetworkDashboard.tsx` | Main container, split layout |
+
+### 📁 Files Modified
+| File | Change |
+|------|--------|
+| `backend/app/main.py` | Added supply_network router |
+| `backend/app/api/routes/__init__.py` | Added supply_network import |
+| `frontend/src/types/index.ts` | Added 'supply-network' to Mode, chatSuggestions, welcomeMessages |
+| `frontend/src/app/page.tsx` | Dynamic import, conditional render, chat-hidden |
+| `frontend/src/components/layout/Sidebar.tsx` | Added Supply Network nav item |
+| `frontend/src/components/layout/AppHeader.tsx` | Added supply-network to modeConfig |
+| `frontend/src/components/chat/ChatInterface.tsx` | Added supply-network to modeSuggestions + welcomeMessages |
+| `frontend/src/lib/api.ts` | 5 API methods + Mode union update |
+
+### 🔮 Next Session: Industry Narratives Tab
+
+**Goal**: User selects an industry (from the 6+ industries in `digest_items`) and sees how news evolves over a 90-day period, grouped by month, with month-over-month delta tracking for sub-metadata.
+
+**Reference file**: `industry_narratives_intuition.xlsx` in project root (Claude-in-Excel concept)
+
+**Key `digest_items` columns available for this feature**:
+- `industries` (JSON array) — Aerospace, Wind, Construction, Marine, Automotive, Infrastructure, Transportation, Sporting Goods, Defense Space
+- `event_type` (STRING) — acquisition, partnership, expansion, contract, regulatory_change, product_launch, earnings, facility_closure, restructuring, investment, supply_disruption, technology, market_shift, other
+- `companies` (JSON array) — extracted company names
+- `geography` (JSON array) — North America, Europe, China, Japan, etc.
+- `themes` (JSON array) — reshoring, sustainability, consolidation, capacity_expansion, supply_chain_risk, trade_policy, cost_pressure, demand_growth, technology_advancement, electrification, hydrogen, lightweighting, etc. (21 themes)
+- `sentiment` (STRING) — positive, negative, neutral
+- `materials` (JSON array) — carbon fiber, epoxy, PEEK, glass fiber, prepreg, etc.
+- `published_at` (TIMESTAMP) — partitioned by day, for time-series queries
+- `relevance_score` (FLOAT64) — classifier confidence
+
+**Also available**: `article_tags` table with normalized tags (company, material, market, theme, geography, topic) — better for aggregation than JSON arrays
+
+**Table partitioning**: `digest_items` partitioned by `published_at` (DAY), clustered by `category` + `priority`
+
+**Concept**:
+1. User picks an industry (e.g., "Aerospace")
+2. Backend queries digest_items WHERE industries contains that industry, last 90 days
+3. Groups by month → summarizes key occurrences per month
+4. For sub-metadata (event_type, company mentions, geography, themes): shows counts + month-over-month +/- deltas
+5. LLM synthesis optional: Claude summarizes each month's narrative arc
+
+---
+## 📅 SESSION 93: Scheduler Fix, Voice Enrichment Docs & Briefing Regeneration (February 9, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Goal
+
+Fix the failed Monday Cloud Scheduler `weekly-executive-briefing` job, document Voice Enrichment (Session 92+), and regenerate this week's briefing.
+
+### ✅ Completed
+
+1. **Startup Probe Fix** — Root cause: expanded import chain (earnings, sec_filings, importyeti, podcasts) pushed cold start to ~65s, exceeding the 65s startup probe limit. Fixed `failureThreshold` from 12→36 (190s allowed). Applied immediately via `gcloud` and persistently in `cloudbuild.yaml` (commit `94d52ea`).
+2. **Briefing Regeneration** — Triggered on production Cloud Run. Agent 1 processed 172 items in 5 batches → Agent 2 synthesized with Opus 4.5 (Exa peripheral search, voice enrichment) → saved to BigQuery. Two briefings generated (duplicate trigger). Podcast generation **failed on both** — needs investigation.
+3. **Voice Enrichment README** — Updated `backend/app/ingestion/generators/README.md` with Voice Enrichment section (SEC nuggets, earnings quotes, podcast quotes), corrected Exa iteration count, updated podcast scaffold docs.
+
+### 🔍 Investigating Now
+
+- **Podcast generation failure** — Both Feb 9 briefing runs logged `Podcast generation failed or skipped - briefing will be saved without podcast`. Root cause: **ElevenLabs Text-to-Dialogue API has a 5,000 character limit per request.** The naturalized dialogue was 9,355 characters (42 turns, ~1344 words) — nearly 2x the limit. Previous weeks' briefings had shorter dialogues that fit within the limit.
+  - **Fix**: Chunked the dialogue into batches under 4,800 characters each. Multiple API calls are made sequentially, and the resulting MP3 segments are concatenated (MP3 frames are self-contained, so byte concatenation works). Modified `_generate_podcast()` in `weekly_briefing.py`.
+- **Duplicate briefing cleanup** — Two Feb 9 briefings existed in `weekly_briefings` table (`bfe304dd` and `8f60f092`). Deleted the older one (`bfe304dd`) via table swap (CREATE AS SELECT + DROP + ALTER RENAME) since BigQuery streaming buffer blocks direct DELETE on recent rows.
+
+### 📊 BigQuery State (weekly_briefings)
+
+| ID (prefix) | generated_at | period_end | podcast | notes |
+|-------------|-------------|------------|---------|-------|
+| `8f60f092` | Feb 9 15:49 | Feb 9 | ❌ | **CURRENT** — latest, served on frontend |
+| `bfe304dd` | Feb 9 15:37 | Feb 9 | ❌ | **DELETE** — duplicate from first trigger |
+| `433a266e` | Feb 2 14:33 | Feb 2 | ✅ | Last week (has podcast) |
+| `e838b122` | Jan 26 14:33 | Jan 26 | ✅ | Two weeks ago |
+
+---
+## 📅 SESSION 92: SEC Filing Nugget Extraction Pipeline (February 8, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Goal
+
+Build an end-to-end SEC Filing Nugget Extraction pipeline that extracts strategic intelligence from SEC filings (10-K, 10-Q, 8-K) using Claude Haiku, stores nuggets in BigQuery, and exposes them via MCP agent tools.
+
+### 💡 Architecture
+
+Mirrors the existing Earnings Quote Extraction pipeline pattern:
+- **Models**: Pydantic models with `to_bq_row()` for BigQuery serialization
+- **Extractor**: RPM-specific LLM prompt targeting competitive disclosures, risk admissions, forward guidance, regulatory exposure, material changes, and market conditions
+- **Storage**: BigQuery `sec_filing_nuggets` table with time partitioning + clustering
+- **MCP Tools**: `search_sec_nuggets` and `get_sec_nugget_stats` for agent access
+- **Orchestrator Integration**: Post-ingestion extraction in `run_full_ingestion()` and `run_financials_only()`
+- **Backfill Script**: Process existing SEC filings that haven't been extracted yet
+
+### ✅ Files Created
+
+| File | Purpose |
+|------|---------|
+| `app/ingestion/sec_filings/__init__.py` | Module init with all exports |
+| `app/ingestion/sec_filings/models.py` | Pydantic models: `ExtractedSecNugget`, `SecNuggetExtractionResult`, 5 enums (FilingType, FilingSection, NuggetType, DisclosureSignalStrength, SecFilingTheme) |
+| `app/ingestion/sec_filings/nugget_extractor.py` | `SecNuggetExtractor` class with RPM-specific extraction prompt, resilient LLM wrapper, 120s timeout |
+| `app/mcp/tools/sec_nuggets.py` | `search_sec_nuggets` and `get_sec_nugget_stats` MCP tools |
+| `scripts/operations/backfill_sec_nuggets.py` | CLI backfill script with --stats, --dry-run, --limit, --batch-size flags |
+
+### ✅ Files Modified
+
+| File | Change |
+|------|--------|
+| `app/db/gcp_storage.py` | Added `_create_sec_filing_nuggets_table()`, `store_sec_filing_nuggets()`, `get_sec_filing_nuggets()`, `get_filings_for_nugget_extraction()`, `get_sec_filing_nugget_stats()` |
+| `app/mcp/server.py` | Imported and registered `search_sec_nuggets` + `get_sec_nugget_stats` (total tools: 59) |
+| `app/ingestion/orchestrator.py` | Added Step 9 (SEC nugget extraction) to `run_full_ingestion()` and post-storage extraction to `run_financials_only()` |
+
+### 📊 Key Details
+
+- **Model**: `claude-haiku-4-5` (~$0.05-0.15 per filing)
+- **Target**: 15-30 nuggets per 10-K filing
+- **13 nugget types**: competitive_disclosure, risk_admission, market_position, forward_guidance, regulatory_exposure, litigation_disclosure, material_change, strategic_initiative, supply_chain, raw_materials, financial_metric, esg_disclosure, acquisition
+- **30 RPM-specific themes**: Across 4 business segments, construction markets, product categories, competitors, operations, and channels
+- **5 signal strengths**: explicit, standard, hedged, buried, new (new disclosures are highest value)
+- **BigQuery table**: `sec_filing_nuggets` - partitioned by extracted_at (monthly), clustered by ticker + nugget_type
+
+### 🧪 Testing
+
+```bash
+cd backend
+# Verify MCP tools load
+python -c "from app.mcp.server import get_all_mcp_tools; print(len(get_all_mcp_tools()))"
+# Output: 59
+
+# Verify module imports
+python -c "from app.ingestion.sec_filings import SecNuggetExtractor, ExtractedSecNugget, NuggetType; print('OK')"
+
+# Run backfill (after deploy)
+python scripts/operations/backfill_sec_nuggets.py --stats
+python scripts/operations/backfill_sec_nuggets.py --dry-run --limit 10
+python scripts/operations/backfill_sec_nuggets.py --limit 20 --batch-size 3
+```
+
+### 📁 Reference
+
+REFERENCE_sec_filings/ directory contains the standalone prototype with:
+- `fetcher/sec.py` - SEC EDGAR API fetcher (synchronous, httpx-based)
+- `enrichment/nugget_extractor.py` - Original dataclass-based extractor
+- `models/filing.py` - Original dataclass models
+
+The production implementation adapts these to use:
+- Pydantic models (for consistency with existing codebase)
+- Resilient LLM wrapper with OpenAI fallback
+- BigQuery storage (instead of SQLite)
+- asyncio.wait_for() timeout protection
+- MCP tool integration
+
+---
+## 📅 SESSION 91: Enhancing Pipeline Tab (January 14, 2026)
+
+**Status**: ✅ COMPLETE - Changes pushed to repo
+
+### 🎯 Objectives
+1.  **Enhance Pipeline Tab UI**: expose rich Apollo.io data (SIC/NAICS codes, retail locations, subsidiaries)
+2.  **Fix Contact Search Visibility**: Debug and fix issue where contact cards were not displaying in search results
+
+### 🏗️ Changes Implemented
+
+#### Backend
+-   **`state.py`**: Updated `ApolloEnrichmentResult` model to include:
+    -   `sic_codes`
+    -   `naics_codes`
+    -   `retail_location_count`
+    -   `suborganizations`
+-   **`agent.py`**: Updated `_create_search_block` to parse these fields from `enrich_company` tool results mapping.
+-   **`pipeline_search.py`**: Verified parsing logic.
+
+#### Frontend
+-   **`types/index.ts`**: Updated `ApolloEnrichmentResult` interface to match backend changes.
+-   **`SearchBlockCard.tsx`**:
+    -   Added rendering for **Retail Presence** (badged count).
+    -   Added rendering for **Subsidiaries** (list).
+    -   Added rendering for **SIC/NAICS** codes (tags).
+    -   Fixed syntax errors (stray brackets) that were likely causing render issues.
+
+### 🐛 Bug Fixes
+-   **Contact Search Visibility**: Addressed syntax errors in `SearchBlockCard.tsx` which likely caused the React component to fail rendering the contact items silently.
+-   **Apollo Field Parsing**: Fixed missing mapping of enrichment fields in the agent's tool output processing.
+
+### 📝 Verification
+-   **Manual Walkthrough**: Created `walkthrough.md` to guide verification.
+-   **Visual Check**:
+    -   Enriched Company -> "Profile Details" drawer now shows refined firmographic data.
+    -   Contact Search -> Listings now appear correctly under the result header.
+
+### 📁 Files Modified
+-   `backend/app/agents/pipeline/state.py`
+-   `backend/app/agents/pipeline/agent.py`
+-   `backend/app/mcp/tools/pipeline_search.py`
+-   `frontend/src/types/index.ts`
+-   `frontend/src/components/pipeline/SearchBlockCard.tsx`
+
+---
+
+## 📅 SESSION 95: Fix Weekly Briefing — Citations, Voice Enrichment, Podcast (February 10, 2026)
+
+**Status**: 🔧 IN PROGRESS
+
+### 🎯 Goal
+
+Fix the broken Feb 9 weekly briefing: citations mostly missing, podcast audio not generating, voice enrichment returning zero results. Delete broken data and regenerate fresh.
+
+### 🔍 Root Causes Identified
+
+1. **Citation ordering** — `get_articles_by_ids()` returned articles in arbitrary BQ order. Citation `[N]` expected `article_ids[N-1]` but got a random article. **Already fixed in Session 94** (commit `207ddf2`).
+
+2. **Voice enrichment returning nothing** — `_fetch_voice_enrichment()` concatenated all topics into one string (`" ".join(topic_list[:5])`) and passed it to BQ methods using `LIKE %concatenated_string%`. This never matches because no SEC filing/quote contains "carbon fiber hydrogen aerospace wind automotive" as a substring. Fix: search by individual company names/tickers with deduplication.
+
+3. **Podcast not generating** — Feb 9 briefing's podcast generation failed due to 5000 char ElevenLabs API limit (9355 char dialogue). Chunking fix applied in Session 93 (commit `247a282`) but briefing was never regenerated after the fix.
+
+### ✅ Completed
+
+1. **Voice enrichment rewrite** — `_fetch_voice_enrichment()` in `weekly_briefing.py` completely rewritten:
+   - SEC nuggets: Searches by each company name individually (up to 10), then by each topic keyword individually (up to 5), deduplicates by nugget_id, sorts by relevance, caps at 10
+   - Earnings quotes: Same pattern — per-company search, per-topic search, dedup by quote_id
+   - Podcast quotes: Searches by detected themes (mapped from topics via theme_mapping dict) AND by individual company names, dedup by quote_id
+   - Added detailed logging at each stage for debugging
+
+2. **Deleted broken Feb 9 data** — Removed 1 weekly briefing (`8f60f092`) and 2 pre-briefings (`a0dd4dc7`, `de033dfb`) from BigQuery via table swap (CREATE AS SELECT + DROP + RENAME)
+
+3. **Deploy and regenerate** — Committing voice enrichment fix, pushing to master for Cloud Build auto-deploy, then triggering fresh briefing generation
+
+### 📁 Files Modified
+| File | Change |
+|------|--------|
+| `backend/app/ingestion/generators/weekly_briefing.py` | Complete rewrite of `_fetch_voice_enrichment()` — individual company/topic searches instead of concatenated string |
+
+### 📁 Files Already Deployed (Session 94)
+| File | Change |
+|------|--------|
+| `backend/app/db/gcp_storage.py` | `get_articles_by_ids()` order-preserving fix, `_create_weekly_briefings_table()` schema auto-migration |
+
+---
+
+## 📅 SESSION 94: Supply Network Tab + Industry Narratives Planning (February 9, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Goal
+
+Build the Supply Network tab with interactive force-directed graph visualization of C1 + 10 competitors and their upstream supplier relationships. Plan the Industry Narratives feature for next session.
+
+### ✅ Completed
+
+1. **Supply Network Tab** — New tab with graph-primary split layout (60% graph / 40% drill-down panel)
+   - **Backend**: `app/api/routes/supply_network.py` — 5 REST endpoints (`/graph`, `/stats`, `/company/{key}`, `/supplier/{key}`, `/shared-suppliers`), all calling existing `BigQueryStore` methods (zero new BQ code)
+   - **Frontend**: 3 new components in `frontend/src/components/supply-network/`:
+     - `NetworkGraph.tsx` — `react-force-graph-2d` wrapper with color-coded nodes (amber=C1, blue=competitor, indigo=supplier), log-scale sizing, custom canvas labels, zoom/pan controls, legend
+     - `DetailPanel.tsx` — Right panel with 3 states: overview stats, company drill-down (supplier table), supplier drill-down (buyer table with [C1]/[COMP] badges)
+     - `SupplyNetworkDashboard.tsx` — Main container managing graph data, node selection, split layout
+   - **Tab integration**: Added to `Mode` type, Sidebar nav, AppHeader config, page.tsx conditional render, chat-hidden condition
+   - **API client**: 5 new methods in `api.ts` (`getSupplyNetworkGraph`, `getSupplyNetworkStats`, `getCompanyDetail`, `getSupplierDetail`, `getSharedSuppliers`)
+   - **Build verified**: TypeScript compiles, production build succeeds
+   - **Deployed**: Commit `207ddf2`, pushed to master → Cloud Build auto-deploy
+
+2. **Citation ordering fix** — `weekly_briefing.py` now preserves article_ids order so `[N]` citations map correctly
+
+### 📁 Files Created
+| File | Purpose |
+|------|---------|
+| `backend/app/api/routes/supply_network.py` | 5 REST endpoints for graph, stats, drill-down |
+| `frontend/src/components/supply-network/NetworkGraph.tsx` | Force-directed graph with canvas rendering |
+| `frontend/src/components/supply-network/DetailPanel.tsx` | Click-to-drill-down panel |
+| `frontend/src/components/supply-network/SupplyNetworkDashboard.tsx` | Main container, split layout |
+
+### 📁 Files Modified
+| File | Change |
+|------|--------|
+| `backend/app/main.py` | Added supply_network router |
+| `backend/app/api/routes/__init__.py` | Added supply_network import |
+| `frontend/src/types/index.ts` | Added 'supply-network' to Mode, chatSuggestions, welcomeMessages |
+| `frontend/src/app/page.tsx` | Dynamic import, conditional render, chat-hidden |
+| `frontend/src/components/layout/Sidebar.tsx` | Added Supply Network nav item |
+| `frontend/src/components/layout/AppHeader.tsx` | Added supply-network to modeConfig |
+| `frontend/src/components/chat/ChatInterface.tsx` | Added supply-network to modeSuggestions + welcomeMessages |
+| `frontend/src/lib/api.ts` | 5 API methods + Mode union update |
+
+### 🔮 Next Session: Industry Narratives Tab
+
+**Goal**: User selects an industry (from the 6+ industries in `digest_items`) and sees how news evolves over a 90-day period, grouped by month, with month-over-month delta tracking for sub-metadata.
+
+**Reference file**: `industry_narratives_intuition.xlsx` in project root (Claude-in-Excel concept)
+
+**Key `digest_items` columns available for this feature**:
+- `industries` (JSON array) — Aerospace, Wind, Construction, Marine, Automotive, Infrastructure, Transportation, Sporting Goods, Defense Space
+- `event_type` (STRING) — acquisition, partnership, expansion, contract, regulatory_change, product_launch, earnings, facility_closure, restructuring, investment, supply_disruption, technology, market_shift, other
+- `companies` (JSON array) — extracted company names
+- `geography` (JSON array) — North America, Europe, China, Japan, etc.
+- `themes` (JSON array) — reshoring, sustainability, consolidation, capacity_expansion, supply_chain_risk, trade_policy, cost_pressure, demand_growth, technology_advancement, electrification, hydrogen, lightweighting, etc. (21 themes)
+- `sentiment` (STRING) — positive, negative, neutral
+- `materials` (JSON array) — carbon fiber, epoxy, PEEK, glass fiber, prepreg, etc.
+- `published_at` (TIMESTAMP) — partitioned by day, for time-series queries
+- `relevance_score` (FLOAT64) — classifier confidence
+
+**Also available**: `article_tags` table with normalized tags (company, material, market, theme, geography, topic) — better for aggregation than JSON arrays
+
+**Table partitioning**: `digest_items` partitioned by `published_at` (DAY), clustered by `category` + `priority`
+
+**Concept**:
+1. User picks an industry (e.g., "Aerospace")
+2. Backend queries digest_items WHERE industries contains that industry, last 90 days
+3. Groups by month → summarizes key occurrences per month
+4. For sub-metadata (event_type, company mentions, geography, themes): shows counts + month-over-month +/- deltas
+5. LLM synthesis optional: Claude summarizes each month's narrative arc
+
+---
+## 📅 SESSION 93: Scheduler Fix, Voice Enrichment Docs & Briefing Regeneration (February 9, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Goal
+
+Fix the failed Monday Cloud Scheduler `weekly-executive-briefing` job, document Voice Enrichment (Session 92+), and regenerate this week's briefing.
+
+### ✅ Completed
+
+1. **Startup Probe Fix** — Root cause: expanded import chain (earnings, sec_filings, importyeti, podcasts) pushed cold start to ~65s, exceeding the 65s startup probe limit. Fixed `failureThreshold` from 12→36 (190s allowed). Applied immediately via `gcloud` and persistently in `cloudbuild.yaml` (commit `94d52ea`).
+2. **Briefing Regeneration** — Triggered on production Cloud Run. Agent 1 processed 172 items in 5 batches → Agent 2 synthesized with Opus 4.5 (Exa peripheral search, voice enrichment) → saved to BigQuery. Two briefings generated (duplicate trigger). Podcast generation **failed on both** — needs investigation.
+3. **Voice Enrichment README** — Updated `backend/app/ingestion/generators/README.md` with Voice Enrichment section (SEC nuggets, earnings quotes, podcast quotes), corrected Exa iteration count, updated podcast scaffold docs.
+
+### 🔍 Investigating Now
+
+- **Podcast generation failure** — Both Feb 9 briefing runs logged `Podcast generation failed or skipped - briefing will be saved without podcast`. Root cause: **ElevenLabs Text-to-Dialogue API has a 5,000 character limit per request.** The naturalized dialogue was 9,355 characters (42 turns, ~1344 words) — nearly 2x the limit. Previous weeks' briefings had shorter dialogues that fit within the limit.
+  - **Fix**: Chunked the dialogue into batches under 4,800 characters each. Multiple API calls are made sequentially, and the resulting MP3 segments are concatenated (MP3 frames are self-contained, so byte concatenation works). Modified `_generate_podcast()` in `weekly_briefing.py`.
+- **Duplicate briefing cleanup** — Two Feb 9 briefings existed in `weekly_briefings` table (`bfe304dd` and `8f60f092`). Deleted the older one (`bfe304dd`) via table swap (CREATE AS SELECT + DROP + ALTER RENAME) since BigQuery streaming buffer blocks direct DELETE on recent rows.
+
+### 📊 BigQuery State (weekly_briefings)
+
+| ID (prefix) | generated_at | period_end | podcast | notes |
+|-------------|-------------|------------|---------|-------|
+| `8f60f092` | Feb 9 15:49 | Feb 9 | ❌ | **CURRENT** — latest, served on frontend |
+| `bfe304dd` | Feb 9 15:37 | Feb 9 | ❌ | **DELETE** — duplicate from first trigger |
+| `433a266e` | Feb 2 14:33 | Feb 2 | ✅ | Last week (has podcast) |
+| `e838b122` | Jan 26 14:33 | Jan 26 | ✅ | Two weeks ago |
+
+---
+## 📅 SESSION 92: SEC Filing Nugget Extraction Pipeline (February 8, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Goal
+
+Build an end-to-end SEC Filing Nugget Extraction pipeline that extracts strategic intelligence from SEC filings (10-K, 10-Q, 8-K) using Claude Haiku, stores nuggets in BigQuery, and exposes them via MCP agent tools.
+
+### 💡 Architecture
+
+Mirrors the existing Earnings Quote Extraction pipeline pattern:
+- **Models**: Pydantic models with `to_bq_row()` for BigQuery serialization
+- **Extractor**: RPM-specific LLM prompt targeting competitive disclosures, risk admissions, forward guidance, regulatory exposure, material changes, and market conditions
+- **Storage**: BigQuery `sec_filing_nuggets` table with time partitioning + clustering
+- **MCP Tools**: `search_sec_nuggets` and `get_sec_nugget_stats` for agent access
+- **Orchestrator Integration**: Post-ingestion extraction in `run_full_ingestion()` and `run_financials_only()`
+- **Backfill Script**: Process existing SEC filings that haven't been extracted yet
+
+### ✅ Files Created
+
+| File | Purpose |
+|------|---------|
+| `app/ingestion/sec_filings/__init__.py` | Module init with all exports |
+| `app/ingestion/sec_filings/models.py` | Pydantic models: `ExtractedSecNugget`, `SecNuggetExtractionResult`, 5 enums (FilingType, FilingSection, NuggetType, DisclosureSignalStrength, SecFilingTheme) |
+| `app/ingestion/sec_filings/nugget_extractor.py` | `SecNuggetExtractor` class with RPM-specific extraction prompt, resilient LLM wrapper, 120s timeout |
+| `app/mcp/tools/sec_nuggets.py` | `search_sec_nuggets` and `get_sec_nugget_stats` MCP tools |
+| `scripts/operations/backfill_sec_nuggets.py` | CLI backfill script with --stats, --dry-run, --limit, --batch-size flags |
+
+### ✅ Files Modified
+
+| File | Change |
+|------|--------|
+| `app/db/gcp_storage.py` | Added `_create_sec_filing_nuggets_table()`, `store_sec_filing_nuggets()`, `get_sec_filing_nuggets()`, `get_filings_for_nugget_extraction()`, `get_sec_filing_nugget_stats()` |
+| `app/mcp/server.py` | Imported and registered `search_sec_nuggets` + `get_sec_nugget_stats` (total tools: 59) |
+| `app/ingestion/orchestrator.py` | Added Step 9 (SEC nugget extraction) to `run_full_ingestion()` and post-storage extraction to `run_financials_only()` |
+
+### 📊 Key Details
+
+- **Model**: `claude-haiku-4-5` (~$0.05-0.15 per filing)
+- **Target**: 15-30 nuggets per 10-K filing
+- **13 nugget types**: competitive_disclosure, risk_admission, market_position, forward_guidance, regulatory_exposure, litigation_disclosure, material_change, strategic_initiative, supply_chain, raw_materials, financial_metric, esg_disclosure, acquisition
+- **30 RPM-specific themes**: Across 4 business segments, construction markets, product categories, competitors, operations, and channels
+- **5 signal strengths**: explicit, standard, hedged, buried, new (new disclosures are highest value)
+- **BigQuery table**: `sec_filing_nuggets` - partitioned by extracted_at (monthly), clustered by ticker + nugget_type
+
+### 🧪 Testing
+
+```bash
+cd backend
+# Verify MCP tools load
+python -c "from app.mcp.server import get_all_mcp_tools; print(len(get_all_mcp_tools()))"
+# Output: 59
+
+# Verify module imports
+python -c "from app.ingestion.sec_filings import SecNuggetExtractor, ExtractedSecNugget, NuggetType; print('OK')"
+
+# Run backfill (after deploy)
+python scripts/operations/backfill_sec_nuggets.py --stats
+python scripts/operations/backfill_sec_nuggets.py --dry-run --limit 10
+python scripts/operations/backfill_sec_nuggets.py --limit 20 --batch-size 3
+```
+
+### 📁 Reference
+
+REFERENCE_sec_filings/ directory contains the standalone prototype with:
+- `fetcher/sec.py` - SEC EDGAR API fetcher (synchronous, httpx-based)
+- `enrichment/nugget_extractor.py` - Original dataclass-based extractor
+- `models/filing.py` - Original dataclass models
+
+The production implementation adapts these to use:
+- Pydantic models (for consistency with existing codebase)
+- Resilient LLM wrapper with OpenAI fallback
+- BigQuery storage (instead of SQLite)
+- asyncio.wait_for() timeout protection
+- MCP tool integration
+
+---
+## 📅 SESSION 91: Enhancing Pipeline Tab (January 14, 2026)
+
+**Status**: ✅ COMPLETE - Changes pushed to repo
+
+### 🎯 Objectives
+1.  **Enhance Pipeline Tab UI**: expose rich Apollo.io data (SIC/NAICS codes, retail locations, subsidiaries)
+2.  **Fix Contact Search Visibility**: Debug and fix issue where contact cards were not displaying in search results
+
+### 🏗️ Changes Implemented
+
+#### Backend
+-   **`state.py`**: Updated `ApolloEnrichmentResult` model to include:
+    -   `sic_codes`
+    -   `naics_codes`
+    -   `retail_location_count`
+    -   `suborganizations`
+-   **`agent.py`**: Updated `_create_search_block` to parse these fields from `enrich_company` tool results mapping.
+-   **`pipeline_search.py`**: Verified parsing logic.
+
+#### Frontend
+-   **`types/index.ts`**: Updated `ApolloEnrichmentResult` interface to match backend changes.
+-   **`SearchBlockCard.tsx`**:
+    -   Added rendering for **Retail Presence** (badged count).
+    -   Added rendering for **Subsidiaries** (list).
+    -   Added rendering for **SIC/NAICS** codes (tags).
+    -   Fixed syntax errors (stray brackets) that were likely causing render issues.
+
+### 🐛 Bug Fixes
+-   **Contact Search Visibility**: Addressed syntax errors in `SearchBlockCard.tsx` which likely caused the React component to fail rendering the contact items silently.
+-   **Apollo Field Parsing**: Fixed missing mapping of enrichment fields in the agent's tool output processing.
+
+### 📝 Verification
+-   **Manual Walkthrough**: Created `walkthrough.md` to guide verification.
+-   **Visual Check**:
+    -   Enriched Company -> "Profile Details" drawer now shows refined firmographic data.
+    -   Contact Search -> Listings now appear correctly under the result header.
+
+### 📁 Files Modified
+-   `backend/app/agents/pipeline/state.py`
+-   `backend/app/agents/pipeline/agent.py`
+-   `backend/app/mcp/tools/pipeline_search.py`
+-   `frontend/src/types/index.ts`
+-   `frontend/src/components/pipeline/SearchBlockCard.tsx`
+
+---
+
+## 📅 SESSION 95: Fix Weekly Briefing — Citations, Voice Enrichment, Podcast (February 10, 2026)
+
+**Status**: 🔧 IN PROGRESS
+
+### 🎯 Goal
+
+Fix the broken Feb 9 weekly briefing: citations mostly missing, podcast audio not generating, voice enrichment returning zero results. Delete broken data and regenerate fresh.
+
+### 🔍 Root Causes Identified
+
+1. **Citation ordering** — `get_articles_by_ids()` returned articles in arbitrary BQ order. Citation `[N]` expected `article_ids[N-1]` but got a random article. **Already fixed in Session 94** (commit `207ddf2`).
+
+2. **Voice enrichment returning nothing** — `_fetch_voice_enrichment()` concatenated all topics into one string (`" ".join(topic_list[:5])`) and passed it to BQ methods using `LIKE %concatenated_string%`. This never matches because no SEC filing/quote contains "carbon fiber hydrogen aerospace wind automotive" as a substring. Fix: search by individual company names/tickers with deduplication.
+
+3. **Podcast not generating** — Feb 9 briefing's podcast generation failed due to 5000 char ElevenLabs API limit (9355 char dialogue). Chunking fix applied in Session 93 (commit `247a282`) but briefing was never regenerated after the fix.
+
+### ✅ Completed
+
+1. **Voice enrichment rewrite** — `_fetch_voice_enrichment()` in `weekly_briefing.py` completely rewritten:
+   - SEC nuggets: Searches by each company name individually (up to 10), then by each topic keyword individually (up to 5), deduplicates by nugget_id, sorts by relevance, caps at 10
+   - Earnings quotes: Same pattern — per-company search, per-topic search, dedup by quote_id
+   - Podcast quotes: Searches by detected themes (mapped from topics via theme_mapping dict) AND by individual company names, dedup by quote_id
+   - Added detailed logging at each stage for debugging
+
+2. **Deleted broken Feb 9 data** — Removed 1 weekly briefing (`8f60f092`) and 2 pre-briefings (`a0dd4dc7`, `de033dfb`) from BigQuery via table swap (CREATE AS SELECT + DROP + RENAME)
+
+3. **Deploy and regenerate** — Committing voice enrichment fix, pushing to master for Cloud Build auto-deploy, then triggering fresh briefing generation
+
+### 📁 Files Modified
+| File | Change |
+|------|--------|
+| `backend/app/ingestion/generators/weekly_briefing.py` | Complete rewrite of `_fetch_voice_enrichment()` — individual company/topic searches instead of concatenated string |
+
+### 📁 Files Already Deployed (Session 94)
+| File | Change |
+|------|--------|
+| `backend/app/db/gcp_storage.py` | `get_articles_by_ids()` order-preserving fix, `_create_weekly_briefings_table()` schema auto-migration |
+
+---
+
+## 📅 SESSION 94: Supply Network Tab + Industry Narratives Planning (February 9, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Goal
+
+Build the Supply Network tab with interactive force-directed graph visualization of C1 + 10 competitors and their upstream supplier relationships. Plan the Industry Narratives feature for next session.
+
+### ✅ Completed
+
+1. **Supply Network Tab** — New tab with graph-primary split layout (60% graph / 40% drill-down panel)
+   - **Backend**: `app/api/routes/supply_network.py` — 5 REST endpoints (`/graph`, `/stats`, `/company/{key}`, `/supplier/{key}`, `/shared-suppliers`), all calling existing `BigQueryStore` methods (zero new BQ code)
+   - **Frontend**: 3 new components in `frontend/src/components/supply-network/`:
+     - `NetworkGraph.tsx` — `react-force-graph-2d` wrapper with color-coded nodes (amber=C1, blue=competitor, indigo=supplier), log-scale sizing, custom canvas labels, zoom/pan controls, legend
+     - `DetailPanel.tsx` — Right panel with 3 states: overview stats, company drill-down (supplier table), supplier drill-down (buyer table with [C1]/[COMP] badges)
+     - `SupplyNetworkDashboard.tsx` — Main container managing graph data, node selection, split layout
+   - **Tab integration**: Added to `Mode` type, Sidebar nav, AppHeader config, page.tsx conditional render, chat-hidden condition
+   - **API client**: 5 new methods in `api.ts` (`getSupplyNetworkGraph`, `getSupplyNetworkStats`, `getCompanyDetail`, `getSupplierDetail`, `getSharedSuppliers`)
+   - **Build verified**: TypeScript compiles, production build succeeds
+   - **Deployed**: Commit `207ddf2`, pushed to master → Cloud Build auto-deploy
+
+2. **Citation ordering fix** — `weekly_briefing.py` now preserves article_ids order so `[N]` citations map correctly
+
+### 📁 Files Created
+| File | Purpose |
+|------|---------|
+| `backend/app/api/routes/supply_network.py` | 5 REST endpoints for graph, stats, drill-down |
+| `frontend/src/components/supply-network/NetworkGraph.tsx` | Force-directed graph with canvas rendering |
+| `frontend/src/components/supply-network/DetailPanel.tsx` | Click-to-drill-down panel |
+| `frontend/src/components/supply-network/SupplyNetworkDashboard.tsx` | Main container, split layout |
+
+### 📁 Files Modified
+| File | Change |
+|------|--------|
+| `backend/app/main.py` | Added supply_network router |
+| `backend/app/api/routes/__init__.py` | Added supply_network import |
+| `frontend/src/types/index.ts` | Added 'supply-network' to Mode, chatSuggestions, welcomeMessages |
+| `frontend/src/app/page.tsx` | Dynamic import, conditional render, chat-hidden |
+| `frontend/src/components/layout/Sidebar.tsx` | Added Supply Network nav item |
+| `frontend/src/components/layout/AppHeader.tsx` | Added supply-network to modeConfig |
+| `frontend/src/components/chat/ChatInterface.tsx` | Added supply-network to modeSuggestions + welcomeMessages |
+| `frontend/src/lib/api.ts` | 5 API methods + Mode union update |
+
+### 🔮 Next Session: Industry Narratives Tab
+
+**Goal**: User selects an industry (from the 6+ industries in `digest_items`) and sees how news evolves over a 90-day period, grouped by month, with month-over-month delta tracking for sub-metadata.
+
+**Reference file**: `industry_narratives_intuition.xlsx` in project root (Claude-in-Excel concept)
+
+**Key `digest_items` columns available for this feature**:
+- `industries` (JSON array) — Aerospace, Wind, Construction, Marine, Automotive, Infrastructure, Transportation, Sporting Goods, Defense Space
+- `event_type` (STRING) — acquisition, partnership, expansion, contract, regulatory_change, product_launch, earnings, facility_closure, restructuring, investment, supply_disruption, technology, market_shift, other
+- `companies` (JSON array) — extracted company names
+- `geography` (JSON array) — North America, Europe, China, Japan, etc.
+- `themes` (JSON array) — reshoring, sustainability, consolidation, capacity_expansion, supply_chain_risk, trade_policy, cost_pressure, demand_growth, technology_advancement, electrification, hydrogen, lightweighting, etc. (21 themes)
+- `sentiment` (STRING) — positive, negative, neutral
+- `materials` (JSON array) — carbon fiber, epoxy, PEEK, glass fiber, prepreg, etc.
+- `published_at` (TIMESTAMP) — partitioned by day, for time-series queries
+- `relevance_score` (FLOAT64) — classifier confidence
+
+**Also available**: `article_tags` table with normalized tags (company, material, market, theme, geography, topic) — better for aggregation than JSON arrays
+
+**Table partitioning**: `digest_items` partitioned by `published_at` (DAY), clustered by `category` + `priority`
+
+**Concept**:
+1. User picks an industry (e.g., "Aerospace")
+2. Backend queries digest_items WHERE industries contains that industry, last 90 days
+3. Groups by month → summarizes key occurrences per month
+4. For sub-metadata (event_type, company mentions, geography, themes): shows counts + month-over-month +/- deltas
+5. LLM synthesis optional: Claude summarizes each month's narrative arc
+
+---
+## 📅 SESSION 93: Scheduler Fix, Voice Enrichment Docs & Briefing Regeneration (February 9, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Goal
+
+Fix the failed Monday Cloud Scheduler `weekly-executive-briefing` job, document Voice Enrichment (Session 92+), and regenerate this week's briefing.
+
+### ✅ Completed
+
+1. **Startup Probe Fix** — Root cause: expanded import chain (earnings, sec_filings, importyeti, podcasts) pushed cold start to ~65s, exceeding the 65s startup probe limit. Fixed `failureThreshold` from 12→36 (190s allowed). Applied immediately via `gcloud` and persistently in `cloudbuild.yaml` (commit `94d52ea`).
+2. **Briefing Regeneration** — Triggered on production Cloud Run. Agent 1 processed 172 items in 5 batches → Agent 2 synthesized with Opus 4.5 (Exa peripheral search, voice enrichment) → saved to BigQuery. Two briefings generated (duplicate trigger). Podcast generation **failed on both** — needs investigation.
+3. **Voice Enrichment README** — Updated `backend/app/ingestion/generators/README.md` with Voice Enrichment section (SEC nuggets, earnings quotes, podcast quotes), corrected Exa iteration count, updated podcast scaffold docs.
+
+### 🔍 Investigating Now
+
+- **Podcast generation failure** — Both Feb 9 briefing runs logged `Podcast generation failed or skipped - briefing will be saved without podcast`. Root cause: **ElevenLabs Text-to-Dialogue API has a 5,000 character limit per request.** The naturalized dialogue was 9,355 characters (42 turns, ~1344 words) — nearly 2x the limit. Previous weeks' briefings had shorter dialogues that fit within the limit.
+  - **Fix**: Chunked the dialogue into batches under 4,800 characters each. Multiple API calls are made sequentially, and the resulting MP3 segments are concatenated (MP3 frames are self-contained, so byte concatenation works). Modified `_generate_podcast()` in `weekly_briefing.py`.
+- **Duplicate briefing cleanup** — Two Feb 9 briefings existed in `weekly_briefings` table (`bfe304dd` and `8f60f092`). Deleted the older one (`bfe304dd`) via table swap (CREATE AS SELECT + DROP + ALTER RENAME) since BigQuery streaming buffer blocks direct DELETE on recent rows.
+
+### 📊 BigQuery State (weekly_briefings)
+
+| ID (prefix) | generated_at | period_end | podcast | notes |
+|-------------|-------------|------------|---------|-------|
+| `8f60f092` | Feb 9 15:49 | Feb 9 | ❌ | **CURRENT** — latest, served on frontend |
+| `bfe304dd` | Feb 9 15:37 | Feb 9 | ❌ | **DELETE** — duplicate from first trigger |
+| `433a266e` | Feb 2 14:33 | Feb 2 | ✅ | Last week (has podcast) |
+| `e838b122` | Jan 26 14:33 | Jan 26 | ✅ | Two weeks ago |
+
+---
+## 📅 SESSION 92: SEC Filing Nugget Extraction Pipeline (February 8, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Goal
+
+Build an end-to-end SEC Filing Nugget Extraction pipeline that extracts strategic intelligence from SEC filings (10-K, 10-Q, 8-K) using Claude Haiku, stores nuggets in BigQuery, and exposes them via MCP agent tools.
+
+### 💡 Architecture
+
+Mirrors the existing Earnings Quote Extraction pipeline pattern:
+- **Models**: Pydantic models with `to_bq_row()` for BigQuery serialization
+- **Extractor**: RPM-specific LLM prompt targeting competitive disclosures, risk admissions, forward guidance, regulatory exposure, material changes, and market conditions
+- **Storage**: BigQuery `sec_filing_nuggets` table with time partitioning + clustering
+- **MCP Tools**: `search_sec_nuggets` and `get_sec_nugget_stats` for agent access
+- **Orchestrator Integration**: Post-ingestion extraction in `run_full_ingestion()` and `run_financials_only()`
+- **Backfill Script**: Process existing SEC filings that haven't been extracted yet
+
+### ✅ Files Created
+
+| File | Purpose |
+|------|---------|
+| `app/ingestion/sec_filings/__init__.py` | Module init with all exports |
+| `app/ingestion/sec_filings/models.py` | Pydantic models: `ExtractedSecNugget`, `SecNuggetExtractionResult`, 5 enums (FilingType, FilingSection, NuggetType, DisclosureSignalStrength, SecFilingTheme) |
+| `app/ingestion/sec_filings/nugget_extractor.py` | `SecNuggetExtractor` class with RPM-specific extraction prompt, resilient LLM wrapper, 120s timeout |
+| `app/mcp/tools/sec_nuggets.py` | `search_sec_nuggets` and `get_sec_nugget_stats` MCP tools |
+| `scripts/operations/backfill_sec_nuggets.py` | CLI backfill script with --stats, --dry-run, --limit, --batch-size flags |
+
+### ✅ Files Modified
+
+| File | Change |
+|------|--------|
+| `app/db/gcp_storage.py` | Added `_create_sec_filing_nuggets_table()`, `store_sec_filing_nuggets()`, `get_sec_filing_nuggets()`, `get_filings_for_nugget_extraction()`, `get_sec_filing_nugget_stats()` |
+| `app/mcp/server.py` | Imported and registered `search_sec_nuggets` + `get_sec_nugget_stats` (total tools: 59) |
+| `app/ingestion/orchestrator.py` | Added Step 9 (SEC nugget extraction) to `run_full_ingestion()` and post-storage extraction to `run_financials_only()` |
+
+### 📊 Key Details
+
+- **Model**: `claude-haiku-4-5` (~$0.05-0.15 per filing)
+- **Target**: 15-30 nuggets per 10-K filing
+- **13 nugget types**: competitive_disclosure, risk_admission, market_position, forward_guidance, regulatory_exposure, litigation_disclosure, material_change, strategic_initiative, supply_chain, raw_materials, financial_metric, esg_disclosure, acquisition
+- **30 RPM-specific themes**: Across 4 business segments, construction markets, product categories, competitors, operations, and channels
+- **5 signal strengths**: explicit, standard, hedged, buried, new (new disclosures are highest value)
+- **BigQuery table**: `sec_filing_nuggets` - partitioned by extracted_at (monthly), clustered by ticker + nugget_type
+
+### 🧪 Testing
+
+```bash
+cd backend
+# Verify MCP tools load
+python -c "from app.mcp.server import get_all_mcp_tools; print(len(get_all_mcp_tools()))"
+# Output: 59
+
+# Verify module imports
+python -c "from app.ingestion.sec_filings import SecNuggetExtractor, ExtractedSecNugget, NuggetType; print('OK')"
+
+# Run backfill (after deploy)
+python scripts/operations/backfill_sec_nuggets.py --stats
+python scripts/operations/backfill_sec_nuggets.py --dry-run --limit 10
+python scripts/operations/backfill_sec_nuggets.py --limit 20 --batch-size 3
+```
+
+### 📁 Reference
+
+REFERENCE_sec_filings/ directory contains the standalone prototype with:
+- `fetcher/sec.py` - SEC EDGAR API fetcher (synchronous, httpx-based)
+- `enrichment/nugget_extractor.py` - Original dataclass-based extractor
+- `models/filing.py` - Original dataclass models
+
+The production implementation adapts these to use:
+- Pydantic models (for consistency with existing codebase)
+- Resilient LLM wrapper with OpenAI fallback
+- BigQuery storage (instead of SQLite)
+- asyncio.wait_for() timeout protection
+- MCP tool integration
+
+---
+## 📅 SESSION 91: Enhancing Pipeline Tab (January 14, 2026)
+
+**Status**: ✅ COMPLETE - Changes pushed to repo
+
+### 🎯 Objectives
+1.  **Enhance Pipeline Tab UI**: expose rich Apollo.io data (SIC/NAICS codes, retail locations, subsidiaries)
+2.  **Fix Contact Search Visibility**: Debug and fix issue where contact cards were not displaying in search results
+
+### 🏗️ Changes Implemented
+
+#### Backend
+-   **`state.py`**: Updated `ApolloEnrichmentResult` model to include:
+    -   `sic_codes`
+    -   `naics_codes`
+    -   `retail_location_count`
+    -   `suborganizations`
+-   **`agent.py`**: Updated `_create_search_block` to parse these fields from `enrich_company` tool results mapping.
+-   **`pipeline_search.py`**: Verified parsing logic.
+
+#### Frontend
+-   **`types/index.ts`**: Updated `ApolloEnrichmentResult` interface to match backend changes.
+-   **`SearchBlockCard.tsx`**:
+    -   Added rendering for **Retail Presence** (badged count).
+    -   Added rendering for **Subsidiaries** (list).
+    -   Added rendering for **SIC/NAICS** codes (tags).
+    -   Fixed syntax errors (stray brackets) that were likely causing render issues.
+
+### 🐛 Bug Fixes
+-   **Contact Search Visibility**: Addressed syntax errors in `SearchBlockCard.tsx` which likely caused the React component to fail rendering the contact items silently.
+-   **Apollo Field Parsing**: Fixed missing mapping of enrichment fields in the agent's tool output processing.
+
+### 📝 Verification
+-   **Manual Walkthrough**: Created `walkthrough.md` to guide verification.
+-   **Visual Check**:
+    -   Enriched Company -> "Profile Details" drawer now shows refined firmographic data.
+    -   Contact Search -> Listings now appear correctly under the result header.
+
+### 📁 Files Modified
+-   `backend/app/agents/pipeline/state.py`
+-   `backend/app/agents/pipeline/agent.py`
+-   `backend/app/mcp/tools/pipeline_search.py`
+-   `frontend/src/types/index.ts`
+-   `frontend/src/components/pipeline/SearchBlockCard.tsx`
+
+---
+
+## 📅 SESSION 95: Fix Weekly Briefing — Citations, Voice Enrichment, Podcast (February 10, 2026)
+
+**Status**: 🔧 IN PROGRESS
+
+### 🎯 Goal
+
+Fix the broken Feb 9 weekly briefing: citations mostly missing, podcast audio not generating, voice enrichment returning zero results. Delete broken data and regenerate fresh.
+
+### 🔍 Root Causes Identified
+
+1. **Citation ordering** — `get_articles_by_ids()` returned articles in arbitrary BQ order. Citation `[N]` expected `article_ids[N-1]` but got a random article. **Already fixed in Session 94** (commit `207ddf2`).
+
+2. **Voice enrichment returning nothing** — `_fetch_voice_enrichment()` concatenated all topics into one string (`" ".join(topic_list[:5])`) and passed it to BQ methods using `LIKE %concatenated_string%`. This never matches because no SEC filing/quote contains "carbon fiber hydrogen aerospace wind automotive" as a substring. Fix: search by individual company names/tickers with deduplication.
+
+3. **Podcast not generating** — Feb 9 briefing's podcast generation failed due to 5000 char ElevenLabs API limit (9355 char dialogue). Chunking fix applied in Session 93 (commit `247a282`) but briefing was never regenerated after the fix.
+
+### ✅ Completed
+
+1. **Voice enrichment rewrite** — `_fetch_voice_enrichment()` in `weekly_briefing.py` completely rewritten:
+   - SEC nuggets: Searches by each company name individually (up to 10), then by each topic keyword individually (up to 5), deduplicates by nugget_id, sorts by relevance, caps at 10
+   - Earnings quotes: Same pattern — per-company search, per-topic search, dedup by quote_id
+   - Podcast quotes: Searches by detected themes (mapped from topics via theme_mapping dict) AND by individual company names, dedup by quote_id
+   - Added detailed logging at each stage for debugging
+
+2. **Deleted broken Feb 9 data** — Removed 1 weekly briefing (`8f60f092`) and 2 pre-briefings (`a0dd4dc7`, `de033dfb`) from BigQuery via table swap (CREATE AS SELECT + DROP + RENAME)
+
+3. **Deploy and regenerate** — Committing voice enrichment fix, pushing to master for Cloud Build auto-deploy, then triggering fresh briefing generation
+
+### 📁 Files Modified
+| File | Change |
+|------|--------|
+| `backend/app/ingestion/generators/weekly_briefing.py` | Complete rewrite of `_fetch_voice_enrichment()` — individual company/topic searches instead of concatenated string |
+
+### 📁 Files Already Deployed (Session 94)
+| File | Change |
+|------|--------|
+| `backend/app/db/gcp_storage.py` | `get_articles_by_ids()` order-preserving fix, `_create_weekly_briefings_table()` schema auto-migration |
+
+---
+
+## 📅 SESSION 94: Supply Network Tab + Industry Narratives Planning (February 9, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Goal
+
+Build the Supply Network tab with interactive force-directed graph visualization of C1 + 10 competitors and their upstream supplier relationships. Plan the Industry Narratives feature for next session.
+
+### ✅ Completed
+
+1. **Supply Network Tab** — New tab with graph-primary split layout (60% graph / 40% drill-down panel)
+   - **Backend**: `app/api/routes/supply_network.py` — 5 REST endpoints (`/graph`, `/stats`, `/company/{key}`, `/supplier/{key}`, `/shared-suppliers`), all calling existing `BigQueryStore` methods (zero new BQ code)
+   - **Frontend**: 3 new components in `frontend/src/components/supply-network/`:
+     - `NetworkGraph.tsx` — `react-force-graph-2d` wrapper with color-coded nodes (amber=C1, blue=competitor, indigo=supplier), log-scale sizing, custom canvas labels, zoom/pan controls, legend
+     - `DetailPanel.tsx` — Right panel with 3 states: overview stats, company drill-down (supplier table), supplier drill-down (buyer table with [C1]/[COMP] badges)
+     - `SupplyNetworkDashboard.tsx` — Main container managing graph data, node selection, split layout
+   - **Tab integration**: Added to `Mode` type, Sidebar nav, AppHeader config, page.tsx conditional render, chat-hidden condition
+   - **API client**: 5 new methods in `api.ts` (`getSupplyNetworkGraph`, `getSupplyNetworkStats`, `getCompanyDetail`, `getSupplierDetail`, `getSharedSuppliers`)
+   - **Build verified**: TypeScript compiles, production build succeeds
+   - **Deployed**: Commit `207ddf2`, pushed to master → Cloud Build auto-deploy
+
+2. **Citation ordering fix** — `weekly_briefing.py` now preserves article_ids order so `[N]` citations map correctly
+
+### 📁 Files Created
+| File | Purpose |
+|------|---------|
+| `backend/app/api/routes/supply_network.py` | 5 REST endpoints for graph, stats, drill-down |
+| `frontend/src/components/supply-network/NetworkGraph.tsx` | Force-directed graph with canvas rendering |
+| `frontend/src/components/supply-network/DetailPanel.tsx` | Click-to-drill-down panel |
+| `frontend/src/components/supply-network/SupplyNetworkDashboard.tsx` | Main container, split layout |
+
+### 📁 Files Modified
+| File | Change |
+|------|--------|
+| `backend/app/main.py` | Added supply_network router |
+| `backend/app/api/routes/__init__.py` | Added supply_network import |
+| `frontend/src/types/index.ts` | Added 'supply-network' to Mode, chatSuggestions, welcomeMessages |
+| `frontend/src/app/page.tsx` | Dynamic import, conditional render, chat-hidden |
+| `frontend/src/components/layout/Sidebar.tsx` | Added Supply Network nav item |
+| `frontend/src/components/layout/AppHeader.tsx` | Added supply-network to modeConfig |
+| `frontend/src/components/chat/ChatInterface.tsx` | Added supply-network to modeSuggestions + welcomeMessages |
+| `frontend/src/lib/api.ts` | 5 API methods + Mode union update |
+
+### 🔮 Next Session: Industry Narratives Tab
+
+**Goal**: User selects an industry (from the 6+ industries in `digest_items`) and sees how news evolves over a 90-day period, grouped by month, with month-over-month delta tracking for sub-metadata.
+
+**Reference file**: `industry_narratives_intuition.xlsx` in project root (Claude-in-Excel concept)
+
+**Key `digest_items` columns available for this feature**:
+- `industries` (JSON array) — Aerospace, Wind, Construction, Marine, Automotive, Infrastructure, Transportation, Sporting Goods, Defense Space
+- `event_type` (STRING) — acquisition, partnership, expansion, contract, regulatory_change, product_launch, earnings, facility_closure, restructuring, investment, supply_disruption, technology, market_shift, other
+- `companies` (JSON array) — extracted company names
+- `geography` (JSON array) — North America, Europe, China, Japan, etc.
+- `themes` (JSON array) — reshoring, sustainability, consolidation, capacity_expansion, supply_chain_risk, trade_policy, cost_pressure, demand_growth, technology_advancement, electrification, hydrogen, lightweighting, etc. (21 themes)
+- `sentiment` (STRING) — positive, negative, neutral
+- `materials` (JSON array) — carbon fiber, epoxy, PEEK, glass fiber, prepreg, etc.
+- `published_at` (TIMESTAMP) — partitioned by day, for time-series queries
+- `relevance_score` (FLOAT64) — classifier confidence
+
+**Also available**: `article_tags` table with normalized tags (company, material, market, theme, geography, topic) — better for aggregation than JSON arrays
+
+**Table partitioning**: `digest_items` partitioned by `published_at` (DAY), clustered by `category` + `priority`
+
+**Concept**:
+1. User picks an industry (e.g., "Aerospace")
+2. Backend queries digest_items WHERE industries contains that industry, last 90 days
+3. Groups by month → summarizes key occurrences per month
+4. For sub-metadata (event_type, company mentions, geography, themes): shows counts + month-over-month +/- deltas
+5. LLM synthesis optional: Claude summarizes each month's narrative arc
+
+---
+## 📅 SESSION 93: Scheduler Fix, Voice Enrichment Docs & Briefing Regeneration (February 9, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Goal
+
+Fix the failed Monday Cloud Scheduler `weekly-executive-briefing` job, document Voice Enrichment (Session 92+), and regenerate this week's briefing.
+
+### ✅ Completed
+
+1. **Startup Probe Fix** — Root cause: expanded import chain (earnings, sec_filings, importyeti, podcasts) pushed cold start to ~65s, exceeding the 65s startup probe limit. Fixed `failureThreshold` from 12→36 (190s allowed). Applied immediately via `gcloud` and persistently in `cloudbuild.yaml` (commit `94d52ea`).
+2. **Briefing Regeneration** — Triggered on production Cloud Run. Agent 1 processed 172 items in 5 batches → Agent 2 synthesized with Opus 4.5 (Exa peripheral search, voice enrichment) → saved to BigQuery. Two briefings generated (duplicate trigger). Podcast generation **failed on both** — needs investigation.
+3. **Voice Enrichment README** — Updated `backend/app/ingestion/generators/README.md` with Voice Enrichment section (SEC nuggets, earnings quotes, podcast quotes), corrected Exa iteration count, updated podcast scaffold docs.
+
+### 🔍 Investigating Now
+
+- **Podcast generation failure** — Both Feb 9 briefing runs logged `Podcast generation failed or skipped - briefing will be saved without podcast`. Root cause: **ElevenLabs Text-to-Dialogue API has a 5,000 character limit per request.** The naturalized dialogue was 9,355 characters (42 turns, ~1344 words) — nearly 2x the limit. Previous weeks' briefings had shorter dialogues that fit within the limit.
+  - **Fix**: Chunked the dialogue into batches under 4,800 characters each. Multiple API calls are made sequentially, and the resulting MP3 segments are concatenated (MP3 frames are self-contained, so byte concatenation works). Modified `_generate_podcast()` in `weekly_briefing.py`.
+- **Duplicate briefing cleanup** — Two Feb 9 briefings existed in `weekly_briefings` table (`bfe304dd` and `8f60f092`). Deleted the older one (`bfe304dd`) via table swap (CREATE AS SELECT + DROP + ALTER RENAME) since BigQuery streaming buffer blocks direct DELETE on recent rows.
+
+### 📊 BigQuery State (weekly_briefings)
+
+| ID (prefix) | generated_at | period_end | podcast | notes |
+|-------------|-------------|------------|---------|-------|
+| `8f60f092` | Feb 9 15:49 | Feb 9 | ❌ | **CURRENT** — latest, served on frontend |
+| `bfe304dd` | Feb 9 15:37 | Feb 9 | ❌ | **DELETE** — duplicate from first trigger |
+| `433a266e` | Feb 2 14:33 | Feb 2 | ✅ | Last week (has podcast) |
+| `e838b122` | Jan 26 14:33 | Jan 26 | ✅ | Two weeks ago |
+
+---
+## 📅 SESSION 92: SEC Filing Nugget Extraction Pipeline (February 8, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Goal
+
+Build an end-to-end SEC Filing Nugget Extraction pipeline that extracts strategic intelligence from SEC filings (10-K, 10-Q, 8-K) using Claude Haiku, stores nuggets in BigQuery, and exposes them via MCP agent tools.
+
+### 💡 Architecture
+
+Mirrors the existing Earnings Quote Extraction pipeline pattern:
+- **Models**: Pydantic models with `to_bq_row()` for BigQuery serialization
+- **Extractor**: RPM-specific LLM prompt targeting competitive disclosures, risk admissions, forward guidance, regulatory exposure, material changes, and market conditions
+- **Storage**: BigQuery `sec_filing_nuggets` table with time partitioning + clustering
+- **MCP Tools**: `search_sec_nuggets` and `get_sec_nugget_stats` for agent access
+- **Orchestrator Integration**: Post-ingestion extraction in `run_full_ingestion()` and `run_financials_only()`
+- **Backfill Script**: Process existing SEC filings that haven't been extracted yet
+
+### ✅ Files Created
+
+| File | Purpose |
+|------|---------|
+| `app/ingestion/sec_filings/__init__.py` | Module init with all exports |
+| `app/ingestion/sec_filings/models.py` | Pydantic models: `ExtractedSecNugget`, `SecNuggetExtractionResult`, 5 enums (FilingType, FilingSection, NuggetType, DisclosureSignalStrength, SecFilingTheme) |
+| `app/ingestion/sec_filings/nugget_extractor.py` | `SecNuggetExtractor` class with RPM-specific extraction prompt, resilient LLM wrapper, 120s timeout |
+| `app/mcp/tools/sec_nuggets.py` | `search_sec_nuggets` and `get_sec_nugget_stats` MCP tools |
+| `scripts/operations/backfill_sec_nuggets.py` | CLI backfill script with --stats, --dry-run, --limit, --batch-size flags |
+
+### ✅ Files Modified
+
+| File | Change |
+|------|--------|
+| `app/db/gcp_storage.py` | Added `_create_sec_filing_nuggets_table()`, `store_sec_filing_nuggets()`, `get_sec_filing_nuggets()`, `get_filings_for_nugget_extraction()`, `get_sec_filing_nugget_stats()` |
+| `app/mcp/server.py` | Imported and registered `search_sec_nuggets` + `get_sec_nugget_stats` (total tools: 59) |
+| `app/ingestion/orchestrator.py` | Added Step 9 (SEC nugget extraction) to `run_full_ingestion()` and post-storage extraction to `run_financials_only()` |
+
+### 📊 Key Details
+
+- **Model**: `claude-haiku-4-5` (~$0.05-0.15 per filing)
+- **Target**: 15-30 nuggets per 10-K filing
+- **13 nugget types**: competitive_disclosure, risk_admission, market_position, forward_guidance, regulatory_exposure, litigation_disclosure, material_change, strategic_initiative, supply_chain, raw_materials, financial_metric, esg_disclosure, acquisition
+- **30 RPM-specific themes**: Across 4 business segments, construction markets, product categories, competitors, operations, and channels
+- **5 signal strengths**: explicit, standard, hedged, buried, new (new disclosures are highest value)
+- **BigQuery table**: `sec_filing_nuggets` - partitioned by extracted_at (monthly), clustered by ticker + nugget_type
+
+### 🧪 Testing
+
+```bash
+cd backend
+# Verify MCP tools load
+python -c "from app.mcp.server import get_all_mcp_tools; print(len(get_all_mcp_tools()))"
+# Output: 59
+
+# Verify module imports
+python -c "from app.ingestion.sec_filings import SecNuggetExtractor, ExtractedSecNugget, NuggetType; print('OK')"
+
+# Run backfill (after deploy)
+python scripts/operations/backfill_sec_nuggets.py --stats
+python scripts/operations/backfill_sec_nuggets.py --dry-run --limit 10
+python scripts/operations/backfill_sec_nuggets.py --limit 20 --batch-size 3
+```
+
+### 📁 Reference
+
+REFERENCE_sec_filings/ directory contains the standalone prototype with:
+- `fetcher/sec.py` - SEC EDGAR API fetcher (synchronous, httpx-based)
+- `enrichment/nugget_extractor.py` - Original dataclass-based extractor
+- `models/filing.py` - Original dataclass models
+
+The production implementation adapts these to use:
+- Pydantic models (for consistency with existing codebase)
+- Resilient LLM wrapper with OpenAI fallback
+- BigQuery storage (instead of SQLite)
+- asyncio.wait_for() timeout protection
+- MCP tool integration
+
+---
+## 📅 SESSION 91: Enhancing Pipeline Tab (January 14, 2026)
+
+**Status**: ✅ COMPLETE - Changes pushed to repo
+
+### 🎯 Objectives
+1.  **Enhance Pipeline Tab UI**: expose rich Apollo.io data (SIC/NAICS codes, retail locations, subsidiaries)
+2.  **Fix Contact Search Visibility**: Debug and fix issue where contact cards were not displaying in search results
+
+### 🏗️ Changes Implemented
+
+#### Backend
+-   **`state.py`**: Updated `ApolloEnrichmentResult` model to include:
+    -   `sic_codes`
+    -   `naics_codes`
+    -   `retail_location_count`
+    -   `suborganizations`
+-   **`agent.py`**: Updated `_create_search_block` to parse these fields from `enrich_company` tool results mapping.
+-   **`pipeline_search.py`**: Verified parsing logic.
+
+#### Frontend
+-   **`types/index.ts`**: Updated `ApolloEnrichmentResult` interface to match backend changes.
+-   **`SearchBlockCard.tsx`**:
+    -   Added rendering for **Retail Presence** (badged count).
+    -   Added rendering for **Subsidiaries** (list).
+    -   Added rendering for **SIC/NAICS** codes (tags).
+    -   Fixed syntax errors (stray brackets) that were likely causing render issues.
+
+### 🐛 Bug Fixes
+-   **Contact Search Visibility**: Addressed syntax errors in `SearchBlockCard.tsx` which likely caused the React component to fail rendering the contact items silently.
+-   **Apollo Field Parsing**: Fixed missing mapping of enrichment fields in the agent's tool output processing.
+
+### 📝 Verification
+-   **Manual Walkthrough**: Created `walkthrough.md` to guide verification.
+-   **Visual Check**:
+    -   Enriched Company -> "Profile Details" drawer now shows refined firmographic data.
+    -   Contact Search -> Listings now appear correctly under the result header.
+
+### 📁 Files Modified
+-   `backend/app/agents/pipeline/state.py`
+-   `backend/app/agents/pipeline/agent.py`
+-   `backend/app/mcp/tools/pipeline_search.py`
+-   `frontend/src/types/index.ts`
+-   `frontend/src/components/pipeline/SearchBlockCard.tsx`
+
+---
+
+## 📅 SESSION 95: Fix Weekly Briefing — Citations, Voice Enrichment, Podcast (February 10, 2026)
+
+**Status**: 🔧 IN PROGRESS
+
+### 🎯 Goal
+
+Fix the broken Feb 9 weekly briefing: citations mostly missing, podcast audio not generating, voice enrichment returning zero results. Delete broken data and regenerate fresh.
+
+### 🔍 Root Causes Identified
+
+1. **Citation ordering** — `get_articles_by_ids()` returned articles in arbitrary BQ order. Citation `[N]` expected `article_ids[N-1]` but got a random article. **Already fixed in Session 94** (commit `207ddf2`).
+
+2. **Voice enrichment returning nothing** — `_fetch_voice_enrichment()` concatenated all topics into one string (`" ".join(topic_list[:5])`) and passed it to BQ methods using `LIKE %concatenated_string%`. This never matches because no SEC filing/quote contains "carbon fiber hydrogen aerospace wind automotive" as a substring. Fix: search by individual company names/tickers with deduplication.
+
+3. **Podcast not generating** — Feb 9 briefing's podcast generation failed due to 5000 char ElevenLabs API limit (9355 char dialogue). Chunking fix applied in Session 93 (commit `247a282`) but briefing was never regenerated after the fix.
+
+### ✅ Completed
+
+1. **Voice enrichment rewrite** — `_fetch_voice_enrichment()` in `weekly_briefing.py` completely rewritten:
+   - SEC nuggets: Searches by each company name individually (up to 10), then by each topic keyword individually (up to 5), deduplicates by nugget_id, sorts by relevance, caps at 10
+   - Earnings quotes: Same pattern — per-company search, per-topic search, dedup by quote_id
+   - Podcast quotes: Searches by detected themes (mapped from topics via theme_mapping dict) AND by individual company names, dedup by quote_id
+   - Added detailed logging at each stage for debugging
+
+2. **Deleted broken Feb 9 data** — Removed 1 weekly briefing (`8f60f092`) and 2 pre-briefings (`a0dd4dc7`, `de033dfb`) from BigQuery via table swap (CREATE AS SELECT + DROP + RENAME)
+
+3. **Deploy and regenerate** — Committing voice enrichment fix, pushing to master for Cloud Build auto-deploy, then triggering fresh briefing generation
+
+### 📁 Files Modified
+| File | Change |
+|------|--------|
+| `backend/app/ingestion/generators/weekly_briefing.py` | Complete rewrite of `_fetch_voice_enrichment()` — individual company/topic searches instead of concatenated string |
+
+### 📁 Files Already Deployed (Session 94)
+| File | Change |
+|------|--------|
+| `backend/app/db/gcp_storage.py` | `get_articles_by_ids()` order-preserving fix, `_create_weekly_briefings_table()` schema auto-migration |
+
+---
+
+## 📅 SESSION 94: Supply Network Tab + Industry Narratives Planning (February 9, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Goal
+
+Build the Supply Network tab with interactive force-directed graph visualization of C1 + 10 competitors and their upstream supplier relationships. Plan the Industry Narratives feature for next session.
+
+### ✅ Completed
+
+1. **Supply Network Tab** — New tab with graph-primary split layout (60% graph / 40% drill-down panel)
+   - **Backend**: `app/api/routes/supply_network.py` — 5 REST endpoints (`/graph`, `/stats`, `/company/{key}`, `/supplier/{key}`, `/shared-suppliers`), all calling existing `BigQueryStore` methods (zero new BQ code)
+   - **Frontend**: 3 new components in `frontend/src/components/supply-network/`:
+     - `NetworkGraph.tsx` — `react-force-graph-2d` wrapper with color-coded nodes (amber=C1, blue=competitor, indigo=supplier), log-scale sizing, custom canvas labels, zoom/pan controls, legend
+     - `DetailPanel.tsx` — Right panel with 3 states: overview stats, company drill-down (supplier table), supplier drill-down (buyer table with [C1]/[COMP] badges)
+     - `SupplyNetworkDashboard.tsx` — Main container managing graph data, node selection, split layout
+   - **Tab integration**: Added to `Mode` type, Sidebar nav, AppHeader config, page.tsx conditional render, chat-hidden condition
+   - **API client**: 5 new methods in `api.ts` (`getSupplyNetworkGraph`, `getSupplyNetworkStats`, `getCompanyDetail`, `getSupplierDetail`, `getSharedSuppliers`)
+   - **Build verified**: TypeScript compiles, production build succeeds
+   - **Deployed**: Commit `207ddf2`, pushed to master → Cloud Build auto-deploy
+
+2. **Citation ordering fix** — `weekly_briefing.py` now preserves article_ids order so `[N]` citations map correctly
+
+### 📁 Files Created
+| File | Purpose |
+|------|---------|
+| `backend/app/api/routes/supply_network.py` | 5 REST endpoints for graph, stats, drill-down |
+| `frontend/src/components/supply-network/NetworkGraph.tsx` | Force-directed graph with canvas rendering |
+| `frontend/src/components/supply-network/DetailPanel.tsx` | Click-to-drill-down panel |
+| `frontend/src/components/supply-network/SupplyNetworkDashboard.tsx` | Main container, split layout |
+
+### 📁 Files Modified
+| File | Change |
+|------|--------|
+| `backend/app/main.py` | Added supply_network router |
+| `backend/app/api/routes/__init__.py` | Added supply_network import |
+| `frontend/src/types/index.ts` | Added 'supply-network' to Mode, chatSuggestions, welcomeMessages |
+| `frontend/src/app/page.tsx` | Dynamic import, conditional render, chat-hidden |
+| `frontend/src/components/layout/Sidebar.tsx` | Added Supply Network nav item |
+| `frontend/src/components/layout/AppHeader.tsx` | Added supply-network to modeConfig |
+| `frontend/src/components/chat/ChatInterface.tsx` | Added supply-network to modeSuggestions + welcomeMessages |
+| `frontend/src/lib/api.ts` | 5 API methods + Mode union update |
+
+### 🔮 Next Session: Industry Narratives Tab
+
+**Goal**: User selects an industry (from the 6+ industries in `digest_items`) and sees how news evolves over a 90-day period, grouped by month, with month-over-month delta tracking for sub-metadata.
+
+**Reference file**: `industry_narratives_intuition.xlsx` in project root (Claude-in-Excel concept)
+
+**Key `digest_items` columns available for this feature**:
+- `industries` (JSON array) — Aerospace, Wind, Construction, Marine, Automotive, Infrastructure, Transportation, Sporting Goods, Defense Space
+- `event_type` (STRING) — acquisition, partnership, expansion, contract, regulatory_change, product_launch, earnings, facility_closure, restructuring, investment, supply_disruption, technology, market_shift, other
+- `companies` (JSON array) — extracted company names
+- `geography` (JSON array) — North America, Europe, China, Japan, etc.
+- `themes` (JSON array) — reshoring, sustainability, consolidation, capacity_expansion, supply_chain_risk, trade_policy, cost_pressure, demand_growth, technology_advancement, electrification, hydrogen, lightweighting, etc. (21 themes)
+- `sentiment` (STRING) — positive, negative, neutral
+- `materials` (JSON array) — carbon fiber, epoxy, PEEK, glass fiber, prepreg, etc.
+- `published_at` (TIMESTAMP) — partitioned by day, for time-series queries
+- `relevance_score` (FLOAT64) — classifier confidence
+
+**Also available**: `article_tags` table with normalized tags (company, material, market, theme, geography, topic) — better for aggregation than JSON arrays
+
+**Table partitioning**: `digest_items` partitioned by `published_at` (DAY), clustered by `category` + `priority`
+
+**Concept**:
+1. User picks an industry (e.g., "Aerospace")
+2. Backend queries digest_items WHERE industries contains that industry, last 90 days
+3. Groups by month → summarizes key occurrences per month
+4. For sub-metadata (event_type, company mentions, geography, themes): shows counts + month-over-month +/- deltas
+5. LLM synthesis optional: Claude summarizes each month's narrative arc
+
+---
+## 📅 SESSION 93: Scheduler Fix, Voice Enrichment Docs & Briefing Regeneration (February 9, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Goal
+
+Fix the failed Monday Cloud Scheduler `weekly-executive-briefing` job, document Voice Enrichment (Session 92+), and regenerate this week's briefing.
+
+### ✅ Completed
+
+1. **Startup Probe Fix** — Root cause: expanded import chain (earnings, sec_filings, importyeti, podcasts) pushed cold start to ~65s, exceeding the 65s startup probe limit. Fixed `failureThreshold` from 12→36 (190s allowed). Applied immediately via `gcloud` and persistently in `cloudbuild.yaml` (commit `94d52ea`).
+2. **Briefing Regeneration** — Triggered on production Cloud Run. Agent 1 processed 172 items in 5 batches → Agent 2 synthesized with Opus 4.5 (Exa peripheral search, voice enrichment) → saved to BigQuery. Two briefings generated (duplicate trigger). Podcast generation **failed on both** — needs investigation.
+3. **Voice Enrichment README** — Updated `backend/app/ingestion/generators/README.md` with Voice Enrichment section (SEC nuggets, earnings quotes, podcast quotes), corrected Exa iteration count, updated podcast scaffold docs.
+
+### 🔍 Investigating Now
+
+- **Podcast generation failure** — Both Feb 9 briefing runs logged `Podcast generation failed or skipped - briefing will be saved without podcast`. Root cause: **ElevenLabs Text-to-Dialogue API has a 5,000 character limit per request.** The naturalized dialogue was 9,355 characters (42 turns, ~1344 words) — nearly 2x the limit. Previous weeks' briefings had shorter dialogues that fit within the limit.
+  - **Fix**: Chunked the dialogue into batches under 4,800 characters each. Multiple API calls are made sequentially, and the resulting MP3 segments are concatenated (MP3 frames are self-contained, so byte concatenation works). Modified `_generate_podcast()` in `weekly_briefing.py`.
+- **Duplicate briefing cleanup** — Two Feb 9 briefings existed in `weekly_briefings` table (`bfe304dd` and `8f60f092`). Deleted the older one (`bfe304dd`) via table swap (CREATE AS SELECT + DROP + ALTER RENAME) since BigQuery streaming buffer blocks direct DELETE on recent rows.
+
+### 📊 BigQuery State (weekly_briefings)
+
+| ID (prefix) | generated_at | period_end | podcast | notes |
+|-------------|-------------|------------|---------|-------|
+| `8f60f092` | Feb 9 15:49 | Feb 9 | ❌ | **CURRENT** — latest, served on frontend |
+| `bfe304dd` | Feb 9 15:37 | Feb 9 | ❌ | **DELETE** — duplicate from first trigger |
+| `433a266e` | Feb 2 14:33 | Feb 2 | ✅ | Last week (has podcast) |
+| `e838b122` | Jan 26 14:33 | Jan 26 | ✅ | Two weeks ago |
+
+---
+## 📅 SESSION 92: SEC Filing Nugget Extraction Pipeline (February 8, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Goal
+
+Build an end-to-end SEC Filing Nugget Extraction pipeline that extracts strategic intelligence from SEC filings (10-K, 10-Q, 8-K) using Claude Haiku, stores nuggets in BigQuery, and exposes them via MCP agent tools.
+
+### 💡 Architecture
+
+Mirrors the existing Earnings Quote Extraction pipeline pattern:
+- **Models**: Pydantic models with `to_bq_row()` for BigQuery serialization
+- **Extractor**: RPM-specific LLM prompt targeting competitive disclosures, risk admissions, forward guidance, regulatory exposure, material changes, and market conditions
+- **Storage**: BigQuery `sec_filing_nuggets` table with time partitioning + clustering
+- **MCP Tools**: `search_sec_nuggets` and `get_sec_nugget_stats` for agent access
+- **Orchestrator Integration**: Post-ingestion extraction in `run_full_ingestion()` and `run_financials_only()`
+- **Backfill Script**: Process existing SEC filings that haven't been extracted yet
+
+### ✅ Files Created
+
+| File | Purpose |
+|------|---------|
+| `app/ingestion/sec_filings/__init__.py` | Module init with all exports |
+| `app/ingestion/sec_filings/models.py` | Pydantic models: `ExtractedSecNugget`, `SecNuggetExtractionResult`, 5 enums (FilingType, FilingSection, NuggetType, DisclosureSignalStrength, SecFilingTheme) |
+| `app/ingestion/sec_filings/nugget_extractor.py` | `SecNuggetExtractor` class with RPM-specific extraction prompt, resilient LLM wrapper, 120s timeout |
+| `app/mcp/tools/sec_nuggets.py` | `search_sec_nuggets` and `get_sec_nugget_stats` MCP tools |
+| `scripts/operations/backfill_sec_nuggets.py` | CLI backfill script with --stats, --dry-run, --limit, --batch-size flags |
+
+### ✅ Files Modified
+
+| File | Change |
+|------|--------|
+| `app/db/gcp_storage.py` | Added `_create_sec_filing_nuggets_table()`, `store_sec_filing_nuggets()`, `get_sec_filing_nuggets()`, `get_filings_for_nugget_extraction()`, `get_sec_filing_nugget_stats()` |
+| `app/mcp/server.py` | Imported and registered `search_sec_nuggets` + `get_sec_nugget_stats` (total tools: 59) |
+| `app/ingestion/orchestrator.py` | Added Step 9 (SEC nugget extraction) to `run_full_ingestion()` and post-storage extraction to `run_financials_only()` |
+
+### 📊 Key Details
+
+- **Model**: `claude-haiku-4-5` (~$0.05-0.15 per filing)
+- **Target**: 15-30 nuggets per 10-K filing
+- **13 nugget types**: competitive_disclosure, risk_admission, market_position, forward_guidance, regulatory_exposure, litigation_disclosure, material_change, strategic_initiative, supply_chain, raw_materials, financial_metric, esg_disclosure, acquisition
+- **30 RPM-specific themes**: Across 4 business segments, construction markets, product categories, competitors, operations, and channels
+- **5 signal strengths**: explicit, standard, hedged, buried, new (new disclosures are highest value)
+- **BigQuery table**: `sec_filing_nuggets` - partitioned by extracted_at (monthly), clustered by ticker + nugget_type
+
+### 🧪 Testing
+
+```bash
+cd backend
+# Verify MCP tools load
+python -c "from app.mcp.server import get_all_mcp_tools; print(len(get_all_mcp_tools()))"
+# Output: 59
+
+# Verify module imports
+python -c "from app.ingestion.sec_filings import SecNuggetExtractor, ExtractedSecNugget, NuggetType; print('OK')"
+
+# Run backfill (after deploy)
+python scripts/operations/backfill_sec_nuggets.py --stats
+python scripts/operations/backfill_sec_nuggets.py --dry-run --limit 10
+python scripts/operations/backfill_sec_nuggets.py --limit 20 --batch-size 3
+```
+
+### 📁 Reference
+
+REFERENCE_sec_filings/ directory contains the standalone prototype with:
+- `fetcher/sec.py` - SEC EDGAR API fetcher (synchronous, httpx-based)
+- `enrichment/nugget_extractor.py` - Original dataclass-based extractor
+- `models/filing.py` - Original dataclass models
+
+The production implementation adapts these to use:
+- Pydantic models (for consistency with existing codebase)
+- Resilient LLM wrapper with OpenAI fallback
+- BigQuery storage (instead of SQLite)
+- asyncio.wait_for() timeout protection
+- MCP tool integration
+
+---
+## 📅 SESSION 91: Enhancing Pipeline Tab (January 14, 2026)
+
+**Status**: ✅ COMPLETE - Changes pushed to repo
+
+### 🎯 Objectives
+1.  **Enhance Pipeline Tab UI**: expose rich Apollo.io data (SIC/NAICS codes, retail locations, subsidiaries)
+2.  **Fix Contact Search Visibility**: Debug and fix issue where contact cards were not displaying in search results
+
+### 🏗️ Changes Implemented
+
+#### Backend
+-   **`state.py`**: Updated `ApolloEnrichmentResult` model to include:
+    -   `sic_codes`
+    -   `naics_codes`
+    -   `retail_location_count`
+    -   `suborganizations`
+-   **`agent.py`**: Updated `_create_search_block` to parse these fields from `enrich_company` tool results mapping.
+-   **`pipeline_search.py`**: Verified parsing logic.
+
+#### Frontend
+-   **`types/index.ts`**: Updated `ApolloEnrichmentResult` interface to match backend changes.
+-   **`SearchBlockCard.tsx`**:
+    -   Added

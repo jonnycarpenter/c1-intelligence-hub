@@ -573,10 +573,13 @@ FINAL BRIEFING JSON FORMAT:
         """
         Fetch voice enrichment data from SEC nuggets, earnings quotes, and podcast quotes.
         
-        Uses topics and companies extracted from the pre-brief to make targeted queries.
+        Strategy: Search by individual COMPANY NAMES (which match ticker/company fields)
+        rather than concatenating topics into a single search string (which matches nothing).
+        Also searches by individual topic keywords for broader coverage.
+        
         Returns a formatted text block for injection into the synthesis prompt.
         """
-        # Extract search terms from pre-brief observations
+        # Extract companies and topics from pre-brief observations
         observations = pre_brief_data.get("observations", [])
         topics = set(pre_brief_data.get("raw_topic_list", []))
         companies = set()
@@ -590,11 +593,12 @@ FINAL BRIEFING JSON FORMAT:
         if not topics and not companies:
             return "No enrichment data available — pre-brief had no extractable topics or companies."
         
-        # Build search query from top topics
-        topic_list = list(topics)[:10]  # Cap to avoid overly broad queries
-        search_query = " ".join(topic_list[:5])  # Use top 5 for the search string
+        company_list = list(companies)[:15]
+        topic_list = list(topics)[:10]
         
-        logger.info(f"Agent 2: Fetching voice enrichment (companies={list(companies)[:5]}, topics={topic_list[:5]})")
+        logger.info(f"Agent 2: Voice enrichment — {len(company_list)} companies, {len(topic_list)} topics")
+        logger.info(f"Agent 2: Companies: {company_list}")
+        logger.info(f"Agent 2: Topics: {topic_list[:5]}")
         
         enrichment_parts = []
         
@@ -603,16 +607,45 @@ FINAL BRIEFING JSON FORMAT:
             if not bq_storage:
                 return "Voice enrichment unavailable — BigQuery not configured."
             
-            # 1. SEC Filing Nuggets
+            # 1. SEC Filing Nuggets — search by individual company names
             try:
-                sec_nuggets = await bq_storage.get_sec_filing_nuggets(
-                    search_query=search_query,
-                    min_relevance=0.3,
-                    limit=10,
-                )
-                if sec_nuggets:
+                all_sec_nuggets = []
+                seen_nugget_ids = set()
+                
+                # First: try each company name as a search query (matches ticker, companies_mentioned, etc.)
+                for company in company_list[:10]:
+                    nuggets = await bq_storage.get_sec_filing_nuggets(
+                        search_query=company,
+                        min_relevance=0.3,
+                        limit=5,
+                    )
+                    for n in nuggets:
+                        nid = n.get("nugget_id", n.get("id", ""))
+                        if nid not in seen_nugget_ids:
+                            seen_nugget_ids.add(nid)
+                            all_sec_nuggets.append(n)
+                
+                # Also try key topic keywords individually
+                for topic in topic_list[:5]:
+                    if len(topic) > 3:  # Skip very short/generic terms
+                        nuggets = await bq_storage.get_sec_filing_nuggets(
+                            search_query=topic,
+                            min_relevance=0.3,
+                            limit=3,
+                        )
+                        for n in nuggets:
+                            nid = n.get("nugget_id", n.get("id", ""))
+                            if nid not in seen_nugget_ids:
+                                seen_nugget_ids.add(nid)
+                                all_sec_nuggets.append(n)
+                
+                # Sort by relevance and cap
+                all_sec_nuggets.sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
+                all_sec_nuggets = all_sec_nuggets[:10]
+                
+                if all_sec_nuggets:
                     sec_parts = ["=== SEC FILING NUGGETS ==="]
-                    for nugget in sec_nuggets:
+                    for nugget in all_sec_nuggets:
                         ticker = nugget.get("ticker", "N/A")
                         filing_type = nugget.get("filing_type", "")
                         nugget_type = nugget.get("nugget_type", "")
@@ -622,23 +655,51 @@ FINAL BRIEFING JSON FORMAT:
                             f"[{ticker} / {filing_type}] ({nugget_type}, signal: {signal})\n{text[:300]}"
                         )
                     enrichment_parts.append("\n\n".join(sec_parts))
-                    logger.info(f"Agent 2: Found {len(sec_nuggets)} SEC nuggets")
+                    logger.info(f"Agent 2: Found {len(all_sec_nuggets)} SEC nuggets (from {len(seen_nugget_ids)} unique)")
                 else:
-                    logger.info("Agent 2: No SEC nuggets matched")
+                    logger.info("Agent 2: No SEC nuggets matched any company or topic")
             except Exception as e:
                 logger.warning(f"Agent 2: SEC nugget fetch failed: {e}")
             
-            # 2. Earnings Call Quotes
+            # 2. Earnings Call Quotes — search by individual company names
             try:
-                earnings_quotes = await bq_storage.get_earnings_quotes(
-                    search_query=search_query,
-                    quotable_only=True,
-                    min_relevance=0.3,
-                    limit=10,
-                )
-                if earnings_quotes:
+                all_earnings_quotes = []
+                seen_quote_ids = set()
+                
+                for company in company_list[:10]:
+                    quotes = await bq_storage.get_earnings_quotes(
+                        search_query=company,
+                        quotable_only=True,
+                        min_relevance=0.3,
+                        limit=5,
+                    )
+                    for q in quotes:
+                        qid = q.get("quote_id", q.get("id", ""))
+                        if qid not in seen_quote_ids:
+                            seen_quote_ids.add(qid)
+                            all_earnings_quotes.append(q)
+                
+                # Also try key topics
+                for topic in topic_list[:5]:
+                    if len(topic) > 3:
+                        quotes = await bq_storage.get_earnings_quotes(
+                            search_query=topic,
+                            quotable_only=True,
+                            min_relevance=0.3,
+                            limit=3,
+                        )
+                        for q in quotes:
+                            qid = q.get("quote_id", q.get("id", ""))
+                            if qid not in seen_quote_ids:
+                                seen_quote_ids.add(qid)
+                                all_earnings_quotes.append(q)
+                
+                all_earnings_quotes.sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
+                all_earnings_quotes = all_earnings_quotes[:10]
+                
+                if all_earnings_quotes:
                     eq_parts = ["=== EARNINGS CALL QUOTES ==="]
-                    for quote in earnings_quotes:
+                    for quote in all_earnings_quotes:
                         speaker = quote.get("speaker_name", "Unknown")
                         role = quote.get("speaker_role", "")
                         ticker = quote.get("ticker", "")
@@ -650,13 +711,13 @@ FINAL BRIEFING JSON FORMAT:
                             f"[{company} ({ticker}) — {speaker}, {role} — Q{quarter} {year}]\n\"{text[:300]}\""
                         )
                     enrichment_parts.append("\n\n".join(eq_parts))
-                    logger.info(f"Agent 2: Found {len(earnings_quotes)} earnings quotes")
+                    logger.info(f"Agent 2: Found {len(all_earnings_quotes)} earnings quotes")
                 else:
-                    logger.info("Agent 2: No earnings quotes matched")
+                    logger.info("Agent 2: No earnings quotes matched any company or topic")
             except Exception as e:
                 logger.warning(f"Agent 2: Earnings quote fetch failed: {e}")
             
-            # 3. Podcast Expert Quotes
+            # 3. Podcast Expert Quotes — search by theme mapping AND individual company names
             try:
                 # Map pre-brief topics to podcast themes
                 theme_mapping = {
@@ -674,6 +735,10 @@ FINAL BRIEFING JSON FORMAT:
                     "regulatory": "regulatory",
                     "M&A": "competitive",
                     "acquisition": "competitive",
+                    "marine": "marine",
+                    "construction": "construction",
+                    "defense": "defense",
+                    "recycling": "sustainability",
                 }
                 detected_themes = []
                 for topic in topics:
@@ -684,15 +749,41 @@ FINAL BRIEFING JSON FORMAT:
                             break
                 detected_themes = list(set(detected_themes))[:5]
                 
-                podcast_quotes = await bq_storage.get_podcast_quotes(
-                    search_query=search_query if not detected_themes else None,
-                    themes=detected_themes if detected_themes else None,
-                    days=90,
-                    limit=10,
-                )
-                if podcast_quotes:
+                all_podcast_quotes = []
+                seen_pq_ids = set()
+                
+                # Search by detected themes
+                if detected_themes:
+                    quotes = await bq_storage.get_podcast_quotes(
+                        themes=detected_themes,
+                        days=90,
+                        limit=10,
+                    )
+                    for q in quotes:
+                        qid = q.get("quote_id", q.get("id", ""))
+                        if qid not in seen_pq_ids:
+                            seen_pq_ids.add(qid)
+                            all_podcast_quotes.append(q)
+                
+                # Also search by individual company names
+                for company in company_list[:5]:
+                    quotes = await bq_storage.get_podcast_quotes(
+                        search_query=company,
+                        days=90,
+                        limit=3,
+                    )
+                    for q in quotes:
+                        qid = q.get("quote_id", q.get("id", ""))
+                        if qid not in seen_pq_ids:
+                            seen_pq_ids.add(qid)
+                            all_podcast_quotes.append(q)
+                
+                all_podcast_quotes.sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
+                all_podcast_quotes = all_podcast_quotes[:10]
+                
+                if all_podcast_quotes:
                     pq_parts = ["=== INDUSTRY PODCAST QUOTES ==="]
-                    for quote in podcast_quotes:
+                    for quote in all_podcast_quotes:
                         speaker = quote.get("speaker_name", "Unknown")
                         role = quote.get("speaker_role", "")
                         company = quote.get("speaker_company", "")
@@ -702,9 +793,9 @@ FINAL BRIEFING JSON FORMAT:
                             f"[{podcast} — {speaker}, {role} at {company}]\n\"{text[:300]}\""
                         )
                     enrichment_parts.append("\n\n".join(pq_parts))
-                    logger.info(f"Agent 2: Found {len(podcast_quotes)} podcast quotes")
+                    logger.info(f"Agent 2: Found {len(all_podcast_quotes)} podcast quotes")
                 else:
-                    logger.info("Agent 2: No podcast quotes matched")
+                    logger.info("Agent 2: No podcast quotes matched any theme or company")
             except Exception as e:
                 logger.warning(f"Agent 2: Podcast quote fetch failed: {e}")
             
@@ -712,6 +803,8 @@ FINAL BRIEFING JSON FORMAT:
             logger.error(f"Agent 2: Voice enrichment failed: {e}", exc_info=True)
         
         if enrichment_parts:
+            total = enrichment_parts[0].count('\n') + enrichment_parts[-1].count('\n') if enrichment_parts else 0
+            logger.info(f"Agent 2: Voice enrichment complete — {len(enrichment_parts)} categories with data")
             return "\n\n".join(enrichment_parts)
         return "No matching voice enrichment data found for this week's themes. Proceed without voice grounding."
 
