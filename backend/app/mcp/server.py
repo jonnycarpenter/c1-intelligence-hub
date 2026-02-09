@@ -123,6 +123,12 @@ from app.mcp.tools.sec_nuggets import (
     get_sec_nugget_stats,
 )
 
+# Earnings quote tools - pre-extracted executive insights from earnings calls
+from app.mcp.tools.earnings_quotes import (
+    search_earnings_quotes,
+    get_earnings_quote_stats,
+)
+
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -133,7 +139,7 @@ def get_all_mcp_tools() -> List[BaseTool]:
     Get ALL available MCP tools as a flat list.
     
     The unified agent has access to all tools - no persona-based filtering.
-    Total: 55 tools across 10 categories.
+    Total: 57 tools across 10 categories.
 
     Categories:
         - Data Management (11): Company/material/industry tracker CRUD
@@ -223,12 +229,14 @@ def get_all_mcp_tools() -> List[BaseTool]:
         suggest_alternatives,
     ]
     
-    # Specialized tools (10)
+    # Specialized tools (12)
     specialized_tools = [
         get_earnings_transcript_ninja,
         search_earnings_keywords,
         search_sec_nuggets,
         get_sec_nugget_stats,
+        search_earnings_quotes,
+        get_earnings_quote_stats,
         create_chart,
         search_images,
         search_financial_visuals,

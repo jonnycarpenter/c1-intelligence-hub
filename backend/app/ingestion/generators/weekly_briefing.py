@@ -53,14 +53,27 @@ Your goal is to produce a high-conviction, strategic "Need to Know" briefing for
 You are provided with:
 1. A "Pre-Brief" (Agent 1 Output): This is a raw analysis of the last 14 days of news, containing categories, summaries, companies, and "Signal Types" (evolution, net_new, stalled).
 2. Historical Context: Topics and headlines from the last 2 weekly briefings.
-3. TOOL AVAILABLE: search_peripheral_intelligence - Use this to fill gaps or validate high-conviction claims.
-4. Scratchpad: Your notes from previous peripheral searches in this session.
+3. Voice Enrichment: Pre-fetched executive quotes, SEC filings nuggets, and expert podcast quotes. These are real, sourced quotes that ground the briefing themes in authoritative voices. Use them selectively — only when they genuinely reinforce or add conviction to a strategic theme.
+4. TOOL AVAILABLE: search_peripheral_intelligence - Use this to fill gaps or validate high-conviction claims.
+5. Scratchpad: Your notes from previous peripheral searches in this session.
 
 YOUR TASK: "The Differential"
 Analyze the Pre-Brief against the Historical Context to identify:
 - "Continuing to Track": Topics from previous weeks that have significant new "evolution" signals.
 - "Net New": High-confidence developments that have not appeared in recent history.
 - "Conviction Filtering": Filter out transient news or low-confidence signals. Focus only on items with high strategic impact.
+
+VOICE ENRICHMENT GUIDELINES:
+You have been provided with three types of authoritative voice data:
+- SEC Filing Nuggets: Legally mandated disclosures from competitor/supplier 10-K, 10-Q, and 8-K filings. Use these for hard evidence of strategic shifts, risk factors, and competitive positioning.
+- Earnings Call Quotes: Executive quotes from Q&A sessions. Use these for management sentiment, forward guidance, and market outlook.
+- Podcast Expert Quotes: Practitioner insights from composites industry podcasts. Use these for on-the-ground perspective, technology adoption trends, and supply chain signals.
+
+When using voice data:
+- Attribute clearly: "As [Speaker Name], [Role] at [Company] noted in [Source]..."
+- Only include quotes that genuinely support or add nuance to a strategic theme
+- Do NOT force-fit quotes. If the enrichment data has nothing relevant to a section, that is fine.
+- Mark voice-supported insights with the source type in parentheses: (SEC Filing), (Earnings Call), (Industry Podcast)
 
 TOOL USE GUIDELINES:
 You have access to search_peripheral_intelligence(query: str) for finding adjacent intelligence that may have "slipped through the cracks".
@@ -105,6 +118,7 @@ REQUIREMENTS:
    - 2-4 Supporting Insights: Detailed, evidence-backed bullets.
    - Each item must be marked "net_new" or "continuing" based on your differential analysis.
    - Include citations using the article ID or reference provided in the Pre-Brief (use [N] for pre-brief sources, [Exa:N] for peripheral search results).
+   - Where voice data reinforces a theme, weave in the quote naturally: e.g., "This aligns with [Speaker]'s recent earnings comment that '[quote excerpt]' (Earnings Call)."
 
 3. INLINE LOGOS (applies to sections AND overall_trend)
    - Wrap company names in double brackets: [[Company Name]].
@@ -153,6 +167,10 @@ FINAL BRIEFING JSON FORMAT:
 <pre_brief_data>
 {pre_brief_data}
 </pre_brief_data>
+
+<enrichment_context>
+{enrichment_context}
+</enrichment_context>
 
 <peripheral_search_results>
 {peripheral_results}
@@ -543,6 +561,155 @@ FINAL BRIEFING JSON FORMAT:
             })
         return enriched
     
+    async def _fetch_voice_enrichment(
+        self,
+        pre_brief_data: Dict[str, Any],
+    ) -> str:
+        """
+        Fetch voice enrichment data from SEC nuggets, earnings quotes, and podcast quotes.
+        
+        Uses topics and companies extracted from the pre-brief to make targeted queries.
+        Returns a formatted text block for injection into the synthesis prompt.
+        """
+        # Extract search terms from pre-brief observations
+        observations = pre_brief_data.get("observations", [])
+        topics = set(pre_brief_data.get("raw_topic_list", []))
+        companies = set()
+        
+        for obs in observations:
+            for company in obs.get("companies", []):
+                companies.add(company)
+            for topic in obs.get("related_topics", []):
+                topics.add(topic)
+        
+        if not topics and not companies:
+            return "No enrichment data available — pre-brief had no extractable topics or companies."
+        
+        # Build search query from top topics
+        topic_list = list(topics)[:10]  # Cap to avoid overly broad queries
+        search_query = " ".join(topic_list[:5])  # Use top 5 for the search string
+        
+        logger.info(f"Agent 2: Fetching voice enrichment (companies={list(companies)[:5]}, topics={topic_list[:5]})")
+        
+        enrichment_parts = []
+        
+        try:
+            bq_storage = await self._get_bq_storage()
+            if not bq_storage:
+                return "Voice enrichment unavailable — BigQuery not configured."
+            
+            # 1. SEC Filing Nuggets
+            try:
+                sec_nuggets = await bq_storage.get_sec_filing_nuggets(
+                    search_query=search_query,
+                    min_relevance=0.3,
+                    limit=10,
+                )
+                if sec_nuggets:
+                    sec_parts = ["=== SEC FILING NUGGETS ==="]
+                    for nugget in sec_nuggets:
+                        ticker = nugget.get("ticker", "N/A")
+                        filing_type = nugget.get("filing_type", "")
+                        nugget_type = nugget.get("nugget_type", "")
+                        text = nugget.get("nugget_text", "")
+                        signal = nugget.get("signal_strength", "")
+                        sec_parts.append(
+                            f"[{ticker} / {filing_type}] ({nugget_type}, signal: {signal})\n{text[:300]}"
+                        )
+                    enrichment_parts.append("\n\n".join(sec_parts))
+                    logger.info(f"Agent 2: Found {len(sec_nuggets)} SEC nuggets")
+                else:
+                    logger.info("Agent 2: No SEC nuggets matched")
+            except Exception as e:
+                logger.warning(f"Agent 2: SEC nugget fetch failed: {e}")
+            
+            # 2. Earnings Call Quotes
+            try:
+                earnings_quotes = await bq_storage.get_earnings_quotes(
+                    search_query=search_query,
+                    quotable_only=True,
+                    min_relevance=0.3,
+                    limit=10,
+                )
+                if earnings_quotes:
+                    eq_parts = ["=== EARNINGS CALL QUOTES ==="]
+                    for quote in earnings_quotes:
+                        speaker = quote.get("speaker_name", "Unknown")
+                        role = quote.get("speaker_role", "")
+                        ticker = quote.get("ticker", "")
+                        company = quote.get("company_name", "")
+                        text = quote.get("quote_text", "")
+                        quarter = quote.get("quarter", "")
+                        year = quote.get("year", "")
+                        eq_parts.append(
+                            f"[{company} ({ticker}) — {speaker}, {role} — Q{quarter} {year}]\n\"{text[:300]}\""
+                        )
+                    enrichment_parts.append("\n\n".join(eq_parts))
+                    logger.info(f"Agent 2: Found {len(earnings_quotes)} earnings quotes")
+                else:
+                    logger.info("Agent 2: No earnings quotes matched")
+            except Exception as e:
+                logger.warning(f"Agent 2: Earnings quote fetch failed: {e}")
+            
+            # 3. Podcast Expert Quotes
+            try:
+                # Map pre-brief topics to podcast themes
+                theme_mapping = {
+                    "carbon fiber": "fiber_materials",
+                    "glass fiber": "fiber_materials",
+                    "resin": "resin_systems",
+                    "epoxy": "resin_systems",
+                    "wind": "wind_energy",
+                    "aerospace": "aerospace_composites",
+                    "automotive": "automotive_composites",
+                    "sustainability": "sustainability",
+                    "supply chain": "supply_chain",
+                    "pricing": "pricing",
+                    "manufacturing": "manufacturing_processes",
+                    "regulatory": "regulatory",
+                    "M&A": "competitive",
+                    "acquisition": "competitive",
+                }
+                detected_themes = []
+                for topic in topics:
+                    topic_lower = topic.lower()
+                    for keyword, theme in theme_mapping.items():
+                        if keyword.lower() in topic_lower:
+                            detected_themes.append(theme)
+                            break
+                detected_themes = list(set(detected_themes))[:5]
+                
+                podcast_quotes = await bq_storage.get_podcast_quotes(
+                    search_query=search_query if not detected_themes else None,
+                    themes=detected_themes if detected_themes else None,
+                    days=90,
+                    limit=10,
+                )
+                if podcast_quotes:
+                    pq_parts = ["=== INDUSTRY PODCAST QUOTES ==="]
+                    for quote in podcast_quotes:
+                        speaker = quote.get("speaker_name", "Unknown")
+                        role = quote.get("speaker_role", "")
+                        company = quote.get("speaker_company", "")
+                        podcast = quote.get("podcast_name", "")
+                        text = quote.get("quote_text", "")
+                        pq_parts.append(
+                            f"[{podcast} — {speaker}, {role} at {company}]\n\"{text[:300]}\""
+                        )
+                    enrichment_parts.append("\n\n".join(pq_parts))
+                    logger.info(f"Agent 2: Found {len(podcast_quotes)} podcast quotes")
+                else:
+                    logger.info("Agent 2: No podcast quotes matched")
+            except Exception as e:
+                logger.warning(f"Agent 2: Podcast quote fetch failed: {e}")
+            
+        except Exception as e:
+            logger.error(f"Agent 2: Voice enrichment failed: {e}", exc_info=True)
+        
+        if enrichment_parts:
+            return "\n\n".join(enrichment_parts)
+        return "No matching voice enrichment data found for this week's themes. Proceed without voice grounding."
+
     async def _search_peripheral_intelligence(
         self,
         query: str,
@@ -752,11 +919,15 @@ FINAL BRIEFING JSON FORMAT:
             insights = section.get('insights', [])
             if insights:
                 insight_texts = []
+                voice_insights = []  # Track which insights contain voice attribution
                 for insight in insights:
                     insight_text = insight.get('text', '') if isinstance(insight, dict) else str(insight)
                     if insight_text:
                         formatted_insight = self._format_text_for_speech(insight_text)
                         insight_texts.append(formatted_insight)
+                        # Detect voice-enriched insights (contain source attribution markers)
+                        if any(marker in insight_text for marker in ['(SEC Filing)', '(Earnings Call)', '(Industry Podcast)']):
+                            voice_insights.append(formatted_insight)
                 
                 if insight_texts:
                     # Combine insights into natural flow
@@ -765,6 +936,13 @@ FINAL BRIEFING JSON FORMAT:
                         "speaker": "analyst",
                         "text": combined
                     })
+                    
+                    # If we had voice-enriched insights, add a host reaction
+                    if voice_insights and idx < len(sections) - 1:
+                        dialogue.append({
+                            "speaker": "host",
+                            "text": "That's a strong data point. Hearing it directly from the executives adds real weight to that signal."
+                        })
             
             # Host acknowledges after each section (except last)
             if idx < len(sections) - 1:
@@ -813,6 +991,13 @@ FINAL BRIEFING JSON FORMAT:
 5. Vary the energy - some moments more casual, others more emphatic on key insights
 6. Add subtle filler words that real speakers use (sparingly)
 7. Keep total length similar to input (don't pad excessively)
+
+**Voice Enrichment Handling:**
+The script may contain executive quotes, SEC filing references, or expert podcast quotes that were woven into the insights. These are EXTREMELY valuable — they ground the analysis in real authority.
+- PRESERVE the substance and attribution of any executive/expert quotes verbatim. Do not paraphrase quotes.
+- Make them sound natural: e.g., "And here's where it gets interesting — the CFO actually said, and I quote, '...'" or "One of the executives put it really well when they said..."
+- The host should react to strong quotes: "That's a telling statement" or "That's pretty direct from management."
+- Attribute the source naturally: "from their latest earnings call", "in the SEC filing", "on a recent industry podcast"
 
 **Rules:**
 - Output ONLY valid JSON array of objects with "speaker" and "text" keys
@@ -1079,7 +1264,13 @@ FINAL BRIEFING JSON FORMAT:
         article_ids = pre_brief.get('article_ids', [])
         articles = await self._get_pre_brief_articles(article_ids)
         
-        # 4. Peripheral intelligence gathering loop
+        # 4. Fetch voice enrichment (SEC nuggets, earnings quotes, podcast quotes)
+        enrichment_context = await self._fetch_voice_enrichment(
+            pre_brief.get('data', {})
+        )
+        logger.info(f"Agent 2: Voice enrichment context length: {len(enrichment_context)} chars")
+        
+        # 5. Peripheral intelligence gathering loop
         peripheral_results = []
         max_iterations = 5  # Allow thorough research while preventing infinite loops
         iteration = 0
@@ -1144,6 +1335,7 @@ Your response MUST be the final JSON briefing format, NOT a tool_calls request.
                 period_end_short=week_of_date,
                 historical_context=historical_context,
                 pre_brief_data=json.dumps(pre_brief.get('data', {}), indent=2),
+                enrichment_context=enrichment_context,
                 peripheral_results=peripheral_results_text,
                 scratchpad=scratchpad_text,
                 final_iteration_warning=final_iteration_warning

@@ -76,3 +76,5 @@ chroma_db/
 backend/data/chroma/
 backend/data/*.db
 backend/c1_timeseries.db
+REFERENCE_*/
+REFERENCE_*.py
