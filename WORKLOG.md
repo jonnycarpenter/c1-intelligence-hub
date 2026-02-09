@@ -23,6 +23,83 @@ Without reliable daily ingestion:
 (none currently)
 
 ---
+## 📅 SESSION 92: SEC Filing Nugget Extraction Pipeline (February 8, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Goal
+
+Build an end-to-end SEC Filing Nugget Extraction pipeline that extracts strategic intelligence from SEC filings (10-K, 10-Q, 8-K) using Claude Haiku, stores nuggets in BigQuery, and exposes them via MCP agent tools.
+
+### 💡 Architecture
+
+Mirrors the existing Earnings Quote Extraction pipeline pattern:
+- **Models**: Pydantic models with `to_bq_row()` for BigQuery serialization
+- **Extractor**: RPM-specific LLM prompt targeting competitive disclosures, risk admissions, forward guidance, regulatory exposure, material changes, and market conditions
+- **Storage**: BigQuery `sec_filing_nuggets` table with time partitioning + clustering
+- **MCP Tools**: `search_sec_nuggets` and `get_sec_nugget_stats` for agent access
+- **Orchestrator Integration**: Post-ingestion extraction in `run_full_ingestion()` and `run_financials_only()`
+- **Backfill Script**: Process existing SEC filings that haven't been extracted yet
+
+### ✅ Files Created
+
+| File | Purpose |
+|------|---------|
+| `app/ingestion/sec_filings/__init__.py` | Module init with all exports |
+| `app/ingestion/sec_filings/models.py` | Pydantic models: `ExtractedSecNugget`, `SecNuggetExtractionResult`, 5 enums (FilingType, FilingSection, NuggetType, DisclosureSignalStrength, SecFilingTheme) |
+| `app/ingestion/sec_filings/nugget_extractor.py` | `SecNuggetExtractor` class with RPM-specific extraction prompt, resilient LLM wrapper, 120s timeout |
+| `app/mcp/tools/sec_nuggets.py` | `search_sec_nuggets` and `get_sec_nugget_stats` MCP tools |
+| `scripts/operations/backfill_sec_nuggets.py` | CLI backfill script with --stats, --dry-run, --limit, --batch-size flags |
+
+### ✅ Files Modified
+
+| File | Change |
+|------|--------|
+| `app/db/gcp_storage.py` | Added `_create_sec_filing_nuggets_table()`, `store_sec_filing_nuggets()`, `get_sec_filing_nuggets()`, `get_filings_for_nugget_extraction()`, `get_sec_filing_nugget_stats()` |
+| `app/mcp/server.py` | Imported and registered `search_sec_nuggets` + `get_sec_nugget_stats` (total tools: 59) |
+| `app/ingestion/orchestrator.py` | Added Step 9 (SEC nugget extraction) to `run_full_ingestion()` and post-storage extraction to `run_financials_only()` |
+
+### 📊 Key Details
+
+- **Model**: `claude-haiku-4-5` (~$0.05-0.15 per filing)
+- **Target**: 15-30 nuggets per 10-K filing
+- **13 nugget types**: competitive_disclosure, risk_admission, market_position, forward_guidance, regulatory_exposure, litigation_disclosure, material_change, strategic_initiative, supply_chain, raw_materials, financial_metric, esg_disclosure, acquisition
+- **30 RPM-specific themes**: Across 4 business segments, construction markets, product categories, competitors, operations, and channels
+- **5 signal strengths**: explicit, standard, hedged, buried, new (new disclosures are highest value)
+- **BigQuery table**: `sec_filing_nuggets` - partitioned by extracted_at (monthly), clustered by ticker + nugget_type
+
+### 🧪 Testing
+
+```bash
+cd backend
+# Verify MCP tools load
+python -c "from app.mcp.server import get_all_mcp_tools; print(len(get_all_mcp_tools()))"
+# Output: 59
+
+# Verify module imports
+python -c "from app.ingestion.sec_filings import SecNuggetExtractor, ExtractedSecNugget, NuggetType; print('OK')"
+
+# Run backfill (after deploy)
+python scripts/operations/backfill_sec_nuggets.py --stats
+python scripts/operations/backfill_sec_nuggets.py --dry-run --limit 10
+python scripts/operations/backfill_sec_nuggets.py --limit 20 --batch-size 3
+```
+
+### 📁 Reference
+
+REFERENCE_sec_filings/ directory contains the standalone prototype with:
+- `fetcher/sec.py` - SEC EDGAR API fetcher (synchronous, httpx-based)
+- `enrichment/nugget_extractor.py` - Original dataclass-based extractor
+- `models/filing.py` - Original dataclass models
+
+The production implementation adapts these to use:
+- Pydantic models (for consistency with existing codebase)
+- Resilient LLM wrapper with OpenAI fallback
+- BigQuery storage (instead of SQLite)
+- asyncio.wait_for() timeout protection
+- MCP tool integration
+
+---
 ## 📅 SESSION 91: Pipeline Agent SearchBlock Bug Fix (January 29, 2026)
 
 **Status**: ✅ COMPLETE

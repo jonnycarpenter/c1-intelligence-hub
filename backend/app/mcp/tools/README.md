@@ -23,7 +23,9 @@ If you are building a data collector for the ingestion pipeline, use `app/tools/
 - `stocknews_api.py` - On-demand news retrieval (instrumented with retries/metrics)
 
 ### Specialized Research
-- `api_ninja_earnings.py` - Earnings transcript search
+- `api_ninja_earnings.py` - Earnings transcript search (raw transcripts)
+- `earnings_quotes.py` - **Pre-extracted executive quotes from earnings calls** (searchable by ticker, quote type, speaker role, themes; extracted via Claude Haiku)
+- `sec_nuggets.py` - **Pre-extracted strategic insights from SEC filings** (searchable by ticker, nugget type, section, signal strength, themes; 13 nugget types, 30 RPM-specific themes)
 - `product_intelligence.py` - Product catalog queries
 - `pipeline_search.py` - Pipeline prospect search tools:
   - `search_companies` - Exa.ai semantic/broad company search

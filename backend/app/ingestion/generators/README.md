@@ -95,12 +95,17 @@ Agent 2 produces briefings with this structure:
 ## Key Features
 
 ### Podcast Generation
-After Agent 2 completes, briefing text is:
-- Formatted for natural speech (currency/percentages expanded)
-- Narrated with natural "net new" vs "continuing" phrasing
-- Generated via ElevenLabs TTS (Rachel voice, `eleven_monolingual_v1` model)
-- Uploaded to GCS `/podcasts/{briefing_id}.mp3`
+After Agent 2 completes, briefing text goes through a 3-step podcast pipeline:
+
+1. **Scaffold** (`_build_podcast_dialogue()`) — Deterministic extraction of briefing content into host/analyst turns
+2. **Naturalize** (`_naturalize_dialogue()`) — Claude rewrites the scaffold into natural conversation with reactions, interjections, and varied energy. Falls back to original scaffold on failure.
+3. **TTS** (`_generate_podcast()`) — ElevenLabs Text-to-Dialogue API generates multi-voice audio
+
+Result:
+- Two voices: Host (Rachel) + Analyst (Josh)
+- Storage: GCS `/podcasts/{briefing_id}.mp3`
 - ~4-6 minutes for typical 3-section briefing
+
 
 **Text Formatting** (`_format_text_for_speech()`):
 - Removes citations: `[1]`, `[Exa:2]` → removed

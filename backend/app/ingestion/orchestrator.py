@@ -637,6 +637,9 @@ class IngestionOrchestrator:
                         "classified_at": datetime.utcnow().isoformat(),
                         # Feed eligibility: True if article has valid date within lookback window
                         "feed_eligible": article_feed_status.get(id(article), False),
+                        # Narrative enrichment fields
+                        "event_type": getattr(classification, 'event_type', '') or '',
+                        "sentiment": classification.sentiment or "neutral",
                     }
                     digest_items_for_ui.append(digest_item)
                     
@@ -680,9 +683,52 @@ class IngestionOrchestrator:
                 logger.info("Step 8: Generating digest feed (Drumbeat)...")
                 await self.digest_generator.generate(hours=self.config.digest_hours)
                 
-                # NOTE: Briefing generation (Pulse - Need to Know) is now handled 
+                # NOTE: Briefing generation (Pulse - Need to Know) is now handled
                 # by a separate scheduled job calling /api/v1/scheduler/briefing
-            
+
+            # Step 9: Extract SEC filing nuggets (post-ingestion)
+            if "sec" in sources and converted_sec:
+                logger.info("Step 9: Extracting SEC filing nuggets...")
+                try:
+                    from app.ingestion.sec_filings.nugget_extractor import SecNuggetExtractor
+
+                    nugget_extractor = SecNuggetExtractor()
+                    nuggets_extracted = 0
+
+                    for article, classification in classified:
+                        if article.source_type != "sec_filing":
+                            continue
+                        if not article.full_text or len(article.full_text) < 1000:
+                            continue
+
+                        raw_data = article.raw_data if hasattr(article, 'raw_data') and article.raw_data else {}
+                        filing_data = {
+                            "id": article.url or raw_data.get("accession_no", ""),
+                            "ticker": raw_data.get("ticker", ""),
+                            "company_name": article.title.split(" - ")[0] if " - " in article.title else article.title,
+                            "filing_type": raw_data.get("form_type", "10-K"),
+                            "full_text": article.full_text,
+                            "filing_date": article.published_at.isoformat() if article.published_at else "Unknown",
+                        }
+
+                        try:
+                            result = await nugget_extractor.extract_nuggets(filing_data)
+                            if result.success and result.nuggets:
+                                bq_rows = [n.to_bq_row() for n in result.nuggets]
+                                stored = await self.gcp_storage.store_sec_filing_nuggets(bq_rows)
+                                nuggets_extracted += len(result.nuggets)
+                                logger.info(
+                                    f"[SEC-NUGGETS] {filing_data['ticker']} {filing_data['filing_type']}: "
+                                    f"{len(result.nuggets)} nuggets extracted, {stored} stored"
+                                )
+                        except Exception as ne:
+                            logger.warning(f"[SEC-NUGGETS] Extraction failed for {filing_data.get('ticker')}: {ne}")
+
+                    if nuggets_extracted > 0:
+                        logger.info(f"[SEC-NUGGETS] Total: {nuggets_extracted} nuggets extracted from new SEC filings")
+                except Exception as e:
+                    logger.warning(f"[SEC-NUGGETS] Post-ingestion nugget extraction failed: {e}")
+
             stats.completed_at = datetime.utcnow()
             stats.status = "completed"
             
@@ -897,6 +943,9 @@ class IngestionOrchestrator:
                     "classifier_model": self.config.classifier_model,
                     "classified_at": datetime.utcnow().isoformat(),
                     "feed_eligible": feed_eligible,
+                    # Narrative enrichment fields
+                    "event_type": getattr(classification, 'event_type', '') or '',
+                    "sentiment": classification.sentiment or "neutral",
                 }
                 digest_items_for_ui.append(digest_item)
             
@@ -1058,6 +1107,9 @@ class IngestionOrchestrator:
                     "classifier_model": self.config.classifier_model,
                     "classified_at": datetime.utcnow().isoformat(),
                     "feed_eligible": feed_eligible,
+                    # Narrative enrichment fields
+                    "event_type": getattr(classification, 'event_type', '') or '',
+                    "sentiment": classification.sentiment or "neutral",
                 }
                 digest_items_for_ui.append(digest_item)
             
@@ -1072,11 +1124,53 @@ class IngestionOrchestrator:
             # Update vector store (BigQuery)
             if vector_docs:
                 await self.vector_store.add_items(vector_docs)
-            
+
+            # ===== Post-storage: Extract SEC filing nuggets =====
+            if converted_sec:
+                try:
+                    from app.ingestion.sec_filings.nugget_extractor import SecNuggetExtractor
+
+                    nugget_extractor = SecNuggetExtractor()
+                    nuggets_extracted = 0
+
+                    for article, classification in classified:
+                        if article.source_type != "sec_filing":
+                            continue
+                        if not article.full_text or len(article.full_text) < 1000:
+                            continue
+
+                        raw_data = article.raw_data if hasattr(article, 'raw_data') and article.raw_data else {}
+                        filing_data = {
+                            "id": article.url or raw_data.get("accession_no", ""),
+                            "ticker": raw_data.get("ticker", ""),
+                            "company_name": article.title.split(" - ")[0] if " - " in article.title else article.title,
+                            "filing_type": raw_data.get("form_type", "10-K"),
+                            "full_text": article.full_text,
+                            "filing_date": article.published_at.isoformat() if article.published_at else "Unknown",
+                        }
+
+                        try:
+                            result = await nugget_extractor.extract_nuggets(filing_data)
+                            if result.success and result.nuggets:
+                                bq_rows = [n.to_bq_row() for n in result.nuggets]
+                                stored = await self.gcp_storage.store_sec_filing_nuggets(bq_rows)
+                                nuggets_extracted += len(result.nuggets)
+                                logger.info(
+                                    f"[SEC-NUGGETS] {filing_data['ticker']} {filing_data['filing_type']}: "
+                                    f"{len(result.nuggets)} nuggets extracted, {stored} stored"
+                                )
+                        except Exception as ne:
+                            logger.warning(f"[SEC-NUGGETS] Extraction failed for {filing_data.get('ticker')}: {ne}")
+
+                    if nuggets_extracted > 0:
+                        logger.info(f"[SEC-NUGGETS] Total: {nuggets_extracted} nuggets from financials backfill")
+                except Exception as e:
+                    logger.warning(f"[SEC-NUGGETS] Post-ingestion nugget extraction failed: {e}")
+
             stats.completed_at = datetime.utcnow()
             stats.status = "completed"
             logger.info(f"Financials backfill complete in {stats.duration_seconds:.1f}s")
-            
+
         except Exception as e:
             logger.error(f"Financials backfill error: {e}", exc_info=True)
             stats.errors.append(str(e))
@@ -1207,6 +1301,9 @@ class IngestionOrchestrator:
                             "classifier_model": self.config.classifier_model,
                             "classified_at": now_utc.isoformat(),
                             "feed_eligible": feed_eligible,
+                            # Narrative enrichment fields
+                            "event_type": getattr(classification, 'event_type', '') or '',
+                            "sentiment": classification.sentiment or "neutral",
                         }
                         digest_items.append(digest_item)
                     
@@ -1215,6 +1312,48 @@ class IngestionOrchestrator:
                         logger.info(f"Stored {digest_stored} digest items in BigQuery")
                     
                     logger.info(f"Stored {len(classified)} earnings transcripts")
+                    
+                    # ===== Post-storage: Extract executive quotes from new transcripts =====
+                    try:
+                        from app.ingestion.earnings.quote_extractor import EarningsQuoteExtractor
+                        
+                        quote_extractor = EarningsQuoteExtractor()
+                        quotes_extracted = 0
+                        
+                        for article, classification in classified:
+                            # Build transcript data dict for the extractor
+                            raw_data = article.raw_data if hasattr(article, 'raw_data') and article.raw_data else {}
+                            transcript_data = {
+                                "id": article.url or f"{raw_data.get('ticker', '')}_{year}_{quarter}",
+                                "ticker": raw_data.get("ticker", ""),
+                                "company_name": raw_data.get("company_name", article.title.split(" Q")[0] if article.title else ""),
+                                "year": raw_data.get("year", year),
+                                "quarter": raw_data.get("quarter", quarter),
+                                "date": article.published_at,
+                                "content": article.full_text or "",
+                                "participants": raw_data.get("participants", []),
+                            }
+                            
+                            if len(transcript_data.get("content", "")) < 1000:
+                                continue
+                            
+                            try:
+                                result = await quote_extractor.extract_quotes(transcript_data)
+                                if result.success and result.quotes:
+                                    bq_rows = [q.to_bq_row() for q in result.quotes]
+                                    stored = await self.gcp_storage.store_earnings_quotes(bq_rows)
+                                    quotes_extracted += len(result.quotes)
+                                    logger.info(
+                                        f"[EARNINGS-QUOTES] {transcript_data['ticker']} Q{transcript_data['quarter']} "
+                                        f"{transcript_data['year']}: {len(result.quotes)} quotes extracted, {stored} stored"
+                                    )
+                            except Exception as qe:
+                                logger.warning(f"[EARNINGS-QUOTES] Quote extraction failed for {transcript_data['ticker']}: {qe}")
+                        
+                        if quotes_extracted > 0:
+                            logger.info(f"[EARNINGS-QUOTES] Total: {quotes_extracted} executive quotes extracted from new transcripts")
+                    except Exception as e:
+                        logger.warning(f"[EARNINGS-QUOTES] Post-ingestion quote extraction failed: {e}")
             
             stats.status = "completed"
             stats.completed_at = datetime.utcnow()

@@ -117,6 +117,18 @@ from app.mcp.tools.datasheets import (
 # FMP Premium News tools - premium financial news from Benzinga, Bloomberg, etc.
 from app.mcp.tools.fmp_premium_news import get_fmp_premium_news
 
+# Earnings quotes tools - pre-extracted executive insights from earnings calls
+from app.mcp.tools.earnings_quotes import (
+    search_earnings_quotes,
+    get_earnings_quote_stats,
+)
+
+# SEC filing nuggets tools - pre-extracted strategic insights from SEC filings
+from app.mcp.tools.sec_nuggets import (
+    search_sec_nuggets,
+    get_sec_nugget_stats,
+)
+
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -217,10 +229,14 @@ def get_all_mcp_tools() -> List[BaseTool]:
         suggest_alternatives,
     ]
     
-    # Specialized tools (6)
+    # Specialized tools (10)
     specialized_tools = [
         get_earnings_transcript_ninja,
         search_earnings_keywords,
+        search_earnings_quotes,
+        get_earnings_quote_stats,
+        search_sec_nuggets,
+        get_sec_nugget_stats,
         create_chart,
         search_images,
         search_financial_visuals,

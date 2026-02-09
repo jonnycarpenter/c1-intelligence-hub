@@ -253,10 +253,18 @@ Classify this article and respond with ONLY valid JSON (no markdown, no explanat
     "headline": "concise, punchy 5-8 word headline capturing the core event",
     "summary": "2-3 sentence summary focusing on implications for composites industry",
     "key_entities": ["Company1", "Company2", "Product1"],
+    "companies": ["Company1", "Company2"],
+    "materials": ["carbon fiber", "epoxy resin"],
+    "event_type": "acquisition|partnership|expansion|contract|regulatory_change|product_launch|earnings|facility_closure|restructuring|investment|supply_disruption|technology|market_shift|other",
     "sentiment": "positive|negative|neutral",
     "confidence": 0.0-1.0,
     "reasoning": "Brief explanation of classification"
 }}
+
+Entity Extraction Guidelines:
+- "companies": Extract ALL company names mentioned (suppliers, OEMs, customers, partners)
+- "materials": Extract specific materials mentioned (e.g., "carbon fiber", "epoxy resin", "PEEK", "glass fiber", "prepreg", "vinyl ester", "SMC"). Be specific - use the actual material name, not generic terms.
+- "event_type": Classify the primary event type from the enumerated list above
 
 Priority Guidelines:
 - HIGH: Direct competitor announcements, major market shifts, regulatory changes affecting composites, C1 mentions
@@ -401,6 +409,9 @@ Relevance Score Guidelines:
                 headline=data.get("headline", ""),
                 summary=data.get("summary", article.summary[:200]),
                 key_entities=data.get("key_entities", []),
+                companies=data.get("companies", data.get("key_entities", [])),
+                materials=data.get("materials", []),
+                event_type=data.get("event_type", "other"),
                 sentiment=data.get("sentiment", "neutral"),
                 confidence=float(data.get("confidence", 0.7)),
             )

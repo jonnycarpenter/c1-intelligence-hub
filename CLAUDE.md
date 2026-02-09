@@ -181,9 +181,10 @@ claude-sonnet-4-5                 claude-opus-4-5              ElevenLabs TTS
 ```
 
 **Podcast Features**:
+- **LLM Naturalization**: Deterministic scaffold → Claude Sonnet rewrites into natural conversation
 - Natural "net new" vs "continuing" phrasing
-- Text formatting: "$2.4B" → "2.4 billion dollars"
-- Voice: Rachel (professional, clear)
+- Text formatting: "$2.4B" → "2.4 billion dollars", abbreviations expanded
+- Voices: Host (Rachel) + Analyst (Josh) via Text-to-Dialogue API
 - Storage: GCS `/podcasts/{briefing_id}.mp3`
 - Frontend: Audio player with play/pause, seek, volume controls
 

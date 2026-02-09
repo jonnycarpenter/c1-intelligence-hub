@@ -280,6 +280,7 @@ class ClassificationResult(BaseModel):
     key_entities: List[str] = Field(default_factory=list)  # Legacy - kept for backwards compat
     companies: List[str] = Field(default_factory=list)  # Extracted company names
     materials: List[str] = Field(default_factory=list)  # Extracted material names
+    event_type: str = ""  # acquisition, partnership, expansion, contract, etc.
     sentiment: str = "neutral"
     confidence: float = 0.7
     is_hero: bool = False  # Flagged for hero/breaking section display

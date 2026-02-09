@@ -614,22 +614,60 @@ FINAL BRIEFING JSON FORMAT:
         """
         Format text for natural speech synthesis.
         
-        Removes citations and formatting, expands abbreviations for clarity.
+        Removes citations, visual formatting, and expands abbreviations for clarity.
         """
-        # Remove citation markers [1], [2], [Exa:1]
-        text = re.sub(r'\[(?:Exa:)?\d+\]', '', text)
+        if not text:
+            return ""
+        
+        # Remove citation markers [1], [2], [Exa:1], and comma-separated [1, Exa:2]
+        text = re.sub(r'\[(?:Exa:)?\d+(?:,\s*(?:Exa:)?\d+)*\]', '', text)
         
         # Remove company logo tags [[Company Name]] but keep the name
         text = re.sub(r'\[\[([^\]]+)\]\]', r'\1', text)
         
+        # Remove entity highlight tags {{Entity Name}} but keep the name
+        text = re.sub(r'\{\{([^}]+)\}\}', r'\1', text)
+        
+        # Remove markdown bold/italic
+        text = re.sub(r'\*\*([^*]+)\*\*', r'\1', text)
+        text = re.sub(r'\*([^*]+)\*', r'\1', text)
+        text = re.sub(r'__([^_]+)__', r'\1', text)
+        text = re.sub(r'_([^_]+)_', r'\1', text)
+        
         # Expand currency: $2.4B -> 2.4 billion dollars
         text = re.sub(r'\$(\d+\.?\d*)B\b', r'\1 billion dollars', text, flags=re.IGNORECASE)
         text = re.sub(r'\$(\d+\.?\d*)M\b', r'\1 million dollars', text, flags=re.IGNORECASE)
+        text = re.sub(r'\$(\d+\.?\d*)K\b', r'\1 thousand dollars', text, flags=re.IGNORECASE)
         
         # Expand percentages: 40% -> 40 percent
         text = re.sub(r'(\d+\.?\d*)%', r'\1 percent', text)
         
-        # Clean up any double spaces
+        # Expand common abbreviations for natural speech
+        abbreviations = {
+            "M&A": "mergers and acquisitions",
+            "YoY": "year over year",
+            "QoQ": "quarter over quarter",
+            "Q1": "first quarter",
+            "Q2": "second quarter",
+            "Q3": "third quarter",
+            "Q4": "fourth quarter",
+            "FY": "fiscal year",
+            "CEO": "C E O",
+            "CFO": "C F O",
+            "COO": "C O O",
+            "CMO": "C M O",
+            "SEC": "S E C",
+            "FDA": "F D A",
+            "OEM": "O E M",
+            "CFRP": "carbon fiber reinforced polymer",
+            "RTM": "resin transfer molding",
+            "SMC": "sheet molding compound",
+            "BMC": "bulk molding compound",
+        }
+        for abbr, expansion in abbreviations.items():
+            text = re.sub(rf'\b{abbr}\b', expansion, text)
+        
+        # Clean up multiple spaces and strip
         text = re.sub(r'\s+', ' ', text).strip()
         
         return text
@@ -757,6 +795,121 @@ FINAL BRIEFING JSON FORMAT:
         
         return dialogue
     
+    # =========================================================================
+    # Dialogue Naturalization (LLM Rewriting)
+    # =========================================================================
+    
+    NATURALIZATION_PROMPT = """You are a podcast script editor. Your job is to transform a structured briefing script into natural, conversational dialogue between two speakers.
+
+**Speakers:**
+- **Host**: A sharp, curious business podcast host. Asks follow-up questions, reacts to interesting points, occasionally interjects with "wait, say more about that" or "that's significant."
+- **Analyst**: An industry expert who sounds knowledgeable but approachable. Uses natural speech patterns - occasional "so", "well", "actually", "you know what's interesting..."
+
+**Your task:**
+1. Keep ALL the factual content and data points - don't lose any information
+2. Make it sound like a real conversation, not a script being read
+3. Add natural reactions, brief acknowledgments, and occasional back-and-forth
+4. Break up long monologues with host interjections or questions
+5. Vary the energy - some moments more casual, others more emphatic on key insights
+6. Add subtle filler words that real speakers use (sparingly)
+7. Keep total length similar to input (don't pad excessively)
+
+**Rules:**
+- Output ONLY valid JSON array of objects with "speaker" and "text" keys
+- Speaker must be exactly "host" or "analyst" (lowercase)
+- Preserve the general flow: opening → BLUF → themes → closing
+- Don't add fabricated facts or statistics
+- Keep it professional but warm
+
+**Input script:**
+{dialogue_json}
+
+**Output the naturalized dialogue as a JSON array:**"""
+    
+    async def _naturalize_dialogue(
+        self,
+        dialogue: List[Dict[str, str]],
+        max_retries: int = 2,
+    ) -> List[Dict[str, str]]:
+        """
+        Use Claude to rewrite structured dialogue into natural conversation.
+        
+        Takes the deterministic scaffold from _build_podcast_dialogue() and
+        rewrites it to sound like a real podcast conversation with natural
+        reactions, interjections, and varied energy.
+        
+        Falls back to original dialogue if naturalization fails.
+        """
+        api_key = getattr(self.config, 'anthropic_api_key', None) or os.getenv('ANTHROPIC_API_KEY', '')
+        if not api_key:
+            logger.warning("[PODCAST] No Anthropic API key - skipping dialogue naturalization")
+            return dialogue
+        
+        dialogue_json = json.dumps(dialogue, indent=2)
+        prompt = self.NATURALIZATION_PROMPT.format(dialogue_json=dialogue_json)
+        
+        for attempt in range(max_retries):
+            try:
+                logger.info(f"[PODCAST] Naturalizing dialogue (attempt {attempt + 1}/{max_retries}, {len(dialogue)} turns)")
+                start_time = time.time()
+                
+                response = await self.client.messages.create(
+                    model="claude-sonnet-4-5",
+                    max_tokens=8000,
+                    messages=[
+                        {"role": "user", "content": prompt}
+                    ]
+                )
+                
+                elapsed = time.time() - start_time
+                
+                # Extract the response text
+                response_text = response.content[0].text.strip()
+                
+                # Parse JSON - handle potential markdown code blocks
+                if response_text.startswith("```"):
+                    lines = response_text.split("\n")
+                    json_lines = []
+                    in_block = False
+                    for line in lines:
+                        if line.startswith("```") and not in_block:
+                            in_block = True
+                            continue
+                        elif line.startswith("```") and in_block:
+                            break
+                        elif in_block:
+                            json_lines.append(line)
+                    response_text = "\n".join(json_lines)
+                
+                naturalized = json.loads(response_text)
+                
+                # Validate structure
+                if not isinstance(naturalized, list):
+                    raise ValueError("Response is not a list")
+                
+                for turn in naturalized:
+                    if not isinstance(turn, dict):
+                        raise ValueError("Turn is not a dict")
+                    if "speaker" not in turn or "text" not in turn:
+                        raise ValueError("Turn missing speaker or text")
+                    if turn["speaker"] not in ("host", "analyst"):
+                        raise ValueError(f"Invalid speaker: {turn['speaker']}")
+                
+                logger.info(f"[PODCAST] Naturalized dialogue: {len(dialogue)} → {len(naturalized)} turns in {elapsed:.2f}s")
+                return naturalized
+                
+            except json.JSONDecodeError as e:
+                logger.warning(f"[PODCAST] JSON parse error on attempt {attempt + 1}: {e}")
+            except Exception as e:
+                logger.warning(f"[PODCAST] Naturalization error on attempt {attempt + 1}: {e}")
+            
+            if attempt < max_retries - 1:
+                await asyncio.sleep(1)
+        
+        # Fallback to original dialogue
+        logger.warning("[PODCAST] Naturalization failed after all retries, using original dialogue")
+        return dialogue
+    
     async def _generate_podcast(self, briefing: Dict[str, Any], briefing_id: str) -> Optional[Dict[str, Any]]:
         """
         Generate conversational podcast audio from briefing data using ElevenLabs Text-to-Dialogue API.
@@ -779,10 +932,15 @@ FINAL BRIEFING JSON FORMAT:
             logger.info(f"Starting podcast generation for briefing {briefing_id}")
             start_time = time.time()
             
-            # 1. Build podcast dialogue (list of turns)
+            # 1. Build podcast dialogue scaffold (deterministic structure)
             dialogue = self._build_podcast_dialogue(briefing)
+            logger.info(f"[PODCAST] Built dialogue scaffold ({len(dialogue)} turns)")
+            
+            # 2. Naturalize dialogue using LLM (makes it conversational)
+            dialogue = await self._naturalize_dialogue(dialogue)
+            
             total_words = sum(len(turn["text"].split()) for turn in dialogue)
-            logger.info(f"Generated podcast dialogue ({len(dialogue)} turns, ~{total_words} words)")
+            logger.info(f"[PODCAST] Final dialogue: {len(dialogue)} turns, ~{total_words} words")
             
             # 2. Convert dialogue to ElevenLabs Text-to-Dialogue format
             inputs = []

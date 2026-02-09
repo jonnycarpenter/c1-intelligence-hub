@@ -757,6 +757,8 @@ class BigQueryDataStorage(DataStorageInterface):
         await self._create_user_logins_table()
         await self._create_podcast_episodes_table()
         await self._create_podcast_quotes_table()
+        await self._create_earnings_quotes_table()
+        await self._create_sec_filing_nuggets_table()
 
         self._initialized = True
         logger.info("BigQuery storage initialized")
@@ -3696,10 +3698,630 @@ class BigQueryDataStorage(DataStorageInterface):
             logger.error(f"[PODCAST_STORAGE] Quote query failed: {e}", exc_info=True)
             return []
 
+    # =========================================================================
+    # Earnings Quotes (Executive Quote Extraction from Earnings Transcripts)
+    # =========================================================================
 
-# =============================================================================
-# Factory Function
-# =============================================================================
+    async def _create_earnings_quotes_table(self):
+        """Create earnings_quotes table for extracted executive insights from earnings calls."""
+        from google.cloud import bigquery
+
+        table_id = f"{self.config.full_dataset_id}.earnings_quotes"
+        schema = [
+            bigquery.SchemaField("quote_id", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("transcript_id", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("quote_text", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("context_summary", "STRING"),
+            bigquery.SchemaField("speaker_name", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("speaker_role", "STRING"),
+            bigquery.SchemaField("speaker_title", "STRING"),
+            bigquery.SchemaField("speaker_company", "STRING"),
+            bigquery.SchemaField("speaker_firm", "STRING"),
+            bigquery.SchemaField("quote_type", "STRING"),
+            bigquery.SchemaField("themes", "STRING"),  # JSON array
+            bigquery.SchemaField("sentiment", "STRING"),
+            bigquery.SchemaField("confidence_level", "STRING"),
+            bigquery.SchemaField("companies_mentioned", "STRING"),  # JSON array
+            bigquery.SchemaField("brands_mentioned", "STRING"),  # JSON array
+            bigquery.SchemaField("metrics_mentioned", "STRING"),  # JSON array
+            bigquery.SchemaField("relevance_score", "FLOAT64"),
+            bigquery.SchemaField("is_quotable", "BOOLEAN"),
+            bigquery.SchemaField("quotability_reason", "STRING"),
+            bigquery.SchemaField("business_segment", "STRING"),
+            bigquery.SchemaField("ticker", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("company_name", "STRING"),
+            bigquery.SchemaField("year", "INTEGER", mode="REQUIRED"),
+            bigquery.SchemaField("quarter", "INTEGER", mode="REQUIRED"),
+            bigquery.SchemaField("call_date", "STRING"),
+            bigquery.SchemaField("call_section", "STRING"),
+            bigquery.SchemaField("position_in_section", "INTEGER"),
+            bigquery.SchemaField("extracted_at", "TIMESTAMP", mode="REQUIRED"),
+            bigquery.SchemaField("extraction_model", "STRING"),
+            bigquery.SchemaField("extraction_confidence", "FLOAT64"),
+        ]
+
+        table = bigquery.Table(table_id, schema=schema)
+        table.time_partitioning = bigquery.TimePartitioning(
+            field="extracted_at",
+            type_=bigquery.TimePartitioningType.MONTH,
+        )
+        table.clustering_fields = ["ticker", "quote_type"]
+
+        try:
+            self.client.create_table(table)
+            logger.info(f"Created table {table_id}")
+        except Exception as e:
+            if "Already Exists" in str(e):
+                logger.info(f"Table {table_id} already exists")
+            else:
+                raise
+
+    async def store_earnings_quotes(self, quotes: List[Dict[str, Any]]) -> int:
+        """Store earnings quote records in BigQuery.
+        
+        Args:
+            quotes: List of quote dicts (from ExtractedEarningsQuote.to_bq_row())
+            
+        Returns:
+            Number of quotes stored successfully
+        """
+        if not quotes:
+            return 0
+        table_id = f"{self.config.full_dataset_id}.earnings_quotes"
+        try:
+            errors = self.client.insert_rows_json(table_id, quotes)
+            if errors:
+                logger.error(f"[EARNINGS_QUOTES] Insert errors: {errors[:3]}")
+                return len(quotes) - len(errors)
+            logger.info(f"[EARNINGS_QUOTES] Stored {len(quotes)} quote(s)")
+            return len(quotes)
+        except Exception as e:
+            logger.error(f"[EARNINGS_QUOTES] Failed to store quotes: {e}", exc_info=True)
+            return 0
+
+    async def get_earnings_quotes(
+        self,
+        ticker: Optional[str] = None,
+        search_query: Optional[str] = None,
+        quote_type: Optional[str] = None,
+        themes: Optional[List[str]] = None,
+        speaker_role: Optional[str] = None,
+        section: Optional[str] = None,
+        year: Optional[int] = None,
+        quarter: Optional[int] = None,
+        quotable_only: bool = False,
+        min_relevance: float = 0.0,
+        limit: int = 20,
+    ) -> List[Dict[str, Any]]:
+        """Query earnings quotes with flexible filters.
+        
+        Args:
+            ticker: Filter by stock ticker
+            search_query: Full-text search on quote_text, context_summary, companies_mentioned
+            quote_type: Filter by quote type (guidance, competitive, analyst_pressure, etc.)
+            themes: Filter by themes (any match)
+            speaker_role: Filter by speaker role (ceo, cfo, analyst, etc.)
+            section: Filter by call section (prepared_remarks, qa)
+            year: Filter by fiscal year
+            quarter: Filter by fiscal quarter
+            quotable_only: Only return quotable quotes
+            min_relevance: Minimum relevance score (0.0-1.0)
+            limit: Max results
+            
+        Returns:
+            List of quote dicts
+        """
+        try:
+            conditions = []
+            params = []
+
+            from google.cloud.bigquery import ScalarQueryParameter, QueryJobConfig
+
+            if ticker:
+                conditions.append("UPPER(ticker) = @ticker")
+                params.append(ScalarQueryParameter("ticker", "STRING", ticker.upper()))
+
+            if search_query:
+                conditions.append(
+                    "(LOWER(quote_text) LIKE @search_pattern "
+                    "OR LOWER(context_summary) LIKE @search_pattern "
+                    "OR LOWER(companies_mentioned) LIKE @search_pattern "
+                    "OR LOWER(speaker_name) LIKE @search_pattern)"
+                )
+                params.append(ScalarQueryParameter("search_pattern", "STRING", f"%{search_query.lower()}%"))
+
+            if quote_type:
+                conditions.append("quote_type = @quote_type")
+                params.append(ScalarQueryParameter("quote_type", "STRING", quote_type.lower()))
+
+            if speaker_role:
+                conditions.append("speaker_role = @speaker_role")
+                params.append(ScalarQueryParameter("speaker_role", "STRING", speaker_role.lower()))
+
+            if section:
+                conditions.append("call_section = @section")
+                params.append(ScalarQueryParameter("section", "STRING", section.lower()))
+
+            if year:
+                conditions.append("year = @year")
+                params.append(ScalarQueryParameter("year", "INT64", year))
+
+            if quarter:
+                conditions.append("quarter = @quarter")
+                params.append(ScalarQueryParameter("quarter", "INT64", quarter))
+
+            if quotable_only:
+                conditions.append("is_quotable = TRUE")
+
+            if min_relevance > 0.0:
+                conditions.append("relevance_score >= @min_relevance")
+                params.append(ScalarQueryParameter("min_relevance", "FLOAT64", min_relevance))
+
+            if themes:
+                theme_conditions = []
+                for i, theme in enumerate(themes):
+                    param_name = f"theme_{i}"
+                    theme_conditions.append(f"LOWER(themes) LIKE @{param_name}")
+                    params.append(ScalarQueryParameter(param_name, "STRING", f"%{theme.lower()}%"))
+                conditions.append(f"({' OR '.join(theme_conditions)})")
+
+            where_clause = " AND ".join(conditions) if conditions else "1=1"
+
+            query = f"""
+                SELECT *
+                FROM `{self.config.full_dataset_id}.earnings_quotes`
+                WHERE {where_clause}
+                ORDER BY relevance_score DESC, year DESC, quarter DESC
+                LIMIT {limit}
+            """
+
+            job_config = QueryJobConfig(query_parameters=params)
+            rows = self.client.query(query, job_config=job_config).result()
+
+            results = []
+            for row in rows:
+                results.append(dict(row))
+            return results
+
+        except Exception as e:
+            logger.error(f"[EARNINGS_QUOTES] Query failed: {e}", exc_info=True)
+            return []
+
+    async def get_transcripts_for_quote_extraction(
+        self,
+        limit: int = 50,
+        year_min: int = 2025,
+        quarter_min: int = 3,
+    ) -> List[Dict[str, Any]]:
+        """Get earnings transcripts that haven't had quotes extracted yet.
+        
+        Queries articles with source_type='earnings_transcript' and checks
+        which ones don't have entries in the earnings_quotes table yet.
+        
+        Args:
+            limit: Max transcripts to return
+            year_min: Minimum year to include (default 2025)
+            quarter_min: Minimum quarter for year_min (default Q3)
+            
+        Returns:
+            List of transcript dicts with id, ticker, company_name, year, quarter, content, participants
+        """
+        try:
+            # URL format: earnings://TICKER/YEAR/Q# — parse ticker, year, quarter from URL
+            # Title format: "Company Name Q# YEAR Earnings Call" — parse company name
+            query = f"""
+                WITH existing_extractions AS (
+                    SELECT DISTINCT transcript_id
+                    FROM `{self.config.full_dataset_id}.earnings_quotes`
+                )
+                SELECT 
+                    a.id,
+                    a.title,
+                    a.url,
+                    a.full_text,
+                    a.source_name,
+                    a.published_at,
+                    a.companies_mentioned
+                FROM `{self.config.full_dataset_id}.articles` a
+                LEFT JOIN existing_extractions ee ON a.id = ee.transcript_id
+                WHERE a.source_type = 'earnings_transcript'
+                  AND ee.transcript_id IS NULL
+                  AND a.full_text IS NOT NULL
+                  AND LENGTH(a.full_text) > 1000
+                ORDER BY a.published_at DESC
+                LIMIT {limit}
+            """
+            rows = self.client.query(query).result()
+
+            results = []
+            for row in rows:
+                row_dict = dict(row)
+                
+                # Parse ticker, year, quarter from URL (earnings://TICKER/YEAR/Q#)
+                url = row_dict.get("url", "")
+                ticker = ""
+                year = 0
+                quarter = 0
+                if url.startswith("earnings://"):
+                    parts = url.replace("earnings://", "").split("/")
+                    if len(parts) >= 1:
+                        ticker = parts[0]
+                    if len(parts) >= 2:
+                        try:
+                            year = int(parts[1])
+                        except (ValueError, TypeError):
+                            pass
+                    if len(parts) >= 3:
+                        try:
+                            quarter = int(parts[2].replace("Q", ""))
+                        except (ValueError, TypeError):
+                            pass
+                elif "financialmodelingprep.com" in url:
+                    # FMP URL format: .../earning_call_transcript/TICKER?quarter=Q&year=Y
+                    import re as _re
+                    ticker_match = _re.search(r'/earning_call_transcript/([^?]+)', url)
+                    if ticker_match:
+                        ticker = ticker_match.group(1)
+                    quarter_match = _re.search(r'quarter=(\d+)', url)
+                    if quarter_match:
+                        quarter = int(quarter_match.group(1))
+                    year_match = _re.search(r'year=(\d+)', url)
+                    if year_match:
+                        year = int(year_match.group(1))
+                
+                # Parse company name from title (e.g., "Rocket Lab Q3 2025 Earnings Call")
+                title = row_dict.get("title", "")
+                company_name = title.replace(f"Q{quarter} {year} Earnings Call", "").strip() if quarter and year else title
+                
+                # Fallback: try companies_mentioned
+                if not company_name or company_name == title:
+                    companies_str = row_dict.get("companies_mentioned", "[]")
+                    try:
+                        companies = json.loads(companies_str) if isinstance(companies_str, str) else companies_str
+                        if companies:
+                            company_name = companies[0]
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+
+                results.append({
+                    "id": row_dict.get("id"),
+                    "title": title,
+                    "content": row_dict.get("full_text", ""),
+                    "ticker": ticker,
+                    "year": year,
+                    "quarter": quarter,
+                    "company_name": company_name,
+                    "participants": [],  # Not stored in articles table; extractor handles transcript parsing
+                    "published_at": row_dict.get("published_at"),
+                })
+            
+            logger.info(f"[EARNINGS_QUOTES] Found {len(results)} transcripts pending quote extraction")
+            return results
+
+        except Exception as e:
+            logger.error(f"[EARNINGS_QUOTES] Failed to get pending transcripts: {e}", exc_info=True)
+            return []
+
+    async def get_earnings_quote_stats(self) -> Dict[str, Any]:
+        """Get statistics about extracted earnings quotes."""
+        try:
+            query = f"""
+                SELECT 
+                    COUNT(*) as total_quotes,
+                    COUNT(DISTINCT transcript_id) as transcripts_processed,
+                    COUNT(DISTINCT ticker) as unique_tickers,
+                    COUNTIF(is_quotable) as quotable_quotes,
+                    AVG(relevance_score) as avg_relevance,
+                    MIN(extracted_at) as earliest_extraction,
+                    MAX(extracted_at) as latest_extraction
+                FROM `{self.config.full_dataset_id}.earnings_quotes`
+            """
+            rows = list(self.client.query(query).result())
+            if rows:
+                row = dict(rows[0])
+                return row
+            return {}
+        except Exception as e:
+            logger.error(f"[EARNINGS_QUOTES] Stats query failed: {e}")
+            return {}
+
+    # =========================================================================
+    # SEC Filing Nuggets (Strategic Insight Extraction from SEC Filings)
+    # =========================================================================
+
+    async def _create_sec_filing_nuggets_table(self):
+        """Create sec_filing_nuggets table for extracted strategic insights from SEC filings."""
+        from google.cloud import bigquery
+
+        table_id = f"{self.config.full_dataset_id}.sec_filing_nuggets"
+        schema = [
+            bigquery.SchemaField("nugget_id", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("filing_id", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("nugget_text", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("context_text", "STRING"),
+            bigquery.SchemaField("filing_type", "STRING"),
+            bigquery.SchemaField("section", "STRING"),
+            bigquery.SchemaField("nugget_type", "STRING"),
+            bigquery.SchemaField("themes", "STRING"),  # JSON array
+            bigquery.SchemaField("signal_strength", "STRING"),
+            bigquery.SchemaField("companies_mentioned", "STRING"),  # JSON array
+            bigquery.SchemaField("brands_mentioned", "STRING"),  # JSON array
+            bigquery.SchemaField("competitors_named", "STRING"),  # JSON array
+            bigquery.SchemaField("regulators_mentioned", "STRING"),  # JSON array
+            bigquery.SchemaField("risk_level", "STRING"),
+            bigquery.SchemaField("is_new_disclosure", "BOOLEAN"),
+            bigquery.SchemaField("strategic_relevance", "STRING"),
+            bigquery.SchemaField("relevance_score", "FLOAT64"),
+            bigquery.SchemaField("is_actionable", "BOOLEAN"),
+            bigquery.SchemaField("actionability_reason", "STRING"),
+            bigquery.SchemaField("business_segment", "STRING"),
+            bigquery.SchemaField("ticker", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("company_name", "STRING"),
+            bigquery.SchemaField("cik", "STRING"),
+            bigquery.SchemaField("fiscal_year", "INTEGER", mode="REQUIRED"),
+            bigquery.SchemaField("fiscal_quarter", "INTEGER"),
+            bigquery.SchemaField("filing_date", "STRING"),
+            bigquery.SchemaField("extracted_at", "TIMESTAMP", mode="REQUIRED"),
+            bigquery.SchemaField("extraction_model", "STRING"),
+        ]
+
+        table = bigquery.Table(table_id, schema=schema)
+        table.time_partitioning = bigquery.TimePartitioning(
+            field="extracted_at",
+            type_=bigquery.TimePartitioningType.MONTH,
+        )
+        table.clustering_fields = ["ticker", "nugget_type"]
+
+        try:
+            self.client.create_table(table)
+            logger.info(f"Created table {table_id}")
+        except Exception as e:
+            if "Already Exists" in str(e):
+                logger.info(f"Table {table_id} already exists")
+            else:
+                raise
+
+    async def store_sec_filing_nuggets(self, nuggets: List[Dict[str, Any]]) -> int:
+        """Store SEC filing nugget records in BigQuery.
+
+        Args:
+            nuggets: List of nugget dicts (from ExtractedSecNugget.to_bq_row())
+
+        Returns:
+            Number of nuggets stored successfully
+        """
+        if not nuggets:
+            return 0
+        table_id = f"{self.config.full_dataset_id}.sec_filing_nuggets"
+        try:
+            errors = self.client.insert_rows_json(table_id, nuggets)
+            if errors:
+                logger.error(f"[SEC_NUGGETS] Insert errors: {errors[:3]}")
+                return len(nuggets) - len(errors)
+            logger.info(f"[SEC_NUGGETS] Stored {len(nuggets)} nugget(s)")
+            return len(nuggets)
+        except Exception as e:
+            logger.error(f"[SEC_NUGGETS] Failed to store nuggets: {e}", exc_info=True)
+            return 0
+
+    async def get_sec_filing_nuggets(
+        self,
+        ticker: Optional[str] = None,
+        search_query: Optional[str] = None,
+        nugget_type: Optional[str] = None,
+        themes: Optional[List[str]] = None,
+        section: Optional[str] = None,
+        signal_strength: Optional[str] = None,
+        fiscal_year: Optional[int] = None,
+        actionable_only: bool = False,
+        new_disclosures_only: bool = False,
+        min_relevance: float = 0.0,
+        limit: int = 20,
+    ) -> List[Dict[str, Any]]:
+        """Query SEC filing nuggets with flexible filters.
+
+        Args:
+            ticker: Filter by stock ticker
+            search_query: Full-text search on nugget_text, companies_mentioned, competitors_named
+            nugget_type: Filter by nugget type (competitive_disclosure, risk_admission, etc.)
+            themes: Filter by themes (any match)
+            section: Filter by filing section (risk_factors, mda, etc.)
+            signal_strength: Filter by signal strength (explicit, new, buried, etc.)
+            fiscal_year: Filter by fiscal year
+            actionable_only: Only return actionable nuggets
+            new_disclosures_only: Only return new disclosures
+            min_relevance: Minimum relevance score (0.0-1.0)
+            limit: Max results
+
+        Returns:
+            List of nugget dicts
+        """
+        try:
+            conditions = []
+            params = []
+
+            from google.cloud.bigquery import ScalarQueryParameter, QueryJobConfig
+
+            if ticker:
+                conditions.append("UPPER(ticker) = @ticker")
+                params.append(ScalarQueryParameter("ticker", "STRING", ticker.upper()))
+
+            if search_query:
+                conditions.append(
+                    "(LOWER(nugget_text) LIKE @search_pattern "
+                    "OR LOWER(companies_mentioned) LIKE @search_pattern "
+                    "OR LOWER(competitors_named) LIKE @search_pattern "
+                    "OR LOWER(brands_mentioned) LIKE @search_pattern)"
+                )
+                params.append(ScalarQueryParameter("search_pattern", "STRING", f"%{search_query.lower()}%"))
+
+            if nugget_type:
+                conditions.append("nugget_type = @nugget_type")
+                params.append(ScalarQueryParameter("nugget_type", "STRING", nugget_type.lower()))
+
+            if section:
+                conditions.append("section = @section")
+                params.append(ScalarQueryParameter("section", "STRING", section.lower()))
+
+            if signal_strength:
+                conditions.append("signal_strength = @signal_strength")
+                params.append(ScalarQueryParameter("signal_strength", "STRING", signal_strength.lower()))
+
+            if fiscal_year:
+                conditions.append("fiscal_year = @fiscal_year")
+                params.append(ScalarQueryParameter("fiscal_year", "INT64", fiscal_year))
+
+            if actionable_only:
+                conditions.append("is_actionable = TRUE")
+
+            if new_disclosures_only:
+                conditions.append("is_new_disclosure = TRUE")
+
+            if min_relevance > 0.0:
+                conditions.append("relevance_score >= @min_relevance")
+                params.append(ScalarQueryParameter("min_relevance", "FLOAT64", min_relevance))
+
+            if themes:
+                theme_conditions = []
+                for i, theme in enumerate(themes):
+                    param_name = f"theme_{i}"
+                    theme_conditions.append(f"LOWER(themes) LIKE @{param_name}")
+                    params.append(ScalarQueryParameter(param_name, "STRING", f"%{theme.lower()}%"))
+                conditions.append(f"({' OR '.join(theme_conditions)})")
+
+            where_clause = " AND ".join(conditions) if conditions else "1=1"
+
+            query = f"""
+                SELECT *
+                FROM `{self.config.full_dataset_id}.sec_filing_nuggets`
+                WHERE {where_clause}
+                ORDER BY relevance_score DESC, fiscal_year DESC
+                LIMIT {limit}
+            """
+
+            job_config = QueryJobConfig(query_parameters=params)
+            rows = self.client.query(query, job_config=job_config).result()
+
+            results = []
+            for row in rows:
+                results.append(dict(row))
+            return results
+
+        except Exception as e:
+            logger.error(f"[SEC_NUGGETS] Query failed: {e}", exc_info=True)
+            return []
+
+    async def get_filings_for_nugget_extraction(
+        self,
+        limit: int = 50,
+    ) -> List[Dict[str, Any]]:
+        """Get SEC filings that haven't had nuggets extracted yet.
+
+        Queries articles with source_type='sec_filing' and checks
+        which ones don't have entries in the sec_filing_nuggets table yet.
+
+        Args:
+            limit: Max filings to return
+
+        Returns:
+            List of filing dicts with id, ticker, company_name, filing_type, full_text, etc.
+        """
+        try:
+            query = f"""
+                WITH existing_extractions AS (
+                    SELECT DISTINCT filing_id
+                    FROM `{self.config.full_dataset_id}.sec_filing_nuggets`
+                )
+                SELECT
+                    a.id,
+                    a.title,
+                    a.url,
+                    a.full_text,
+                    a.source_name,
+                    a.published_at,
+                    a.companies_mentioned
+                FROM `{self.config.full_dataset_id}.articles` a
+                LEFT JOIN existing_extractions ee ON a.id = ee.filing_id
+                WHERE a.source_type = 'sec_filing'
+                  AND ee.filing_id IS NULL
+                  AND a.full_text IS NOT NULL
+                  AND LENGTH(a.full_text) > 1000
+                ORDER BY a.published_at DESC
+                LIMIT {limit}
+            """
+            rows = self.client.query(query).result()
+
+            results = []
+            for row in rows:
+                row_dict = dict(row)
+
+                # Parse ticker and filing_type from title (e.g., "PPG Industries - 10-K")
+                title = row_dict.get("title", "")
+                ticker = ""
+                company_name = title
+                filing_type = "10-K"
+
+                # Try to extract from source_name (e.g., "SEC - 1A Risk Factors")
+                source_name = row_dict.get("source_name", "")
+
+                # Parse companies_mentioned for company name
+                companies_str = row_dict.get("companies_mentioned", "[]")
+                try:
+                    companies = json.loads(companies_str) if isinstance(companies_str, str) else companies_str
+                    if companies:
+                        company_name = companies[0]
+                except (json.JSONDecodeError, TypeError):
+                    pass
+
+                # Try to extract ticker from title pattern "Company Name - 10-K"
+                if " - " in title:
+                    parts = title.rsplit(" - ", 1)
+                    company_name = parts[0].strip()
+                    if len(parts) > 1:
+                        ft = parts[1].strip()
+                        if ft in ("10-K", "10-Q", "8-K", "S-1", "20-F", "6-K"):
+                            filing_type = ft
+
+                results.append({
+                    "id": row_dict.get("id"),
+                    "title": title,
+                    "full_text": row_dict.get("full_text", ""),
+                    "ticker": ticker,
+                    "company_name": company_name,
+                    "filing_type": filing_type,
+                    "source_name": source_name,
+                    "published_at": row_dict.get("published_at"),
+                })
+
+            logger.info(f"[SEC_NUGGETS] Found {len(results)} filings pending nugget extraction")
+            return results
+
+        except Exception as e:
+            logger.error(f"[SEC_NUGGETS] Failed to get pending filings: {e}", exc_info=True)
+            return []
+
+    async def get_sec_filing_nugget_stats(self) -> Dict[str, Any]:
+        """Get statistics about extracted SEC filing nuggets."""
+        try:
+            query = f"""
+                SELECT
+                    COUNT(*) as total_nuggets,
+                    COUNT(DISTINCT filing_id) as filings_processed,
+                    COUNT(DISTINCT ticker) as unique_tickers,
+                    COUNTIF(is_actionable) as actionable_nuggets,
+                    COUNTIF(is_new_disclosure) as new_disclosures,
+                    AVG(relevance_score) as avg_relevance,
+                    MIN(extracted_at) as earliest_extraction,
+                    MAX(extracted_at) as latest_extraction
+                FROM `{self.config.full_dataset_id}.sec_filing_nuggets`
+            """
+            rows = list(self.client.query(query).result())
+            if rows:
+                return dict(rows[0])
+            return {}
+        except Exception as e:
+            logger.error(f"[SEC_NUGGETS] Stats query failed: {e}")
+            return {}
 
 def get_data_storage() -> DataStorageInterface:
     """
