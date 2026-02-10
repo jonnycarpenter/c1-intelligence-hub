@@ -43,6 +43,7 @@ class SourceType(str, Enum):
     PRESS_RELEASE = "press_release"
     TRADE_PUBLICATION = "trade_publication"
     INDUSTRY_NEWS = "industry_news"
+    PODCAST = "podcast"
 
 class Citation(BaseModel):
     source_type: Union[SourceType, str]

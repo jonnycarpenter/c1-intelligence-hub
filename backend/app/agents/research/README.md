@@ -8,7 +8,13 @@ Deep Research is a **6-node** LangGraph workflow that orchestrates specialized a
 
 **Status: ✅ PRODUCTION READY** (February 9, 2026)
 
-**Recent Changes (Session 106):**
+**Recent Changes (Session 107):**
+- **Fix: Quotes now surface in reports** - `_condense_findings()` was stripping `direct_quote`, `source_type`, `sentiment`, and `metrics` before the synthesizer LLM ever saw them. Fixed to preserve these fields conditionally (zero overhead for findings without quotes).
+- **Quotable Material Extraction** - New `_extract_quotable_findings()` categorizes quotes into executive_quotes, sec_nuggets, and podcast_quotes buckets. `_build_quotes_section()` renders them as a structured prompt section so the synthesizer LLM gets explicit "use these as quote blocks" instructions.
+- **Quote Block Mandate** - Synthesizer system prompt now mandates 2-4 `quote` blocks when direct quotes are available.
+- **SourceType enum** - Added `PODCAST = "podcast"` for explicit podcast source typing.
+
+**Previous Changes (Session 106):**
 - **Pre-extracted Data Tools** - Replaced live API earnings/SEC tools with BigQuery pre-extracted data:
   - `search_earnings_quotes` replaces `get_earnings_transcript_ninja` + `search_earnings_keywords`
   - `search_sec_nuggets` replaces `SECFilingCollector`
@@ -220,6 +226,7 @@ The Synthesizer agent has been upgraded from generating flat text to designing a
 - **`quote`**: A styled, verbatim callout for quotes that ground the narrative (earnings calls, podcasts, SEC filings). Includes `source_type` field for frontend differentiation: `earnings_call` (amber), `podcast` (purple), `sec_filing` (blue)
 
 **Key Features:**
+- **Quote Surfacing**: `_condense_findings()` preserves `direct_quote`, `source_type`, `sentiment`, and `metrics` from agent outputs. `_extract_quotable_findings()` categorizes them and `_build_quotes_section()` presents them explicitly in the prompt so the LLM creates `quote` blocks.
 - **Visual Agency**: The agent explicitly chooses *where* to place visuals using the `visual_split` block, integrating them into the narrative flow rather than appending them as an afterthought.
 - **Graceful Degradation**: If no visuals are available, the agent falls back to text and metric grids to maintain a high-quality "text-only" presentation.
 - **Citation Robustness**: Every block type supports strict citation verification, rendered as clickable pills in the UI.

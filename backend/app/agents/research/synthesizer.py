@@ -408,17 +408,117 @@ def _condense_findings(output) -> Dict[str, Any]:
     # Condense findings to just the core content
     for f in data.get("findings", [])[:10]:  # Limit to top 10 findings
         citation = f.get("citation", {}) or {}
-        condensed["findings"].append({
+        entry = {
             "finding": f.get("finding"),
             "type": f.get("finding_type") or f.get("event_type"),
             "confidence": f.get("confidence"),
             "entities": f.get("entities_mentioned", [])[:3],
             "source": citation.get("source_title"),
-            "source_url": citation.get("source_url"),  # Include URL for citation linking
+            "source_url": citation.get("source_url"),
             "source_date": citation.get("source_date"),
-        })
-    
+        }
+
+        # Preserve fields critical for quote blocks and rich synthesis
+        if citation.get("direct_quote"):
+            entry["direct_quote"] = citation["direct_quote"]
+        if citation.get("source_type"):
+            entry["source_type"] = str(citation["source_type"])
+        if citation.get("page_or_section"):
+            entry["page_or_section"] = citation["page_or_section"]
+
+        # Preserve sentiment for quote block styling
+        sentiment = f.get("sentiment")
+        if sentiment:
+            entry["sentiment"] = str(sentiment)
+
+        # Preserve metrics for metric_grid blocks
+        metrics = f.get("metrics")
+        if metrics:
+            entry["metrics"] = metrics
+
+        condensed["findings"].append(entry)
+
     return condensed
+
+
+def _extract_quotable_findings(financial_condensed, industry_condensed) -> Dict[str, List[Dict]]:
+    """
+    Extract findings with direct_quote into categorized buckets for explicit
+    presentation to the synthesizer LLM.
+
+    Returns dict with keys: executive_quotes, sec_nuggets, podcast_quotes
+    """
+    buckets = {
+        "executive_quotes": [],
+        "sec_nuggets": [],
+        "podcast_quotes": [],
+    }
+
+    for condensed in [financial_condensed, industry_condensed]:
+        if not condensed:
+            continue
+        for f in condensed.get("findings", []):
+            quote = f.get("direct_quote")
+            if not quote:
+                continue
+
+            source_type = (f.get("source_type") or "").lower()
+            entry = {
+                "quote": quote,
+                "finding": f.get("finding"),
+                "source": f.get("source"),
+                "source_type": source_type,
+                "source_url": f.get("source_url"),
+                "source_date": f.get("source_date"),
+                "sentiment": f.get("sentiment"),
+                "entities": f.get("entities", []),
+            }
+
+            if source_type in ("earnings_call",):
+                buckets["executive_quotes"].append(entry)
+            elif source_type in ("sec_10k", "sec_10q", "sec_8k", "sec_filing"):
+                buckets["sec_nuggets"].append(entry)
+            elif source_type in ("podcast", "trade_publication"):
+                buckets["podcast_quotes"].append(entry)
+            else:
+                # Default: treat as executive quote if it has a quote
+                buckets["executive_quotes"].append(entry)
+
+    return buckets
+
+
+def _build_quotes_section(quotable: Dict[str, List[Dict]]) -> str:
+    """Build a structured prompt section highlighting available quotable material."""
+    if not any(quotable.values()):
+        return ""
+
+    parts = ["\n## QUOTABLE MATERIAL (USE THESE FOR `quote` BLOCKS)\nYou MUST use `quote` blocks for the direct quotes below.\n"]
+
+    if quotable["executive_quotes"]:
+        parts.append(f"### Executive Quotes ({len(quotable['executive_quotes'])} available)")
+        for i, q in enumerate(quotable["executive_quotes"][:5]):
+            parts.append(f'{i+1}. "{q["quote"]}"')
+            parts.append(f'   Source: {q.get("source", "Unknown")} | {q.get("source_date", "")}')
+            parts.append(f'   Sentiment: {q.get("sentiment", "neutral")} | source_type: earnings_call')
+            parts.append("")
+
+    if quotable["sec_nuggets"]:
+        parts.append(f"### SEC Filing Nuggets ({len(quotable['sec_nuggets'])} available)")
+        for i, q in enumerate(quotable["sec_nuggets"][:5]):
+            parts.append(f'{i+1}. "{q["quote"]}"')
+            parts.append(f'   Source: {q.get("source", "Unknown")} | {q.get("source_date", "")}')
+            parts.append(f'   source_type: sec_filing')
+            parts.append("")
+
+    if quotable["podcast_quotes"]:
+        parts.append(f"### Podcast Expert Insights ({len(quotable['podcast_quotes'])} available)")
+        for i, q in enumerate(quotable["podcast_quotes"][:5]):
+            parts.append(f'{i+1}. "{q["quote"]}"')
+            parts.append(f'   Source: {q.get("source", "Unknown")} | {q.get("source_date", "")}')
+            parts.append(f'   source_type: podcast')
+            parts.append("")
+
+    return "\n".join(parts)
 
 
 def _hydrate_visual_blocks(sections: list, available_visuals: list) -> list:
@@ -502,6 +602,14 @@ You build the report by stacking these blocks. Choose the best block for the dat
 Every block that makes a claim MUST have a `citations` array.
 - Use `source_url` from findings.
 - If a block has no citation, use empty array (but valid blocks usually have sources).
+
+## QUOTE BLOCK MANDATE (CRITICAL)
+- If findings contain `direct_quote` fields, you MUST create `quote` blocks for them.
+- Minimum: If 1+ direct quotes are available, include AT LEAST 2 `quote` blocks in the report.
+- Maximum: No more than 4 quote blocks total (balance with analysis).
+- Quote blocks add executive credibility — they are proof points, not decoration.
+- Place quote blocks AFTER the paragraph that introduces the topic they relate to.
+- Look in the QUOTABLE MATERIAL section of the prompt for pre-extracted quotes ready to use.
 
 ## VISUALS STRATEGY (CRITICAL)
 - **IF visuals are available**: Use `visual_split` or `visual_hero` to weave them into the narrative.
@@ -592,6 +700,17 @@ async def synthesis_node(state: DeepResearchState) -> DeepResearchState:
                 "data_summary": v.data_summary,
             })
     
+    # Condense findings (preserves direct_quote, source_type, sentiment, metrics)
+    financial_condensed = _condense_findings(financial) if financial else None
+    industry_condensed = _condense_findings(industry) if industry else None
+
+    # Extract quotable material for explicit presentation to the LLM
+    quotable = _extract_quotable_findings(financial_condensed, industry_condensed)
+    quotes_section = _build_quotes_section(quotable)
+
+    total_quotes = sum(len(v) for v in quotable.values())
+    logger.info(f"[SYNTHESIZER] Quotable material: {total_quotes} quotes ({len(quotable['executive_quotes'])} exec, {len(quotable['sec_nuggets'])} SEC, {len(quotable['podcast_quotes'])} podcast)")
+
     research_data = {
         "query": user_query,
         "brief": {
@@ -599,15 +718,15 @@ async def synthesis_node(state: DeepResearchState) -> DeepResearchState:
             "entities": companies[:5],
             "timeframe": research_brief.timeframe if research_brief else None,
         } if research_brief else None,
-        "financial": _condense_findings(financial) if financial else None,
-        "industry": _condense_findings(industry) if industry else None,
+        "financial": financial_condensed,
+        "industry": industry_condensed,
         "available_visuals": available_visuals,
     }
-    
+
     # Generate scratchpad
     planning_notes = _generate_planning_scratchpad(financial, industry, visual, research_brief, user_query)
     planning_scratchpad = "\n".join(planning_notes)
-    
+
     system_content = SYNTHESIZER_SYSTEM_PROMPT
     if prior_context:
         system_content += f"\n\n{prior_context}"
@@ -617,6 +736,7 @@ async def synthesis_node(state: DeepResearchState) -> DeepResearchState:
 ## PLANNING & VISUALS
 {planning_scratchpad}
 Available Visuals: {json.dumps(available_visuals, indent=2)}
+{quotes_section}
 
 ## RESEARCH DATA
 {json.dumps(research_data, indent=2, default=str)}
