@@ -1,4 +1,5 @@
 import os
+import json
 import asyncio
 import logging
 import uuid
@@ -488,6 +489,29 @@ class IngestionOrchestrator:
             converted_sec = [self._convert_sec_to_article(item) for item in sec_items]
             converted_earnings = [self._convert_earnings_to_article(item) for item in earnings_items]
             
+            # Store SEC filings in dedicated sec_filings table (preserves metadata)
+            if sec_items:
+                try:
+                    sec_bq_rows = []
+                    for filing in sec_items:
+                        sec_bq_rows.append({
+                            "filing_id": filing.id,
+                            "company_id": filing.company_id,
+                            "ticker": filing.ticker,
+                            "cik": filing.cik,
+                            "company_name": filing.company_name,
+                            "form_type": filing.form_type,
+                            "filed_at": filing.filed_at.isoformat() if filing.filed_at else None,
+                            "filing_url": filing.filing_url,
+                            "sections_json": json.dumps(filing.sections) if filing.sections else None,
+                            "full_text": filing.full_text,
+                            "collected_at": datetime.utcnow().isoformat(),
+                        })
+                    stored = await self.gcp_storage.store_sec_filings(sec_bq_rows)
+                    logger.info(f"[SEC_FILINGS] Stored {stored} SEC filings to dedicated table")
+                except Exception as e:
+                    logger.warning(f"[SEC_FILINGS] Failed to store to sec_filings table: {e}")
+            
             # =================================================================
             # DATE FILTERING ANALYSIS (for visibility - we keep ALL articles)
             # The filter only affects what appears in Drumbeat feed, NOT storage
@@ -730,6 +754,7 @@ class IngestionOrchestrator:
                             "id": article.url or raw_data.get("accession_no", ""),
                             "ticker": raw_data.get("ticker", ""),
                             "company_name": article.title.split(" - ")[0] if " - " in article.title else article.title,
+                            "cik": raw_data.get("cik", ""),
                             "filing_type": raw_data.get("form_type", "10-K"),
                             "full_text": article.full_text,
                             "filing_date": article.published_at.isoformat() if article.published_at else "Unknown",
@@ -1044,6 +1069,29 @@ class IngestionOrchestrator:
             # NOTE: Earnings transcripts disabled - FMP requires premium subscription (402 error)
             # TODO: Re-enable when FMP premium acquired or API Ninja URL dedup issue fixed
             
+            # Store SEC filings in dedicated sec_filings table (preserves metadata)
+            if sec_items:
+                try:
+                    sec_bq_rows = []
+                    for filing in sec_items:
+                        sec_bq_rows.append({
+                            "filing_id": filing.id,
+                            "company_id": filing.company_id,
+                            "ticker": filing.ticker,
+                            "cik": filing.cik,
+                            "company_name": filing.company_name,
+                            "form_type": filing.form_type,
+                            "filed_at": filing.filed_at.isoformat() if filing.filed_at else None,
+                            "filing_url": filing.filing_url,
+                            "sections_json": json.dumps(filing.sections) if filing.sections else None,
+                            "full_text": filing.full_text,
+                            "collected_at": datetime.utcnow().isoformat(),
+                        })
+                    stored = await self.gcp_storage.store_sec_filings(sec_bq_rows)
+                    logger.info(f"[SEC_FILINGS] Stored {stored} SEC filings to dedicated table")
+                except Exception as e:
+                    logger.warning(f"[SEC_FILINGS] Failed to store to sec_filings table: {e}")
+            
             # Convert to RawArticle format
             converted_sec = [self._convert_sec_to_article(item) for item in sec_items]
             
@@ -1172,6 +1220,7 @@ class IngestionOrchestrator:
                             "id": article.url or raw_data.get("accession_no", ""),
                             "ticker": raw_data.get("ticker", ""),
                             "company_name": article.title.split(" - ")[0] if " - " in article.title else article.title,
+                            "cik": raw_data.get("cik", ""),
                             "filing_type": raw_data.get("form_type", "10-K"),
                             "full_text": article.full_text,
                             "filing_date": article.published_at.isoformat() if article.published_at else "Unknown",

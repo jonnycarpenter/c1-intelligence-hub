@@ -177,7 +177,7 @@ class ExtractedSecNugget(BaseModel):
 
     # Audit fields
     extracted_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
-    extraction_model: str = "claude-haiku-4-5"
+    extraction_model: str = "claude-sonnet-4-5"
 
     def to_bq_row(self) -> Dict[str, Any]:
         """Convert to BigQuery row dict for insert_rows_json."""

@@ -529,7 +529,7 @@ class LocalDataStorage(DataStorageInterface):
                          category, priority, digest_summary, original_summary, companies,
                          materials, topics, industries, relevance_score, confidence, coverage_count,
                          duplicate_sources, all_urls, classifier_model, classified_at, ingested_at, feed_eligible)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, (
                         str(uuid.uuid4()),
                         item.get("article_id", ""),
@@ -759,6 +759,7 @@ class BigQueryDataStorage(DataStorageInterface):
         await self._create_podcast_quotes_table()
         await self._create_earnings_quotes_table()
         await self._create_sec_filing_nuggets_table()
+        await self._create_sec_filings_table()
 
         self._initialized = True
         logger.info("BigQuery storage initialized")
@@ -806,49 +807,98 @@ class BigQueryDataStorage(DataStorageInterface):
         IMPORTANT: Returns articles in the SAME ORDER as article_ids.
         This is critical for citation mapping — citation [N] must map to article_ids[N-1].
         Articles not found in BigQuery are represented as placeholder dicts with just the id.
+        
+        Lookup strategy:
+        1. Primary: digest_items table (WHERE article_id IN ...) — this is where
+           the pre-briefing pipeline stores article references
+        2. Fallback: articles table (WHERE id IN ...) — legacy compatibility
         """
         if not article_ids:
             return []
-            
-        table_id = f"{self.config.full_dataset_id}.articles"
         
-        # BigQuery parameterized queries are safer, using string join for simple ID list
         ids_str = ", ".join([f"'{aid}'" for aid in article_ids])
-        query = f"SELECT * FROM `{table_id}` WHERE id IN ({ids_str})"
+        articles_by_id = {}
         
+        # Step 1: Look up in digest_items by article_id (primary source)
+        # Pre-briefing stores digest_items.article_id values as article_ids
+        digest_table = f"{self.config.full_dataset_id}.digest_items"
         try:
+            query = f"""
+                SELECT article_id, title, url, source_name, published_at, 
+                       category, priority, digest_summary, original_summary,
+                       companies, topics, headline
+                FROM `{digest_table}` 
+                WHERE article_id IN ({ids_str})
+            """
             query_job = self.client.query(query)
             results = query_job.result()
             
-            # Build a lookup dict by id
-            articles_by_id = {}
             for row in results:
                 row_dict = dict(row)
-                articles_by_id[row_dict.get('id', '')] = row_dict
-            
-            # Return in the SAME ORDER as article_ids (critical for citation mapping)
-            ordered_articles = []
-            missing_count = 0
-            for aid in article_ids:
-                if aid in articles_by_id:
-                    ordered_articles.append(articles_by_id[aid])
-                else:
-                    # Placeholder for missing articles — preserves positional indexing
-                    missing_count += 1
-                    ordered_articles.append({
+                aid = row_dict.get('article_id', '')
+                if aid and aid not in articles_by_id:
+                    # Map to standard article dict shape for compatibility
+                    articles_by_id[aid] = {
                         'id': aid,
-                        'title': 'Article not found',
-                        'url': '',
-                        'published_at': None,
-                    })
+                        'title': row_dict.get('title') or row_dict.get('headline') or 'Unknown',
+                        'url': row_dict.get('url', ''),
+                        'source_name': row_dict.get('source_name', ''),
+                        'published_at': row_dict.get('published_at'),
+                        'category': row_dict.get('category', ''),
+                        'priority': row_dict.get('priority', ''),
+                        'summary': row_dict.get('digest_summary') or row_dict.get('original_summary') or '',
+                        'companies': row_dict.get('companies', ''),
+                        'topics': row_dict.get('topics', ''),
+                        '_source_table': 'digest_items',
+                    }
             
-            if missing_count > 0:
-                logger.warning(f"get_articles_by_ids: {missing_count}/{len(article_ids)} articles not found in BQ")
-            
-            return ordered_articles
+            logger.info(f"get_articles_by_ids: Found {len(articles_by_id)}/{len(article_ids)} in digest_items")
         except Exception as e:
-            logger.error(f"Error fetching articles by IDs from BigQuery: {e}")
-            return []
+            logger.warning(f"get_articles_by_ids: digest_items lookup failed: {e}")
+        
+        # Step 2: Fallback to articles table for any still missing
+        missing_ids = [aid for aid in article_ids if aid not in articles_by_id]
+        if missing_ids:
+            articles_table = f"{self.config.full_dataset_id}.articles"
+            try:
+                missing_str = ", ".join([f"'{aid}'" for aid in missing_ids])
+                query = f"SELECT * FROM `{articles_table}` WHERE id IN ({missing_str})"
+                query_job = self.client.query(query)
+                results = query_job.result()
+                
+                fallback_count = 0
+                for row in results:
+                    row_dict = dict(row)
+                    aid = row_dict.get('id', '')
+                    if aid:
+                        row_dict['_source_table'] = 'articles'
+                        articles_by_id[aid] = row_dict
+                        fallback_count += 1
+                
+                if fallback_count > 0:
+                    logger.info(f"get_articles_by_ids: Found {fallback_count} more in articles table (fallback)")
+            except Exception as e:
+                logger.warning(f"get_articles_by_ids: articles table fallback failed: {e}")
+        
+        # Return in the SAME ORDER as article_ids (critical for citation mapping)
+        ordered_articles = []
+        missing_count = 0
+        for aid in article_ids:
+            if aid in articles_by_id:
+                ordered_articles.append(articles_by_id[aid])
+            else:
+                # Placeholder for missing articles — preserves positional indexing
+                missing_count += 1
+                ordered_articles.append({
+                    'id': aid,
+                    'title': 'Article not found',
+                    'url': '',
+                })
+        
+        if missing_count > 0:
+            logger.warning(f"get_articles_by_ids: {missing_count}/{len(article_ids)} articles not found in ANY table")
+        
+        return ordered_articles
     
     async def _create_digest_items_table(self):
         """Create digest_items table for classified articles."""
@@ -3872,7 +3922,9 @@ class BigQueryDataStorage(DataStorageInterface):
                     "(LOWER(quote_text) LIKE @search_pattern "
                     "OR LOWER(context_summary) LIKE @search_pattern "
                     "OR LOWER(companies_mentioned) LIKE @search_pattern "
-                    "OR LOWER(speaker_name) LIKE @search_pattern)"
+                    "OR LOWER(speaker_name) LIKE @search_pattern "
+                    "OR LOWER(company_name) LIKE @search_pattern "
+                    "OR LOWER(speaker_company) LIKE @search_pattern)"
                 )
                 params.append(ScalarQueryParameter("search_pattern", "STRING", f"%{search_query.lower()}%"))
 
@@ -4072,6 +4124,204 @@ class BigQueryDataStorage(DataStorageInterface):
             return {}
 
     # =========================================================================
+    # SEC Filings (Dedicated filing storage with proper metadata)
+    # =========================================================================
+
+    async def _create_sec_filings_table(self):
+        """Create sec_filings table for storing SEC filing data with full metadata.
+        
+        This table stores the actual SEC filing content (sections, full_text) alongside
+        proper metadata (ticker, CIK, form_type) that was previously lost when filings
+        were stored in the generic articles table. Used as the source for nugget extraction.
+        """
+        from google.cloud import bigquery
+
+        table_id = f"{self.config.full_dataset_id}.sec_filings"
+        schema = [
+            bigquery.SchemaField("filing_id", "STRING", mode="REQUIRED"),  # accession number
+            bigquery.SchemaField("company_id", "STRING"),
+            bigquery.SchemaField("ticker", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("cik", "STRING"),
+            bigquery.SchemaField("company_name", "STRING"),
+            bigquery.SchemaField("form_type", "STRING", mode="REQUIRED"),  # 10-K, 10-Q, 8-K
+            bigquery.SchemaField("filed_at", "TIMESTAMP"),
+            bigquery.SchemaField("filing_url", "STRING"),
+            bigquery.SchemaField("sections_json", "STRING"),  # JSON dict of section_name -> content
+            bigquery.SchemaField("full_text", "STRING"),  # For 8-K or fallback
+            bigquery.SchemaField("collected_at", "TIMESTAMP", mode="REQUIRED"),
+        ]
+
+        table = bigquery.Table(table_id, schema=schema)
+        table.time_partitioning = bigquery.TimePartitioning(
+            field="filed_at",
+            type_=bigquery.TimePartitioningType.MONTH,
+        )
+        table.clustering_fields = ["ticker", "form_type"]
+
+        try:
+            self.client.create_table(table)
+            logger.info(f"Created table {table_id}")
+        except Exception as e:
+            if "Already Exists" in str(e):
+                logger.info(f"Table {table_id} already exists")
+            else:
+                raise
+
+    async def store_sec_filings(self, filings: List[Dict[str, Any]]) -> int:
+        """Store SEC filing records in BigQuery.
+        
+        Args:
+            filings: List of filing dicts with keys matching sec_filings schema.
+                     Expected keys: filing_id, company_id, ticker, cik, company_name,
+                     form_type, filed_at, filing_url, sections_json, full_text, collected_at
+        
+        Returns:
+            Number of filings stored successfully
+        """
+        if not filings:
+            return 0
+        table_id = f"{self.config.full_dataset_id}.sec_filings"
+        try:
+            errors = self.client.insert_rows_json(table_id, filings)
+            if errors:
+                logger.error(f"[SEC_FILINGS] Insert errors: {errors[:3]}")
+                return len(filings) - len(errors)
+            logger.info(f"[SEC_FILINGS] Stored {len(filings)} filing(s)")
+            return len(filings)
+        except Exception as e:
+            logger.error(f"[SEC_FILINGS] Failed to store filings: {e}", exc_info=True)
+            return 0
+
+    async def get_sec_filing_ids(self) -> set:
+        """Get set of all filing_ids already stored in sec_filings table.
+        
+        Used to skip duplicates during backfill/ingestion.
+        """
+        try:
+            query = f"""
+                SELECT DISTINCT filing_id
+                FROM `{self.config.full_dataset_id}.sec_filings`
+            """
+            rows = self.client.query(query).result()
+            return {row.filing_id for row in rows}
+        except Exception as e:
+            logger.error(f"[SEC_FILINGS] Failed to get existing filing IDs: {e}")
+            return set()
+
+    async def get_sec_filings_for_nugget_extraction(
+        self,
+        limit: int = 50,
+        include_already_extracted: bool = False,
+    ) -> List[Dict[str, Any]]:
+        """Get SEC filings from the dedicated sec_filings table for nugget extraction.
+        
+        Args:
+            limit: Max filings to return
+            include_already_extracted: If True, return all filings (for re-extraction).
+                                       If False, only return filings without existing nuggets.
+        
+        Returns:
+            List of filing dicts ready for SecNuggetExtractor.extract_nuggets()
+        """
+        try:
+            if include_already_extracted:
+                query = f"""
+                    SELECT
+                        filing_id, ticker, cik, company_name, company_id,
+                        form_type, filed_at, filing_url,
+                        sections_json, full_text
+                    FROM `{self.config.full_dataset_id}.sec_filings`
+                    WHERE (full_text IS NOT NULL AND LENGTH(full_text) > 1000)
+                       OR (sections_json IS NOT NULL AND LENGTH(sections_json) > 100)
+                    ORDER BY filed_at DESC
+                    LIMIT {limit}
+                """
+            else:
+                query = f"""
+                    WITH existing_extractions AS (
+                        SELECT DISTINCT filing_id
+                        FROM `{self.config.full_dataset_id}.sec_filing_nuggets`
+                    )
+                    SELECT
+                        sf.filing_id, sf.ticker, sf.cik, sf.company_name, sf.company_id,
+                        sf.form_type, sf.filed_at, sf.filing_url,
+                        sf.sections_json, sf.full_text
+                    FROM `{self.config.full_dataset_id}.sec_filings` sf
+                    LEFT JOIN existing_extractions ee ON sf.filing_id = ee.filing_id
+                    WHERE ee.filing_id IS NULL
+                      AND ((sf.full_text IS NOT NULL AND LENGTH(sf.full_text) > 1000)
+                           OR (sf.sections_json IS NOT NULL AND LENGTH(sf.sections_json) > 100))
+                    ORDER BY sf.filed_at DESC
+                    LIMIT {limit}
+                """
+            
+            rows = self.client.query(query).result()
+            results = []
+            for row in rows:
+                row_dict = dict(row)
+                
+                # Parse sections_json back to dict
+                sections = {}
+                sections_str = row_dict.get("sections_json", "{}")
+                if sections_str:
+                    try:
+                        sections = json.loads(sections_str) if isinstance(sections_str, str) else (sections_str or {})
+                    except (json.JSONDecodeError, TypeError):
+                        sections = {}
+                
+                # Build filing_data dict compatible with SecNuggetExtractor.extract_nuggets()
+                filing_date = row_dict.get("filed_at")
+                if filing_date:
+                    if hasattr(filing_date, 'isoformat'):
+                        filing_date = filing_date.isoformat()
+                    else:
+                        filing_date = str(filing_date)
+                
+                results.append({
+                    "id": row_dict.get("filing_id"),
+                    "filing_id": row_dict.get("filing_id"),
+                    "ticker": row_dict.get("ticker", ""),
+                    "company_name": row_dict.get("company_name", ""),
+                    "cik": row_dict.get("cik", ""),
+                    "filing_type": row_dict.get("form_type", "10-K"),
+                    "form_type": row_dict.get("form_type", "10-K"),
+                    "sections": sections,
+                    "sections_json": row_dict.get("sections_json", "{}"),
+                    "full_text": row_dict.get("full_text", ""),
+                    "filing_date": filing_date,
+                    "url": row_dict.get("filing_url", ""),
+                })
+            
+            logger.info(f"[SEC_FILINGS] Found {len(results)} filings for nugget extraction (include_extracted={include_already_extracted})")
+            return results
+        
+        except Exception as e:
+            logger.error(f"[SEC_FILINGS] Failed to get filings for extraction: {e}", exc_info=True)
+            return []
+
+    async def get_sec_filing_stats(self) -> Dict[str, Any]:
+        """Get statistics about stored SEC filings."""
+        try:
+            query = f"""
+                SELECT
+                    COUNT(*) as total_filings,
+                    COUNT(DISTINCT ticker) as unique_tickers,
+                    COUNT(DISTINCT form_type) as unique_form_types,
+                    MIN(filed_at) as earliest_filing,
+                    MAX(filed_at) as latest_filing,
+                    COUNTIF(sections_json IS NOT NULL AND LENGTH(sections_json) > 10) as filings_with_sections,
+                    COUNTIF(full_text IS NOT NULL AND LENGTH(full_text) > 100) as filings_with_full_text
+                FROM `{self.config.full_dataset_id}.sec_filings`
+            """
+            rows = list(self.client.query(query).result())
+            if rows:
+                return dict(rows[0])
+            return {}
+        except Exception as e:
+            logger.error(f"[SEC_FILINGS] Stats query failed: {e}")
+            return {}
+
+    # =========================================================================
     # SEC Filing Nuggets (Strategic Insight Extraction from SEC Filings)
     # =========================================================================
 
@@ -4197,7 +4447,8 @@ class BigQueryDataStorage(DataStorageInterface):
                     "(LOWER(nugget_text) LIKE @search_pattern "
                     "OR LOWER(companies_mentioned) LIKE @search_pattern "
                     "OR LOWER(competitors_named) LIKE @search_pattern "
-                    "OR LOWER(brands_mentioned) LIKE @search_pattern)"
+                    "OR LOWER(brands_mentioned) LIKE @search_pattern "
+                    "OR LOWER(company_name) LIKE @search_pattern)"
                 )
                 params.append(ScalarQueryParameter("search_pattern", "STRING", f"%{search_query.lower()}%"))
 
@@ -4262,89 +4513,40 @@ class BigQueryDataStorage(DataStorageInterface):
         limit: int = 50,
     ) -> List[Dict[str, Any]]:
         """Get SEC filings that haven't had nuggets extracted yet.
+        
+        DEPRECATED: Redirects to get_sec_filings_for_nugget_extraction() which reads
+        from the dedicated sec_filings table instead of the articles table.
+        """
+        return await self.get_sec_filings_for_nugget_extraction(limit=limit, include_already_extracted=False)
 
-        Queries articles with source_type='sec_filing' and checks
-        which ones don't have entries in the sec_filing_nuggets table yet.
+    async def get_all_sec_filings_for_extraction(
+        self,
+        limit: int = 200,
+    ) -> List[Dict[str, Any]]:
+        """Get ALL SEC filings for re-extraction.
+        
+        DEPRECATED: Redirects to get_sec_filings_for_nugget_extraction() which reads
+        from the dedicated sec_filings table instead of the articles table.
+        """
+        return await self.get_sec_filings_for_nugget_extraction(limit=limit, include_already_extracted=True)
 
-        Args:
-            limit: Max filings to return
+    async def delete_all_sec_filing_nuggets(self) -> int:
+        """Delete ALL rows from sec_filing_nuggets table for re-extraction.
 
-        Returns:
-            List of filing dicts with id, ticker, company_name, filing_type, full_text, etc.
+        Uses DML DELETE statement. Returns number of rows deleted.
         """
         try:
             query = f"""
-                WITH existing_extractions AS (
-                    SELECT DISTINCT filing_id
-                    FROM `{self.config.full_dataset_id}.sec_filing_nuggets`
-                )
-                SELECT
-                    a.id,
-                    a.title,
-                    a.url,
-                    a.full_text,
-                    a.source_name,
-                    a.published_at,
-                    a.companies_mentioned
-                FROM `{self.config.full_dataset_id}.articles` a
-                LEFT JOIN existing_extractions ee ON a.id = ee.filing_id
-                WHERE a.source_type = 'sec_filing'
-                  AND ee.filing_id IS NULL
-                  AND a.full_text IS NOT NULL
-                  AND LENGTH(a.full_text) > 1000
-                ORDER BY a.published_at DESC
-                LIMIT {limit}
+                DELETE FROM `{self.config.full_dataset_id}.sec_filing_nuggets`
+                WHERE TRUE
             """
-            rows = self.client.query(query).result()
-
-            results = []
-            for row in rows:
-                row_dict = dict(row)
-
-                # Parse ticker and filing_type from title (e.g., "PPG Industries - 10-K")
-                title = row_dict.get("title", "")
-                ticker = ""
-                company_name = title
-                filing_type = "10-K"
-
-                # Try to extract from source_name (e.g., "SEC - 1A Risk Factors")
-                source_name = row_dict.get("source_name", "")
-
-                # Parse companies_mentioned for company name
-                companies_str = row_dict.get("companies_mentioned", "[]")
-                try:
-                    companies = json.loads(companies_str) if isinstance(companies_str, str) else companies_str
-                    if companies:
-                        company_name = companies[0]
-                except (json.JSONDecodeError, TypeError):
-                    pass
-
-                # Try to extract ticker from title pattern "Company Name - 10-K"
-                if " - " in title:
-                    parts = title.rsplit(" - ", 1)
-                    company_name = parts[0].strip()
-                    if len(parts) > 1:
-                        ft = parts[1].strip()
-                        if ft in ("10-K", "10-Q", "8-K", "S-1", "20-F", "6-K"):
-                            filing_type = ft
-
-                results.append({
-                    "id": row_dict.get("id"),
-                    "title": title,
-                    "full_text": row_dict.get("full_text", ""),
-                    "ticker": ticker,
-                    "company_name": company_name,
-                    "filing_type": filing_type,
-                    "source_name": source_name,
-                    "published_at": row_dict.get("published_at"),
-                })
-
-            logger.info(f"[SEC_NUGGETS] Found {len(results)} filings pending nugget extraction")
-            return results
-
+            result = self.client.query(query).result()
+            deleted = result.num_dml_affected_rows or 0
+            logger.info(f"[SEC_NUGGETS] Deleted {deleted} existing nuggets for re-extraction")
+            return deleted
         except Exception as e:
-            logger.error(f"[SEC_NUGGETS] Failed to get pending filings: {e}", exc_info=True)
-            return []
+            logger.error(f"[SEC_NUGGETS] Failed to delete nuggets: {e}", exc_info=True)
+            return 0
 
     async def get_sec_filing_nugget_stats(self) -> Dict[str, Any]:
         """Get statistics about extracted SEC filing nuggets."""
