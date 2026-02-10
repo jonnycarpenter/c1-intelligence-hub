@@ -39,6 +39,7 @@ python scripts/monitoring/production_dashboard.py --detailed
 | `check_bad_dates.py` | Find articles with date issues |
 | `check_config.py` | Verify configuration |
 | `check_db.py` | Database connectivity check |
+| `check_rss_feeds.py` | RSS feed diagnostics |
 
 **Most Common**: `python scripts/health/ingestion_health_check.py`
 
@@ -53,6 +54,7 @@ python scripts/monitoring/production_dashboard.py --detailed
 - `backfill_sec_filings.py` - **Backfill SEC filings** (10-K, 10-Q, 8-K)
 - `backfill_press_releases.py` - **Backfill press releases** via Exa.ai
 - `backfill_digest_items.py` - **Backfill digest items**
+- `backfill_narrative_enrichment.py` - **Backfill narrative enrichment**
 - `backfill_bq_dates.py` - Backfill missing dates in BigQuery
 - `backfill_bq_embeddings.py` - Regenerate embeddings
 - `backfill_dates.py` - Backfill article dates
@@ -75,6 +77,10 @@ python scripts/operations/backfill/backfill_premium_news.py --days 30
 
 ### Maintenance (`operations/maintenance/`)
 - `fix_bad_timestamps.py` - Fix malformed timestamps
+- `audit_data.py` - Audit data quality and anomalies
+- `cleanup_test_briefings.py` - Remove test briefing artifacts
+- `archive_query.sql` - BigQuery archive query template
+- `create_memory_tables.sql` - BigQuery table DDL for memory data
 - `purge_data.py` - Clean up old/bad data
 - `seed_bigquery.py` - Initialize BigQuery tables
 - `migrate_sqlite_to_bq.py` - Migrate SQLite data to BigQuery (legacy)
@@ -97,6 +103,7 @@ Ad-hoc test scripts for development:
 
 ### General Tests
 - `test_agent_direct.py` - Test agent behavior directly
+- `test_anthropic_api.py` - Validate Anthropic API connectivity
 - `test_deep_research.py` - Test deep research workflow
 - `test_endpoints.py` - Test API endpoints
 - `test_general.py` - General system tests
@@ -125,8 +132,11 @@ Ad-hoc test scripts for development:
 
 ### Briefing & Digest Tests
 - `test_briefing_sessions.py` - Test briefing session management
+- `test_citation_fix.py` - Verify citation normalization
 - `test_podcast_init.py` - Test podcast initialization
+- `test_podcast_generation.py` - Validate podcast generation pipeline
 - `test_prebriefing_bq.py` - Test pre-briefing generation
+- `test_voice_enrichment.py` - Validate voice enrichment logic
 - `test_weekly_briefing.py` - Test weekly briefing generation
 
 ### MCP Tools Tests
@@ -135,6 +145,7 @@ Ad-hoc test scripts for development:
 
 ### Health/Check Scripts
 - `check_bq_status.py` - Check BigQuery status
+- `check_companies.py` - Validate company list integrity
 - `check_db.py` - Check database connectivity
 - `check_digest_data.py` - Check digest data
 - `check_digest_items.py` - Check digest items
@@ -147,8 +158,13 @@ Ad-hoc test scripts for development:
 
 ### Debug & Utility Scripts
 - `debug_import.py` - Debug import issues
+- `debug_date_extraction.py` - Inspect date parsing behavior
+- `debug_env.py` - Check environment configuration
+- `digest_investigation.py` - Investigate digest anomalies
 - `industry_queries_expanded_v2.py` - Industry query definitions
+- `inspect_briefing.py` - Inspect briefing outputs
 - `query_bq_temp.py` - Ad-hoc BigQuery queries
+- `show_schema.py` - Print table schemas
 
 **Quick Commands**:
 ```bash

@@ -71,7 +71,7 @@ Each publication is filtered and analyzed by our AI to extract only the most rel
 # =============================================================================
 
 SEARCH_QUERIES = """
-We run 150+ AI-powered search queries DAILY to hunt for strategic intelligence. Unlike passive news aggregation, our system actively searches for specific signals.
+We run 230+ AI-powered search queries DAILY across multiple search engines to hunt for strategic intelligence. Unlike passive news aggregation, our system actively searches for specific signals.
 
 **Example Query:**
 "carbon fiber supply shortage allocation" - Our system hunts for supply disruption signals before they hit mainstream news, giving you early warning on potential supply chain issues.
@@ -142,18 +142,42 @@ We run 150+ AI-powered search queries DAILY to hunt for strategic intelligence. 
 # =============================================================================
 
 ADDITIONAL_SOURCES = """
-Beyond publications and search queries, we monitor:
+Beyond publications and search queries, we monitor a rich set of specialized intelligence sources:
 
-**Financial Intelligence:**
-- Earnings call transcripts from publicly traded competitors
-- SEC filing monitoring (10-K, 10-Q, 8-K filings)
-- Analyst ratings and price target changes
+**Financial Intelligence (Deep Extraction):**
+- Earnings call transcripts from publicly traded competitors — our AI extracts speaker-attributed quotes with sentiment analysis, strategic themes, and forward-looking signals
+- SEC filing monitoring (10-K, 10-Q, 8-K filings) — our AI extracts actionable "nuggets" from filings, scoring each for signal strength and risk level
+- Combined Financial Feed that merges earnings insights and SEC nuggets into one prioritized stream
+- Analyst ratings, price target changes, and premium financial news from multiple data providers
+
+**Industry Podcast Intelligence:**
+We monitor and analyze 5 specialized industry podcasts:
+- CW Talks (CompositesWorld) - The leading composites industry podcast
+- Composites Weekly - Independent composites market commentary
+- Uptime Wind Energy Podcast - Wind energy industry intelligence
+- The Chemical Show - Chemical industry trends and leadership
+- ICIS Chemical Podcasts - Chemical market analysis (S&P Global)
+
+Our AI automatically discovers new episodes, resolves and transcribes them, and extracts speaker-attributed quotes with themes, relevance scoring, and context. The Expert Feed gives you searchable access to expert insights across all tracked podcasts.
+
+**Supply Chain Intelligence (Import/Export Data):**
+We analyze US customs import records to map supply chain relationships across the composites industry:
+- Who imports from whom — detailed supplier-buyer relationships
+- Shared supplier analysis — see which competitors share your suppliers
+- Exclusive supplier identification — find suppliers used by competitors but not you
+- Competitive activity tracking — 12-month rolling view of competitor import patterns
+- Supply chain graph visualization showing the full network of relationships
+- 265+ companies tracked including raw material and intermediate manufacturers
 
 **Logistics & Freight:**
-- Oceanic shipping costs and trends
-- Container freight rates
-- Port congestion monitoring
+- Drewry World Container Index — Global container freight rate time-series
+- Shipping cost trends and forecasting
 - Supply chain lead time indicators
+
+**Product Datasheet Intelligence:**
+- Technical datasheets from suppliers indexed and searchable
+- Compare material properties across suppliers
+- Identify gaps in product category coverage
 """
 
 # =============================================================================
@@ -165,26 +189,29 @@ The Intelligence Hub is organized into specialized workspaces:
 
 **📊 Need to Know** (Your Strategic Command Center)
 Your daily starting point. Surfaces everything you need to know about your strategic priorities and "Need to Know" events across your entire ecosystem. Features:
-- AI-generated weekly strategic briefing
-- Audio podcast version you can listen to on the go
+- AI-generated weekly strategic briefing with audio podcast version (4-6 min, listen on the go)
 - Persistent themes tracking (what's continuing from last week)
-- Emerging signals (what's new)
+- Emerging signals (what's new this week)
 - Actionable insights you can share with leadership
+- On-demand ad-hoc briefings — ask a specific question and get a tailored briefing
 
-**🔍 Market Intelligence**
-Category-filtered news digest for exploring specific topics:
-- Filter by category: Competitors, Supply Chain, Regulatory, M&A, etc.
-- AI-powered summaries for quick understanding
-- Priority bulletin board highlighting what needs attention
-- Deep dive into any category with one click
+**🔍 Discovery** (Market Intelligence Hub)
+Your exploration workspace with multiple intelligence feeds:
+- **News Feed** — Category-filtered news digest across Competitors, Supply Chain, Regulatory, M&A, Technology, and more
+- **Financial Feed** — Combined earnings call quotes and SEC filing nuggets, filterable by ticker, sentiment, and source type (earnings vs SEC). Each item is AI-scored for signal strength and sentiment
+- **Expert Feed** — Speaker-attributed quotes from 5 industry podcasts, searchable by speaker, podcast, and theme
+- **Bulletin Board** — AI-curated priority items that need immediate attention
+- **AI Chat** — Ask questions about current market intelligence with category-scoped context
+- Deep dive into any category or signal with one click
 
 **🔬 Deep Research**
 Multi-agent research engine for comprehensive analysis:
 - Ask any strategic question
-- 6 specialized AI agents work in parallel to research your topic
-- Financial analysis, industry trends, competitive intelligence
-- Sourced insights with citations
+- 6+ specialized AI agents work in parallel to research your topic
+- Financial analyst, industry researcher, competitive intelligence, visual data, memory-aware context
+- Sourced insights with citations from the full intelligence corpus
 - Export-ready reports for stakeholders
+- Cached results for instant retrieval of recent research
 
 **🎯 Pipeline**
 AI-powered prospect discovery for sales teams:
@@ -192,6 +219,7 @@ AI-powered prospect discovery for sales teams:
 - Identify decision makers
 - Enrich with firmographic data
 - Territory-based filtering
+- AI agent chat for conversational prospect exploration
 
 **🎤 Field Intel**
 Capture intelligence from the field:
@@ -200,11 +228,32 @@ Capture intelligence from the field:
 - Trade show observations
 - Field team knowledge capture
 
-**📦 Products / 🏢 Companies / 🏭 Industries** (Coming Soon)
-Dedicated tracking and analysis dashboards for:
-- Product intelligence and SKU analysis
-- Company monitoring and competitor tracking
-- Industry trend analysis
+**🔗 Supply Network**
+Interactive supply chain intelligence dashboard:
+- Visual graph of supplier-buyer relationships across the composites industry
+- Shared supplier analysis — see which competitors use the same suppliers
+- Exclusive supplier identification — discover suppliers used by competitors but not you
+- 12-month competitive activity tracking based on US customs data
+- Drill into any company or supplier for detailed intelligence
+
+**📦 Products**
+Product and materials intelligence:
+- Technical datasheet library indexed and searchable
+- Compare material properties across suppliers
+- Category-based browsing (fibers, resins, prepregs, etc.)
+- Identify product gaps and supplier coverage
+
+**🏢 Companies**
+Company monitoring and tracking:
+- 265+ companies tracked across the composites ecosystem
+- Company profiles with industry, type, and stock data
+- Track/untrack companies for personalized monitoring
+
+**🏭 Industries**
+Industry narrative tracking:
+- Timeline view of how industry stories evolve over time
+- AI-generated narrative analysis per industry vertical
+- Article linkage to industry themes
 """
 
 # =============================================================================
@@ -340,7 +389,10 @@ Every week, our AI analyzes all intelligence gathered and produces a comprehensi
 - **Source Citations**: Every insight is linked to original sources
 
 **Audio Podcast:**
-Listen on the go! The entire briefing is converted to a natural-sounding audio format (4-6 minutes) so you can stay informed during your commute.
+Listen on the go! The entire briefing is converted to a natural-sounding audio format (4-6 minutes) so you can stay informed during your commute. Multiple voice styles available.
+
+**Ad-Hoc Briefings:**
+Need intelligence on a specific topic RIGHT NOW? Ask for an ad-hoc briefing on any subject and our AI will generate a focused briefing using the latest intelligence in the system. Supports streaming responses for real-time delivery. Full session history so you can revisit past briefings.
 
 **Why It Matters:**
 You walk into any meeting knowing what's happening across your competitive landscape, supply chain, and industry - without spending hours reading. "Become the most informed person in the room in 5 minutes."
@@ -354,13 +406,17 @@ You walk into any meeting knowing what's happening across your competitive lands
 # - Exa.ai (semantic search)
 # - Tavily (web search)
 # - FMP / Financial Modeling Prep (financial data)
-# - SEC-io (SEC filings)
+# - SEC-io / SEC-API.io (SEC filings)
+# - API Ninja (earnings transcripts)
+# - StockNewsAPI (financial news)
 # - AssemblyAI (transcription)
 # - ElevenLabs (text-to-speech)
 # - Anthropic Claude (LLM)
 # - OpenAI GPT (fallback LLM)
 # - Google Cloud Platform specifics
 # - BigQuery, Cloud Run, etc.
+# - ImportYeti (supply chain data source)
+# - Drewry WCI (freight data)
 # - Any API provider names
 
 

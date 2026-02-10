@@ -139,11 +139,21 @@ c1-intelligence-hub_v2/
 │   └── requirements.txt
 │
 ├── deploy/                   # GCP deployment config (Terraform, scripts)
+├── docs/                     # Architecture, ops notes, and media
 ├── docker-compose.yml       # Development config
 ├── Dockerfile              # Production build
 ├── CLAUDE.md               # AI agent instructions
 └── WORKLOG.md              # Session work log
 ```
+
+## Documentation
+
+- [docs/README.md](docs/README.md) - Documentation index
+- [docs/architecture/deep_research_guide.md](docs/architecture/deep_research_guide.md) - Deep Research workflow
+- [docs/architecture/discovery_tab_guide.md](docs/architecture/discovery_tab_guide.md) - Discovery tab specification
+- [docs/architecture/DISC_AI_SUMMARY_GUIDE.md](docs/architecture/DISC_AI_SUMMARY_GUIDE.md) - AI summary guidance
+- [docs/operations/2026-01-04-ingestion-pipeline-fixes.md](docs/operations/2026-01-04-ingestion-pipeline-fixes.md) - Ingestion fixes
+- [docs/operations/2026-01-04-ingestion-troubleshooting-session.md](docs/operations/2026-01-04-ingestion-troubleshooting-session.md) - Troubleshooting notes
 
 ## API Endpoints
 

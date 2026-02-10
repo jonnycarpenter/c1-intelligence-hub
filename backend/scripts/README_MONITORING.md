@@ -5,7 +5,7 @@
 ### Daily Monitoring (30 seconds)
 ```bash
 cd backend
-python scripts/production_dashboard.py
+python scripts/monitoring/production_dashboard.py
 ```
 **What it checks:**
 - ✅ Are scheduler jobs running?
@@ -15,7 +15,7 @@ python scripts/production_dashboard.py
 
 ### Deep Dive (3-5 minutes)
 ```bash
-python scripts/production_dashboard.py --detailed
+python scripts/monitoring/production_dashboard.py --detailed
 ```
 **Additional checks:**
 - 🔬 Per-source breakdown (RSS, SEC, Earnings, Web, etc.)
@@ -27,13 +27,13 @@ python scripts/production_dashboard.py --detailed
 ### Custom Time Ranges
 ```bash
 # Check last 14 days
-python scripts/production_dashboard.py --days 14
+python scripts/monitoring/production_dashboard.py --days 14
 
 # Deep analysis of last 3 days
-python scripts/production_dashboard.py --detailed --days 3
+python scripts/monitoring/production_dashboard.py --detailed --days 3
 
 # Specific run analysis
-python scripts/production_dashboard.py --detailed --run morning
+python scripts/monitoring/production_dashboard.py --detailed --run morning
 ```
 
 ---
@@ -197,7 +197,7 @@ gcloud secrets list --format="table(name)"
 ### If dashboard script fails:
 ```bash
 # Fallback to individual components
-python scripts/ingestion_health_check.py --days 7
+python scripts/health/ingestion_health_check.py --days 7
 python scripts/scheduler_report.py --run latest
 ```
 

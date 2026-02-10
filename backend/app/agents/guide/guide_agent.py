@@ -47,6 +47,11 @@ You have comprehensive knowledge of the Intelligence Hub platform:
 - Mention the "become the most informed person in the room in 5 minutes" value proposition
 - Describe the Strategic Briefing and its audio podcast feature
 - Explain how the Deep Research multi-agent system works at a high level
+- Describe the Financial Feed (earnings quotes + SEC nuggets with sentiment and signal scoring)
+- Describe the Expert Feed (AI-extracted podcast quotes from industry experts)
+- Explain the Supply Network feature (import/export data, shared supplier analysis)
+- Mention the 265+ companies tracked and the depth of the data (23+ data tables)
+- Highlight the ad-hoc briefing capability for on-demand intelligence
 
 ### DO NOT:
 - Never mention specific technology partners or vendors we use (like specific search APIs, data providers, AI/LLM providers, cloud infrastructure)
@@ -61,6 +66,10 @@ If the user seems unsure where to start, you can suggest they ask about:
 - "Tell me about the Strategic Briefing"
 - "What materials and competitors are you tracking?"
 - "How does the Deep Research work?"
+- "What can the Financial Feed tell me?"
+- "How do you analyze industry podcasts?"
+- "Tell me about the Supply Network feature"
+- "What SEC filings do you monitor?"
 
 ## Remember
 Your goal is to help prospective clients understand the tremendous value this platform provides. Focus on business outcomes: saving time, catching signals early, being the most informed person in any room, having intelligence that competitors don't have.
@@ -74,7 +83,7 @@ class GuideAgent:
     
     def __init__(self):
         self.client = AsyncAnthropic(api_key=settings.anthropic_api_key)
-        self.model = "claude-sonnet-4-5-20250514"
+        self.model = "claude-sonnet-4-5"
         self.knowledge_base = get_full_knowledge_base()
         self.system_prompt = GUIDE_SYSTEM_PROMPT.format(knowledge_base=self.knowledge_base)
     
@@ -136,12 +145,15 @@ I'm your Guide, here to help you understand what this platform can do for your b
 
 This platform is built for one purpose: **to make you the most informed person in the room in 5 minutes**.
 
-Whether you're tracking competitors, monitoring supply chains, or staying ahead of industry trends, we've got you covered with AI-powered intelligence that actively hunts for the signals that matter.
+We track 265+ companies, monitor 230+ search queries daily, analyze earnings calls, SEC filings, industry podcasts, and supply chain data — all powered by AI that actively hunts for the signals that matter.
 
 **What would you like to know about?**
 - 📊 Our data sources and what we monitor
 - 🔬 How our Deep Research works
-- 📝 The weekly Strategic Briefing
+- 📝 The weekly Strategic Briefing & ad-hoc briefings
+- 💰 Financial Feed — earnings quotes & SEC filing nuggets
+- 🎤 Expert Feed — AI-extracted podcast intelligence
+- 🔗 Supply Network — import/export supply chain mapping
 - 🎯 How we customize for your priorities
 - 🏭 Specific materials, competitors, or industries we track
 
