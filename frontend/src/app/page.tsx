@@ -24,6 +24,14 @@ const SupplyNetworkDashboard = dynamic(() => import('@/components/supply-network
   ),
 })
 import DataPreferencesDashboard from '@/components/data-preferences/DataPreferencesDashboard'
+const ArchitectureDashboard = dynamic(() => import('@/components/architecture/ArchitectureDashboard'), {
+  ssr: false,
+  loading: () => (
+    <div className="h-full flex items-center justify-center">
+      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-sky-500" />
+    </div>
+  ),
+})
 import { DiscoveryView } from '@/components/feed'
 import { GuidePanel } from '@/components/guide'
 import { useDigest, useStreamingChat, useDeepResearch } from '@/hooks'
@@ -431,7 +439,7 @@ export default function Home() {
           {/* Left panel - Dashboard/Content */}
           <div className={cn(
             "flex-1 min-w-0 overflow-hidden border-r border-slate-200",
-            (activeMode === 'pulse' || activeMode === 'discovery') && "border-r-0"
+            (activeMode === 'pulse' || activeMode === 'discovery' || activeMode === 'app-architecture') && "border-r-0"
           )}>
             {activeMode === 'pulse' && (
               <PulseDashboard
@@ -536,10 +544,13 @@ export default function Home() {
                 onAskAgent={handleSendMessage}
               />
             )}
+            {activeMode === 'app-architecture' && (
+              <ArchitectureDashboard />
+            )}
           </div>
 
-          {/* Right panel - Chat (hidden for pulse, discovery, research, pipeline, supply-network, products, field-sales, and data-preferences) */}
-          {activeMode !== 'pulse' && activeMode !== 'discovery' && activeMode !== 'research' && activeMode !== 'pipeline' && activeMode !== 'supply-network' && activeMode !== 'products' && activeMode !== 'field-sales' && activeMode !== 'industries' && activeMode !== 'data-preferences' && (
+          {/* Right panel - Chat (hidden for pulse, discovery, research, pipeline, supply-network, products, field-sales, data-preferences, and app-architecture) */}
+          {activeMode !== 'pulse' && activeMode !== 'discovery' && activeMode !== 'research' && activeMode !== 'pipeline' && activeMode !== 'supply-network' && activeMode !== 'products' && activeMode !== 'field-sales' && activeMode !== 'industries' && activeMode !== 'data-preferences' && activeMode !== 'app-architecture' && (
             <div className="w-[400px] shrink-0 border-l border-slate-200 bg-white">
               <ChatInterface
                 mode={activeMode}

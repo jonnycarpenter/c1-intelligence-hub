@@ -1,7 +1,7 @@
 // ============================================
 // Core Types
 // ============================================
-export type Mode = 'pulse' | 'discovery' | 'research' | 'products' | 'field-sales' | 'pipeline' | 'supply-network' | 'companies' | 'industries' | 'data-preferences' // | 'importyeti' // ARCHIVED
+export type Mode = 'pulse' | 'discovery' | 'research' | 'products' | 'field-sales' | 'pipeline' | 'supply-network' | 'companies' | 'industries' | 'data-preferences' | 'app-architecture' // | 'importyeti' // ARCHIVED
 export type ViewMode = 'grid' | 'list'
 export type Priority = 'critical' | 'high' | 'medium' | 'low'
 // Categories aligned with backend ContentCategory/DigestCategory enums
@@ -623,6 +623,16 @@ export const modeConfig = {
     bgDark: 'bg-blue-500',
   },
 
+  'app-architecture': {
+    icon: 'Cpu',
+    title: 'App Architecture',
+    subtitle: 'System design & data flows',
+    description: 'Architecture showcase',
+    color: 'text-sky-500',
+    bg: 'bg-sky-100',
+    bgDark: 'bg-sky-500',
+  },
+
   // ARCHIVED - Trade Intel
   // importyeti: {
   //   icon: 'Ship',
@@ -646,6 +656,7 @@ export const chatSuggestions: Record<Mode, string[]> = {
   companies: ['Show tracked companies', 'Latest Hexcel news', 'Compare Toray vs SGL Carbon'],
   industries: ['Show Aerospace narrative timeline', 'What themes are trending in Wind?', 'Compare Defense Space event types'],
   'data-preferences': ['Update my tracked companies', 'Change my material preferences', 'Set industry focus'],
+  'app-architecture': ['How does data ingestion work?', 'Show me the agent workflow', 'What GCP services are used?'],
 
   // importyeti: ['Show top suppliers', 'Analyze Jushi Group shipments', 'Find suppliers for fiberglass'], // ARCHIVED
 }
@@ -661,6 +672,7 @@ export const welcomeMessages: Record<Mode, string> = {
   companies: "Welcome to Company Intelligence.\n\nI can help you with:\n• **Company tracking** — competitors, suppliers, customers\n• **Earnings analysis** — financial performance\n• **Market position** — competitive landscape",
   industries: "Welcome to Industry Narratives.\n\nExplore how news evolves over 90 days:\n• **Monthly timelines** — article counts, event types, deltas\n• **Top companies & themes** — who and what is driving each industry\n• **Drill-down** — click into any month for full article list",
   'data-preferences': "Welcome to Data Preferences.\n\nI can help you with:\n• **Company tracking** — add or remove companies\n• **Material preferences** — focus materials\n• **Industry settings** — customize your focus areas",
+  'app-architecture': "Welcome to Architecture.\n\nExplore the system design:\n• **Data Ingestion** — 10 source pipelines\n• **Frontend Architecture** — Tab data flows + GCP infrastructure\n• **Agentic Workflows** — Multi-agent briefings & research",
 
   // importyeti: "Welcome to Trade Intelligence.\n\nI can help you with:\n• **Shipment tracking** — Monitor import volumes\n• **Supplier analysis** — Deep dive into supplier relationships\n• **Competitive intel** — See who else is buying from your suppliers", // ARCHIVED
 }

@@ -19,7 +19,8 @@
       "Bash(git pull:*)",
       "Bash(npx tsc:*)",
       "Bash(git push:*)",
-      "Bash(git commit -m \"$\\(cat <<''EOF''\nfix: add JSON repair + retry to Deep Research groomer for Haiku parse errors\n\nHaiku''s expanded system prompt \\(7.5K chars with new tool capability tables\\)\noccasionally causes malformed JSON output. Added _clean_and_repair_json\\(\\)\nto handle trailing commas, unclosed brackets, and extraneous text, plus\nautomatic LLM retry on parse failure.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")"
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nfix: add JSON repair + retry to Deep Research groomer for Haiku parse errors\n\nHaiku''s expanded system prompt \\(7.5K chars with new tool capability tables\\)\noccasionally causes malformed JSON output. Added _clean_and_repair_json\\(\\)\nto handle trailing commas, unclosed brackets, and extraneous text, plus\nautomatic LLM retry on parse failure.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(gcloud logging read:*)"
     ]
   }
 }

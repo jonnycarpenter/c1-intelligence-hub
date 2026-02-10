@@ -53,7 +53,7 @@ export interface ApiDigest {
 
 export interface ApiQueryRequest {
   message: string
-  mode: 'pulse' | 'discovery' | 'research' | 'products' | 'field-sales' | 'pipeline' | 'supply-network' | 'companies' | 'industries' | 'data-preferences' | 'importyeti'
+  mode: 'pulse' | 'discovery' | 'research' | 'products' | 'field-sales' | 'pipeline' | 'supply-network' | 'companies' | 'industries' | 'data-preferences' | 'importyeti' | 'app-architecture'
   conversation_id?: string
   context?: {
     companies?: string[]

@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@types/uuid": "^10.0.0",
+    "@xyflow/react": "^12.10.0",
     "clsx": "^2.1.1",
     "framer-motion": "^12.29.2",
     "lucide-react": "^0.460.0",

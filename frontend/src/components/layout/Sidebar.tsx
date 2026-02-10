@@ -1,6 +1,6 @@
 'use client'
 
-import { Activity, Search, Package, Building2, Factory, FileText, ChevronLeft, ChevronRight, Database, Users, ShoppingCart, Construction, Mic, GitBranch, Ship, Compass } from 'lucide-react'
+import { Activity, Search, Package, Building2, Factory, FileText, ChevronLeft, ChevronRight, Database, Users, ShoppingCart, Construction, Mic, GitBranch, Ship, Compass, Cpu } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import type { Mode } from '@/types'
@@ -46,6 +46,7 @@ const navItems: NavItem[] = [
   { id: 'companies', label: 'Companies', icon: Building2, description: 'Coming soon', color: 'text-slate-500', bg: 'bg-slate-500', isDisabled: true, isHidden: true },
   { id: 'industries', label: 'Industries', icon: Factory, description: 'Narrative timelines', color: 'text-purple-500', bg: 'bg-purple-500' },
   { id: 'data-preferences', label: 'Data & Prefs', icon: Database, description: 'Manage tracked data', color: 'text-cyan-500', bg: 'bg-cyan-500' },
+  { id: 'app-architecture', label: 'Architecture', icon: Cpu, description: 'System design', color: 'text-sky-500', bg: 'bg-sky-500' },
 ]
 
 interface SidebarProps {

@@ -35,6 +35,69 @@ Without reliable daily ingestion:
 - Keep `articles` table clean — actual news articles, press releases, and research only
 
 ---
+## 📅 SESSION 110: Weekly Briefing Production Validation (February 10, 2026)
+
+**Status**: ✅ COMPLETE — Briefing pipeline is production-grade
+
+### 🎯 Goal
+
+Delete broken briefings with "unknown" citations, regenerate a clean weekly briefing, verify voice enrichment + podcast + citations are all working, and confirm the automated scheduler is ready for ongoing runs.
+
+### ✅ Completed
+
+1. **Cleaned up BigQuery data**:
+   - Deleted broken Feb 9 briefing (`f3a3915a`) — 41/45 citations were "Article not found"
+   - Deleted its pre-briefing (`ac7e723d`)
+   - Removed duplicate Feb 2 row (no-podcast copy of `433a266e`)
+   - 7 clean briefings remain
+
+2. **Code review confirmed all fixes are deployed**:
+   - `get_articles_by_ids()` queries `digest_items` first, falls back to `articles` (Session 96 fix)
+   - Voice enrichment searches by individual company/topic names (Session 95 rewrite)
+   - ElevenLabs chunking at 4800 chars (Session 93 fix)
+   - Pre-extracted BQ tools for Deep Research (Session 106)
+
+3. **Generated new weekly briefing** (`17b30546`):
+   - **4 strategic sections**: Aerostructures Verticalization Pivot, Chinese Carbon Fiber Capacity Surge, Wind Energy Demand Bifurcation, Circular Composites Commercialization
+   - **150 articles** analyzed, **42 cited** as source material
+   - **100% citation integrity** — all 42 source articles have valid titles and URLs (zero "Article not found")
+   - **Voice enrichment working**: 6 SEC nuggets, 10 earnings quotes, 10 podcast quotes found (8,009 chars context)
+   - **19 insights** all classified (11 net_new, 8 continuing)
+   - **21 companies** with logo URLs
+   - **Podcast**: 46 turns, ~9.8 min audio, 3 ElevenLabs chunks, uploaded to GCS
+   - **Total time**: 788s (~13 min)
+
+4. **Scheduler verified**:
+   - Schedule: Mondays 14:30 UTC (8:30 AM CST)
+   - `attemptDeadline`: 1800s (30 min) — adequate for ~13 min generation
+   - Cloud Run timeout: 3600s (1 hour)
+   - Body defaults correct (`{}` → `weekly_executive`, `lookback_days=7`)
+   - Next scheduled run: Feb 16, 2026
+
+### 📊 Briefing Quality Comparison
+
+| Metric | Broken (f3a3915a) | New (17b30546) |
+|--------|-------------------|----------------|
+| Citations valid | 4/45 (9%) | 42/42 (100%) |
+| Voice enrichment | 0 items | 26 items |
+| Podcast | Generated | Generated |
+| Classification | Partial | 100% (11 net_new, 8 continuing) |
+
+### 🏁 Strategic Briefing Workflow: PENCILS DOWN
+
+The weekly briefing pipeline is now production-grade:
+- **Ingestion** → **Agent 1 Pre-Brief** → **Agent 2 Synthesis** → **Voice Enrichment** → **Podcast** → **BigQuery Save**
+- All citations resolve correctly via `digest_items` first lookup
+- Voice enrichment finds SEC nuggets, earnings quotes, and podcast quotes by individual company/topic
+- Podcast generation handles chunking for ElevenLabs 5K char limit
+- Scheduler runs automatically every Monday at 8:30 AM CST
+
+### 📁 Files Modified
+| File | Change |
+|------|--------|
+| `backend/scripts/operations/cleanup_briefings.py` | Updated for current cleanup targets |
+
+---
 ## 📅 SESSION 109: Update Guide Agent Knowledge Base (February 10, 2026)
 
 **Status**: ✅ COMPLETE

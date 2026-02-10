@@ -86,6 +86,13 @@ const modeConfig: Record<Mode, { icon: typeof Activity; title: string; subtitle:
     color: 'text-cyan-500',
     bg: 'bg-cyan-100',
   },
+  'app-architecture': {
+    icon: Activity,
+    title: 'App Architecture',
+    subtitle: 'System design & data flows',
+    color: 'text-sky-500',
+    bg: 'bg-sky-100',
+  },
   // ARCHIVED - Trade Intel
   // importyeti: {
   //   icon: Ship,

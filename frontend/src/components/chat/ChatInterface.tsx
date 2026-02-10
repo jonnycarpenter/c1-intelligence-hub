@@ -60,6 +60,11 @@ const modeSuggestions: Record<Mode, string[]> = {
     "Show me recent data changes",
     "Update my notification preferences",
   ],
+  'app-architecture': [
+    "How does data ingestion work?",
+    "Show me the agent workflow",
+    "What GCP services are used?",
+  ],
 }
 
 const welcomeMessages: Record<Mode, string> = {
@@ -73,6 +78,7 @@ const welcomeMessages: Record<Mode, string> = {
   companies: "Let's explore company intelligence. I can track competitors, analyze earnings, and monitor market positions.",
   industries: "Explore industry narratives. See how news evolves over 90 days with monthly timelines, top companies, and themes.",
   'data-preferences': "Manage your tracked data and preferences. I can help add or remove companies, materials, and industries.",
+  'app-architecture': "Welcome to Architecture. Explore the system design: data ingestion pipelines, frontend architecture, and agentic workflows.",
 }
 
 interface ChatInterfaceProps {
