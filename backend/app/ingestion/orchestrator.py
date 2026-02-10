@@ -304,20 +304,39 @@ class IngestionOrchestrator:
                     # Get companies with stock tickers
                     # Note: get_companies() returns 'ticker' key (not 'stock_ticker')
                     earnings_companies = [c for c in companies if c.get('ticker')]
-                    logger.info(f"Checking {len(earnings_companies)} companies for earnings transcripts...")
+                    
+                    # Pre-check which tickers already have transcripts for this quarter
+                    existing_urls = set()
+                    try:
+                        existing_q = f"SELECT url FROM `{self.gcp_storage.dataset_id}.articles` WHERE source_type = 'earnings_transcript' AND url LIKE 'earnings://%/{target_year}/Q{target_quarter}'"
+                        for row in self.gcp_storage.client.query(existing_q):
+                            existing_urls.add(row.url)
+                        if existing_urls:
+                            logger.info(f"Skipping {len(existing_urls)} tickers already stored for Q{target_quarter} {target_year}")
+                    except Exception as e:
+                        logger.warning(f"Could not pre-check existing earnings: {e}")
+                    
+                    # Filter out companies already ingested
+                    companies_to_fetch = [
+                        c for c in earnings_companies
+                        if f"earnings://{c['ticker']}/{target_year}/Q{target_quarter}" not in existing_urls
+                    ]
+                    logger.info(f"Checking {len(companies_to_fetch)} companies for Q{target_quarter} {target_year} earnings (skipped {len(earnings_companies) - len(companies_to_fetch)} already stored)")
 
-                    for comp in earnings_companies:
+                    for i, comp in enumerate(companies_to_fetch):
                         try:
-                            transcripts = self.earnings_collector.collect_for_company(
-                                company_id=comp.get('id'),
+                            # Use collect_for_quarter directly — collect_for_company
+                            # only fetches current_year which misses prior-year Q4
+                            transcript = self.earnings_collector.collect_for_quarter(
                                 ticker=comp['ticker'],
+                                year=target_year,
+                                quarter=target_quarter,
                                 company_name=comp.get('name', ''),
-                                since=None  # We're using explicit quarter, not date filtering
                             )
-                            # Filter to target quarter only (collector may return multiple)
-                            for t in transcripts:
-                                if t.year == target_year and t.quarter == target_quarter:
-                                    earnings_items.append(self._convert_earnings_to_article(t))
+                            if transcript:
+                                earnings_items.append(self._convert_earnings_to_article(transcript))
+                            if (i + 1) % 20 == 0:
+                                logger.info(f"Earnings progress: {i + 1}/{len(companies_to_fetch)} companies checked, {len(earnings_items)} transcripts found")
                         except Exception as e:
                             logger.error(f"Earnings fetch failed for {comp.get('ticker')}: {e}")
                     
