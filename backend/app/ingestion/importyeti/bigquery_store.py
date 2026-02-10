@@ -1026,6 +1026,52 @@ class BigQueryStore:
 
         return stats
 
+    def get_tracked_companies_with_stats(self) -> List[Dict[str, Any]]:
+        """Get all target + competitor companies with supplier count stats.
+
+        Used by the Supply Network directory cards view.
+        """
+        query = f"""
+            SELECT
+                c.importyeti_key,
+                c.name,
+                c.entity_type,
+                c.ticker,
+                c.country,
+                c.category,
+                c.total_shipments,
+                COALESCE(edge_stats.supplier_count, 0) AS supplier_count,
+                COALESCE(edge_stats.active_suppliers_12m, 0) AS active_suppliers_12m
+            FROM `{self._table_id(TABLE_COMPANIES)}` c
+            LEFT JOIN (
+                SELECT
+                    source_key,
+                    COUNT(DISTINCT target_key) AS supplier_count,
+                    COUNT(DISTINCT CASE WHEN shipments_12m > 0 THEN target_key END) AS active_suppliers_12m
+                FROM `{self._table_id(TABLE_EDGES)}`
+                WHERE relationship_type = 'imports_from'
+                GROUP BY source_key
+            ) edge_stats ON c.importyeti_key = edge_stats.source_key
+            WHERE c.entity_type IN ('target', 'competitor')
+            ORDER BY
+                CASE c.entity_type WHEN 'target' THEN 0 ELSE 1 END,
+                c.name
+        """
+        try:
+            rows = list(self.client.query(query).result())
+            results = []
+            for r in rows:
+                row_dict = dict(r)
+                # Convert datetimes
+                for k, v in row_dict.items():
+                    if hasattr(v, "isoformat"):
+                        row_dict[k] = v.isoformat()
+                results.append(row_dict)
+            return results
+        except Exception as e:
+            logger.error(f"[IY_STORE] get_tracked_companies_with_stats error: {e}", exc_info=True)
+            return []
+
     def search_by_name(self, name: str) -> Dict[str, List[Dict[str, Any]]]:
         """Search both companies and suppliers by name. Used by MCP tools."""
         return {

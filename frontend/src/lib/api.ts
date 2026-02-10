@@ -695,6 +695,68 @@ class ApiClient {
     return response.json()
   }
 
+  /**
+   * Query the supply chain LLM agent via SSE streaming.
+   * Returns a ReadableStream for SSE event parsing.
+   */
+  async querySupplyChainAgent(
+    query: string,
+    signal?: AbortSignal
+  ): Promise<Response> {
+    const response = await fetch(`${this.baseUrl}/api/supply-network/agent/query`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query }),
+      signal,
+    })
+    if (!response.ok) {
+      throw new Error(`Supply chain search failed: ${response.statusText}`)
+    }
+    return response
+  }
+
+  /**
+   * Get tracked companies (C1 + competitors) with supplier stats for directory cards
+   */
+  async getTrackedCompanies(): Promise<{
+    companies: Array<{
+      importyeti_key: string
+      name: string
+      entity_type: 'target' | 'competitor'
+      ticker: string | null
+      country: string
+      category: string | null
+      total_shipments: number
+      supplier_count: number
+      active_suppliers_12m: number
+    }>
+  }> {
+    const response = await fetch(`${this.baseUrl}/api/supply-network/companies`)
+    if (!response.ok) {
+      throw new Error(`Failed to fetch tracked companies: ${response.statusText}`)
+    }
+    return response.json()
+  }
+
+  /**
+   * Get supply chain intelligence context for a company (earnings, SEC, articles)
+   */
+  async getCompanyIntelligence(importyetiKey: string): Promise<{
+    company_name: string
+    ticker: string | null
+    earnings_quotes: Array<Record<string, any>>
+    sec_nuggets: Array<Record<string, any>>
+    recent_articles: Array<Record<string, any>>
+  }> {
+    const response = await fetch(
+      `${this.baseUrl}/api/supply-network/company/${encodeURIComponent(importyetiKey)}/intelligence`
+    )
+    if (!response.ok) {
+      throw new Error(`Failed to fetch intelligence: ${response.statusText}`)
+    }
+    return response.json()
+  }
+
   // =====================================
   // Industry Narratives
   // =====================================
