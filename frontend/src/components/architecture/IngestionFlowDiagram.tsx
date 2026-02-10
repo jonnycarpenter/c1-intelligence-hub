@@ -247,10 +247,11 @@ export default function IngestionFlowDiagram() {
           color="sky"
           isExpanded={expandedSections.A}
           onToggle={() => toggleSection('A')}
+          nodeCount={ingestionSectionANodes.length}
         />
       </div>
       {expandedSections.A && (
-        <div className="px-2">
+        <div className="px-2 section-content-enter">
           <SectionCanvas
             nodes={ingestionSectionANodes}
             edges={ingestionSectionAEdges}
@@ -274,10 +275,11 @@ export default function IngestionFlowDiagram() {
           color="amber"
           isExpanded={expandedSections.B}
           onToggle={() => toggleSection('B')}
+          nodeCount={secEarningsNodes.length}
         />
       </div>
       {expandedSections.B && (
-        <div className="px-2">
+        <div className="px-2 section-content-enter">
           <SectionCanvas
             nodes={secEarningsNodes}
             edges={secEarningsEdges}
@@ -300,10 +302,11 @@ export default function IngestionFlowDiagram() {
           color="emerald"
           isExpanded={expandedSections.C}
           onToggle={() => toggleSection('C')}
+          nodeCount={podcastNodes.length}
         />
       </div>
       {expandedSections.C && (
-        <div className="px-2">
+        <div className="px-2 section-content-enter">
           <SectionCanvas
             nodes={podcastNodes}
             edges={podcastEdges}
@@ -326,10 +329,11 @@ export default function IngestionFlowDiagram() {
           color="violet"
           isExpanded={expandedSections.D}
           onToggle={() => toggleSection('D')}
+          nodeCount={importYetiNodes.length}
         />
       </div>
       {expandedSections.D && (
-        <div className="px-2 pb-4">
+        <div className="px-2 pb-4 section-content-enter">
           <SectionCanvas
             nodes={importYetiNodes}
             edges={importYetiEdges}

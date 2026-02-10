@@ -1,8 +1,23 @@
 'use client'
 
-import { X, FileCode, Cpu, Database, Globe, ArrowRight, ArrowLeft } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { X, FileCode, Cpu, Database, Globe, ArrowRight, ArrowLeft, ScrollText } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import type { ArchNodeData } from './types'
+import type { ArchNodeData, ArchNodeType } from './types'
+import PromptModal from './PromptModal'
+
+// Color mapping for node type indicators in detail panel header
+const nodeTypeColors: Record<ArchNodeType, { dot: string; bg: string; text: string }> = {
+  dataSource: { dot: 'bg-blue-400', bg: 'bg-blue-50/50', text: 'text-blue-500' },
+  processing: { dot: 'bg-amber-400', bg: 'bg-amber-50/50', text: 'text-amber-500' },
+  agent: { dot: 'bg-emerald-400', bg: 'bg-emerald-50/50', text: 'text-emerald-500' },
+  storage: { dot: 'bg-violet-400', bg: 'bg-violet-50/50', text: 'text-violet-500' },
+  scheduler: { dot: 'bg-orange-400', bg: 'bg-orange-50/50', text: 'text-orange-500' },
+  fanOut: { dot: 'bg-slate-400', bg: 'bg-slate-50/50', text: 'text-slate-500' },
+  externalApi: { dot: 'bg-rose-400', bg: 'bg-rose-50/50', text: 'text-rose-500' },
+  gcpService: { dot: 'bg-sky-400', bg: 'bg-sky-50/50', text: 'text-sky-500' },
+  tabNode: { dot: 'bg-cyan-400', bg: 'bg-cyan-50/50', text: 'text-cyan-500' },
+}
 
 interface DetailPanelProps {
   node: ArchNodeData | null
@@ -10,6 +25,24 @@ interface DetailPanelProps {
 }
 
 export default function DetailPanel({ node, onClose }: DetailPanelProps) {
+  const [promptOpen, setPromptOpen] = useState(false)
+
+  // Close modal on Esc
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && promptOpen) {
+        setPromptOpen(false)
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [promptOpen])
+
+  // Reset modal when node changes
+  useEffect(() => {
+    setPromptOpen(false)
+  }, [node])
+
   return (
     <AnimatePresence>
       {node && (
@@ -21,12 +54,15 @@ export default function DetailPanel({ node, onClose }: DetailPanelProps) {
           className="absolute top-0 right-0 h-full w-[380px] bg-white border-l border-slate-200 shadow-xl z-50 flex flex-col overflow-hidden"
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-slate-50/50">
-            <div>
-              <h3 className="text-sm font-bold text-slate-800">{node.label}</h3>
-              <span className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
-                {node.nodeType.replace(/([A-Z])/g, ' $1').trim()}
-              </span>
+          <div className={`flex items-center justify-between px-5 py-4 border-b border-slate-100 ${nodeTypeColors[node.nodeType]?.bg || 'bg-slate-50/50'}`}>
+            <div className="flex items-center gap-3">
+              <div className={`w-2.5 h-2.5 rounded-full ${nodeTypeColors[node.nodeType]?.dot || 'bg-slate-400'} shrink-0`} />
+              <div>
+                <h3 className="text-sm font-bold text-slate-800">{node.label}</h3>
+                <span className={`text-[10px] font-medium uppercase tracking-wider ${nodeTypeColors[node.nodeType]?.text || 'text-slate-400'}`}>
+                  {node.nodeType.replace(/([A-Z])/g, ' $1').trim()}
+                </span>
+              </div>
             </div>
             <button
               onClick={onClose}
@@ -110,6 +146,22 @@ export default function DetailPanel({ node, onClose }: DetailPanelProps) {
               </div>
             )}
 
+            {/* View System Prompt */}
+            {node.prompt && (
+              <button
+                onClick={() => setPromptOpen(true)}
+                className="flex items-center gap-2 w-full px-3 py-2.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/60 transition-colors group"
+              >
+                <ScrollText className="w-4 h-4 text-indigo-500 group-hover:text-indigo-600 shrink-0" />
+                <span className="text-xs font-medium text-indigo-600 group-hover:text-indigo-700">
+                  View System Prompt
+                </span>
+                <span className="ml-auto text-[10px] text-indigo-400">
+                  {node.prompt.length.toLocaleString()} chars
+                </span>
+              </button>
+            )}
+
             {/* Connections */}
             {node.connections && (
               <div className="space-y-3">
@@ -142,6 +194,16 @@ export default function DetailPanel({ node, onClose }: DetailPanelProps) {
             )}
           </div>
         </motion.div>
+      )}
+
+      {/* Prompt Modal (rendered outside the slide-in panel) */}
+      {node?.prompt && (
+        <PromptModal
+          isOpen={promptOpen}
+          onClose={() => setPromptOpen(false)}
+          agentName={node.label}
+          prompt={node.prompt}
+        />
       )}
     </AnimatePresence>
   )

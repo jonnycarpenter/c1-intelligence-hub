@@ -39,8 +39,9 @@ function GcpServiceNode({ data, selected }: NodeProps & { data: ArchNodeData }) 
 
   return (
     <div
+      title={data.description}
       className={`
-        group relative px-4 py-3 rounded-xl border-2 bg-white shadow-sm
+        arch-node-hover group relative px-4 py-3 rounded-xl border-2 bg-white shadow-sm
         min-w-[150px] max-w-[185px] cursor-pointer transition-all duration-200
         ${selected
           ? 'shadow-md ring-2'

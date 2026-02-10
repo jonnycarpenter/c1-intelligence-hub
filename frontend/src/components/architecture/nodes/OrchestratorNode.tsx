@@ -8,8 +8,9 @@ import { Workflow } from 'lucide-react'
 function OrchestratorNode({ data, selected }: NodeProps & { data: ArchNodeData }) {
   return (
     <div
+      title={data.description}
       className={`
-        group relative px-5 py-4 rounded-xl border-2 bg-gradient-to-br from-sky-50 to-white shadow-sm
+        arch-node-hover animate-orchestrator-pulse group relative px-5 py-4 rounded-xl border-2 bg-gradient-to-br from-sky-50 to-white shadow-sm
         min-w-[170px] cursor-pointer transition-all duration-200
         ${selected
           ? 'border-sky-500 shadow-sky-200 shadow-md ring-2 ring-sky-200'

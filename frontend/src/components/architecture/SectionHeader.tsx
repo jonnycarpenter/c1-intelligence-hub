@@ -1,6 +1,6 @@
 'use client'
 
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 
 interface SectionHeaderProps {
   letter: string
@@ -9,6 +9,7 @@ interface SectionHeaderProps {
   color: string // tailwind color name e.g. 'blue', 'amber', 'emerald'
   isExpanded?: boolean
   onToggle?: () => void
+  nodeCount?: number
 }
 
 const colorMap: Record<string, { bg: string; border: string; text: string; badge: string }> = {
@@ -28,6 +29,7 @@ export default function SectionHeader({
   color,
   isExpanded = true,
   onToggle,
+  nodeCount,
 }: SectionHeaderProps) {
   const colors = colorMap[color] || colorMap.blue
 
@@ -41,12 +43,15 @@ export default function SectionHeader({
       </span>
       <span className={`text-sm font-semibold ${colors.text}`}>{title}</span>
       <span className="text-xs text-slate-500 hidden sm:inline">— {description}</span>
+      {nodeCount !== undefined && (
+        <span className="text-[10px] font-medium text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full">
+          {nodeCount} nodes
+        </span>
+      )}
       <div className="ml-auto">
-        {isExpanded ? (
-          <ChevronDown className={`w-4 h-4 ${colors.text}`} />
-        ) : (
-          <ChevronRight className={`w-4 h-4 ${colors.text}`} />
-        )}
+        <ChevronDown
+          className={`w-4 h-4 ${colors.text} transition-transform duration-200 ${isExpanded ? 'rotate-0' : '-rotate-90'}`}
+        />
       </div>
     </button>
   )

@@ -25,6 +25,15 @@ const TabArchitectureDiagram = dynamic(() => import('./TabArchitectureDiagram'),
   ),
 })
 
+const AgenticWorkflowDiagram = dynamic(() => import('./AgenticWorkflowDiagram'), {
+  ssr: false,
+  loading: () => (
+    <div className="h-full flex items-center justify-center">
+      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-500" />
+    </div>
+  ),
+})
+
 const subTabs: { id: ArchSubTab; label: string; icon: typeof Database; description: string }[] = [
   { id: 'ingestion', label: 'Data Ingestion', icon: Database, description: 'Interactive pipeline diagrams' },
   { id: 'tab-architecture', label: 'Tab Architecture', icon: Layout, description: 'Frontend data flows + GCP' },
@@ -64,17 +73,11 @@ export default function ArchitectureDashboard() {
 
       {/* Sub-tab content */}
       <div className="flex-1 overflow-hidden">
-        {activeSubTab === 'ingestion' && <IngestionFlowDiagram />}
-        {activeSubTab === 'tab-architecture' && <TabArchitectureDiagram />}
-        {activeSubTab === 'agentic-workflows' && (
-          <div className="h-full flex items-center justify-center text-slate-400">
-            <div className="text-center">
-              <Bot className="w-12 h-12 mx-auto mb-3 text-slate-300" />
-              <p className="text-sm font-medium">Agentic Workflows — Coming in Phase 4</p>
-              <p className="text-xs text-slate-400 mt-1">Weekly briefing pipeline + Deep Research multi-agent system</p>
-            </div>
-          </div>
-        )}
+        <div key={activeSubTab} className="h-full animate-tab-enter">
+          {activeSubTab === 'ingestion' && <IngestionFlowDiagram />}
+          {activeSubTab === 'tab-architecture' && <TabArchitectureDiagram />}
+          {activeSubTab === 'agentic-workflows' && <AgenticWorkflowDiagram />}
+        </div>
       </div>
     </div>
   )

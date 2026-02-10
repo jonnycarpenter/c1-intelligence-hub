@@ -18,8 +18,9 @@ function StorageNode({ data, selected }: NodeProps & { data: ArchNodeData }) {
 
   return (
     <div
+      title={data.description}
       className={`
-        group relative px-4 py-3 rounded-xl border-2 bg-white shadow-sm
+        arch-node-hover group relative px-4 py-3 rounded-xl border-2 bg-white shadow-sm
         min-w-[140px] max-w-[180px] cursor-pointer transition-all duration-200
         ${isGcs
           ? (selected

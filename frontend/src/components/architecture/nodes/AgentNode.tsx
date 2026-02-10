@@ -18,8 +18,9 @@ function AgentNode({ data, selected }: NodeProps & { data: ArchNodeData }) {
 
   return (
     <div
+      title={data.description}
       className={`
-        group relative px-4 py-3.5 rounded-lg border-2 bg-gradient-to-br from-emerald-50 to-white shadow-sm
+        arch-node-hover group relative px-4 py-3.5 rounded-lg border-2 bg-gradient-to-br from-emerald-50 to-white shadow-sm
         min-w-[160px] max-w-[190px] cursor-pointer transition-all duration-200
         ${selected
           ? 'border-emerald-500 shadow-emerald-200 shadow-md ring-2 ring-emerald-200'
@@ -27,7 +28,10 @@ function AgentNode({ data, selected }: NodeProps & { data: ArchNodeData }) {
         }
       `}
     >
-      <div className="flex items-center gap-2">
+      {/* Subtle animated glow ring behind the node */}
+      <div className="absolute -inset-[3px] rounded-lg bg-emerald-400/20 animate-agent-glow pointer-events-none" />
+
+      <div className="relative flex items-center gap-2">
         <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center shrink-0">
           <Icon className="w-4.5 h-4.5 text-emerald-600" />
         </div>

@@ -17,7 +17,7 @@ function SchedulerNode({ data, selected }: NodeProps & { data: ArchNodeData }) {
   return (
     <div
       className={`
-        group relative px-3 py-2.5 bg-white shadow-sm cursor-pointer transition-all duration-200
+        arch-node-hover group relative px-3 py-2.5 bg-white shadow-sm cursor-pointer transition-all duration-200
         min-w-[120px] max-w-[160px]
         border-2 rounded-lg
         ${selected

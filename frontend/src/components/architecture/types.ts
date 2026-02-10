@@ -40,6 +40,8 @@ export interface ArchNodeData {
   badge?: string
   // Section grouping
   section?: string
+  // Verbatim system prompt (for agent nodes)
+  prompt?: string
 }
 
 export type ArchSubTab = 'ingestion' | 'tab-architecture' | 'agentic-workflows'
