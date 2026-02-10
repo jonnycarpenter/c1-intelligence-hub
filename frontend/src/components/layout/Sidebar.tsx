@@ -34,20 +34,30 @@ interface NavItem {
   tooltip?: string
 }
 
-const navItems: NavItem[] = [
+// Core workflow tabs
+const coreNavItems: NavItem[] = [
   { id: 'pulse', label: 'The Brief', icon: Activity, description: 'Strategic Priorities', color: 'text-emerald-500', bg: 'bg-emerald-500' },
-  { id: 'discovery', label: 'Market', icon: Compass, description: 'Industry landscape', color: 'text-teal-500', bg: 'bg-teal-500', tooltip: 'Explore market intelligence with AI assistant' },
-  { id: 'research', label: 'Research', icon: Search, description: 'Deep analysis', color: 'text-emerald-500', bg: 'bg-emerald-500' },
-  { id: 'pipeline', label: 'Pipeline', icon: GitBranch, description: 'Prospect discovery', color: 'text-purple-500', bg: 'bg-purple-500', tooltip: 'Find similar companies and decision makers' },
+  { id: 'discovery', label: 'Discovery', icon: Compass, description: 'All Datasets', color: 'text-teal-500', bg: 'bg-teal-500', tooltip: 'Explore market intelligence with AI assistant' },
+  { id: 'research', label: 'Deep Research', icon: Search, description: 'Deep analysis', color: 'text-emerald-500', bg: 'bg-emerald-500' },
+  { id: 'industries', label: 'Core Industries', icon: Factory, description: 'Narrative timelines', color: 'text-purple-500', bg: 'bg-purple-500' },
   { id: 'supply-network', label: 'Supply Network', icon: Ship, description: 'Supply chain graph', color: 'text-indigo-500', bg: 'bg-indigo-500' },
-  // { id: 'importyeti', label: 'Trade Intel', icon: Ship, description: 'Supply chain tracking', color: 'text-indigo-500', bg: 'bg-indigo-500' }, // ARCHIVED
+  { id: 'pipeline', label: 'Company Lookup', icon: GitBranch, description: 'Prospect discovery', color: 'text-purple-500', bg: 'bg-purple-500', isBeta: true, tooltip: 'Find similar companies and decision makers' },
+]
+
+// Documentation & settings tabs (below divider)
+const secondaryNavItems: NavItem[] = [
+  { id: 'app-architecture', label: 'Architecture', icon: Cpu, description: 'System design', color: 'text-sky-500', bg: 'bg-sky-500' },
+  { id: 'data-preferences', label: 'Tracked Entities', icon: Database, description: 'Manage tracked data', color: 'text-cyan-500', bg: 'bg-cyan-500' },
+]
+
+// Hidden tabs (kept for type completeness)
+const hiddenNavItems: NavItem[] = [
   { id: 'products', label: 'Products', icon: Package, description: 'Product intelligence', color: 'text-blue-500', bg: 'bg-blue-500', isBeta: true, isHidden: true },
   { id: 'field-sales', label: 'Field Intel', icon: Mic, description: 'Field observations', color: 'text-emerald-500', bg: 'bg-emerald-500', isDemo: true, isHidden: true, tooltip: 'Capture field intelligence' },
   { id: 'companies', label: 'Companies', icon: Building2, description: 'Coming soon', color: 'text-slate-500', bg: 'bg-slate-500', isDisabled: true, isHidden: true },
-  { id: 'industries', label: 'Industries', icon: Factory, description: 'Narrative timelines', color: 'text-purple-500', bg: 'bg-purple-500' },
-  { id: 'data-preferences', label: 'Data & Prefs', icon: Database, description: 'Manage tracked data', color: 'text-cyan-500', bg: 'bg-cyan-500' },
-  { id: 'app-architecture', label: 'Architecture', icon: Cpu, description: 'System design', color: 'text-sky-500', bg: 'bg-sky-500' },
 ]
+
+const navItems: NavItem[] = [...coreNavItems, ...secondaryNavItems, ...hiddenNavItems]
 
 interface SidebarProps {
   activeMode: Mode
@@ -66,6 +76,60 @@ export default function Sidebar({
   reportCount,
   onOpenReport,
 }: SidebarProps) {
+  const renderNavItem = (item: NavItem) => {
+    const isActive = activeMode === item.id
+    const Icon = item.icon
+    const isDisabled = item.isDisabled
+    return (
+      <button
+        key={item.id}
+        onClick={() => setActiveMode(item.id)}
+        title={isDisabled && item.tooltip ? item.tooltip : undefined}
+        className={cn(
+          'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all relative group',
+          isDisabled
+            ? 'opacity-50 cursor-default'
+            : isActive
+              ? 'bg-slate-800/80 text-white'
+              : 'text-slate-300 hover:bg-slate-800/40 hover:text-white'
+        )}
+      >
+        {isActive && !isDisabled && (
+          <motion.span
+            layoutId="sidebar-active-pill"
+            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+            className={cn('absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full', item.bg)}
+          />
+        )}
+        <span
+          className={cn(
+            'w-8 h-8 rounded-lg flex items-center justify-center transition-colors relative z-10',
+            isDisabled ? 'bg-slate-800/30' : isActive ? `${item.bg}/20` : 'bg-slate-800/50'
+          )}
+        >
+          <Icon size={18} className={isDisabled ? 'text-slate-600' : isActive ? item.color : 'text-slate-400'} />
+        </span>
+        {!collapsed && (
+          <span className="flex-1 text-left">
+            <span className="flex items-center gap-2">
+              <span className={cn('text-sm font-medium', isDisabled && 'text-slate-500')}>{item.label}</span>
+              {isDisabled && (
+                <span className="text-[10px] px-1.5 py-0.5 bg-slate-700 text-slate-400 rounded-full">Soon</span>
+              )}
+              {item.isBeta && (
+                <span className="text-[10px] px-1.5 py-0.5 bg-blue-600 text-blue-100 rounded-full font-medium">Beta</span>
+              )}
+              {item.isDemo && (
+                <span className="text-[10px] px-1.5 py-0.5 bg-blue-600 text-blue-100 rounded-full font-medium">Demo</span>
+              )}
+            </span>
+            <span className="text-xs text-slate-500 block">{item.description}</span>
+          </span>
+        )}
+      </button>
+    )
+  }
+
   return (
     <aside
       className={cn(
@@ -89,82 +153,14 @@ export default function Sidebar({
 
       {/* Navigation */}
       <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto scrollbar-hide">
-        {navItems.filter(item => !item.isHidden).map((item) => {
-          const isActive = activeMode === item.id
-          const Icon = item.icon
-          const isDisabled = item.isDisabled
-          return (
-            <button
-              key={item.id}
-              onClick={() => setActiveMode(item.id)}
-              title={isDisabled && item.tooltip ? item.tooltip : undefined}
-              className={cn(
-                'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all relative group',
-                isDisabled
-                  ? 'opacity-50 cursor-default'
-                  : isActive
-                    ? 'bg-slate-800/80 text-white'
-                    : 'text-slate-300 hover:bg-slate-800/40 hover:text-white'
-              )}
-            >
-              {isActive && !isDisabled && (
-                <motion.span
-                  layoutId="sidebar-active-pill"
-                  transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                  className={cn('absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full', item.bg)}
-                />
-              )}
-              <span
-                className={cn(
-                  'w-8 h-8 rounded-lg flex items-center justify-center transition-colors relative z-10',
-                  isDisabled ? 'bg-slate-800/30' : isActive ? `${item.bg}/20` : 'bg-slate-800/50'
-                )}
-              >
-                <Icon size={18} className={isDisabled ? 'text-slate-600' : isActive ? item.color : 'text-slate-400'} />
-              </span>
-              {!collapsed && (
-                <span className="flex-1 text-left">
-                  <span className="flex items-center gap-2">
-                    <span className={cn('text-sm font-medium', isDisabled && 'text-slate-500')}>{item.label}</span>
-                    {isDisabled && (
-                      <span className="text-[10px] px-1.5 py-0.5 bg-slate-700 text-slate-400 rounded-full">Soon</span>
-                    )}
-                    {item.isBeta && (
-                      <span className="text-[10px] px-1.5 py-0.5 bg-blue-600 text-blue-100 rounded-full font-medium">Beta</span>
-                    )}
-                    {item.isDemo && (
-                      <span className="text-[10px] px-1.5 py-0.5 bg-blue-600 text-blue-100 rounded-full font-medium">Demo</span>
-                    )}
-                  </span>
-                  <span className="text-xs text-slate-500 block">{item.description}</span>
-                </span>
-              )}
-            </button>
-          )
-        })}
+        {/* Core workflow tabs */}
+        {coreNavItems.filter(item => !item.isHidden).map((item) => renderNavItem(item))}
 
+        {/* Divider between core and secondary */}
         <div className="my-4 mx-3 border-t border-slate-800/50" />
 
-        {/* Report Builder Button - HIDDEN per user request */}
-        {/* <button
-          onClick={onOpenReport}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800/40 hover:text-white transition-all"
-        >
-          <span className="w-8 h-8 rounded-lg bg-slate-800/50 flex items-center justify-center relative">
-            <FileText size={18} className="text-slate-400" />
-            {reportCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
-                {reportCount}
-              </span>
-            )}
-          </span>
-          {!collapsed && (
-            <span className="flex-1 text-left">
-              <span className="text-sm font-medium block">Report Builder</span>
-              <span className="text-xs text-slate-500 block">{reportCount} items</span>
-            </span>
-          )}
-        </button> */}
+        {/* Documentation & settings tabs */}
+        {secondaryNavItems.filter(item => !item.isHidden).map((item) => renderNavItem(item))}
 
         {/* Divider before future pages */}
         <div className="my-4 mx-3 border-t border-slate-800/50" />

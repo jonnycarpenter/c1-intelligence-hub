@@ -625,9 +625,9 @@ export const modeConfig = {
 
   'app-architecture': {
     icon: 'Cpu',
-    title: 'App Architecture',
+    title: 'Platform Architecture',
     subtitle: 'System design & data flows',
-    description: 'Architecture showcase',
+    description: 'Platform architecture',
     color: 'text-sky-500',
     bg: 'bg-sky-100',
     bgDark: 'bg-sky-500',
@@ -667,12 +667,12 @@ export const welcomeMessages: Record<Mode, string> = {
   research: "Welcome to Deep Research. I'm ready for comprehensive analysis.\n\nI can help you with:\n• **Earnings call analysis** — themes, sentiment\n• **Financial trends** — commodities, pricing\n• **Comparative analysis** — across companies",
   products: "Welcome to Product Intelligence.\n\nI can help you with:\n• **SKU lookups** — competitor catalogs\n• **Spec comparisons** — technical specs\n• **Gap analysis** — opportunities",
   'field-sales': "Welcome to Field Intel. Coming soon!\n\nYou'll be able to:\n• **Record voice memos** — capture field intelligence\n• **Log competitor sightings** — track field observations\n• **Share insights** — distribute intel to the team",
-  pipeline: "Welcome to Pipeline.\n\nDiscover new prospects and contacts using AI-powered semantic search:\n• **Find Similar Companies** — Enter a customer URL to find lookalikes\n• **Search Companies** — Natural language company discovery\n• **Find Contacts** — Decision makers by role and industry",
+  pipeline: "Welcome to Company Lookup.\n\nDiscover new prospects and contacts using AI-powered semantic search:\n• **Find Similar Companies** — Enter a customer URL to find lookalikes\n• **Search Companies** — Natural language company discovery\n• **Find Contacts** — Decision makers by role and industry",
   'supply-network': "Welcome to Supply Network.\n\nVisualize supply chain relationships:\n• **Network graph** — C1 and 10 competitors with their suppliers\n• **Drill-down** — Click any node to see supplier or buyer details\n• **Shared suppliers** — Identify overlapping supply chains",
   companies: "Welcome to Company Intelligence.\n\nI can help you with:\n• **Company tracking** — competitors, suppliers, customers\n• **Earnings analysis** — financial performance\n• **Market position** — competitive landscape",
-  industries: "Welcome to Industry Narratives.\n\nExplore how news evolves over 90 days:\n• **Monthly timelines** — article counts, event types, deltas\n• **Top companies & themes** — who and what is driving each industry\n• **Drill-down** — click into any month for full article list",
-  'data-preferences': "Welcome to Data Preferences.\n\nI can help you with:\n• **Company tracking** — add or remove companies\n• **Material preferences** — focus materials\n• **Industry settings** — customize your focus areas",
-  'app-architecture': "Welcome to Architecture.\n\nExplore the system design:\n• **Data Ingestion** — 10 source pipelines\n• **Frontend Architecture** — Tab data flows + GCP infrastructure\n• **Agentic Workflows** — Multi-agent briefings & research",
+  industries: "Welcome to Core Industries.\n\nExplore how news evolves over 90 days:\n• **Monthly timelines** — article counts, event types, deltas\n• **Top companies & themes** — who and what is driving each industry\n• **Drill-down** — click into any month for full article list",
+  'data-preferences': "Welcome to Tracked Entities.\n\nI can help you with:\n• **Company tracking** — add or remove companies\n• **Material preferences** — focus materials\n• **Industry settings** — customize your focus areas",
+  'app-architecture': "Welcome to Platform Architecture.\n\nExplore the system design:\n• **Data Ingestion** — 10 source pipelines\n• **Frontend Architecture** — Tab data flows + GCP infrastructure\n• **Agentic Workflows** — Multi-agent briefings & research",
 
   // importyeti: "Welcome to Trade Intelligence.\n\nI can help you with:\n• **Shipment tracking** — Monitor import volumes\n• **Supplier analysis** — Deep dive into supplier relationships\n• **Competitive intel** — See who else is buying from your suppliers", // ARCHIVED
 }

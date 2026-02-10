@@ -480,7 +480,7 @@ export default function IndustriesDashboard() {
   return (
     <div className="h-full flex flex-col bg-gradient-to-br from-slate-50 to-purple-50/30">
       {/* Header */}
-      <div className="px-6 py-4 border-b border-slate-200 bg-white/80 backdrop-blur-sm">
+      <div className="px-6 py-4 border-b border-slate-200 bg-white/80 backdrop-blur-sm shrink-0">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg bg-purple-500 flex items-center justify-center">
@@ -564,7 +564,7 @@ export default function IndustriesDashboard() {
       {/* Timeline Summary */}
       {timeline && !isLoadingTimeline && (
         <>
-          <div className="px-6 py-3 border-b border-slate-200 bg-white/50 flex items-center gap-6">
+          <div className="px-6 py-3 border-b border-slate-200 bg-white/50 flex items-center gap-6 shrink-0">
             <div>
               <span className="text-xs text-slate-500">Total Articles</span>
               <p className="text-lg font-bold text-slate-900">{timeline.totals.total_articles}</p>
@@ -622,41 +622,44 @@ export default function IndustriesDashboard() {
             </div>
           )}
 
-          {/* Overall Narrative Banner */}
-          {narrative && (
-            <NarrativeBanner
-              narrative={narrative.industry_narrative}
-              keyInsight={narrative.key_insight}
-              enrichmentSources={narrative.enrichment_sources_used}
-            />
-          )}
-
-          {/* Monthly Timeline Grid */}
-          <div className="flex-1 overflow-auto p-6">
-            {timeline.monthly_data.length === 0 ? (
-              <div className="flex items-center justify-center h-40 text-center">
-                <div>
-                  <Factory size={40} className="text-slate-300 mx-auto mb-3" />
-                  <p className="text-sm text-slate-500">No articles found for this industry in the last 90 days</p>
-                </div>
-              </div>
-            ) : (
-              <div
-                className="grid gap-4"
-                style={{
-                  gridTemplateColumns: `repeat(${Math.min(timeline.monthly_data.length, 3)}, minmax(320px, 1fr))`,
-                }}
-              >
-                {timeline.monthly_data.slice(0, 3).map((month) => (
-                  <MonthColumn
-                    key={month.month}
-                    data={month}
-                    monthNarrative={monthNarrativeMap.get(month.month)}
-                    onViewArticles={handleViewArticles}
-                  />
-                ))}
-              </div>
+          {/* Scrollable area: narrative banner + monthly grid */}
+          <div className="flex-1 overflow-auto min-h-0">
+            {/* Overall Narrative Banner */}
+            {narrative && (
+              <NarrativeBanner
+                narrative={narrative.industry_narrative}
+                keyInsight={narrative.key_insight}
+                enrichmentSources={narrative.enrichment_sources_used}
+              />
             )}
+
+            {/* Monthly Timeline Grid */}
+            <div className="p-6">
+              {timeline.monthly_data.length === 0 ? (
+                <div className="flex items-center justify-center h-40 text-center">
+                  <div>
+                    <Factory size={40} className="text-slate-300 mx-auto mb-3" />
+                    <p className="text-sm text-slate-500">No articles found for this industry in the last 90 days</p>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  className="grid gap-4"
+                  style={{
+                    gridTemplateColumns: `repeat(${Math.min(timeline.monthly_data.length, 3)}, minmax(320px, 1fr))`,
+                  }}
+                >
+                  {timeline.monthly_data.slice(0, 3).map((month) => (
+                    <MonthColumn
+                      key={month.month}
+                      data={month}
+                      monthNarrative={monthNarrativeMap.get(month.month)}
+                      onViewArticles={handleViewArticles}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </>
       )}

@@ -150,6 +150,7 @@ class AdHocBriefingRequest(BaseModel):
     is_follow_up: bool = Field(default=False, description="Whether this is a follow-up question")
     stream: bool = Field(default=False, description="Whether to stream the response")
     session_id: Optional[str] = Field(default=None, description="Session ID for stateful conversation. Omit for new session.")
+    subtab: Optional[str] = Field(default=None, description="Active Discovery subtab (articleFeed, financialFeed, expertFeed). Controls which data sources are queried.")
 
 
 class AdHocBriefingSourceUsed(BaseModel):
@@ -500,6 +501,7 @@ async def create_adhoc_briefing(
             is_follow_up=request.is_follow_up,
             session=session,
             user_team=x_user_team,
+            subtab=request.subtab,
         )
         
         logger.info(f"Ad hoc briefing generated: id={result.get('id')}, confidence={result.get('confidence')}, session={session.session_id}")
@@ -557,6 +559,7 @@ async def create_adhoc_briefing_stream(
                 is_follow_up=request.is_follow_up,
                 session=session,
                 user_team=x_user_team,
+                subtab=request.subtab,
             ):
                 yield f"data: {chunk}\n\n"
             yield "data: [DONE]\n\n"

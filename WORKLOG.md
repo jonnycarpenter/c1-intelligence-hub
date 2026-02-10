@@ -139,6 +139,36 @@ The weekly briefing pipeline is now production-grade:
 | `backend/scripts/operations/cleanup_briefings.py` | Updated for current cleanup targets |
 
 ---
+## 📅 SESSION 110: Q4 2025 Earnings Backfill + Quote Extraction (February 10, 2026)
+
+**Status**: ✅ COMPLETE
+
+### 🎯 Goal
+
+Confirm Q4 2025 earnings transcripts landed in BigQuery and run quote extraction for pending transcripts.
+
+### ✅ Completed
+
+1. **Q4 2025 transcripts ingested** — Local earnings-only backfill using API Ninja:
+   - Secret Manager `api-ninja-key` validated and used locally
+   - BigQuery check: **22** transcripts stored for `earnings://%/2025/Q4`
+
+2. **Earnings quote extraction backfill** — Ran `backfill_earnings_quotes.py` with Anthropic ingestion key:
+   - **22 transcripts processed**
+   - **787 quotes extracted** (639 quotable)
+   - **787 quotes stored** in `earnings_quotes`
+
+3. **BigQuery confirmation** — Post-run totals:
+   - `earnings_quotes`: **2,486** rows
+   - `transcripts_processed`: **62**
+   - `last_extracted`: **2026-02-10 22:25:23**
+
+### 📁 Files Modified
+| File | Change |
+|------|--------|
+| _(no code changes)_ | Data backfill and BigQuery verification only |
+
+---
 ## 📅 SESSION 109: Update Guide Agent Knowledge Base (February 10, 2026)
 
 **Status**: ✅ COMPLETE

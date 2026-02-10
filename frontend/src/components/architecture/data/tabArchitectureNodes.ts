@@ -90,7 +90,7 @@ const tabNodes: Node<ArchNodeData>[] = [
     type: 'tabNode',
     position: { x: COL_TABS, y: 270 },
     data: {
-      label: 'Pipeline',
+      label: 'Company Lookup',
       nodeType: 'tabNode',
       description: 'Two modes — Instant (~350ms, 12 tools) and Full (1-5 min, 13 tools, requires CONFIRM). 12 MCP tools: Exa search, Apollo firmographic, BigQuery corpus. Post-enrichment filtering.',
       icon: 'pipeline',

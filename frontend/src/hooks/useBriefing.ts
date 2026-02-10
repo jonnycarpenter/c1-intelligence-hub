@@ -180,7 +180,8 @@ export function useAdHocBriefing() {
     const streamQuestion = useCallback(async (
         question: string,
         context?: AdHocBriefingContext,
-        isFollowUp: boolean = false
+        isFollowUp: boolean = false,
+        subtab?: string,
     ) => {
         setIsStreaming(true)
         setStreamedText('')
@@ -194,6 +195,7 @@ export function useAdHocBriefing() {
                 context,
                 is_follow_up: isFollowUp,
                 session_id: sessionId ?? undefined,  // Pass existing session_id if we have one
+                subtab,
             })
 
             if (!stream) {

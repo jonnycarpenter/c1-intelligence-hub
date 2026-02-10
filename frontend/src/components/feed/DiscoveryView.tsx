@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useMemo, useImperativeHandle, forwardRef, useCallback, useRef } from 'react'
+import React, { useState, useMemo, useImperativeHandle, forwardRef, useCallback, useRef, useEffect } from 'react'
 import {
   ChevronRight,
   TrendingUp,
@@ -495,6 +495,13 @@ const DiscoveryView = forwardRef<DiscoveryViewRef, DiscoveryViewProps>(
     // Sub-tab state
     const [activeSubTab, setActiveSubTab] = useState<SubTab>('themes')
 
+    // Glow animation - plays once on mount to draw attention to feed tabs
+    const [hasGlowed, setHasGlowed] = useState(false)
+    useEffect(() => {
+      const timer = setTimeout(() => setHasGlowed(true), 2200)
+      return () => clearTimeout(timer)
+    }, [])
+
     // Detail panel state
     const [selectedCategory, setSelectedCategory] = useState<Category | null>(null)
     const [detailMode, setDetailMode] = useState<DetailMode>(null)
@@ -643,24 +650,33 @@ const DiscoveryView = forwardRef<DiscoveryViewRef, DiscoveryViewProps>(
           {/* Ask about the feed - Collapsible section */}
           <div className="shrink-0 px-6 py-3 border-b border-slate-100">
             <button
-              onClick={() => setIsAssistantExpanded(!isAssistantExpanded)}
-              className="w-full flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200/50 hover:from-emerald-100 hover:to-teal-100 transition-colors"
+              onClick={() => activeSubTab !== 'themes' && setIsAssistantExpanded(!isAssistantExpanded)}
+              className={cn(
+                "w-full flex items-center justify-between p-3 rounded-xl border transition-colors",
+                activeSubTab === 'themes'
+                  ? "bg-slate-50 border-slate-200/50 cursor-default opacity-60"
+                  : "bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-200/50 hover:from-emerald-100 hover:to-teal-100"
+              )}
             >
               <div className="flex items-center gap-2">
-                <Sparkles size={16} className="text-emerald-600" />
-                <span className="text-sm font-medium text-emerald-800">Ask about the feed...</span>
+                <Sparkles size={16} className={activeSubTab === 'themes' ? "text-slate-400" : "text-emerald-600"} />
+                <span className={cn("text-sm font-medium", activeSubTab === 'themes' ? "text-slate-400" : "text-emerald-800")}>
+                  {activeSubTab === 'themes' ? 'Switch to a feed tab to ask questions' : 'Ask about the feed...'}
+                </span>
               </div>
-              <ChevronRight
-                size={16}
-                className={cn(
-                  "text-emerald-500 transition-transform duration-200",
-                  isAssistantExpanded && "rotate-90"
-                )}
-              />
+              {activeSubTab !== 'themes' && (
+                <ChevronRight
+                  size={16}
+                  className={cn(
+                    "text-emerald-500 transition-transform duration-200",
+                    isAssistantExpanded && "rotate-90"
+                  )}
+                />
+              )}
             </button>
-            {isAssistantExpanded && (
+            {isAssistantExpanded && activeSubTab !== 'themes' && (
               <div className="mt-3 max-h-[400px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300">
-                <AdHocBriefing compact initialQuery={assistantQuery} context={adHocContext} />
+                <AdHocBriefing compact initialQuery={assistantQuery} context={adHocContext} subtab={activeSubTab} />
               </div>
             )}
           </div>
@@ -686,7 +702,8 @@ const DiscoveryView = forwardRef<DiscoveryViewRef, DiscoveryViewProps>(
                   "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all",
                   activeSubTab === 'articleFeed'
                     ? "bg-white shadow-sm border border-slate-200 text-slate-800"
-                    : "text-slate-500 hover:text-slate-700 hover:bg-white/50"
+                    : "text-slate-500 hover:text-slate-700 hover:bg-white/50 hover:shadow-[0_0_12px_rgba(20,184,166,0.25)]",
+                  !hasGlowed && activeSubTab !== 'articleFeed' && "animate-subtab-glow"
                 )}
               >
                 <Rows3 size={16} />
@@ -698,7 +715,8 @@ const DiscoveryView = forwardRef<DiscoveryViewRef, DiscoveryViewProps>(
                   "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all",
                   activeSubTab === 'financialFeed'
                     ? "bg-white shadow-sm border border-slate-200 text-slate-800"
-                    : "text-slate-500 hover:text-slate-700 hover:bg-white/50"
+                    : "text-slate-500 hover:text-slate-700 hover:bg-white/50 hover:shadow-[0_0_12px_rgba(245,158,11,0.25)]",
+                  !hasGlowed && activeSubTab !== 'financialFeed' && "animate-subtab-glow-delay-1"
                 )}
               >
                 <DollarSign size={16} />
@@ -710,7 +728,8 @@ const DiscoveryView = forwardRef<DiscoveryViewRef, DiscoveryViewProps>(
                   "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all",
                   activeSubTab === 'expertFeed'
                     ? "bg-white shadow-sm border border-slate-200 text-slate-800"
-                    : "text-slate-500 hover:text-slate-700 hover:bg-white/50"
+                    : "text-slate-500 hover:text-slate-700 hover:bg-white/50 hover:shadow-[0_0_12px_rgba(168,85,247,0.25)]",
+                  !hasGlowed && activeSubTab !== 'expertFeed' && "animate-subtab-glow-delay-2"
                 )}
               >
                 <Mic size={16} />

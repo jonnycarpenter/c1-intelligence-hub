@@ -24,9 +24,9 @@ const modeConfig: Record<Mode, { icon: typeof Activity; title: string; subtitle:
     bg: 'bg-emerald-100',
   },
   discovery: {
-    icon: Activity, // Using Activity temporarily, could use Compass
-    title: 'Market Intelligence',
-    subtitle: 'Industry landscape',
+    icon: Activity,
+    title: 'Discovery',
+    subtitle: 'All Datasets',
     color: 'text-teal-500',
     bg: 'bg-teal-100',
   },
@@ -53,7 +53,7 @@ const modeConfig: Record<Mode, { icon: typeof Activity; title: string; subtitle:
   },
   pipeline: {
     icon: GitBranch,
-    title: 'Pipeline',
+    title: 'Company Lookup',
     subtitle: 'Companies, Prospects, and Decision Makers',
     color: 'text-slate-500',
     bg: 'bg-slate-100',
@@ -74,21 +74,21 @@ const modeConfig: Record<Mode, { icon: typeof Activity; title: string; subtitle:
   },
   industries: {
     icon: Factory,
-    title: 'Industry Narratives',
+    title: 'Core Industries',
     subtitle: '90-day narrative timelines by end-market',
     color: 'text-purple-500',
     bg: 'bg-purple-100',
   },
   'data-preferences': {
     icon: Database,
-    title: 'Data & Preferences',
-    subtitle: 'Manage tracked data & settings',
+    title: 'Tracked Entities',
+    subtitle: 'Manage tracked companies & data',
     color: 'text-cyan-500',
     bg: 'bg-cyan-100',
   },
   'app-architecture': {
     icon: Activity,
-    title: 'App Architecture',
+    title: 'Platform Architecture',
     subtitle: 'System design & data flows',
     color: 'text-sky-500',
     bg: 'bg-sky-100',

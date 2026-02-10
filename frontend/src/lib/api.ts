@@ -505,6 +505,7 @@ class ApiClient {
     }
     is_follow_up?: boolean
     session_id?: string
+    subtab?: string
   }): Promise<ReadableStream<Uint8Array> | null> {
     // Create AbortController for timeout
     const controller = new AbortController()

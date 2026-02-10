@@ -222,6 +222,29 @@ html {
   animation: tab-fade-in 0.25s ease-out;
 }
 
+/* =============================================================================
+   Discovery Subtab Glow Animations
+   ============================================================================= */
+
+/* One-shot attention glow for feed subtabs on Discovery tab load */
+@keyframes subtab-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(20, 184, 166, 0); }
+  40% { box-shadow: 0 0 18px 4px rgba(20, 184, 166, 0.4); }
+  70% { box-shadow: 0 0 8px 2px rgba(20, 184, 166, 0.2); }
+}
+
+.animate-subtab-glow {
+  animation: subtab-glow 1.8s ease-in-out 1;
+}
+
+/* Staggered delay variants for sequential glow effect */
+.animate-subtab-glow-delay-1 {
+  animation: subtab-glow 1.8s ease-in-out 0.2s 1 both;
+}
+.animate-subtab-glow-delay-2 {
+  animation: subtab-glow 1.8s ease-in-out 0.4s 1 both;
+}
+
 /* Node hover lift — shared across all architecture node types */
 .arch-node-hover:hover {
   transform: translateY(-1px);

@@ -221,6 +221,78 @@ Respond with a JSON object:
     "deep_research_reason": "Optional: why deep research would help"
 }}"""
 
+    # =========================================================================
+    # Per-Subtab System Prompts
+    # =========================================================================
+
+    FINANCIAL_SYSTEM_PROMPT = """You are a financial intelligence analyst for Composites One (C1), the largest composites distributor in North America.
+
+You specialize in analyzing earnings calls and SEC filings for competitive intelligence relevant to the composites industry.
+
+DATA SOURCES PROVIDED:
+The search results below come from pre-extracted executive quotes from earnings calls and strategic insights from SEC filings. You do NOT need to call any tools. Simply synthesize the provided data.
+
+RESPONSE FORMAT (use this exact structure):
+
+## Executive Quotes
+For each relevant quote, use this format:
+> "quote text" — **Speaker Name**, Title (TICKER, QN YYYY)
+
+Group quotes by theme (guidance, competitive, pricing, etc.) and add 1-2 sentence analysis after each.
+
+## SEC Filing Insights
+For each relevant SEC nugget:
+- **Signal Type** (signal_strength): Key finding from filing
+  - Filing: 10-K/10-Q/8-K, Section, Fiscal Year
+
+## Analysis
+[2-3 paragraphs synthesizing what the earnings + SEC data reveals for C1's business — competitive positioning, pricing trends, market outlook]
+
+## Sources
+1. [Company] QN YYYY Earnings Call — [speaker]
+2. [Company] 10-K YYYY — [section]
+
+CITATION RULES:
+- Attribute every quote to its speaker with ticker and quarter
+- Reference SEC filing type and section
+- Bold the signal type (guidance, risk_admission, competitive_disclosure, etc.)
+
+If data is insufficient, recommend the **Deep Research** feature."""
+
+    EXPERT_SYSTEM_PROMPT = """You are an industry intelligence analyst for Composites One (C1), the largest composites distributor in North America.
+
+You specialize in synthesizing insights from composites industry podcasts and expert commentary.
+
+DATA SOURCES PROVIDED:
+The search results below come from pre-extracted speaker-attributed quotes from industry podcasts (CW Talks, Composites Weekly, The Chemical Show, ICIS Chemical, Uptime Wind Energy). You do NOT need to call any tools. Simply synthesize the provided data.
+
+RESPONSE FORMAT (use this exact structure):
+
+## Expert Insights
+For each relevant quote, use this format:
+> "quote text" — **Speaker Name**, *Podcast Name* (date)
+
+Group by theme and add 1-2 sentence analysis connecting to C1's business.
+
+## Key Themes
+- **Theme 1**: Summary of what experts are saying about this theme
+- **Theme 2**: Summary with supporting quotes
+
+## Industry Sentiment
+[1-2 paragraphs on the overall industry mood, emerging trends, and what practitioners are signaling about the near-term outlook for composites]
+
+## Sources
+1. *Podcast Name* — Speaker Name (date)
+2. *Podcast Name* — Speaker Name (date)
+
+CITATION RULES:
+- Always attribute quotes to speakers with podcast name and date
+- Italicize podcast names
+- Bold speaker names
+- Group insights by theme (fiber_materials, resin_systems, sustainability, pricing, supply_chain, etc.)
+
+If data is insufficient, recommend the **Deep Research** feature."""
+
     def __init__(self, config=None):
         self.config = config or settings
         # Resilient client for non-streaming calls
@@ -230,7 +302,7 @@ Respond with a JSON object:
         )
         # Raw client for streaming (fallback to Anthropic-only for streaming)
         self._streaming_client = AsyncAnthropic(api_key=self.config.anthropic_api_key)
-        self.model = "claude-sonnet-4-5"  # Thorough model for quality responses
+        self.model = "claude-opus-4-5"  # Upgraded for quality intelligence responses
         self.timeout_seconds = 120  # 2-minute timeout
         self._vector_store = None
         self._bq_storage = None
@@ -387,7 +459,134 @@ Respond with a JSON object:
         )
         
         return results
-    
+
+    async def search_financial_data(self, query: str) -> Dict[str, Any]:
+        """
+        Search earnings quotes and SEC nuggets for the financial subtab.
+        """
+        start_time = time.time()
+        query_preview = query[:60] + ("..." if len(query) > 60 else "")
+        logger.info(f"[ADHOC_AGENT] Financial data search START: query='{query_preview}'")
+
+        results = {
+            "earnings_quotes": [],
+            "sec_nuggets": [],
+        }
+
+        # Search earnings quotes
+        try:
+            eq_start = time.time()
+            from app.mcp.tools.earnings_quotes import search_earnings_quotes
+            eq_result = await search_earnings_quotes.ainvoke({"query": query, "limit": 15, "quotable_only": True})
+            eq_elapsed = time.time() - eq_start
+            if eq_result and isinstance(eq_result, str):
+                data = json.loads(eq_result)
+                if data.get("quotes"):
+                    results["earnings_quotes"] = data["quotes"]
+                    logger.info(f"[ADHOC_AGENT] Earnings quotes COMPLETE: {eq_elapsed:.2f}s, {len(results['earnings_quotes'])} quotes")
+        except Exception as e:
+            logger.warning(f"[ADHOC_AGENT] Earnings quotes search FAILED: {str(e)}")
+
+        # Search SEC nuggets
+        try:
+            sn_start = time.time()
+            from app.mcp.tools.sec_nuggets import search_sec_nuggets
+            sn_result = await search_sec_nuggets.ainvoke({"query": query, "limit": 15})
+            sn_elapsed = time.time() - sn_start
+            if sn_result and isinstance(sn_result, str):
+                data = json.loads(sn_result)
+                if data.get("nuggets"):
+                    results["sec_nuggets"] = data["nuggets"]
+                    logger.info(f"[ADHOC_AGENT] SEC nuggets COMPLETE: {sn_elapsed:.2f}s, {len(results['sec_nuggets'])} nuggets")
+        except Exception as e:
+            logger.warning(f"[ADHOC_AGENT] SEC nuggets search FAILED: {str(e)}")
+
+        elapsed = time.time() - start_time
+        total = len(results["earnings_quotes"]) + len(results["sec_nuggets"])
+        logger.info(f"[ADHOC_AGENT] Financial data search COMPLETE: {elapsed:.2f}s, {total} total results")
+        return results
+
+    def _format_financial_results(self, results: Dict[str, Any]) -> str:
+        """Format earnings quotes and SEC nuggets for the prompt."""
+        sections = []
+
+        if results.get("earnings_quotes"):
+            section = "## Earnings Call Quotes\n"
+            for q in results["earnings_quotes"][:12]:
+                section += f"### {q.get('speaker_name', 'Unknown')} — {q.get('speaker_role', '')} ({q.get('ticker', '?')}, Q{q.get('quarter', '?')} {q.get('year', '')})\n"
+                section += f"**Type:** {q.get('quote_type', 'unknown')} | **Section:** {q.get('section', 'unknown')}\n"
+                section += f"> {q.get('quote_text', '')}\n"
+                if q.get('context'):
+                    section += f"*Context: {q['context']}*\n"
+                section += "\n"
+            sections.append(section)
+
+        if results.get("sec_nuggets"):
+            section = "## SEC Filing Nuggets\n"
+            for n in results["sec_nuggets"][:12]:
+                section += f"### {n.get('ticker', '?')} — {n.get('filing_type', 'Filing')} ({n.get('fiscal_year', '')})\n"
+                section += f"**Type:** {n.get('nugget_type', 'unknown')} | **Signal:** {n.get('signal_strength', 'standard')} | **Section:** {n.get('section', 'unknown')}\n"
+                section += f"{n.get('nugget_text', '')}\n"
+                if n.get('companies_mentioned'):
+                    section += f"*Companies: {', '.join(n['companies_mentioned'])}*\n"
+                section += "\n"
+            sections.append(section)
+
+        return "\n\n".join(sections)
+
+    async def search_expert_data(self, query: str) -> Dict[str, Any]:
+        """
+        Search podcast quotes for the expert subtab.
+        """
+        start_time = time.time()
+        query_preview = query[:60] + ("..." if len(query) > 60 else "")
+        logger.info(f"[ADHOC_AGENT] Expert data search START: query='{query_preview}'")
+
+        results = {"podcast_quotes": []}
+
+        try:
+            pq_start = time.time()
+            from app.mcp.tools.podcast_quotes import search_podcast_quotes
+            pq_result = search_podcast_quotes.invoke({"search_query": query, "limit": 15, "days": 90})
+            pq_elapsed = time.time() - pq_start
+            if pq_result and isinstance(pq_result, str):
+                data = json.loads(pq_result)
+                if data.get("quotes"):
+                    results["podcast_quotes"] = data["quotes"]
+                    logger.info(f"[ADHOC_AGENT] Podcast quotes COMPLETE: {pq_elapsed:.2f}s, {len(results['podcast_quotes'])} quotes")
+        except Exception as e:
+            logger.warning(f"[ADHOC_AGENT] Podcast quotes search FAILED: {str(e)}")
+
+        elapsed = time.time() - start_time
+        logger.info(f"[ADHOC_AGENT] Expert data search COMPLETE: {elapsed:.2f}s, {len(results['podcast_quotes'])} results")
+        return results
+
+    def _format_expert_results(self, results: Dict[str, Any]) -> str:
+        """Format podcast quotes for the prompt."""
+        if not results.get("podcast_quotes"):
+            return ""
+
+        section = "## Podcast Expert Quotes\n"
+        for q in results["podcast_quotes"][:12]:
+            section += f"### {q.get('speaker_name', 'Unknown')} — *{q.get('podcast_name', 'Podcast')}*\n"
+            if q.get('themes'):
+                themes = q['themes'] if isinstance(q['themes'], list) else [q['themes']]
+                section += f"**Themes:** {', '.join(themes)}\n"
+            section += f"> {q.get('quote_text', '')}\n"
+            if q.get('context'):
+                section += f"*Context: {q['context']}*\n"
+            section += "\n"
+
+        return section
+
+    def _get_system_prompt_for_subtab(self, subtab: Optional[str] = None) -> str:
+        """Return the appropriate system prompt based on the active subtab."""
+        if subtab == "financialFeed":
+            return self.FINANCIAL_SYSTEM_PROMPT
+        elif subtab == "expertFeed":
+            return self.EXPERT_SYSTEM_PROMPT
+        return self.SYSTEM_PROMPT
+
     def _format_external_results(self, external_results: Dict[str, List]) -> str:
         """Format external tool results for inclusion in prompt."""
         sections = []
@@ -425,6 +624,7 @@ Respond with a JSON object:
         is_follow_up: bool = False,
         session: Optional["BriefingSession"] = None,
         user_team: Optional[str] = None,
+        subtab: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Generate an ad hoc briefing response.
@@ -493,53 +693,71 @@ Respond with a JSON object:
                 redirect_response["session"] = session.to_dict()
             return redirect_response
         
-        # Build search query by incorporating active filters if relevant
-        search_query = question
-        if context.active_filters:
-            # Append filters to search query to boost relevance
-            filter_str = " ".join(context.active_filters)
-            search_query = f"{question} {filter_str}"
-            logger.info(f"Ad hoc search using active filters: {context.active_filters}")
+        # =====================================================================
+        # Route search by subtab
+        # =====================================================================
+        logger.info(f"[ADHOC_AGENT] Subtab routing: subtab={subtab or 'default'}")
 
-        # Search for relevant articles
-        search_results = await self.search_articles(search_query, limit=10)
-        
-        if not search_results:
-            # Fallback search without filters if no results found
+        search_context = ""
+        has_results = False
+
+        if subtab == "financialFeed":
+            # Financial subtab: earnings quotes + SEC nuggets
+            financial_results = await self.search_financial_data(question)
+            search_context = self._format_financial_results(financial_results)
+            has_results = bool(financial_results.get("earnings_quotes") or financial_results.get("sec_nuggets"))
+
+        elif subtab == "expertFeed":
+            # Expert subtab: podcast quotes
+            expert_results = await self.search_expert_data(question)
+            search_context = self._format_expert_results(expert_results)
+            has_results = bool(expert_results.get("podcast_quotes"))
+
+        else:
+            # Article feed (default): corpus + exa + stocknews
+            search_query = question
             if context.active_filters:
+                filter_str = " ".join(context.active_filters)
+                search_query = f"{question} {filter_str}"
+                logger.info(f"Ad hoc search using active filters: {context.active_filters}")
+
+            search_results = await self.search_articles(search_query, limit=10)
+
+            if not search_results and context.active_filters:
                 logger.info("No results found with filters, falling back to original question")
                 search_results = await self.search_articles(question, limit=8)
-            
-            if not search_results:
-                return {
-                    "id": str(uuid.uuid4()),
-                    "question": question,
-                    "answer": (
-                        "I couldn't find relevant information in the recent articles database. "
-                        "For a comprehensive answer, I recommend using the **Deep Research** feature "
-                        "which can search additional sources."
-                    ),
-                    "sources_used": [],
-                    "confidence": "low",
-                    "suggest_deep_research": True,
-                    "generated_at": datetime.utcnow().isoformat(),
-                }
-        
+
+            if search_results:
+                has_results = True
+                search_context = "## Internal Corpus Results\n" + "\n".join([
+                    f"### {r['title']}\n**Source:** {r['source']} | **Date:** {r['date']}\n**URL:** {r['url']}\n**Content:** {r['summary']}\n"
+                    for r in search_results[:8]
+                ])
+
+            external_results = await self.search_external_news(question)
+            external_context = self._format_external_results(external_results)
+            if external_context:
+                search_context += "\n\n" + external_context
+                has_results = True
+                logger.info("Added external tool results to context")
+
+        if not has_results:
+            return {
+                "id": str(uuid.uuid4()),
+                "question": question,
+                "answer": (
+                    "I couldn't find relevant information in the available data sources. "
+                    "For a comprehensive answer, I recommend using the **Deep Research** feature "
+                    "which can search additional sources."
+                ),
+                "sources_used": [],
+                "confidence": "low",
+                "suggest_deep_research": True,
+                "generated_at": datetime.utcnow().isoformat(),
+            }
+
         # Build prompt with context and search results
         context_string = context.to_context_string()
-        
-        # Include more articles in context (no truncation now)
-        search_context = "## Internal Corpus Results\n" + "\n".join([
-            f"### {r['title']}\n**Source:** {r['source']} | **Date:** {r['date']}\n**URL:** {r['url']}\n**Content:** {r['summary']}\n"
-            for r in search_results[:8]  # Include more articles
-        ])
-        
-        # Search external sources for additional context
-        external_results = await self.search_external_news(question)
-        external_context = self._format_external_results(external_results)
-        if external_context:
-            search_context += "\n\n" + external_context
-            logger.info("Added external tool results to context")
         
         # Include conversation history if session exists
         conversation_context = ""
@@ -558,9 +776,9 @@ Respond with a JSON object:
 
 User Question: {question}
 
-Using the internal corpus results above, provide a thorough briefing response.
-Follow the response format from your instructions (Overview, Key Findings, Sources).
-Use **bold** for key insights and include clickable [Title](url) citations.
+Using the search results above, provide a thorough briefing response.
+Follow the response format from your instructions.
+Use **bold** for key insights and include citations where applicable.
 {f"This is follow-up #{follow_up_count}. You have {max(0, (session.max_follow_ups if session else self.max_follow_ups) - follow_up_count)} follow-ups remaining." if is_follow_up else ""}
 
 Respond with a JSON object:
@@ -582,7 +800,7 @@ Respond with a JSON object:
                         model=self.model,
                         max_tokens=3000,  # Increased for richer formatting
                         temperature=0,
-                        system=self.SYSTEM_PROMPT,
+                        system=self._get_system_prompt_for_subtab(subtab),
                         messages=[{"role": "user", "content": full_prompt}]
                     ),
                     timeout=120.0  # 2 minutes
@@ -721,6 +939,7 @@ class StreamingAdHocBriefingAgent(AdHocBriefingAgent):
         is_follow_up: bool = False,
         session: Optional["BriefingSession"] = None,
         user_team: Optional[str] = None,
+        subtab: Optional[str] = None,
     ) -> AsyncIterator[str]:
         """
         Stream an ad hoc briefing response with progress events.
@@ -780,126 +999,192 @@ class StreamingAdHocBriefingAgent(AdHocBriefingAgent):
             return
         
         # =========================================================================
-        # Phase 1: Corpus Search (Knowledge Base)
+        # Search Phases — routed by subtab
         # =========================================================================
-        yield json.dumps({
-            "type": "progress",
-            "step": "corpus_search",
-            "label": "Knowledge Base",
-            "message": "Searching internal knowledge base...",
-            "status": "running",
-        })
-        
-        search_results = await self.search_articles(question, limit=8)
-        
-        yield json.dumps({
-            "type": "progress",
-            "step": "corpus_search",
-            "label": "Knowledge Base",
-            "message": f"Found {len(search_results)} relevant articles" if search_results else "No articles found",
-            "status": "complete",
-            "count": len(search_results),
-        })
-        
-        if not search_results:
+        logger.info(f"[ADHOC_AGENT] Stream subtab routing: subtab={subtab or 'default'}")
+
+        search_context = ""
+        has_results = False
+
+        if subtab == "financialFeed":
+            # --- Financial subtab: earnings quotes + SEC nuggets ---
+            yield json.dumps({
+                "type": "progress",
+                "step": "earnings_search",
+                "label": "Earnings Quotes",
+                "message": "Searching earnings call transcripts...",
+                "status": "running",
+            })
+
+            financial_results = await self.search_financial_data(question)
+            eq_count = len(financial_results.get("earnings_quotes", []))
+            sn_count = len(financial_results.get("sec_nuggets", []))
+
+            yield json.dumps({
+                "type": "progress",
+                "step": "earnings_search",
+                "label": "Earnings Quotes",
+                "message": f"Found {eq_count} executive quotes" if eq_count else "No quotes found",
+                "status": "complete",
+                "count": eq_count,
+            })
+
+            yield json.dumps({
+                "type": "progress",
+                "step": "sec_search",
+                "label": "SEC Filings",
+                "message": f"Found {sn_count} filing insights" if sn_count else "No nuggets found",
+                "status": "complete",
+                "count": sn_count,
+            })
+
+            search_context = self._format_financial_results(financial_results)
+            has_results = eq_count > 0 or sn_count > 0
+
+        elif subtab == "expertFeed":
+            # --- Expert subtab: podcast quotes ---
+            yield json.dumps({
+                "type": "progress",
+                "step": "podcast_search",
+                "label": "Podcast Insights",
+                "message": "Searching industry podcast transcripts...",
+                "status": "running",
+            })
+
+            expert_results = await self.search_expert_data(question)
+            pq_count = len(expert_results.get("podcast_quotes", []))
+
+            yield json.dumps({
+                "type": "progress",
+                "step": "podcast_search",
+                "label": "Podcast Insights",
+                "message": f"Found {pq_count} expert quotes" if pq_count else "No quotes found",
+                "status": "complete",
+                "count": pq_count,
+            })
+
+            search_context = self._format_expert_results(expert_results)
+            has_results = pq_count > 0
+
+        else:
+            # --- Article feed (default): corpus + exa + stocknews ---
+            yield json.dumps({
+                "type": "progress",
+                "step": "corpus_search",
+                "label": "Knowledge Base",
+                "message": "Searching internal knowledge base...",
+                "status": "running",
+            })
+
+            search_results = await self.search_articles(question, limit=8)
+
+            yield json.dumps({
+                "type": "progress",
+                "step": "corpus_search",
+                "label": "Knowledge Base",
+                "message": f"Found {len(search_results)} relevant articles" if search_results else "No articles found",
+                "status": "complete",
+                "count": len(search_results),
+            })
+
+            if search_results:
+                has_results = True
+                search_context = "## Internal Corpus Results\n" + "\n".join([
+                    f"### {r['title']}\n**Source:** {r['source']} | **Date:** {r['date']}\n**URL:** {r['url']}\n**Content:** {r['summary']}\n"
+                    for r in search_results[:8]
+                ])
+
+            yield json.dumps({
+                "type": "progress",
+                "step": "exa_search",
+                "label": "Advanced Web Search",
+                "message": "Searching web for recent news...",
+                "status": "running",
+            })
+
+            external_results = await self.search_external_news(question)
+            exa_count = len(external_results.get("exa_news", []))
+            stocknews_count = len(external_results.get("stocknews", []))
+
+            yield json.dumps({
+                "type": "progress",
+                "step": "exa_search",
+                "label": "Advanced Web Search",
+                "message": f"Found {exa_count} articles" if exa_count else "No results",
+                "status": "complete",
+                "count": exa_count,
+            })
+
+            yield json.dumps({
+                "type": "progress",
+                "step": "stocknews_search",
+                "label": "Stock Market News",
+                "message": f"Found {stocknews_count} articles" if stocknews_count else "No results",
+                "status": "complete",
+                "count": stocknews_count,
+            })
+
+            external_context = self._format_external_results(external_results)
+            if external_context:
+                search_context += "\n\n" + external_context
+                has_results = True
+
+        if not has_results:
             yield json.dumps({
                 "type": "no_results",
-                "message": "No relevant articles found. Try Deep Research for more sources.",
+                "message": "No relevant data found. Try Deep Research for more sources.",
                 "session_id": session.session_id if session else None,
             })
             return
-        
+
         # =========================================================================
-        # Phase 2: External News Search (Exa + StockNews)
+        # Synthesis Phase
         # =========================================================================
-        yield json.dumps({
-            "type": "progress",
-            "step": "exa_search",
-            "label": "Advanced Web Search",
-            "message": "Searching web for recent news...",
-            "status": "running",
-        })
-        
-        external_results = await self.search_external_news(question)
-        exa_count = len(external_results.get("exa_news", []))
-        stocknews_count = len(external_results.get("stocknews", []))
-        
-        yield json.dumps({
-            "type": "progress",
-            "step": "exa_search",
-            "label": "Advanced Web Search",
-            "message": f"Found {exa_count} articles" if exa_count else "No results",
-            "status": "complete",
-            "count": exa_count,
-        })
-        
-        yield json.dumps({
-            "type": "progress",
-            "step": "stocknews_search",
-            "label": "Stock Market News",
-            "message": f"Found {stocknews_count} articles" if stocknews_count else "No results",
-            "status": "complete",
-            "count": stocknews_count,
-        })
-        
-        # =========================================================================
-        # Phase 3: Synthesis
-        # =========================================================================
+        synthesis_label = "Financial Analysis" if subtab == "financialFeed" else "Analysis"
         yield json.dumps({
             "type": "progress",
             "step": "synthesis",
-            "label": "Analysis",
+            "label": synthesis_label,
             "message": "Synthesizing intelligence response...",
             "status": "running",
         })
-        
+
         # Build context
         context_string = context.to_context_string()
-        
-        # Format internal corpus results
-        search_context = "## Internal Corpus Results\n" + "\n".join([
-            f"### {r['title']}\n**Source:** {r['source']} | **Date:** {r['date']}\n**URL:** {r['url']}\n**Content:** {r['summary']}\n"
-            for r in search_results[:8]
-        ])
-        
-        # Add external results
-        external_context = self._format_external_results(external_results)
-        if external_context:
-            search_context += "\n\n" + external_context
-        
+
         # Include conversation history if session exists
         conversation_context = ""
         if session and session.conversation_history:
             conversation_context = f"\n\n{session.get_conversation_context()}\n"
-        
+
         # Inject memory context if available
         memory_section = ""
         if memory_prompt_addition:
             memory_section = f"\n\n{memory_prompt_addition}\n"
             logger.info(f"Injecting memory context into streaming briefing ({len(memory_prompt_addition)} chars)")
-        
+
         full_prompt = f"""{context_string}{memory_section}
 {conversation_context}
 {search_context}
 
 User Question: {question}
 
-Using the internal corpus results above, provide a thorough briefing response.
-Follow the response format from your instructions (Overview, Key Findings, Sources).
-Use **bold** for key insights and include clickable [Title](url) citations."""
+Using the search results above, provide a thorough briefing response.
+Follow the response format from your instructions.
+Use **bold** for key insights and include citations where applicable."""
 
         # Stream response and collect full text for history
         # Note: Streaming uses raw Anthropic client (no OpenAI fallback for streaming)
         llm_start = time.time()
         logger.info(f"[ADHOC_AGENT] Streaming LLM call START")
-        
+
         full_response = ""
         try:
             async with self._streaming_client.messages.stream(
                 model=self.model,
-                max_tokens=3000,  # Match non-streaming version
+                max_tokens=3000,
                 temperature=0,
-                system=self.SYSTEM_PROMPT,
+                system=self._get_system_prompt_for_subtab(subtab),
                 messages=[{"role": "user", "content": full_prompt}]
             ) as stream:
                 async for text in stream.text_stream:
@@ -921,7 +1206,7 @@ Use **bold** for key insights and include clickable [Title](url) citations."""
         yield json.dumps({
             "type": "progress",
             "step": "synthesis",
-            "label": "Analysis",
+            "label": synthesis_label,
             "message": "Response complete",
             "status": "complete",
         })

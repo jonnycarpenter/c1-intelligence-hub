@@ -73,12 +73,12 @@ const welcomeMessages: Record<Mode, string> = {
   research: "Ready to dive deep. I can analyze markets, compare suppliers, or research any supply chain topic.",
   products: "Let's explore your product intelligence. I can help with SKU analysis, alternatives, and supplier comparisons.",
   'field-sales': "Field Intel is coming soon! You'll be able to record voice memos, log competitor sightings, and share field observations.",
-  pipeline: "Pipeline is coming soon! You'll be able to search contacts, find prospects in your territory, and get AI-powered lead recommendations.",
+  pipeline: "Welcome to Company Lookup. Discover new prospects and contacts using AI-powered semantic search.",
   'supply-network': "Explore supply chain relationships for C1 and competitors. Click nodes on the graph to drill down into supplier or buyer details.",
   companies: "Let's explore company intelligence. I can track competitors, analyze earnings, and monitor market positions.",
-  industries: "Explore industry narratives. See how news evolves over 90 days with monthly timelines, top companies, and themes.",
-  'data-preferences': "Manage your tracked data and preferences. I can help add or remove companies, materials, and industries.",
-  'app-architecture': "Welcome to Architecture. Explore the system design: data ingestion pipelines, frontend architecture, and agentic workflows.",
+  industries: "Explore Core Industries. See how news evolves over 90 days with monthly timelines, top companies, and themes.",
+  'data-preferences': "Manage your tracked entities and preferences. I can help add or remove companies, materials, and industries.",
+  'app-architecture': "Welcome to Platform Architecture. Explore the system design: data ingestion pipelines, frontend architecture, and agentic workflows.",
 }
 
 interface ChatInterfaceProps {

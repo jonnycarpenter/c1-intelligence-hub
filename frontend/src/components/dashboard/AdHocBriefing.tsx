@@ -33,6 +33,9 @@ const STEP_ICONS: Record<string, React.ReactNode> = {
   corpus_search: <Database size={14} />,
   exa_search: <Globe size={14} />,
   stocknews_search: <TrendingUp size={14} />,
+  earnings_search: <TrendingUp size={14} />,
+  sec_search: <Database size={14} />,
+  podcast_search: <MessageSquare size={14} />,
   synthesis: <Brain size={14} />,
 }
 
@@ -433,6 +436,13 @@ function CollapsibleBriefing({ briefing, index, totalCount, onDeepResearch }: Co
 // Main Ad Hoc Briefing Component
 // =============================================================================
 
+// Per-subtab placeholder text
+const SUBTAB_PLACEHOLDERS: Record<string, string> = {
+  articleFeed: "Ask about articles, market trends...",
+  financialFeed: "Ask about earnings, SEC filings, financial data...",
+  expertFeed: "Ask about podcast insights, expert opinions...",
+}
+
 interface AdHocBriefingProps {
   /** Context from current weekly briefing for better responses */
   context?: AdHocBriefingContext
@@ -442,13 +452,16 @@ interface AdHocBriefingProps {
   compact?: boolean
   /** Initial query to pre-populate (e.g., from entity clicks) */
   initialQuery?: string
+  /** Active Discovery subtab — controls which data sources the agent queries */
+  subtab?: string
 }
 
 export default function AdHocBriefing({
   context,
   onDeepResearch,
   compact = false,
-  initialQuery
+  initialQuery,
+  subtab,
 }: AdHocBriefingProps) {
   const [question, setQuestion] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -478,8 +491,8 @@ export default function AdHocBriefing({
     if (!question.trim() || isLoading || isStreaming) return
 
     const isFollowUp = briefings.length > 0
-    // Use streaming for progress feedback
-    await streamQuestion(question.trim(), context, isFollowUp)
+    // Use streaming for progress feedback — pass subtab for context-aware search
+    await streamQuestion(question.trim(), context, isFollowUp, subtab)
     setQuestion('')
   }
 
@@ -503,7 +516,7 @@ export default function AdHocBriefing({
             type="text"
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
-            placeholder={briefings.length > 0 ? "Ask another question..." : "Ask about this week's news..."}
+            placeholder={briefings.length > 0 ? "Ask another question..." : (subtab && SUBTAB_PLACEHOLDERS[subtab]) || "Ask about this week's news..."}
             className="flex-1 text-sm bg-transparent border-none outline-none placeholder:text-slate-400"
             disabled={isLoading || isStreaming}
           />
