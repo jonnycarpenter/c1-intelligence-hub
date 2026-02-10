@@ -96,6 +96,39 @@ def _days_in_month_period(month_key: str) -> int:
         return 30  # safe fallback
 
 
+def _is_partial_month(month_key: str) -> bool:
+    """Return True if month_key is the current (incomplete) month."""
+    try:
+        y, m = int(month_key[:4]), int(month_key[5:7])
+        now = datetime.now(timezone.utc)
+        return y == now.year and m == now.month
+    except Exception:
+        return False
+
+
+def _compute_window_start() -> datetime:
+    """Compute the start date for the 3-month timeline window.
+
+    Always starts on the 1st of the month, 2 full months before the current month.
+    This ensures all included months start on day 1, making per-day divisors accurate.
+
+    Examples:
+        Feb 10, 2026 → Dec 1, 2025  (Dec, Jan, Feb)
+        Mar 15, 2026 → Jan 1, 2026  (Jan, Feb, Mar)
+        Jan  5, 2026 → Nov 1, 2025  (Nov, Dec, Jan)
+    """
+    now = datetime.now(timezone.utc)
+    # 1st of current month
+    current_first = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    # Subtract 2 months
+    month = current_first.month - 2
+    year = current_first.year
+    if month <= 0:
+        month += 12
+        year -= 1
+    return current_first.replace(year=year, month=month)
+
+
 def _compute_deltas(
     current: Dict[str, int], prior: Optional[Dict[str, int]]
 ) -> List[Dict[str, Any]]:
@@ -141,6 +174,10 @@ async def list_industries(days: int = Query(90, ge=1, le=365)):
     try:
         client = _get_client()
 
+        # Use aligned window start (1st of month, 2 months back)
+        window_start = _compute_window_start()
+        window_start_str = window_start.strftime("%Y-%m-%d")
+
         # Build UNNEST query to count articles per curated industry
         industry_list_sql = ", ".join(f"'{i}'" for i in CURATED_INDUSTRIES)
 
@@ -150,7 +187,7 @@ async def list_industries(days: int = Query(90, ge=1, le=365)):
                 COUNT(DISTINCT id) AS article_count
             FROM `{_dataset()}.digest_items`,
                 UNNEST(JSON_EXTRACT_ARRAY(industries)) AS ind
-            WHERE published_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {days} DAY)
+            WHERE published_at >= TIMESTAMP('{window_start_str}')
               AND LOWER(TRIM(ind, '"')) IN ({', '.join(f"'{i.lower()}'" for i in CURATED_INDUSTRIES)})
             GROUP BY industry
             ORDER BY article_count DESC
@@ -238,6 +275,10 @@ async def get_industry_timeline(
         industry_lower = display_name.lower()
 
         # ----- Fetch all matching articles in the time window -----
+        # Use aligned window start (1st of month, 2 months back) for clean month boundaries
+        window_start = _compute_window_start()
+        window_start_str = window_start.strftime("%Y-%m-%d")
+
         query = f"""
             SELECT
                 id,
@@ -254,7 +295,7 @@ async def get_industry_timeline(
                 relevance_score,
                 FORMAT_TIMESTAMP('%Y-%m', published_at) AS month_key
             FROM `{_dataset()}.digest_items`
-            WHERE published_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {days} DAY)
+            WHERE published_at >= TIMESTAMP('{window_start_str}')
               AND EXISTS(
                 SELECT 1
                 FROM UNNEST(JSON_EXTRACT_ARRAY(industries)) AS ind
@@ -383,6 +424,7 @@ async def get_industry_timeline(
                 "days_in_period": current_days,
                 "articles_per_day": articles_per_day,
                 "delta_per_day": delta_per_day,
+                "is_partial": _is_partial_month(mk),
                 "event_types": event_types_list,
                 "top_companies": companies_list,
                 "top_themes": themes_list,
@@ -562,7 +604,13 @@ Your task is to weave together article trends, executive commentary from earning
 - Sentiment shifts and what's driving them
 - How different data points (articles, earnings quotes, SEC filings) corroborate or contradict each other
 
-Write in a direct, analytical tone. Avoid generic filler. Every sentence should convey specific, actionable intelligence."""
+Write in a direct, analytical tone. Avoid generic filler. Every sentence should convey specific, actionable intelligence.
+
+FORMAT WITH MARKDOWN for readability:
+- Use **bold** for company names, key metrics, dollar figures, and critical takeaways
+- Keep paragraphs short (2-3 sentences max) for scannability
+- You may use bullet points sparingly for lists of related developments
+- Do NOT use headers (h1/h2/h3) — the UI provides its own headers"""
 
 
 def _build_narrative_prompt(
@@ -582,14 +630,14 @@ def _build_narrative_prompt(
 
 ## OUTPUT FORMAT (respond with valid JSON only)
 {{
-  "industry_narrative": "<3-5 sentences: the overarching 90-day story arc for this end-market. What is the dominant narrative? What shifted? What should C1 leadership pay attention to?>",
+  "industry_narrative": "<3-5 sentences with **bold** key points: the overarching story arc for this end-market. What is the dominant narrative? What shifted? What should C1 leadership pay attention to? Use markdown formatting.>",
   "monthly_narratives": [
     {{
       "month": "<YYYY-MM>",
-      "narrative": "<2-3 sentences: what happened THIS month specifically, how it connects to the prior month, and any notable inflection points. Reference specific companies, quotes, or filings where relevant.>"
+      "narrative": "<2-3 sentences with **bold** highlights: what happened THIS month specifically, how it connects to the prior month, and any notable inflection points. Reference specific **company names**, quotes, or filings. Use markdown formatting.>"
     }}
   ],
-  "key_insight": "<1 sentence: the single most important takeaway for C1's commercial strategy>"
+  "key_insight": "<1 sentence with the most critical term **bolded**: the single most important takeaway for C1's commercial strategy>"
 }}
 
 IMPORTANT:
@@ -607,8 +655,8 @@ async def generate_industry_narrative(industry: str):
     logger.info(f"[INDUSTRY_NARRATIVES] Narrative generation START: {industry}")
 
     try:
-        # 1. Get timeline data (reuse existing logic)
-        timeline_response = await get_industry_timeline(industry, days=90)
+        # 1. Get timeline data (reuse existing logic — uses _compute_window_start() internally)
+        timeline_response = await get_industry_timeline(industry)
         monthly_data = timeline_response.get("monthly_data", [])
         display_name = timeline_response.get("industry", industry)
         totals = timeline_response.get("totals", {})
@@ -732,12 +780,12 @@ async def generate_industry_narrative(industry: str):
         try:
             response = await asyncio.wait_for(
                 client.messages_create(
-                    model="claude-sonnet-4-5-20250929",
-                    max_tokens=4096,
+                    model="claude-opus-4-5-20250514",
+                    max_tokens=8192,
                     system=NARRATIVE_SYSTEM_PROMPT,
                     messages=[{"role": "user", "content": prompt}],
                 ),
-                timeout=120.0,
+                timeout=180.0,  # Opus may take longer
             )
             llm_elapsed = time.time() - llm_start
             logger.info(f"[INDUSTRY_NARRATIVES] LLM call COMPLETE: {llm_elapsed:.2f}s")

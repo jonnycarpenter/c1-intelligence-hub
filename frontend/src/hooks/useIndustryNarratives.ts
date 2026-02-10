@@ -16,6 +16,7 @@ export interface MonthlyData {
   days_in_period: number
   articles_per_day: number
   delta_per_day: number | null
+  is_partial?: boolean
   event_types: Array<{ name: string; count: number; per_day: number; delta: number | null }>
   top_companies: Array<{ name: string; count: number; per_day: number; delta: number | null }>
   top_themes: Array<{ name: string; count: number; per_day: number; delta: number | null }>

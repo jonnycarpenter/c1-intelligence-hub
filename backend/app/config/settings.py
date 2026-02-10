@@ -112,21 +112,21 @@ class Settings(BaseSettings):
     
     # Deep Research Workflow models
     deep_research_groomer_model: str = "claude-haiku-4-5"  # Haiku for faster query analysis
-    deep_research_financial_model: str = "claude-sonnet-4-5"
-    deep_research_industry_model: str = "claude-sonnet-4-5"
-    deep_research_synthesizer_model: str = "claude-sonnet-4-5"
-    deep_research_category_model: str = "claude-sonnet-4-5"  # Phase 2: Sales intelligence
-    deep_research_validator_model: str = "claude-sonnet-4-5"  # Phase 2: Citation verification
+    deep_research_financial_model: str = "claude-opus-4-5-20250514"
+    deep_research_industry_model: str = "claude-opus-4-5-20250514"
+    deep_research_synthesizer_model: str = "claude-opus-4-5-20250514"
+    deep_research_category_model: str = "claude-opus-4-5-20250514"  # Phase 2: Sales intelligence
+    deep_research_validator_model: str = "claude-opus-4-5-20250514"  # Phase 2: Citation verification
     
     # Extended Thinking Configuration
     # See: https://platform.claude.com/docs/en/build-with-claude/extended-thinking
     deep_research_thinking_enabled: bool = True  # Enable Claude's extended thinking for synthesis
-    deep_research_thinking_budget_tokens: int = 10000  # Token budget for thinking (min 1024, affects latency)
+    deep_research_thinking_budget_tokens: int = 16000  # Token budget for thinking (min 1024, affects latency)
     
     # Deep Research Timeout Configuration (in seconds)
     deep_research_workflow_timeout: int = 300  # 5 minutes total workflow timeout
     deep_research_tool_timeout: int = 60  # 60 seconds per external tool call
-    deep_research_llm_timeout: int = 120  # 120 seconds for LLM extraction calls
+    deep_research_llm_timeout: int = 180  # 180 seconds for LLM extraction calls (Opus needs more time)
     
     # Groq model for X/Twitter analysis (fast inference)
     model_groq_x_analyzer: str = "llama-3.3-70b-versatile"

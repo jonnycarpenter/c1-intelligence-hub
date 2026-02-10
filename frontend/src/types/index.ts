@@ -63,6 +63,72 @@ export interface DigestStats {
 }
 
 // ============================================
+// Financial Feed Types (Earnings + SEC)
+// ============================================
+export interface FinancialFeedItem {
+  id: string
+  source_type: 'earnings' | 'sec'
+  text: string
+  context?: string
+  ticker: string
+  company_name?: string
+  // Earnings-specific
+  speaker_name?: string
+  speaker_role?: string
+  speaker_title?: string
+  speaker_company?: string
+  sentiment?: string
+  confidence_level?: string
+  quote_type?: string
+  call_section?: string
+  year?: number
+  quarter?: number
+  // SEC-specific
+  filing_type?: string
+  section?: string
+  nugget_type?: string
+  signal_strength?: string
+  risk_level?: string
+  is_new_disclosure?: boolean
+  is_actionable?: boolean
+  // Common
+  themes: string[]
+  relevance_score: number
+  date?: string
+}
+
+export interface FinancialFeedResponse {
+  items: FinancialFeedItem[]
+  total_count: number
+  has_more: boolean
+}
+
+// ============================================
+// Expert Feed Types (Podcast Quotes)
+// ============================================
+export interface ExpertFeedItem {
+  id: string
+  quote_text: string
+  context_summary?: string
+  speaker_name: string
+  speaker_role?: string
+  speaker_title?: string
+  speaker_company?: string
+  podcast_name: string
+  episode_title?: string
+  episode_url?: string
+  published_at?: string
+  themes: string[]
+  relevance_score: number
+}
+
+export interface ExpertFeedResponse {
+  items: ExpertFeedItem[]
+  total_count: number
+  has_more: boolean
+}
+
+// ============================================
 // Discovery AI Summary Types
 // ============================================
 export interface DiscoveryTheme {

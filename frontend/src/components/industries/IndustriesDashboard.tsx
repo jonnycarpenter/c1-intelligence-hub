@@ -19,6 +19,7 @@ import {
 import { cn } from '@/lib/utils'
 import { useIndustryNarratives, type MonthlyData } from '@/hooks'
 import { api } from '@/lib/api'
+import { MarkdownContent } from '@/components/ui'
 
 // ============================================
 // Delta Indicator
@@ -257,7 +258,7 @@ function NarrativeBanner({
         <Sparkles size={20} className="text-purple-200 shrink-0 mt-0.5" />
         <div>
           <h3 className="font-semibold text-sm mb-2">90-Day Narrative Arc</h3>
-          <p className="text-sm leading-relaxed text-purple-100">{narrative}</p>
+          <MarkdownContent content={narrative} className="text-sm leading-relaxed text-purple-100" isUser />
         </div>
       </div>
       <div className="mt-4 pt-3 border-t border-purple-400/30">
@@ -265,7 +266,7 @@ function NarrativeBanner({
           <span className="text-[10px] font-semibold uppercase tracking-wider text-purple-300 shrink-0 mt-0.5">
             Key Insight
           </span>
-          <p className="text-sm font-medium text-white">{keyInsight}</p>
+          <MarkdownContent content={keyInsight} className="text-sm font-medium" isUser />
         </div>
       </div>
       <div className="mt-2 text-[10px] text-purple-300">
@@ -293,7 +294,14 @@ function MonthColumn({
       {/* Month Header */}
       <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50 rounded-t-xl">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-slate-900 text-sm">{data.month_label}</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="font-semibold text-slate-900 text-sm">{data.month_label}</h3>
+            {data.is_partial && (
+              <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200">
+                Month in Progress
+              </span>
+            )}
+          </div>
           <DeltaIndicator delta={data.delta_per_day} showZero />
         </div>
         <div className="flex items-center gap-2 mt-1">
@@ -315,7 +323,7 @@ function MonthColumn({
                 Narrative
               </span>
             </div>
-            <p className="text-xs text-purple-900 leading-relaxed">{monthNarrative}</p>
+            <MarkdownContent content={monthNarrative} className="text-xs text-purple-900 leading-relaxed" />
           </div>
         )}
 

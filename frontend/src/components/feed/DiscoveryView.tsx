@@ -14,6 +14,8 @@ import {
   Layers,
   LayoutGrid,
   Rows3,
+  DollarSign,
+  Mic,
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import MotionWrapper from '@/components/ui/motion-wrapper'
@@ -23,6 +25,8 @@ import AdHocBriefing from '@/components/dashboard/AdHocBriefing'
 import { api } from '@/lib/api'
 import BulletinBoard from './BulletinBoard'
 import FullFeedView from './FullFeedView'
+import FinancialFeedView from './FinancialFeedView'
+import ExpertFeedView from './ExpertFeedView'
 import type { DigestItem, DigestStats, Category, Priority, DiscoverySummaryResponse } from '@/types'
 import type { AdHocBriefingContext } from '@/types/briefing'
 
@@ -43,7 +47,7 @@ export interface DiscoveryViewRef {
 }
 
 type DetailMode = 'cards' | 'summary' | null
-type SubTab = 'themes' | 'fullFeed'
+type SubTab = 'themes' | 'articleFeed' | 'financialFeed' | 'expertFeed'
 
 // =============================================================================
 // Helper Functions
@@ -677,16 +681,40 @@ const DiscoveryView = forwardRef<DiscoveryViewRef, DiscoveryViewProps>(
                 Themes
               </button>
               <button
-                onClick={() => setActiveSubTab('fullFeed')}
+                onClick={() => setActiveSubTab('articleFeed')}
                 className={cn(
                   "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all",
-                  activeSubTab === 'fullFeed'
+                  activeSubTab === 'articleFeed'
                     ? "bg-white shadow-sm border border-slate-200 text-slate-800"
                     : "text-slate-500 hover:text-slate-700 hover:bg-white/50"
                 )}
               >
                 <Rows3 size={16} />
-                Full Feed
+                Article Feed
+              </button>
+              <button
+                onClick={() => setActiveSubTab('financialFeed')}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all",
+                  activeSubTab === 'financialFeed'
+                    ? "bg-white shadow-sm border border-slate-200 text-slate-800"
+                    : "text-slate-500 hover:text-slate-700 hover:bg-white/50"
+                )}
+              >
+                <DollarSign size={16} />
+                Financial Feed
+              </button>
+              <button
+                onClick={() => setActiveSubTab('expertFeed')}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all",
+                  activeSubTab === 'expertFeed'
+                    ? "bg-white shadow-sm border border-slate-200 text-slate-800"
+                    : "text-slate-500 hover:text-slate-700 hover:bg-white/50"
+                )}
+              >
+                <Mic size={16} />
+                Expert Feed
               </button>
             </div>
           </div>
@@ -789,8 +817,8 @@ const DiscoveryView = forwardRef<DiscoveryViewRef, DiscoveryViewProps>(
                     </div>
                   </div>
                 </MotionWrapper>
-              ) : (
-                /* Full Feed View - Masonry layout with filters */
+              ) : activeSubTab === 'articleFeed' ? (
+                /* Article Feed View - Masonry layout with filters */
                 <FullFeedView
                   items={items}
                   stats={stats}
@@ -798,6 +826,12 @@ const DiscoveryView = forwardRef<DiscoveryViewRef, DiscoveryViewProps>(
                   error={error}
                   onQuickFilter={handleQuickFilter}
                 />
+              ) : activeSubTab === 'financialFeed' ? (
+                /* Financial Feed - Earnings quotes + SEC nuggets */
+                <FinancialFeedView />
+              ) : (
+                /* Expert Feed - Podcast quotes */
+                <ExpertFeedView />
               )}
             </>
           )}

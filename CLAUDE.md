@@ -230,7 +230,7 @@ These files have critical bug fixes - be careful editing:
 ### Primary Models (Anthropic)
 | Use Case | Model | Location |
 |----------|-------|----------|
-| Deep Research agents | `claude-sonnet-4-5` | `app/agents/research/*.py` |
+| Deep Research agents | `claude-opus-4-5` | `app/agents/research/*.py` (groomer stays on haiku) |
 | Weekly Briefing synthesis | `claude-opus-4-5` | `app/ingestion/generators/weekly_briefing.py` |
 | Deep Research groomer | `claude-haiku-4-5` | `app/agents/research/groomer.py` |
 | Vision/Image extraction | `claude-sonnet-4-5` | `app/mcp/tools/image_extraction.py` |

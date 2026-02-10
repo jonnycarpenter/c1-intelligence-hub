@@ -148,6 +148,76 @@ class ApiClient {
   }
 
   /**
+   * Fetch the financial feed (earnings quotes + SEC nuggets)
+   */
+  async getFinancialFeed(options?: {
+    search?: string
+    source_type?: 'earnings' | 'sec' | 'all'
+    ticker?: string
+    type_filter?: string
+    themes?: string[]
+    sentiment?: string
+    sort_by?: 'newest' | 'relevance'
+    limit?: number
+    offset?: number
+  }): Promise<{ items: import('@/types').FinancialFeedItem[]; total_count: number; has_more: boolean }> {
+    const params = new URLSearchParams()
+
+    if (options?.search) params.set('search', options.search)
+    if (options?.source_type && options.source_type !== 'all') params.set('source_type', options.source_type)
+    if (options?.ticker) params.set('ticker', options.ticker)
+    if (options?.type_filter) params.set('type_filter', options.type_filter)
+    if (options?.themes?.length) params.set('themes', options.themes.join(','))
+    if (options?.sentiment) params.set('sentiment', options.sentiment)
+    if (options?.sort_by) params.set('sort_by', options.sort_by)
+    if (options?.limit) params.set('limit', options.limit.toString())
+    if (options?.offset) params.set('offset', options.offset.toString())
+
+    const url = `${this.baseUrl}/api/discovery/financial-feed${params.toString() ? `?${params}` : ''}`
+    const response = await fetch(url)
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch financial feed: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Fetch the expert feed (podcast quotes)
+   */
+  async getExpertFeed(options?: {
+    search?: string
+    podcast_name?: string
+    speaker_name?: string
+    themes?: string[]
+    time_range?: string
+    sort_by?: 'newest' | 'relevance'
+    limit?: number
+    offset?: number
+  }): Promise<{ items: import('@/types').ExpertFeedItem[]; total_count: number; has_more: boolean }> {
+    const params = new URLSearchParams()
+
+    if (options?.search) params.set('search', options.search)
+    if (options?.podcast_name) params.set('podcast_name', options.podcast_name)
+    if (options?.speaker_name) params.set('speaker_name', options.speaker_name)
+    if (options?.themes?.length) params.set('themes', options.themes.join(','))
+    if (options?.time_range) params.set('time_range', options.time_range)
+    if (options?.sort_by) params.set('sort_by', options.sort_by)
+    if (options?.limit) params.set('limit', options.limit.toString())
+    if (options?.offset) params.set('offset', options.offset.toString())
+
+    const url = `${this.baseUrl}/api/discovery/expert-feed${params.toString() ? `?${params}` : ''}`
+    const response = await fetch(url)
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch expert feed: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
    * Get AI summary for a Discovery category (thematic analysis)
    */
   async getDiscoverySummary(category: string): Promise<{
