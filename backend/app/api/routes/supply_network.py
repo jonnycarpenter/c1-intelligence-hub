@@ -8,9 +8,9 @@ Endpoints:
     GET  /api/supply-network/companies       - Tracked companies with stats (card grid)
     GET  /api/supply-network/graph           - Network graph nodes/edges
     GET  /api/supply-network/stats           - Summary statistics
-    GET  /api/supply-network/company/{key}   - Company drill-down
-    GET  /api/supply-network/supplier/{key}  - Supplier drill-down
     GET  /api/supply-network/company/{key}/intelligence - Supply chain intelligence context
+    GET  /api/supply-network/company/{key}   - Company drill-down (catch-all, must be AFTER /intelligence)
+    GET  /api/supply-network/supplier/{key}  - Supplier drill-down
     GET  /api/supply-network/shared-suppliers - Shared supplier analysis
 """
 
@@ -39,9 +39,15 @@ async def get_tracked_companies():
         start_time = time.time()
         store = _get_store()
         companies = store.get_tracked_companies_with_stats()
+        # Compute most recent update across all companies
+        last_updated = None
+        for c in companies:
+            ts = c.get("updated_at")
+            if ts and (last_updated is None or ts > last_updated):
+                last_updated = ts
         elapsed = time.time() - start_time
         logger.info(f"[SUPPLY_NETWORK] Companies loaded: {len(companies)} companies in {elapsed:.2f}s")
-        return {"companies": companies}
+        return {"companies": companies, "last_updated": last_updated}
     except Exception as e:
         logger.error(f"[SUPPLY_NETWORK] Companies error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -82,6 +88,62 @@ async def get_stats():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/company/{importyeti_key:path}/intelligence")
+async def get_company_intelligence(importyeti_key: str):
+    """Get supply chain intelligence context for a company (earnings, SEC, articles)."""
+    try:
+        start_time = time.time()
+        store = _get_store()
+        company = store.get_company(importyeti_key)
+        if not company:
+            raise HTTPException(status_code=404, detail=f"Company '{importyeti_key}' not found")
+
+        name = company["name"]
+        ticker = company.get("ticker")
+
+        logger.info(f"[SUPPLY_NETWORK] Intelligence START: {name} (ticker={ticker})")
+
+        # Run all searches in parallel
+        earnings_task = _search_earnings_for_company(ticker, name)
+        sec_task = _search_sec_for_company(ticker, name)
+        corpus_task = _search_corpus_for_company(name)
+
+        earnings, sec_nuggets, articles = await asyncio.gather(
+            earnings_task, sec_task, corpus_task,
+            return_exceptions=True,
+        )
+
+        # Handle exceptions from gather
+        if isinstance(earnings, Exception):
+            logger.warning(f"[SUPPLY_NETWORK] Earnings gather error: {earnings}")
+            earnings = []
+        if isinstance(sec_nuggets, Exception):
+            logger.warning(f"[SUPPLY_NETWORK] SEC gather error: {sec_nuggets}")
+            sec_nuggets = []
+        if isinstance(articles, Exception):
+            logger.warning(f"[SUPPLY_NETWORK] Corpus gather error: {articles}")
+            articles = []
+
+        elapsed = time.time() - start_time
+        logger.info(
+            f"[SUPPLY_NETWORK] Intelligence COMPLETE: {name} in {elapsed:.2f}s — "
+            f"{len(earnings)} quotes, {len(sec_nuggets)} nuggets, {len(articles)} articles"
+        )
+
+        return {
+            "company_name": name,
+            "ticker": ticker,
+            "earnings_quotes": earnings,
+            "sec_nuggets": sec_nuggets,
+            "recent_articles": articles,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[SUPPLY_NETWORK] Intelligence error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/company/{importyeti_key:path}")
 async def get_company_detail(importyeti_key: str):
     """Get company profile and supplier list for drill-down."""
@@ -92,6 +154,7 @@ async def get_company_detail(importyeti_key: str):
             raise HTTPException(status_code=404, detail=f"Company '{importyeti_key}' not found")
 
         suppliers = store.get_company_suppliers(importyeti_key)
+        customers = store.get_company_customers(importyeti_key)
 
         # Strip raw_api_response to keep payload small
         profile = {k: v for k, v in company.items() if k != "raw_api_response"}
@@ -104,6 +167,8 @@ async def get_company_detail(importyeti_key: str):
             "company": profile,
             "suppliers": suppliers[:50],
             "supplier_count": len(suppliers),
+            "customers": customers[:50],
+            "customer_count": len(customers),
         }
     except HTTPException:
         raise
@@ -242,59 +307,3 @@ async def _search_corpus_for_company(company_name: str):
     except Exception as e:
         logger.warning(f"[SUPPLY_NETWORK] Corpus search error for {company_name}: {e}")
         return []
-
-
-@router.get("/company/{importyeti_key:path}/intelligence")
-async def get_company_intelligence(importyeti_key: str):
-    """Get supply chain intelligence context for a company (earnings, SEC, articles)."""
-    try:
-        start_time = time.time()
-        store = _get_store()
-        company = store.get_company(importyeti_key)
-        if not company:
-            raise HTTPException(status_code=404, detail=f"Company '{importyeti_key}' not found")
-
-        name = company["name"]
-        ticker = company.get("ticker")
-
-        logger.info(f"[SUPPLY_NETWORK] Intelligence START: {name} (ticker={ticker})")
-
-        # Run all searches in parallel
-        earnings_task = _search_earnings_for_company(ticker, name)
-        sec_task = _search_sec_for_company(ticker, name)
-        corpus_task = _search_corpus_for_company(name)
-
-        earnings, sec_nuggets, articles = await asyncio.gather(
-            earnings_task, sec_task, corpus_task,
-            return_exceptions=True,
-        )
-
-        # Handle exceptions from gather
-        if isinstance(earnings, Exception):
-            logger.warning(f"[SUPPLY_NETWORK] Earnings gather error: {earnings}")
-            earnings = []
-        if isinstance(sec_nuggets, Exception):
-            logger.warning(f"[SUPPLY_NETWORK] SEC gather error: {sec_nuggets}")
-            sec_nuggets = []
-        if isinstance(articles, Exception):
-            logger.warning(f"[SUPPLY_NETWORK] Corpus gather error: {articles}")
-            articles = []
-
-        elapsed = time.time() - start_time
-        logger.info(
-            f"[SUPPLY_NETWORK] Intelligence COMPLETE: {name} in {elapsed:.2f}s — "
-            f"{len(earnings)} quotes, {len(sec_nuggets)} nuggets, {len(articles)} articles"
-        )
-
-        return {
-            "company_name": name,
-            "ticker": ticker,
-            "earnings_quotes": earnings,
-            "sec_nuggets": sec_nuggets,
-            "recent_articles": articles,
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"[SUPPLY_NETWORK] Intelligence error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))

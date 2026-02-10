@@ -3,15 +3,16 @@
 import { useEffect, useState } from 'react'
 import {
   ArrowLeft,
-  Building2,
   MapPin,
   Package,
   Loader2,
   Factory,
+  Truck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { api } from '@/lib/api'
 import type { TrackedCompany } from './CompanyCard'
+import CompanyLogo from '@/components/pipeline/CompanyLogo'
 import IntelligencePanel from './IntelligencePanel'
 
 interface CompanyDrilldownProps {
@@ -19,16 +20,21 @@ interface CompanyDrilldownProps {
   onBack: () => void
 }
 
+type TableView = 'suppliers' | 'customers'
+
 interface CompanyDetail {
   company: Record<string, any>
   suppliers: Array<Record<string, any>>
   supplier_count: number
+  customers: Array<Record<string, any>>
+  customer_count: number
 }
 
 export default function CompanyDrilldown({ company, onBack }: CompanyDrilldownProps) {
   const [detail, setDetail] = useState<CompanyDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [tableView, setTableView] = useState<TableView>('suppliers')
 
   useEffect(() => {
     let cancelled = false
@@ -61,14 +67,7 @@ export default function CompanyDrilldown({ company, onBack }: CompanyDrilldownPr
           >
             <ArrowLeft size={18} className="text-slate-500" />
           </button>
-          <div
-            className={cn(
-              'w-9 h-9 rounded-lg flex items-center justify-center shrink-0',
-              isTarget ? 'bg-amber-100' : 'bg-blue-100'
-            )}
-          >
-            <Building2 size={18} className={isTarget ? 'text-amber-600' : 'text-blue-600'} />
-          </div>
+          <CompanyLogo domain={company.website} size={36} />
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h2 className="text-lg font-semibold text-slate-800 truncate">{company.name}</h2>
@@ -104,22 +103,47 @@ export default function CompanyDrilldown({ company, onBack }: CompanyDrilldownPr
         </div>
       </div>
 
-      {/* Main content: supplier table + intelligence */}
+      {/* Main content: table + intelligence */}
       <div className="flex-1 flex min-h-0 p-4 gap-4 overflow-hidden">
-        {/* Supplier table (left) */}
+        {/* Table panel (left) */}
         <div className="flex-1 min-w-0 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
+          {/* Toggle header */}
           <div className="px-5 py-3 border-b border-slate-100 shrink-0">
-            <div className="flex items-center gap-2">
-              <Factory size={14} className="text-indigo-500" />
-              <h3 className="text-sm font-medium text-slate-700">
+            <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5 w-fit">
+              <button
+                onClick={() => setTableView('suppliers')}
+                className={cn(
+                  'flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md transition-colors',
+                  tableView === 'suppliers'
+                    ? 'bg-white text-slate-800 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
+                )}
+              >
+                <Factory size={12} />
                 Suppliers
                 {detail && (
-                  <span className="text-slate-400 font-normal ml-1">({detail.supplier_count})</span>
+                  <span className="text-slate-400 font-normal">({detail.supplier_count})</span>
                 )}
-              </h3>
+              </button>
+              <button
+                onClick={() => setTableView('customers')}
+                className={cn(
+                  'flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md transition-colors',
+                  tableView === 'customers'
+                    ? 'bg-white text-slate-800 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
+                )}
+              >
+                <Truck size={12} />
+                Customers
+                {detail && (
+                  <span className="text-slate-400 font-normal">({detail.customer_count})</span>
+                )}
+              </button>
             </div>
           </div>
 
+          {/* Table content */}
           <div className="flex-1 overflow-auto">
             {loading ? (
               <div className="flex items-center justify-center py-12">
@@ -132,43 +156,10 @@ export default function CompanyDrilldown({ company, onBack }: CompanyDrilldownPr
                   Go back
                 </button>
               </div>
-            ) : detail && detail.suppliers.length > 0 ? (
-              <table className="w-full text-xs">
-                <thead className="bg-slate-50 text-slate-500 uppercase sticky top-0">
-                  <tr>
-                    <th className="px-4 py-2.5 text-left font-medium">Supplier</th>
-                    <th className="px-4 py-2.5 text-left font-medium">Country</th>
-                    <th className="px-4 py-2.5 text-right font-medium">12m Shipments</th>
-                    <th className="px-4 py-2.5 text-right font-medium">Total</th>
-                    <th className="px-4 py-2.5 text-right font-medium">% of Imports</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {detail.suppliers.map((s, i) => (
-                    <tr key={i} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="px-4 py-2.5 font-medium text-slate-800">
-                        {s.supplier_name || s.name || 'Unknown'}
-                      </td>
-                      <td className="px-4 py-2.5 text-slate-500">
-                        {s.supplier_country || s.country || '—'}
-                      </td>
-                      <td className="px-4 py-2.5 text-right text-slate-600">
-                        {s.shipments_12m ?? '—'}
-                      </td>
-                      <td className="px-4 py-2.5 text-right text-slate-600">
-                        {s.total_shipments?.toLocaleString() ?? '—'}
-                      </td>
-                      <td className="px-4 py-2.5 text-right text-slate-600">
-                        {formatPct(s.shipment_pct_of_source)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            ) : tableView === 'suppliers' ? (
+              <SupplierTable suppliers={detail?.suppliers || []} />
             ) : (
-              <div className="text-center py-12">
-                <p className="text-xs text-slate-400">No suppliers found in cache</p>
-              </div>
+              <CustomerTable customers={detail?.customers || []} />
             )}
           </div>
         </div>
@@ -182,6 +173,109 @@ export default function CompanyDrilldown({ company, onBack }: CompanyDrilldownPr
         </div>
       </div>
     </div>
+  )
+}
+
+function SupplierTable({ suppliers }: { suppliers: Array<Record<string, any>> }) {
+  if (suppliers.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <Factory size={32} className="mx-auto text-slate-300 mb-2" />
+        <p className="text-xs text-slate-400">No suppliers found in cache</p>
+      </div>
+    )
+  }
+
+  return (
+    <table className="w-full text-xs">
+      <thead className="bg-slate-50 text-slate-500 uppercase sticky top-0">
+        <tr>
+          <th className="px-4 py-2.5 text-left font-medium">Supplier</th>
+          <th className="px-4 py-2.5 text-left font-medium">Country</th>
+          <th className="px-4 py-2.5 text-right font-medium">12m Shipments</th>
+          <th className="px-4 py-2.5 text-right font-medium">Total</th>
+          <th className="px-4 py-2.5 text-right font-medium">% of Imports</th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-slate-50">
+        {suppliers.map((s, i) => (
+          <tr key={i} className="hover:bg-slate-50/50 transition-colors">
+            <td className="px-4 py-2.5 font-medium text-slate-800">
+              {s.supplier_name || s.name || 'Unknown'}
+            </td>
+            <td className="px-4 py-2.5 text-slate-500">
+              {s.supplier_country || s.country || '—'}
+            </td>
+            <td className="px-4 py-2.5 text-right text-slate-600">
+              {s.shipments_12m ?? '—'}
+            </td>
+            <td className="px-4 py-2.5 text-right text-slate-600">
+              {s.total_shipments?.toLocaleString() ?? '—'}
+            </td>
+            <td className="px-4 py-2.5 text-right text-slate-600">
+              {formatPct(s.shipment_pct_of_source)}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
+function CustomerTable({ customers }: { customers: Array<Record<string, any>> }) {
+  if (customers.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <Truck size={32} className="mx-auto text-slate-300 mb-2" />
+        <p className="text-xs text-slate-400">No customer shipment data found</p>
+      </div>
+    )
+  }
+
+  return (
+    <table className="w-full text-xs">
+      <thead className="bg-slate-50 text-slate-500 uppercase sticky top-0">
+        <tr>
+          <th className="px-4 py-2.5 text-left font-medium">Customer</th>
+          <th className="px-4 py-2.5 text-left font-medium">Country</th>
+          <th className="px-4 py-2.5 text-left font-medium">Type</th>
+          <th className="px-4 py-2.5 text-right font-medium">12m Shipments</th>
+          <th className="px-4 py-2.5 text-right font-medium">Total</th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-slate-50">
+        {customers.map((c, i) => (
+          <tr key={i} className="hover:bg-slate-50/50 transition-colors">
+            <td className="px-4 py-2.5 font-medium text-slate-800">
+              {c.customer_name || c.name || 'Unknown'}
+            </td>
+            <td className="px-4 py-2.5 text-slate-500">
+              {c.customer_country || c.country || '—'}
+            </td>
+            <td className="px-4 py-2.5">
+              {c.customer_entity_type && (
+                <span className={cn(
+                  'px-1.5 py-0.5 rounded text-[10px] font-medium',
+                  c.customer_entity_type === 'target' ? 'bg-amber-100 text-amber-700' :
+                  c.customer_entity_type === 'competitor' ? 'bg-blue-100 text-blue-700' :
+                  'bg-slate-100 text-slate-500'
+                )}>
+                  {c.customer_entity_type === 'target' ? 'C1' :
+                   c.customer_entity_type === 'competitor' ? 'Competitor' :
+                   'Discovered'}
+                </span>
+              )}
+            </td>
+            <td className="px-4 py-2.5 text-right text-slate-600">
+              {c.shipments_12m ?? '—'}
+            </td>
+            <td className="px-4 py-2.5 text-right text-slate-600">
+              {c.total_shipments?.toLocaleString() ?? '—'}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   )
 }
 

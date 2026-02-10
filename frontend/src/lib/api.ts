@@ -721,6 +721,8 @@ class ApiClient {
     company: Record<string, any>
     suppliers: Array<Record<string, any>>
     supplier_count: number
+    customers: Array<Record<string, any>>
+    customer_count: number
   }> {
     const response = await fetch(
       `${this.baseUrl}/api/supply-network/company/${encodeURIComponent(importyetiKey)}`
@@ -796,10 +798,12 @@ class ApiClient {
       ticker: string | null
       country: string
       category: string | null
+      website: string | null
       total_shipments: number
       supplier_count: number
       active_suppliers_12m: number
     }>
+    last_updated: string | null
   }> {
     const response = await fetch(`${this.baseUrl}/api/supply-network/companies`)
     if (!response.ok) {

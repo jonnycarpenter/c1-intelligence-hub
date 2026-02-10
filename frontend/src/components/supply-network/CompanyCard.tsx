@@ -1,7 +1,8 @@
 'use client'
 
-import { Building2, Package, Factory, MapPin } from 'lucide-react'
+import { Package, Factory, MapPin } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import CompanyLogo from '@/components/pipeline/CompanyLogo'
 
 interface TrackedCompany {
   importyeti_key: string
@@ -10,6 +11,7 @@ interface TrackedCompany {
   ticker: string | null
   country: string
   category: string | null
+  website: string | null
   total_shipments: number
   supplier_count: number
   active_suppliers_12m: number
@@ -36,20 +38,10 @@ export default function CompanyCard({ company, onClick }: CompanyCardProps) {
           : 'bg-white border-slate-200 hover:border-blue-300'
       )}
     >
-      {/* Header: name + badge */}
+      {/* Header: logo + name + badge */}
       <div className="flex items-start justify-between gap-2 mb-3">
-        <div className="flex items-center gap-2 min-w-0">
-          <div
-            className={cn(
-              'w-8 h-8 rounded-lg flex items-center justify-center shrink-0',
-              isTarget ? 'bg-amber-100' : 'bg-blue-100'
-            )}
-          >
-            <Building2
-              size={16}
-              className={isTarget ? 'text-amber-600' : 'text-blue-600'}
-            />
-          </div>
+        <div className="flex items-center gap-2.5 min-w-0">
+          <CompanyLogo domain={company.website} size={32} />
           <h3 className="text-sm font-semibold text-slate-800 truncate">
             {company.name}
           </h3>

@@ -900,6 +900,45 @@ class BigQueryStore:
         rows = list(self.client.query(query, job_config=job_config).result())
         return [dict(r) for r in rows]
 
+    def get_company_customers(self, company_key: str) -> List[Dict[str, Any]]:
+        """Get all customers/buyers that this company ships to (from supplies_to edges)."""
+        query = f"""
+            WITH c_dedup AS (
+                SELECT * EXCEPT(_rn) FROM (
+                    SELECT *, ROW_NUMBER() OVER (
+                        PARTITION BY importyeti_key ORDER BY updated_at DESC
+                    ) AS _rn
+                    FROM `{self._table_id(TABLE_COMPANIES)}`
+                ) WHERE _rn = 1
+            )
+            SELECT
+                c.name AS customer_name,
+                c.importyeti_key AS customer_key,
+                c.entity_type AS customer_entity_type,
+                c.country AS customer_country,
+                c.total_shipments AS customer_total_shipments,
+                e.total_shipments,
+                e.shipments_12m,
+                e.shipment_pct_of_source,
+                e.shipment_pct_of_target,
+                e.most_recent_shipment,
+                e.first_shipment,
+                e.business_length,
+                e.is_new_relationship
+            FROM `{self._table_id(TABLE_EDGES)}` e
+            JOIN c_dedup c ON e.target_key = c.importyeti_key
+            WHERE e.source_key = @company_key
+              AND e.relationship_type = 'supplies_to'
+            ORDER BY e.shipments_12m DESC NULLS LAST, e.total_shipments DESC NULLS LAST
+        """
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("company_key", "STRING", company_key),
+            ]
+        )
+        rows = list(self.client.query(query, job_config=job_config).result())
+        return [dict(r) for r in rows]
+
     def get_supplier_buyers(self, supplier_key: str) -> List[Dict[str, Any]]:
         """Get all buyers for a supplier from edges."""
         query = f"""
@@ -1039,7 +1078,9 @@ class BigQueryStore:
                 c.ticker,
                 c.country,
                 c.category,
+                c.website,
                 c.total_shipments,
+                c.updated_at,
                 COALESCE(edge_stats.supplier_count, 0) AS supplier_count,
                 COALESCE(edge_stats.active_suppliers_12m, 0) AS active_suppliers_12m
             FROM `{self._table_id(TABLE_COMPANIES)}` c

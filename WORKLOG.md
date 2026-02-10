@@ -35,6 +35,47 @@ Without reliable daily ingestion:
 - Keep `articles` table clean — actual news articles, press releases, and research only
 
 ---
+## 📅 SESSION 111: Supply Network Tab — Polish & Pencils Down (February 10, 2026)
+
+**Status**: ✅ COMPLETE — Supply Network tab is production-ready
+
+### 🎯 Goal
+
+Fix the 404 bug on company drill-down intelligence panel, add customer/destination view, integrate Logo.dev company logos, and add "last updated" timestamp to the tab header. Pencils down on this tab.
+
+### ✅ Completed
+
+1. **Fixed 404 on Intelligence Panel** — Root cause: FastAPI route ordering conflict. The greedy `/company/{key:path}` route was capturing `/company/{key}/intelligence` before the more specific route could match. Fix: moved the `/intelligence` endpoint above the catch-all.
+
+2. **"Last Updated" header timestamp** — Added `c.updated_at` to the BQ `get_tracked_companies_with_stats` query, computed `MAX(updated_at)` across all companies in the API response, and rendered in the tab subtitle as "Last updated Feb 9, 2026".
+
+3. **Suppliers/Customers toggle** — Added `get_company_customers()` to BigQueryStore (queries `supplies_to` edges where company is source, joining against `iy_companies`). Backend returns both `suppliers` and `customers` in company detail response. Frontend `CompanyDrilldown` has a pill-style toggle between Suppliers and Customers tables. Customer table shows: name, country, type badge (C1/Competitor/Discovered), 12m shipments, total.
+
+4. **Logo.dev integration on directory cards** — Added `c.website` to the BQ query. Replaced `Building2` icon placeholders with `<CompanyLogo>` (existing Logo.dev proxy component) on both `CompanyCard` (32px) and `CompanyDrilldown` header (36px). Falls back to Building2 icon on failure.
+
+5. **Frontend README updated** — Added Supply Network section to component architecture tree and key components list.
+
+### 📁 Files Modified
+| File | Change |
+|------|--------|
+| `backend/app/api/routes/supply_network.py` | Moved `/intelligence` endpoint before catch-all route; added `last_updated` and `customers` to responses |
+| `backend/app/ingestion/importyeti/bigquery_store.py` | Added `get_company_customers()` method; added `website` and `updated_at` to tracked companies query |
+| `frontend/src/components/supply-network/CompanyCard.tsx` | Logo.dev logo, `website` field on TrackedCompany type |
+| `frontend/src/components/supply-network/CompanyDrilldown.tsx` | Suppliers/Customers toggle, Logo.dev header, extracted table sub-components |
+| `frontend/src/components/supply-network/SupplyNetworkDashboard.tsx` | `lastUpdated` state, rendered in header subtitle |
+| `frontend/src/lib/api.ts` | Added `website`, `last_updated`, `customers`, `customer_count` to types |
+| `frontend/README.md` | Added Supply Network section |
+
+### 🏁 Supply Network Tab: PENCILS DOWN
+
+The Supply Network tab is now production-ready:
+- **Directory view**: Company cards with Logo.dev logos, supplier counts, shipment stats
+- **Company drill-down**: Suppliers/Customers toggle, supplier table, intelligence panel (earnings, SEC, articles)
+- **Network Map**: Force-directed graph with zoom/pan, detail panel
+- **Agent search**: NL queries with SSE streaming
+- **Data freshness**: "Last updated" timestamp in tab header
+
+---
 ## 📅 SESSION 110: Weekly Briefing Production Validation (February 10, 2026)
 
 **Status**: ✅ COMPLETE — Briefing pipeline is production-grade

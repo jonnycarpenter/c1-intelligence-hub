@@ -27,6 +27,14 @@ src/
 │   │   └── PipelineDashboard.tsx
 │   ├── products/          # Products tab
 │   ├── report/            # Report drawer
+│   ├── supply-network/    # Supply Network tab
+│   │   ├── SupplyNetworkDashboard.tsx  # Main container (Directory + Network Map)
+│   │   ├── CompanyCard.tsx             # Directory card with Logo.dev logos
+│   │   ├── CompanyDrilldown.tsx        # Suppliers/Customers toggle + intel panel
+│   │   ├── IntelligencePanel.tsx       # Earnings, SEC, articles sidebar
+│   │   ├── NetworkGraph.tsx            # Force-directed graph (canvas)
+│   │   ├── DetailPanel.tsx             # Network map sidebar
+│   │   └── SupplyChainSearch.tsx       # NL search with SSE
 │   └── research/          # Deep Research tab (Pipeline-style layout)
 │       ├── ResearchDashboard.tsx  # Main container with integrated chat
 │       ├── ResearchCanvas.tsx     # Legacy section display
@@ -69,6 +77,15 @@ src/
 ### Pipeline Tab (Session 50 Enhancement)
 - **PipelineDashboard** - "Pulse-style" layout with floating cards and slate-200 background
 - **SearchBlockCard** - Renders search results with alternating row colors (zebra striping) for readability
+
+### Supply Network Tab (Session 94+)
+- **SupplyNetworkDashboard** - Two sub-tabs: Directory (card grid) and Network Map (force graph)
+- **CompanyCard** - Directory cards with Logo.dev logos, entity badges (C1/Competitor), supplier counts, shipment stats
+- **CompanyDrilldown** - Full detail view with Suppliers/Customers toggle, supplier table, intelligence panel
+- **IntelligencePanel** - Collapsible sections for earnings quotes, SEC nuggets, and recent articles
+- **NetworkGraph** - `react-force-graph-2d` canvas visualization with zoom controls and legend
+- **DetailPanel** - Network map sidebar for node drill-down
+- **SupplyChainSearch** - Agent-powered natural language search with SSE streaming
 
 ### Discovery Tab (Session 87 Refactor)
 - **DiscoveryView** - Two-column layout: category list (left) + detail panel (right)

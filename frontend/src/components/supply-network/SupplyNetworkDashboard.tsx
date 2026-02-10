@@ -34,6 +34,7 @@ export default function SupplyNetworkDashboard() {
   const [companies, setCompanies] = useState<TrackedCompany[]>([])
   const [companiesLoading, setCompaniesLoading] = useState(true)
   const [companiesError, setCompaniesError] = useState<string | null>(null)
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null)
   const [selectedCompany, setSelectedCompany] = useState<TrackedCompany | null>(null)
   const [searchActive, setSearchActive] = useState(false)
 
@@ -54,6 +55,7 @@ export default function SupplyNetworkDashboard() {
       setCompaniesError(null)
       const data = await api.getTrackedCompanies()
       setCompanies(data.companies)
+      setLastUpdated(data.last_updated)
     } catch (err: any) {
       setCompaniesError(err.message || 'Failed to load companies')
     } finally {
@@ -117,6 +119,9 @@ export default function SupplyNetworkDashboard() {
               <h1 className="text-lg font-semibold text-slate-800">Supply Network</h1>
               <p className="text-xs text-slate-500">
                 C1 + 10 competitors &middot; Upstream supplier relationships
+                {lastUpdated && (
+                  <span> &middot; Last updated {new Date(lastUpdated).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                )}
               </p>
             </div>
           </div>
