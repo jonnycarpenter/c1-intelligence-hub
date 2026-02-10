@@ -6,10 +6,72 @@ from app.agents.research.progress import emit_progress_sync, ToolProgress
 from app.config.settings import settings
 from app.utils.resilient_llm import create_resilient_llm_with_openai_fallback
 import json
+import re
 import logging
 import asyncio
 
 logger = logging.getLogger(__name__)
+
+
+def _clean_and_repair_json(content: str) -> str:
+    """
+    Clean and repair common LLM JSON formatting issues.
+
+    Handles:
+    - Trailing commas before closing brackets/braces
+    - Unclosed strings, arrays, objects
+    - Text/commentary after the JSON object
+    - Leading text before the JSON object
+    """
+    # Strip whitespace
+    content = content.strip()
+
+    # Find the actual JSON object boundaries
+    # Look for the first '{' and the last '}'
+    first_brace = content.find('{')
+    if first_brace == -1:
+        return content  # No JSON object found
+
+    # Track brace depth to find the matching closing brace
+    depth = 0
+    in_string = False
+    last_brace = -1
+    i = first_brace
+    while i < len(content):
+        char = content[i]
+        if char == '"' and (i == 0 or content[i-1] != '\\'):
+            in_string = not in_string
+        elif not in_string:
+            if char == '{':
+                depth += 1
+            elif char == '}':
+                depth -= 1
+                if depth == 0:
+                    last_brace = i
+                    break
+        i += 1
+
+    if last_brace > first_brace:
+        # Found complete JSON object - extract it
+        content = content[first_brace:last_brace + 1]
+    else:
+        # JSON object is unclosed - take from first brace and try to repair
+        content = content[first_brace:]
+
+        # Close unclosed strings
+        if in_string:
+            content += '"'
+
+        # Close unclosed arrays and objects
+        open_brackets = content.count('[') - content.count(']')
+        open_braces = content.count('{') - content.count('}')
+        content += ']' * max(0, open_brackets)
+        content += '}' * max(0, open_braces)
+
+    # Fix trailing commas: ,] or ,} (with optional whitespace)
+    content = re.sub(r',\s*([}\]])', r'\1', content)
+
+    return content
 
 # Timeout for prior research lookup (seconds)
 PRIOR_RESEARCH_TIMEOUT = 10
@@ -410,12 +472,65 @@ Remember: Your response MUST be valid JSON matching the schema above."""
         status="complete"
     ))
     
+    # =========================================================================
+    # PARSE LLM RESPONSE WITH REPAIR + RETRY
+    # Haiku sometimes produces malformed JSON (trailing commas, unclosed
+    # brackets, commentary after closing brace). We:
+    #   1. Extract JSON from markdown fences if present
+    #   2. Try json.loads() directly
+    #   3. On failure, apply _clean_and_repair_json() and retry parse
+    #   4. If repair also fails, retry the LLM call once (Haiku is fast/cheap)
+    # =========================================================================
+
+    def _extract_json_content(raw_content: str) -> str:
+        """Extract JSON from markdown fences or return raw content."""
+        if not raw_content or not raw_content.strip():
+            return ""
+        c = raw_content
+        if "```json" in c:
+            c = c.split("```json")[1].split("```")[0].strip()
+        elif "```" in c:
+            c = c.split("```")[1].split("```")[0].strip()
+        return c.strip()
+
+    def _try_parse_groomer_json(raw_content: str) -> dict:
+        """
+        Try to parse JSON from LLM response with repair fallback.
+        Raises json.JSONDecodeError if both direct parse and repair fail.
+        """
+        content = _extract_json_content(raw_content)
+        if not content:
+            raise json.JSONDecodeError("Empty content after extraction", "", 0)
+
+        # Attempt 1: Direct parse
+        try:
+            return json.loads(content)
+        except json.JSONDecodeError as first_err:
+            logger.warning(f"[GROOMER] Direct JSON parse failed: {first_err}, attempting repair")
+
+        # Attempt 2: Clean and repair common issues
+        repaired = _clean_and_repair_json(content)
+        try:
+            result = json.loads(repaired)
+            logger.info("[GROOMER] JSON repair successful")
+            return result
+        except json.JSONDecodeError:
+            # Also try repairing the raw content (in case markdown extraction was wrong)
+            repaired_raw = _clean_and_repair_json(raw_content)
+            try:
+                result = json.loads(repaired_raw)
+                logger.info("[GROOMER] JSON repair (from raw content) successful")
+                return result
+            except json.JSONDecodeError as final_err:
+                raise final_err
+
+    brief_data = None
+
     try:
-        # Extract JSON from response content (handling potential markdown)
         content = response.content
         logger.info(f"[GROOMER] Raw response length: {len(content)} chars")
         logger.debug(f"Raw groomer response: {content[:500]}...")
-        
+
         # Validate response is not empty
         if not content or not content.strip():
             logger.error("[GROOMER] LLM returned empty response")
@@ -427,71 +542,50 @@ Remember: Your response MUST be valid JSON matching the schema above."""
                 status="error"
             ))
             return state
-        
-        if "```json" in content:
-            content = content.split("```json")[1].split("```")[0].strip()
-        elif "```" in content:
-            content = content.split("```")[1].split("```")[0].strip()
-        
-        # Final check after markdown extraction
-        if not content.strip():
-            logger.error("[GROOMER] No JSON found in LLM response after markdown extraction")
-            state["errors"].append({"node": "groomer", "error": "LLM response did not contain valid JSON"})
-            state["current_status"] = "grooming_failed"
-            return state
-            
-        brief_data = json.loads(content)
-        
-        # Handle case where LLM returns clarifying_question as string instead of object
-        # This happens when LLM doesn't follow the exact schema
-        if brief_data.get("clarifying_question") and isinstance(brief_data["clarifying_question"], str):
-            logger.warning("LLM returned clarifying_question as string, converting to object")
-            brief_data["clarifying_question"] = {
-                "question": brief_data["clarifying_question"],
-                "options": None,
-                "default_if_skipped": "Proceeding with general analysis covering all aspects."
-            }
-        
-        research_brief = ResearchBrief(**brief_data)
-        
+
+        brief_data = _try_parse_groomer_json(content)
+
+    except json.JSONDecodeError as e:
         # =====================================================================
-        # ENFORCEMENT: Max 1 clarifying question per session
-        # If we've already asked a clarification, force status to READY
+        # RETRY: Re-invoke LLM once on JSON parse failure (Haiku is fast/cheap)
         # =====================================================================
-        if research_brief.status == QueryStatus.NEEDS_CLARIFICATION and prior_clarifications >= 1:
-            logger.warning(f"[GROOMER] ENFORCEMENT: Already had {prior_clarifications} clarification(s), forcing status=READY")
-            # Override the status - proceed with research using whatever info we have
-            research_brief.status = QueryStatus.READY
-            research_brief.clarifying_question = None
+        logger.warning(f"[GROOMER] JSON parse failed after repair, retrying LLM call: {e}")
+        logger.warning(f"[GROOMER] Failed response (first 1000 chars): {response.content[:1000]}")
+
+        try:
             emit_progress_sync(ToolProgress(
                 tool_name="query_analysis",
-                message="Proceeding with research (clarification limit reached)",
-                status="complete"
+                message="Re-analyzing query...",
+                status="running"
             ))
-        
-        state["research_brief"] = research_brief
-        elapsed = time.time() - start_time
-        logger.info(f"[GROOMER] COMPLETE in {elapsed:.1f}s - status: {research_brief.status}")
-        logger.info(f"[GROOMER] Financial queries: {len(research_brief.financial_agent_queries or [])}, Industry queries: {len(research_brief.industry_agent_queries or [])}")
-        
-        if research_brief.status == QueryStatus.NEEDS_CLARIFICATION:
-            state["clarification_count"] += 1
-            state["current_status"] = "awaiting_clarification"
-            state["last_clarification"] = research_brief.clarifying_question  # Store for context
-        else:
-            state["current_status"] = "grooming_complete"
-            
-    except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse groomer JSON response: {e}")
-        logger.error(f"Response content: {response.content[:1000]}")
-        state["errors"].append({"node": "groomer", "error": f"JSON parse error: {str(e)}", "response": response.content[:500]})
-        state["current_status"] = "grooming_failed"
-        # Emit error progress so UI doesn't show spinner indefinitely
-        emit_progress_sync(ToolProgress(
-            tool_name="query_analysis",
-            message=f"Failed to parse query plan: {str(e)[:100]}",
-            status="error"
-        ))
+            retry_response = await asyncio.wait_for(llm.ainvoke(messages), timeout=LLM_TIMEOUT)
+            retry_content = retry_response.content
+            logger.info(f"[GROOMER] Retry response length: {len(retry_content)} chars")
+
+            brief_data = _try_parse_groomer_json(retry_content)
+            logger.info("[GROOMER] Retry parse successful")
+
+        except json.JSONDecodeError as retry_err:
+            logger.error(f"[GROOMER] Retry also failed to parse JSON: {retry_err}")
+            logger.error(f"[GROOMER] Retry response: {retry_content[:1000]}")
+            state["errors"].append({"node": "groomer", "error": f"JSON parse error (after retry): {str(retry_err)}", "response": retry_content[:500]})
+            state["current_status"] = "grooming_failed"
+            emit_progress_sync(ToolProgress(
+                tool_name="query_analysis",
+                message=f"Failed to parse query plan: {str(retry_err)[:100]}",
+                status="error"
+            ))
+            return state
+        except (asyncio.TimeoutError, asyncio.CancelledError, Exception) as retry_llm_err:
+            logger.error(f"[GROOMER] Retry LLM call failed: {type(retry_llm_err).__name__}: {retry_llm_err}")
+            state["errors"].append({"node": "groomer", "error": f"JSON parse error: {str(e)} (retry failed: {str(retry_llm_err)})"})
+            state["current_status"] = "grooming_failed"
+            emit_progress_sync(ToolProgress(
+                tool_name="query_analysis",
+                message=f"Failed to parse query plan: {str(e)[:100]}",
+                status="error"
+            ))
+            return state
     except Exception as e:
         import traceback
         error_info = traceback.format_exc()
@@ -499,11 +593,65 @@ Remember: Your response MUST be valid JSON matching the schema above."""
         logger.error(error_info)
         state["errors"].append({"node": "groomer", "error": str(e), "trace": error_info})
         state["current_status"] = "grooming_failed"
-        # Emit error progress so UI doesn't show spinner indefinitely
         emit_progress_sync(ToolProgress(
             tool_name="query_analysis",
             message=f"Query analysis failed: {str(e)[:100]}",
             status="error"
         ))
-        
+        return state
+
+    # =========================================================================
+    # POST-PARSE: Validate and build ResearchBrief
+    # =========================================================================
+    try:
+        # Handle case where LLM returns clarifying_question as string instead of object
+        if brief_data.get("clarifying_question") and isinstance(brief_data["clarifying_question"], str):
+            logger.warning("LLM returned clarifying_question as string, converting to object")
+            brief_data["clarifying_question"] = {
+                "question": brief_data["clarifying_question"],
+                "options": None,
+                "default_if_skipped": "Proceeding with general analysis covering all aspects."
+            }
+
+        research_brief = ResearchBrief(**brief_data)
+
+        # =====================================================================
+        # ENFORCEMENT: Max 1 clarifying question per session
+        # If we've already asked a clarification, force status to READY
+        # =====================================================================
+        if research_brief.status == QueryStatus.NEEDS_CLARIFICATION and prior_clarifications >= 1:
+            logger.warning(f"[GROOMER] ENFORCEMENT: Already had {prior_clarifications} clarification(s), forcing status=READY")
+            research_brief.status = QueryStatus.READY
+            research_brief.clarifying_question = None
+            emit_progress_sync(ToolProgress(
+                tool_name="query_analysis",
+                message="Proceeding with research (clarification limit reached)",
+                status="complete"
+            ))
+
+        state["research_brief"] = research_brief
+        elapsed = time.time() - start_time
+        logger.info(f"[GROOMER] COMPLETE in {elapsed:.1f}s - status: {research_brief.status}")
+        logger.info(f"[GROOMER] Financial queries: {len(research_brief.financial_agent_queries or [])}, Industry queries: {len(research_brief.industry_agent_queries or [])}")
+
+        if research_brief.status == QueryStatus.NEEDS_CLARIFICATION:
+            state["clarification_count"] += 1
+            state["current_status"] = "awaiting_clarification"
+            state["last_clarification"] = research_brief.clarifying_question
+        else:
+            state["current_status"] = "grooming_complete"
+
+    except Exception as e:
+        import traceback
+        error_info = traceback.format_exc()
+        logger.error(f"Groomer validation error: {e}")
+        logger.error(error_info)
+        state["errors"].append({"node": "groomer", "error": str(e), "trace": error_info})
+        state["current_status"] = "grooming_failed"
+        emit_progress_sync(ToolProgress(
+            tool_name="query_analysis",
+            message=f"Query analysis failed: {str(e)[:100]}",
+            status="error"
+        ))
+
     return state
