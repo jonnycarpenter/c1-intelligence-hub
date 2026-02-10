@@ -11,6 +11,7 @@ export type ArchNodeType =
   | 'fanOut'
   | 'externalApi'
   | 'gcpService'
+  | 'tabNode'
 
 export interface TechnicalDetail {
   sourceFiles?: string[]

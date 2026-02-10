@@ -15,6 +15,8 @@ const iconMap: Record<string, typeof Rss> = {
   radio: Radio,
   globe: Globe,
   truck: Truck,
+  settings: FileText,
+  api: Globe,
 }
 
 function DataSourceNode({ data, selected }: NodeProps & { data: ArchNodeData }) {

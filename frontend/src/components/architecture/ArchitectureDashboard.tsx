@@ -6,8 +6,17 @@ import { cn } from '@/lib/utils'
 import dynamic from 'next/dynamic'
 import type { ArchSubTab } from './types'
 
-// Dynamic import for React Flow (requires browser DOM)
+// Dynamic imports for React Flow (requires browser DOM)
 const IngestionFlowDiagram = dynamic(() => import('./IngestionFlowDiagram'), {
+  ssr: false,
+  loading: () => (
+    <div className="h-full flex items-center justify-center">
+      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-sky-500" />
+    </div>
+  ),
+})
+
+const TabArchitectureDiagram = dynamic(() => import('./TabArchitectureDiagram'), {
   ssr: false,
   loading: () => (
     <div className="h-full flex items-center justify-center">
@@ -56,15 +65,7 @@ export default function ArchitectureDashboard() {
       {/* Sub-tab content */}
       <div className="flex-1 overflow-hidden">
         {activeSubTab === 'ingestion' && <IngestionFlowDiagram />}
-        {activeSubTab === 'tab-architecture' && (
-          <div className="h-full flex items-center justify-center text-slate-400">
-            <div className="text-center">
-              <Layout className="w-12 h-12 mx-auto mb-3 text-slate-300" />
-              <p className="text-sm font-medium">Tab Architecture — Coming in Phase 3</p>
-              <p className="text-xs text-slate-400 mt-1">Frontend data flows + GCP infrastructure layer</p>
-            </div>
-          </div>
-        )}
+        {activeSubTab === 'tab-architecture' && <TabArchitectureDiagram />}
         {activeSubTab === 'agentic-workflows' && (
           <div className="h-full flex items-center justify-center text-slate-400">
             <div className="text-center">
