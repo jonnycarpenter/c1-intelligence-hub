@@ -12,7 +12,7 @@ import sys
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-PROJECT_ID = "gen-lang-client-0436975498"
+PROJECT_ID = "<GCP_PROJECT_ID>"
 DATASET_ID = "c1_intelligence"
 
 # Path to resources files (the master source of truth)

@@ -3,7 +3,7 @@ Check BigQuery data completeness and backfill status
 """
 from google.cloud import bigquery
 
-PROJECT_ID = "gen-lang-client-0436975498"
+PROJECT_ID = "<GCP_PROJECT_ID>"
 DATASET = "c1_intelligence"
 
 client = bigquery.Client(project=PROJECT_ID)
@@ -18,7 +18,7 @@ query = """
 SELECT 
   'Articles' as table_name,
   COUNT(*) as count
-FROM `gen-lang-client-0436975498.c1_intelligence.corpus_items`
+FROM `<GCP_PROJECT_ID>.c1_intelligence.corpus_items`
 WHERE fetched_at >= '2025-12-29'
 
 UNION ALL
@@ -26,7 +26,7 @@ UNION ALL
 SELECT 
   'Digest Items' as table_name,
   COUNT(*) as count
-FROM `gen-lang-client-0436975498.c1_intelligence.digest_items`
+FROM `<GCP_PROJECT_ID>.c1_intelligence.digest_items`
 WHERE ingested_at >= '2025-12-29'
 """
 

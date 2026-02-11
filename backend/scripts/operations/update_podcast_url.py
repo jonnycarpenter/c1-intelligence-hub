@@ -2,14 +2,14 @@
 
 from google.cloud import bigquery
 
-client = bigquery.Client(project='gen-lang-client-0436975498')
+client = bigquery.Client(project='<GCP_PROJECT_ID>')
 
 briefing_id = 'c21f6cdc-1b55-4d1b-9a89-51aff8aa905f'
 # Use the backend API endpoint for the podcast URL
 podcast_url = f'/api/podcast/briefing/{briefing_id}'
 
 update_query = f"""
-UPDATE `gen-lang-client-0436975498.c1_intelligence.weekly_briefings`
+UPDATE `<GCP_PROJECT_ID>.c1_intelligence.weekly_briefings`
 SET podcast_url = '{podcast_url}'
 WHERE id = '{briefing_id}'
 """
@@ -20,7 +20,7 @@ print(f'✅ Updated podcast URL to: {podcast_url}')
 # Verify
 verify = """
 SELECT id, podcast_url, podcast_duration_seconds 
-FROM `gen-lang-client-0436975498.c1_intelligence.weekly_briefings`
+FROM `<GCP_PROJECT_ID>.c1_intelligence.weekly_briefings`
 WHERE id = 'c21f6cdc-1b55-4d1b-9a89-51aff8aa905f'
 """
 result = list(client.query(verify).result())[0]

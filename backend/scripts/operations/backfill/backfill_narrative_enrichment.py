@@ -61,7 +61,7 @@ logger = logging.getLogger(__name__)
 # Configuration
 # ============================================================================
 
-PROJECT_ID = "gen-lang-client-0436975498"
+PROJECT_ID = "<GCP_PROJECT_ID>"
 DATASET_ID = "c1_intelligence"
 FULL_DATASET = f"{PROJECT_ID}.{DATASET_ID}"
 

@@ -6,9 +6,9 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 # FORCE ENV VARS for BigQuery/GCP
-os.environ["GCP_PROJECT_ID"] = "gen-lang-client-0436975498"
+os.environ["GCP_PROJECT_ID"] = "<GCP_PROJECT_ID>"
 # Using the bucket name found in service_config.yaml
-os.environ["GCS_BUCKET_NAME"] = "gen-lang-client-0436975498-c1-hub-data" 
+os.environ["GCS_BUCKET_NAME"] = "<GCP_PROJECT_ID>-c1-hub-data" 
 os.environ["GCP_DATASET_ID"] = "c1_intelligence" 
 
 # Needed for imports to work

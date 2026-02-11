@@ -6,7 +6,7 @@ import { Sparkles, User, Loader2 } from 'lucide-react'
 const AUTH_KEY = 'c1_hub_authenticated'
 const USER_NAME_KEY = 'userName'  // Must match api.ts expectations
 const USER_TEAM_KEY = 'userTeam'  // Must match api.ts expectations
-const SITE_PASSWORD = 'partnership2026' // Shared access key - sent automatically
+const SITE_PASSWORD = process.env.NEXT_PUBLIC_SITE_PASSWORD || '' // Set via environment variable
 
 interface PasswordGateProps {
   children: React.ReactNode

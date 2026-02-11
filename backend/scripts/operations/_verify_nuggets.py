@@ -1,8 +1,8 @@
 """Verify nugget extraction results."""
 from google.cloud import bigquery
 
-c = bigquery.Client(project="gen-lang-client-0436975498")
-table = "gen-lang-client-0436975498.c1_intelligence.sec_filing_nuggets"
+c = bigquery.Client(project="<GCP_PROJECT_ID>")
+table = "<GCP_PROJECT_ID>.c1_intelligence.sec_filing_nuggets"
 
 # Total counts
 q1 = f"""
@@ -66,7 +66,7 @@ SELECT
     COUNT(*) as total,
     COUNT(DISTINCT ticker) as tickers,
     COUNT(DISTINCT form_type) as form_types
-FROM `gen-lang-client-0436975498.c1_intelligence.sec_filings`
+FROM `<GCP_PROJECT_ID>.c1_intelligence.sec_filings`
 """
 print("\n=== SEC Filings Table ===")
 for row in c.query(q5).result():

@@ -1,11 +1,11 @@
 """Quick script to check earnings URLs in BigQuery"""
 from google.cloud import bigquery
 
-client = bigquery.Client(project='gen-lang-client-0436975498', location='us-central1')
+client = bigquery.Client(project='<GCP_PROJECT_ID>', location='us-central1')
 
 query = """
 SELECT url, title, source_type 
-FROM `gen-lang-client-0436975498.c1_hub_data.articles` 
+FROM `<GCP_PROJECT_ID>.c1_hub_data.articles` 
 WHERE source_type = 'earnings'
 LIMIT 10
 """

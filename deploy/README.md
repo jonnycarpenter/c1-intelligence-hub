@@ -73,10 +73,10 @@ git commit -m "Description of changes"
 git push origin main
 
 # Cloud Build trigger deploys to Cloud Run automatically
-# Monitor at: https://console.cloud.google.com/cloud-build/builds?project=gen-lang-client-0436975498
+# Monitor at: https://console.cloud.google.com/cloud-build/builds?project=<GCP_PROJECT_ID>
 ```
 
-**Current Production URL**: `https://c1-hub-4iz75bvpyq-uc.a.run.app`
+**Current Production URL**: `https://<CLOUD_RUN_URL>`
 
 ### Initial Setup (One-Time)
 
@@ -86,11 +86,11 @@ chmod +x deploy/setup-gcp.sh
 ./deploy/setup-gcp.sh YOUR_PROJECT_ID
 
 # 2. Add API keys to Secret Manager (use -n to avoid trailing newlines!)
-echo -n "sk-ant-xxxxx" | gcloud secrets create anthropic-api-key --data-file=- --project=gen-lang-client-0436975498
-echo -n "your-fmp-key" | gcloud secrets create FMP_API_KEY --data-file=- --project=gen-lang-client-0436975498
-echo -n "your-api-ninja-key" | gcloud secrets create api-ninja-key --data-file=- --project=gen-lang-client-0436975498
-echo -n "your-tavily-key" | gcloud secrets create tavily-api-key --data-file=- --project=gen-lang-client-0436975498
-echo -n "your-logo-dev-token" | gcloud secrets create LOGO_DEV_TOKEN --data-file=- --project=gen-lang-client-0436975498
+echo -n "sk-ant-xxxxx" | gcloud secrets create anthropic-api-key --data-file=- --project=<GCP_PROJECT_ID>
+echo -n "your-fmp-key" | gcloud secrets create FMP_API_KEY --data-file=- --project=<GCP_PROJECT_ID>
+echo -n "your-api-ninja-key" | gcloud secrets create api-ninja-key --data-file=- --project=<GCP_PROJECT_ID>
+echo -n "your-tavily-key" | gcloud secrets create tavily-api-key --data-file=- --project=<GCP_PROJECT_ID>
+echo -n "your-logo-dev-token" | gcloud secrets create LOGO_DEV_TOKEN --data-file=- --project=<GCP_PROJECT_ID>
 
 # 3. Deploy scheduler jobs (after Cloud Run is up)
 chmod +x deploy/scheduler/deploy-scheduler.sh
@@ -103,7 +103,7 @@ chmod +x deploy/scheduler/deploy-scheduler.sh
 # From repo root (builds run in us-central1)
 gcloud builds submit --config=cloudbuild.yaml \
   --region=us-central1 \
-  --project=gen-lang-client-0436975498
+  --project=<GCP_PROJECT_ID>
 ```
 
 ### Option 2: Terraform (Infrastructure as Code)
@@ -123,7 +123,7 @@ terraform apply -var="project_id=YOUR_PROJECT_ID"
 cd ../..
 gcloud builds submit --config=cloudbuild.yaml \
   --region=us-central1 \
-  --project=gen-lang-client-0436975498
+  --project=<GCP_PROJECT_ID>
 
 # 5. Enable scheduler jobs
 terraform apply \

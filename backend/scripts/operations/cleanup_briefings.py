@@ -7,8 +7,8 @@ Usage: cd backend && python scripts/operations/cleanup_briefings.py
 from google.cloud import bigquery
 
 def main():
-    c = bigquery.Client(project="gen-lang-client-0436975498")
-    project = "gen-lang-client-0436975498"
+    c = bigquery.Client(project="<GCP_PROJECT_ID>")
+    project = "<GCP_PROJECT_ID>"
     dataset = "c1_intelligence"
 
     # Step 1: Delete broken Feb 9 weekly briefing (citations show "Article not found")

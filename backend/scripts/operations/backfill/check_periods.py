@@ -3,8 +3,8 @@
 
 from google.cloud import bigquery
 
-client = bigquery.Client(project='gen-lang-client-0436975498')
-dataset = 'gen-lang-client-0436975498.c1_intelligence'
+client = bigquery.Client(project='<GCP_PROJECT_ID>')
+dataset = '<GCP_PROJECT_ID>.c1_intelligence'
 
 periods = [
     ('12/22/25 - 1/4/26', '2025-12-22', '2026-01-05'),

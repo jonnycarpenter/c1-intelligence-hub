@@ -4,7 +4,7 @@ Query BigQuery for detailed article ingestion analysis
 from google.cloud import bigquery
 from datetime import datetime
 
-PROJECT_ID = "gen-lang-client-0436975498"
+PROJECT_ID = "<GCP_PROJECT_ID>"
 DATASET = "c1_intelligence"
 
 client = bigquery.Client(project=PROJECT_ID)
@@ -26,7 +26,7 @@ SELECT
   COUNT(*) as article_count,
   COUNT(DISTINCT source_name) as unique_sources,
   STRING_AGG(DISTINCT source_name ORDER BY source_name) as sources
-FROM `gen-lang-client-0436975498.c1_intelligence.corpus_items`
+FROM `<GCP_PROJECT_ID>.c1_intelligence.corpus_items`
 WHERE fetched_at >= '2025-12-29'
 GROUP BY DATE(fetched_at)
 ORDER BY date DESC
@@ -53,17 +53,17 @@ print("-" * 80)
 pipeline_query = """
 WITH article_counts AS (
   SELECT COUNT(*) as articles
-  FROM `gen-lang-client-0436975498.c1_intelligence.corpus_items`
+  FROM `<GCP_PROJECT_ID>.c1_intelligence.corpus_items`
   WHERE fetched_at >= '2025-12-29'
 ),
 digest_counts AS (
   SELECT COUNT(*) as digests
-  FROM `gen-lang-client-0436975498.c1_intelligence.digest_items`
+  FROM `<GCP_PROJECT_ID>.c1_intelligence.digest_items`
   WHERE ingested_at >= '2025-12-29'
 ),
 embedding_counts AS (
   SELECT COUNT(DISTINCT article_id) as embedded_articles
-  FROM `gen-lang-client-0436975498.c1_intelligence.article_chunk_embeddings`
+  FROM `<GCP_PROJECT_ID>.c1_intelligence.article_chunk_embeddings`
   WHERE published_at >= '2025-12-29'
 )
 SELECT 
@@ -104,7 +104,7 @@ SELECT
   COUNT(*) as count,
   MIN(fetched_at) as first_fetch,
   MAX(fetched_at) as last_fetch
-FROM `gen-lang-client-0436975498.c1_intelligence.corpus_items`
+FROM `<GCP_PROJECT_ID>.c1_intelligence.corpus_items`
 WHERE fetched_at >= '2025-12-29'
 GROUP BY source_name
 ORDER BY count DESC

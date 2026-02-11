@@ -246,9 +246,9 @@ The platform runs **10 GCP services** across compute, data, ML, storage, CI/CD, 
 | Node | Label | Icon | Detail |
 |------|-------|------|--------|
 | `gcp-cloudrun` | **Cloud Run** | Container | Serverless container runtime (gen2 execution environment). Service: `c1-hub`, region: `us-central1`. **2 vCPU, 2 GiB memory**, auto-scales 0→10 instances, CPU boost enabled, no CPU throttling. 3600s max request timeout (long-running research workflows). Zero always-on instances — pure pay-per-request serverless. Serves the full-stack app: FastAPI backend + statically-exported Next.js frontend in a single container. |
-| `gcp-bigquery` | **BigQuery** | Database/warehouse | Serverless analytics data warehouse — **the sole database** for the entire platform (no Postgres, no Redis, no SQLite). Dataset: `c1_intelligence` with 20+ tables covering articles, digest items, SEC filings, earnings, podcasts, supply chain, embeddings, briefings, and more. Native `VECTOR_SEARCH` with IVF index for semantic search. Auto-scales from bytes to petabytes. Project: `gen-lang-client-0436975498`. |
+| `gcp-bigquery` | **BigQuery** | Database/warehouse | Serverless analytics data warehouse — **the sole database** for the entire platform (no Postgres, no Redis, no SQLite). Dataset: `c1_intelligence` with 20+ tables covering articles, digest items, SEC filings, earnings, podcasts, supply chain, embeddings, briefings, and more. Native `VECTOR_SEARCH` with IVF index for semantic search. Auto-scales from bytes to petabytes. Project: `<GCP_PROJECT_ID>`. |
 | `gcp-vertexai` | **Vertex AI** | Brain/ML | Google's managed ML platform. Provides `text-embedding-004` model (768-dimensional embeddings). Called during ingestion to vectorize article chunks → stored in BigQuery `article_chunk_embeddings` table. Powers semantic similarity search across the entire intelligence corpus via BigQuery `VECTOR_SEARCH`. Graceful fallback to local `sentence-transformers` (384-dim) if Vertex API unavailable. Initialized via `aiplatform.init(project=..., location='us-central1')`. |
-| `gcp-gcs` | **Cloud Storage (GCS)** | Bucket | Bucket: `gen-lang-client-0436975498-c1-hub-data`. Dual-mode usage: **(1) GCS FUSE volume mount** on Cloud Run at `/app/data` for persistent file storage (knowledge DB, downloads) with 30-day lifecycle auto-delete. **(2) Direct GCS API** for uploading podcast MP3s (`/podcasts/{briefing_id}.mp3`) and serving via public URLs to the frontend audio player. |
+| `gcp-gcs` | **Cloud Storage (GCS)** | Bucket | Bucket: `<GCP_PROJECT_ID>-c1-hub-data`. Dual-mode usage: **(1) GCS FUSE volume mount** on Cloud Run at `/app/data` for persistent file storage (knowledge DB, downloads) with 30-day lifecycle auto-delete. **(2) Direct GCS API** for uploading podcast MP3s (`/podcasts/{briefing_id}.mp3`) and serving via public URLs to the frontend audio player. |
 
 #### Tier 2 — Automation & CI/CD (middle row of GCP strip)
 
@@ -639,11 +639,11 @@ This is the heaviest phase — it builds ALL reusable infrastructure (custom nod
 | Resource | Value |
 |----------|-------|
 | Cloud Run Service | `c1-hub` |
-| Cloud Run URL | `https://c1-hub-4iz75bvpyq-uc.a.run.app` |
-| GCP Project | `gen-lang-client-0436975498` |
+| Cloud Run URL | `https://<CLOUD_RUN_URL>` |
+| GCP Project | `<GCP_PROJECT_ID>` |
 | Region | `us-central1` |
 | BigQuery Dataset | `c1_intelligence` |
-| GCS Bucket | `gen-lang-client-0436975498-c1-hub-data` |
+| GCS Bucket | `<GCP_PROJECT_ID>-c1-hub-data` |
 | CI/CD | GitHub → Cloud Build → Cloud Run |
 | Scheduler Jobs | 5 jobs (see §2.2) |
 

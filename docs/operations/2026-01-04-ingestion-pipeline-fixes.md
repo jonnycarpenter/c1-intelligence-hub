@@ -123,13 +123,13 @@ def is_feed_eligible(article) -> bool:
 ### digest_items Table
 Added new column:
 ```sql
-ALTER TABLE gen-lang-client-0436975498.c1_intelligence.digest_items 
+ALTER TABLE <GCP_PROJECT_ID>.c1_intelligence.digest_items 
 ADD COLUMN IF NOT EXISTS feed_eligible BOOLEAN;
 
-ALTER TABLE gen-lang-client-0436975498.c1_intelligence.digest_items 
+ALTER TABLE <GCP_PROJECT_ID>.c1_intelligence.digest_items 
 ALTER COLUMN feed_eligible SET DEFAULT TRUE;
 
-UPDATE gen-lang-client-0436975498.c1_intelligence.digest_items 
+UPDATE <GCP_PROJECT_ID>.c1_intelligence.digest_items 
 SET feed_eligible = TRUE WHERE feed_eligible IS NULL;
 ```
 

@@ -25,8 +25,8 @@ The main storage layer with **hardcoded defaults** for production:
 
 ```python
 # Defaults (hardcoded for reliability)
-GCP_PROJECT_ID = "gen-lang-client-0436975498"
-GCS_BUCKET = "gen-lang-client-0436975498-c1-hub-data"
+GCP_PROJECT_ID = "<GCP_PROJECT_ID>"
+GCS_BUCKET = "<GCP_PROJECT_ID>-c1-hub-data"
 BQ_DATASET = "c1_intelligence"
 ```
 
@@ -114,7 +114,7 @@ If you have data in the GCS-mounted SQLite database that needs migration:
 
 ```bash
 # 1. Download SQLite from GCS
-gsutil cp gs://gen-lang-client-0436975498-c1-hub-data/c1_corpus.db backend/data/
+gsutil cp gs://<GCP_PROJECT_ID>-c1-hub-data/c1_corpus.db backend/data/
 
 # 2. Run migration script
 cd backend
@@ -201,8 +201,8 @@ The script:
 Environment variables (optional - defaults are hardcoded):
 
 ```bash
-GCP_PROJECT_ID=gen-lang-client-0436975498       # Default
-GCS_BUCKET_NAME=gen-lang-client-0436975498-c1-hub-data  # Default
+GCP_PROJECT_ID=<GCP_PROJECT_ID>       # Default
+GCS_BUCKET_NAME=<GCP_PROJECT_ID>-c1-hub-data  # Default
 BIGQUERY_DATASET=c1_intelligence                 # Default
 ```
 

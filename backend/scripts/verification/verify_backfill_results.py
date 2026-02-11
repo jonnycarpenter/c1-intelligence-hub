@@ -3,7 +3,7 @@ Quick BigQuery verification of backfill results
 """
 from google.cloud import bigquery
 
-PROJECT_ID = "gen-lang-client-0436975498"
+PROJECT_ID = "<GCP_PROJECT_ID>"
 DATASET = "c1_intelligence"
 
 client = bigquery.Client(project=PROJECT_ID)

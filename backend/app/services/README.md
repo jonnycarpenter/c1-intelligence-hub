@@ -153,7 +153,7 @@ The weekly executive briefing pipeline (`weekly_briefing.py`) generates a **conv
 - Better audio quality than concatenating individual TTS calls
 - Uses `httpx` directly (ElevenLabs Python SDK doesn't support this endpoint yet)
 
-**Storage**: GCS bucket `gen-lang-client-0436975498-c1-hub-data` in `/podcasts/{briefing_id}.mp3`
+**Storage**: GCS bucket `<GCP_PROJECT_ID>-c1-hub-data` in `/podcasts/{briefing_id}.mp3`
 
 **Note**: GCS bucket has public access prevention, so podcasts are streamed through the backend API endpoint `/api/podcast/briefing/{id}`. This endpoint supports HTTP Range requests (206 Partial Content) for proper browser audio seeking.
 

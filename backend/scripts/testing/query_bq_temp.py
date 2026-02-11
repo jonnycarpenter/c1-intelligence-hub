@@ -8,8 +8,8 @@ def serialize(obj):
     return str(obj)
 
 try:
-    client = bigquery.Client(project="gen-lang-client-0436975498")
-    table_id = "gen-lang-client-0436975498.c1_intelligence.digest_items"
+    client = bigquery.Client(project="<GCP_PROJECT_ID>")
+    table_id = "<GCP_PROJECT_ID>.c1_intelligence.digest_items"
 
     # Get schema
     table = client.get_table(table_id)

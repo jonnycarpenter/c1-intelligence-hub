@@ -165,10 +165,10 @@ Sources: 0-2 sources contributing
 ### If scheduler jobs broken:
 ```bash
 # Check jobs
-gcloud scheduler jobs list --project gen-lang-client-0436975498 --location us-central1
+gcloud scheduler jobs list --project <GCP_PROJECT_ID> --location us-central1
 
 # Manual trigger
-gcloud scheduler jobs run daily-morning-ingest --location us-central1 --project gen-lang-client-0436975498
+gcloud scheduler jobs run daily-morning-ingest --location us-central1 --project <GCP_PROJECT_ID>
 
 # Backfill (see backfill guide)
 ```

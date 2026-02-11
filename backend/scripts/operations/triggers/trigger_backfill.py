@@ -5,7 +5,7 @@ import requests
 import json
 
 # Cloud Run service URL
-SERVICE_URL = "https://c1-hub-476410387076.us-central1.run.app"
+SERVICE_URL = "https://c1-hub-<GCP_PROJECT_NUMBER>.us-central1.run.app"
 ENDPOINT = f"{SERVICE_URL}/api/v1/scheduler/ingest"
 
 # Backfill configuration

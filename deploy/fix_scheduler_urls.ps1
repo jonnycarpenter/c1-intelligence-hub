@@ -3,10 +3,10 @@
 
 $ErrorActionPreference = "Stop"
 
-$ProjectId = "gen-lang-client-0436975498"
+$ProjectId = "<GCP_PROJECT_ID>"
 $Location = "us-central1"
-$CorrectServiceUrl = "https://c1-hub-476410387076.us-central1.run.app"
-$ServiceAccount = "476410387076-compute@developer.gserviceaccount.com"
+$CorrectServiceUrl = "https://c1-hub-<GCP_PROJECT_NUMBER>.us-central1.run.app"
+$ServiceAccount = "<GCP_PROJECT_NUMBER>-compute@developer.gserviceaccount.com"
 
 Write-Host "=" * 80 -ForegroundColor Cyan
 Write-Host "FIXING CLOUD SCHEDULER JOBS" -ForegroundColor Cyan

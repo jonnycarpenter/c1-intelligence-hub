@@ -16,7 +16,7 @@ Usage:
 
 Requires:
     - gcloud CLI authenticated
-    - BigQuery access to gen-lang-client-0436975498 project
+    - BigQuery access to <GCP_PROJECT_ID> project
 """
 
 import subprocess
@@ -30,7 +30,7 @@ import argparse
 import json
 
 # Configuration
-PROJECT_ID = "gen-lang-client-0436975498"
+PROJECT_ID = "<GCP_PROJECT_ID>"
 
 # Find gcloud path (Windows SDK location)
 GCLOUD_PATH = os.path.expandvars(r"%LOCALAPPDATA%\Google\Cloud SDK\google-cloud-sdk\bin\gcloud.cmd")

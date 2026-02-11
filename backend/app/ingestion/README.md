@@ -32,7 +32,7 @@ The data ingestion system for C1 Intelligence Hub. Collects, deduplicates, enric
 
 ## ⏰ Cloud Scheduler Jobs (Production)
 
-**GCP Project**: `gen-lang-client-0436975498`  
+**GCP Project**: `<GCP_PROJECT_ID>`  
 **Region**: `us-central1`  
 **Canonical Definition**: [deploy/scheduler/deploy_jobs.ps1](../../../deploy/scheduler/deploy_jobs.ps1)
 
@@ -102,22 +102,22 @@ Content-Type: application/json
 ```powershell
 # Test with single source (verify SDK fix works)
 $body = '{"sources": ["rss"]}'
-Invoke-RestMethod -Uri "https://c1-hub-4iz75bvpyq-uc.a.run.app/api/v1/scheduler/ingest" `
+Invoke-RestMethod -Uri "https://<CLOUD_RUN_URL>/api/v1/scheduler/ingest" `
   -Method Post -Body $body -ContentType "application/json" -TimeoutSec 300
 
 # Test Exa queries only (~15 min)
 $body = '{"sources": ["exa_queries", "press_releases"]}'
-Invoke-RestMethod -Uri "https://c1-hub-4iz75bvpyq-uc.a.run.app/api/v1/scheduler/ingest" `
+Invoke-RestMethod -Uri "https://<CLOUD_RUN_URL>/api/v1/scheduler/ingest" `
   -Method Post -Body $body -ContentType "application/json" -TimeoutSec 1200
 
 # Test Tavily queries only (~18 min)
 $body = '{"sources": ["tavily_queries"]}'
-Invoke-RestMethod -Uri "https://c1-hub-4iz75bvpyq-uc.a.run.app/api/v1/scheduler/ingest" `
+Invoke-RestMethod -Uri "https://<CLOUD_RUN_URL>/api/v1/scheduler/ingest" `
   -Method Post -Body $body -ContentType "application/json" -TimeoutSec 1500
 
 # Full ingestion (all sources) - takes 30-40 minutes total
 $body = '{"sources": ["exa_queries", "tavily_queries", "rss", "sec", "earnings", "stocknews", "fmp_news", "freight", "press_releases"]}'
-Invoke-RestMethod -Uri "https://c1-hub-4iz75bvpyq-uc.a.run.app/api/v1/scheduler/ingest" `
+Invoke-RestMethod -Uri "https://<CLOUD_RUN_URL>/api/v1/scheduler/ingest" `
   -Method Post -Body $body -ContentType "application/json" -TimeoutSec 2400
 ```
 
@@ -125,20 +125,20 @@ Invoke-RestMethod -Uri "https://c1-hub-4iz75bvpyq-uc.a.run.app/api/v1/scheduler/
 
 ```powershell
 # List all scheduler jobs
-gcloud scheduler jobs list --location=us-central1 --project=gen-lang-client-0436975498
+gcloud scheduler jobs list --location=us-central1 --project=<GCP_PROJECT_ID>
 
 # Check job status
-gcloud scheduler jobs describe ingest-exa --location=us-central1 --project=gen-lang-client-0436975498
-gcloud scheduler jobs describe ingest-tavily --location=us-central1 --project=gen-lang-client-0436975498
+gcloud scheduler jobs describe ingest-exa --location=us-central1 --project=<GCP_PROJECT_ID>
+gcloud scheduler jobs describe ingest-tavily --location=us-central1 --project=<GCP_PROJECT_ID>
 
 # Pause a job (for maintenance)
-gcloud scheduler jobs pause ingest-exa --location=us-central1 --project=gen-lang-client-0436975498
+gcloud scheduler jobs pause ingest-exa --location=us-central1 --project=<GCP_PROJECT_ID>
 
 # Resume a job
-gcloud scheduler jobs resume ingest-exa --location=us-central1 --project=gen-lang-client-0436975498
+gcloud scheduler jobs resume ingest-exa --location=us-central1 --project=<GCP_PROJECT_ID>
 
 # Force-run a job now
-gcloud scheduler jobs run ingest-exa --location=us-central1 --project=gen-lang-client-0436975498
+gcloud scheduler jobs run ingest-exa --location=us-central1 --project=<GCP_PROJECT_ID>
 ```
 
 ### Deleted/Legacy Jobs (DO NOT RECREATE)
@@ -310,7 +310,7 @@ See `processing/classifier.py` for the full `BLOCKED_SOURCES` set.
 
 ```powershell
 # Check recent Cloud Run logs for errors
-gcloud logging read "resource.type=cloud_run_revision AND resource.labels.service_name=c1-hub AND severity>=ERROR" --limit=50 --project=gen-lang-client-0436975498
+gcloud logging read "resource.type=cloud_run_revision AND resource.labels.service_name=c1-hub AND severity>=ERROR" --limit=50 --project=<GCP_PROJECT_ID>
 
 # Check scheduler job execution history
 gcloud scheduler jobs describe ingest-web-search --location=us-central1 --format="yaml(state,lastAttemptTime,status)"
@@ -319,7 +319,7 @@ gcloud scheduler jobs describe ingest-financial --location=us-central1 --format=
 # Query recent ingestion counts in BigQuery
 bq query --use_legacy_sql=false "
 SELECT DATE(fetched_at) as date, COUNT(*) as count, source_type
-FROM \`gen-lang-client-0436975498.c1_intelligence.articles\`
+FROM \`<GCP_PROJECT_ID>.c1_intelligence.articles\`
 WHERE fetched_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 3 DAY)
 GROUP BY date, source_type
 ORDER BY date DESC, count DESC

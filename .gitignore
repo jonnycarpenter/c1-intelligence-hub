@@ -69,6 +69,7 @@ htmlcov/
 
 # Docker
 *.tar
+
 # Databases - stored in GCS/BigQuery, not git
 *.db
 *.sqlite3
@@ -78,3 +79,30 @@ backend/data/*.db
 backend/c1_timeseries.db
 REFERENCE_*/
 REFERENCE_*.py
+
+# AI agent local config
+.claude/
+
+# Session worklogs (internal dev journals)
+WORKLOG.md
+WORKLOG_2025.md
+
+# GCP service exports (contain project IDs, service accounts)
+backend/service_config.yaml
+deploy/c1-hub-service.yaml
+
+# Raw GCP operational output
+docs/operations/scheduler_job.txt
+docs/operations/scheduler_request.txt
+
+# Orphaned / scratch files
+inputs/
+nul
+
+# Build artifacts
+*.tsbuildinfo
+
+# Archive folders (dead code)
+backend/app/agents/archive/
+backend/scripts/archive/
+docs/archive/

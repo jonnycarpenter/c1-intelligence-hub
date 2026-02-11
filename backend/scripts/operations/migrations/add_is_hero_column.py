@@ -10,7 +10,7 @@ Usage:
     python scripts/operations/migrations/add_is_hero_column.py
     
 Or run the SQL directly in BigQuery Console:
-    ALTER TABLE `gen-lang-client-0436975498.c1_intelligence.digest_items` 
+    ALTER TABLE `<GCP_PROJECT_ID>.c1_intelligence.digest_items` 
     ADD COLUMN IF NOT EXISTS is_hero BOOL;
 """
 
@@ -22,10 +22,10 @@ from google.cloud import bigquery
 
 def add_is_hero_column():
     """Add is_hero BOOL column to digest_items table."""
-    client = bigquery.Client(project='gen-lang-client-0436975498')
+    client = bigquery.Client(project='<GCP_PROJECT_ID>')
     
     query = """
-    ALTER TABLE `gen-lang-client-0436975498.c1_intelligence.digest_items` 
+    ALTER TABLE `<GCP_PROJECT_ID>.c1_intelligence.digest_items` 
     ADD COLUMN IF NOT EXISTS is_hero BOOL
     """
     

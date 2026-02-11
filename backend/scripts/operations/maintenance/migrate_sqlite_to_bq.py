@@ -14,7 +14,7 @@ from pathlib import Path
 from google.cloud import bigquery
 
 # Configuration
-PROJECT_ID = "gen-lang-client-0436975498"
+PROJECT_ID = "<GCP_PROJECT_ID>"
 DATASET_ID = "c1_intelligence"
 TABLE_ID = "digest_items"
 SQLITE_PATH = Path("data/c1_corpus.db")
@@ -142,7 +142,7 @@ def main():
     
     if not SQLITE_PATH.exists():
         print(f"ERROR: SQLite database not found at {SQLITE_PATH}")
-        print("Run: gsutil cp gs://gen-lang-client-0436975498-c1-hub-data/c1_corpus.db data/")
+        print("Run: gsutil cp gs://<GCP_PROJECT_ID>-c1-hub-data/c1_corpus.db data/")
         return
     
     # Read SQLite items

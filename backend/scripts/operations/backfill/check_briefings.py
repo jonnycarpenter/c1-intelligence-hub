@@ -8,13 +8,13 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 from google.cloud import bigquery
 
 def check_existing():
-    client = bigquery.Client(project='gen-lang-client-0436975498')
+    client = bigquery.Client(project='<GCP_PROJECT_ID>')
     
     # Check weekly briefings
     print('=== WEEKLY BRIEFINGS ===')
     query = """
         SELECT id, briefing_title, period_start, period_end, generated_at, bluf
-        FROM `gen-lang-client-0436975498.c1_intelligence.weekly_briefings`
+        FROM `<GCP_PROJECT_ID>.c1_intelligence.weekly_briefings`
         ORDER BY generated_at DESC
         LIMIT 5
     """
@@ -32,7 +32,7 @@ def check_existing():
     print('=== PRE-BRIEFINGS ===')
     query2 = """
         SELECT id, period_start, period_end, generated_at, article_count
-        FROM `gen-lang-client-0436975498.c1_intelligence.pre_briefings`
+        FROM `<GCP_PROJECT_ID>.c1_intelligence.pre_briefings`
         ORDER BY generated_at DESC
         LIMIT 5
     """
@@ -49,7 +49,7 @@ def check_existing():
             MIN(published_at) as earliest,
             MAX(published_at) as latest,
             COUNT(*) as total
-        FROM `gen-lang-client-0436975498.c1_intelligence.articles`
+        FROM `<GCP_PROJECT_ID>.c1_intelligence.articles`
     """
     for row in client.query(query3).result():
         print(f'Articles: {row.total} total')

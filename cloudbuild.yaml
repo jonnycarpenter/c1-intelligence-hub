@@ -2,7 +2,7 @@
 # Triggers on push to main branch (via GitHub trigger)
 #
 # MANUAL DEPLOY (always use --region=us-central1):
-#   gcloud builds submit --config=cloudbuild.yaml --region=us-central1 --project=gen-lang-client-0436975498
+#   gcloud builds submit --config=cloudbuild.yaml --region=us-central1 --project=<GCP_PROJECT_ID>
 #
 # GitHub trigger should be configured in GCP Console with region=us-central1
 
@@ -72,9 +72,9 @@ steps:
 substitutions:
   _REGION: 'us-central1'
   _REPOSITORY: 'c1-intelligence-hub'
-  _SITE_PASSWORD: 'ketzero'
+  _SITE_PASSWORD: ''  # Set via --substitutions or Secret Manager
   _SERVICE_NAME: 'c1-hub'
-  _DATA_BUCKET: 'gen-lang-client-0436975498-c1-hub-data'
+  _DATA_BUCKET: '${PROJECT_ID}-c1-hub-data'
   _TAG: 'latest'
 
 # Build options

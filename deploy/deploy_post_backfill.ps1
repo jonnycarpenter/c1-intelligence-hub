@@ -7,7 +7,7 @@ param(
     [switch]$SkipDeploy = $false
 )
 
-$ProjectId = "gen-lang-client-0436975498"
+$ProjectId = "<GCP_PROJECT_ID>"
 $Region = "us-central1"
 $ServiceName = "c1-hub"
 

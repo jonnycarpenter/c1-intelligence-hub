@@ -5,7 +5,7 @@
 ## New Features (Jan 2026)
 
 ### Login Gate ✅
-- Password: `partnership2026` (set via `cloudbuild.yaml`)
+- Password: Set via `SITE_ACCESS_PASSWORD` env var (see `cloudbuild.yaml`)
 - Team selection: Sales East, Sales West, Marketing, Product/Supplier, All Others
 - User badge shows in header
 
@@ -62,7 +62,7 @@
 ```powershell
 # Check Cloud Run logs for completion
 gcloud logging read "resource.type=cloud_run_revision AND resource.labels.service_name=c1-hub AND textPayload:complete" `
-  --limit 5 --project gen-lang-client-0436975498
+  --limit 5 --project <GCP_PROJECT_ID>
 
 # Verify data in BigQuery
 cd backend
@@ -91,11 +91,11 @@ cd ..
 **A. Service Health**
 ```bash
 # Check service is running
-gcloud run services describe c1-hub --region us-central1 --project gen-lang-client-0436975498
+gcloud run services describe c1-hub --region us-central1 --project <GCP_PROJECT_ID>
 
 # Verify logs for startup errors
 gcloud logging read "resource.type=cloud_run_revision AND resource.labels.service_name=c1-hub" `
-  --limit 10 --project gen-lang-client-0436975498
+  --limit 10 --project <GCP_PROJECT_ID>
 ```
 
 **B. Frontend Stability**
@@ -112,7 +112,7 @@ gcloud logging read "resource.type=cloud_run_revision AND resource.labels.servic
 
 **D. Login Gate**
 - [ ] Verify password gate appears on first visit
-- [ ] Test with password: `partnership2026`
+- [ ] Test with password from `SITE_ACCESS_PASSWORD` env var
 - [ ] Verify team selection works
 - [ ] Check user badge appears in header after login
 
@@ -134,13 +134,13 @@ gcloud logging read "resource.type=cloud_run_revision AND resource.labels.servic
 
 ```powershell
 # 1. Check current deployed revision
-gcloud run services describe c1-hub --region us-central1 --project gen-lang-client-0436975498
+gcloud run services describe c1-hub --region us-central1 --project <GCP_PROJECT_ID>
 
 # 2. Rollback to previous revision
 gcloud run services update-traffic c1-hub `
   --to-revisions=PREVIOUS_REVISION=100 `
   --region us-central1 `
-  --project gen-lang-client-0436975498
+  --project <GCP_PROJECT_ID>
 ```
 
 **Previous stable revision**: (Check Cloud Console for most recent working revision)

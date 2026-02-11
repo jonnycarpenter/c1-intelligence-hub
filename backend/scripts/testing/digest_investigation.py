@@ -1,7 +1,7 @@
 """Investigate digest cards data gap issue."""
 from google.cloud import bigquery
 
-client = bigquery.Client(project='gen-lang-client-0436975498')
+client = bigquery.Client(project='<GCP_PROJECT_ID>')
 
 print("=" * 70)
 print("DIGEST CARDS INVESTIGATION - Jan 5, 2026")
@@ -13,7 +13,7 @@ SELECT
     DATE(ingested_at) as ingest_date,
     COUNT(*) as total,
     SUM(CASE WHEN feed_eligible THEN 1 ELSE 0 END) as feed_eligible
-FROM `gen-lang-client-0436975498.c1_intelligence.digest_items` 
+FROM `<GCP_PROJECT_ID>.c1_intelligence.digest_items` 
 WHERE ingested_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 5 DAY)
 GROUP BY DATE(ingested_at)
 ORDER BY ingest_date DESC
@@ -26,7 +26,7 @@ query2 = '''
 SELECT 
     DATE(published_at) as pub_date,
     COUNT(*) as count
-FROM `gen-lang-client-0436975498.c1_intelligence.digest_items` 
+FROM `<GCP_PROJECT_ID>.c1_intelligence.digest_items` 
 WHERE ingested_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 3 DAY)
 GROUP BY DATE(published_at)
 ORDER BY pub_date DESC
@@ -38,7 +38,7 @@ for r in client.query(query2).result():
 print("\n=== 3. PRIORITY DISTRIBUTION (feed_eligible, last 3 days ingested) ===")
 query3 = '''
 SELECT priority, COUNT(*) as count
-FROM `gen-lang-client-0436975498.c1_intelligence.digest_items` 
+FROM `<GCP_PROJECT_ID>.c1_intelligence.digest_items` 
 WHERE ingested_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 3 DAY)
   AND feed_eligible = true
 GROUP BY priority
@@ -54,7 +54,7 @@ SELECT
     CAST(published_at AS STRING) as pub,
     CAST(ingested_at AS STRING) as ing,
     source_type
-FROM `gen-lang-client-0436975498.c1_intelligence.digest_items` 
+FROM `<GCP_PROJECT_ID>.c1_intelligence.digest_items` 
 WHERE LOWER(priority) = 'high'
   AND feed_eligible = true
 ORDER BY published_at DESC
@@ -71,7 +71,7 @@ SELECT
     priority,
     CAST(published_at AS STRING) as pub,
     source_type
-FROM `gen-lang-client-0436975498.c1_intelligence.digest_items` 
+FROM `<GCP_PROJECT_ID>.c1_intelligence.digest_items` 
 WHERE feed_eligible = true
 ORDER BY published_at DESC
 LIMIT 20
@@ -84,7 +84,7 @@ query6 = '''
 SELECT 
     DATE(published_at) as pub_date,
     COUNT(*) as high_priority_count
-FROM `gen-lang-client-0436975498.c1_intelligence.digest_items` 
+FROM `<GCP_PROJECT_ID>.c1_intelligence.digest_items` 
 WHERE LOWER(priority) = 'high'
   AND feed_eligible = true
   AND published_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)

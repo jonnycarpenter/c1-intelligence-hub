@@ -40,7 +40,7 @@ spec:
       
       containers:
         - name: c1-hub
-          image: us-central1-docker.pkg.dev/gen-lang-client-0436975498/c1-intelligence-hub/c1-hub:latest
+          image: us-central1-docker.pkg.dev/<GCP_PROJECT_ID>/c1-intelligence-hub/c1-hub:latest
           
           ports:
             - containerPort: 8080
@@ -58,11 +58,11 @@ spec:
             
             # GCP Configuration (REQUIRED for BigQuery storage)
             - name: GCP_PROJECT_ID
-              value: "gen-lang-client-0436975498"
+              value: "<GCP_PROJECT_ID>"
             - name: GCP_DATASET_ID
               value: "c1_intelligence"
             - name: GCS_BUCKET_NAME
-              value: "gen-lang-client-0436975498-c1-hub-data"
+              value: "<GCP_PROJECT_ID>-c1-hub-data"
             
             # Data paths (GCS mounted)
             - name: DATA_DIR
@@ -128,6 +128,6 @@ spec:
             driver: gcsfuse.run.googleapis.com
             readOnly: false
             volumeAttributes:
-              bucketName: gen-lang-client-0436975498-c1-hub-data
+              bucketName: <GCP_PROJECT_ID>-c1-hub-data
               # GCS FUSE mount options
               mountOptions: "implicit-dirs"

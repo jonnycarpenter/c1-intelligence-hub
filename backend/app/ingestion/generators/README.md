@@ -138,7 +138,7 @@ Result:
 - Expands percentages: `40%` → "40 percent"
 
 **Storage & Access**:
-- GCS bucket: `gen-lang-client-0436975498-c1-hub-data`
+- GCS bucket: `<GCP_PROJECT_ID>-c1-hub-data`
 - Path: `/podcasts/{briefing_id}.mp3`
 - ⚠️ Bucket has **public access prevention** - cannot use direct GCS URLs
 - Solution: Stream through backend API `/api/podcast/briefing/{briefing_id}`
@@ -277,7 +277,7 @@ pre_brief = await agent1.generate_pre_brief(days=14)
 
 ```bash
 # POST to scheduler endpoint
-curl -X POST https://c1-hub-4iz75bvpyq-uc.a.run.app/api/v1/scheduler/briefing
+curl -X POST https://<CLOUD_RUN_URL>/api/v1/scheduler/briefing
 ```
 
 ## Storage
@@ -304,7 +304,7 @@ python scripts/testing/test_llm_simple.py
 # Check briefings in BigQuery
 python -c "from google.cloud import bigquery; c = bigquery.Client(); \
   r = list(c.query('SELECT briefing_title, generated_at FROM \
-  \`gen-lang-client-0436975498.c1_intelligence.weekly_briefings\` \
+  \`<GCP_PROJECT_ID>.c1_intelligence.weekly_briefings\` \
   ORDER BY generated_at DESC').result()); \
   [print(f'{x.generated_at}: {x.briefing_title}') for x in r]"
 ```

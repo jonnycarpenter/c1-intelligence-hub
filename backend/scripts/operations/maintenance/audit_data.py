@@ -1,7 +1,7 @@
 """Quick data audit for narratives backfill planning."""
 from google.cloud import bigquery
 
-client = bigquery.Client(project='gen-lang-client-0436975498')
+client = bigquery.Client(project='<GCP_PROJECT_ID>')
 
 # 1. Total articles from Nov 1
 q1 = """
@@ -11,7 +11,7 @@ SELECT
   COUNTIF(full_text IS NULL OR full_text = '') as no_full_text,
   MIN(published_at) as earliest,
   MAX(published_at) as latest
-FROM `gen-lang-client-0436975498.c1_intelligence.articles`
+FROM `<GCP_PROJECT_ID>.c1_intelligence.articles`
 WHERE published_at >= '2025-11-01'
 """
 print('=== ARTICLES TABLE (Nov 1+) ===')
@@ -32,7 +32,7 @@ SELECT
   COUNTIF(digest_summary IS NOT NULL AND digest_summary != '') as has_summary,
   MIN(published_at) as earliest,
   MAX(published_at) as latest
-FROM `gen-lang-client-0436975498.c1_intelligence.digest_items`
+FROM `<GCP_PROJECT_ID>.c1_intelligence.digest_items`
 WHERE published_at >= '2025-11-01'
 """
 print()
@@ -53,7 +53,7 @@ SELECT
   COUNT(*) as count,
   COUNTIF(materials IS NOT NULL AND materials != '[]' AND materials != '') as has_materials,
   COUNTIF(industries IS NOT NULL AND industries != '[]' AND industries != '') as has_industries
-FROM `gen-lang-client-0436975498.c1_intelligence.digest_items`
+FROM `<GCP_PROJECT_ID>.c1_intelligence.digest_items`
 WHERE published_at >= '2025-11-01'
 GROUP BY month
 ORDER BY month
@@ -71,7 +71,7 @@ SELECT COUNT(*) as total, COUNT(DISTINCT article_id) as unique_articles,
   COUNTIF(tag_type = 'market') as market_tags,
   COUNTIF(tag_type = 'theme') as theme_tags,
   COUNTIF(tag_type = 'geography') as geo_tags
-FROM `gen-lang-client-0436975498.c1_intelligence.article_tags`
+FROM `<GCP_PROJECT_ID>.c1_intelligence.article_tags`
 """
 print()
 print('=== ARTICLE_TAGS TABLE ===')
@@ -85,8 +85,8 @@ q5 = """
 SELECT 
   COUNT(DISTINCT d.id) as digest_count,
   COUNT(DISTINCT a.id) as matching_articles
-FROM `gen-lang-client-0436975498.c1_intelligence.digest_items` d
-LEFT JOIN `gen-lang-client-0436975498.c1_intelligence.articles` a
+FROM `<GCP_PROJECT_ID>.c1_intelligence.digest_items` d
+LEFT JOIN `<GCP_PROJECT_ID>.c1_intelligence.articles` a
   ON d.url = a.url
 WHERE d.published_at >= '2025-11-01'
 """
@@ -101,7 +101,7 @@ q6 = """
 SELECT id, title, category, companies, materials, industries, 
   LENGTH(digest_summary) as summary_len,
   published_at
-FROM `gen-lang-client-0436975498.c1_intelligence.digest_items`
+FROM `<GCP_PROJECT_ID>.c1_intelligence.digest_items`
 WHERE published_at >= '2025-11-01' AND published_at < '2025-12-01'
 ORDER BY published_at DESC
 LIMIT 5

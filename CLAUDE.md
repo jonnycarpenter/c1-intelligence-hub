@@ -80,15 +80,15 @@ git add -A; git commit -m "Description of changes"; git push origin master
 
 **Manual Deploy** (if needed, PowerShell):
 ```powershell
-gcloud builds submit --config=cloudbuild.yaml --region=us-central1 --project=gen-lang-client-0436975498
+gcloud builds submit --config=cloudbuild.yaml --region=us-central1 --project=$GCP_PROJECT_ID
 ```
 
 **Trigger Briefing Generation** (PowerShell):
 ```powershell
-Invoke-RestMethod -Uri "https://c1-hub-4iz75bvpyq-uc.a.run.app/api/v1/scheduler/briefing" -Method POST -ContentType "application/json" -Body '{}'
+Invoke-RestMethod -Uri "https://<CLOUD_RUN_URL>/api/v1/scheduler/briefing" -Method POST -ContentType "application/json" -Body '{}'
 ```
 
-**Cloud Run URL**: `https://c1-hub-4iz75bvpyq-uc.a.run.app`
+**Cloud Run URL**: Set after first deployment via `gcloud run services describe c1-hub --region=us-central1`
 **Service Name**: `c1-hub`
 
 ### Adding New Secrets
@@ -97,7 +97,7 @@ When adding a new API key/secret:
 1. Create in Secret Manager (no trailing newlines!):
    ```powershell
    $key = "your-key-value"
-   $key | gcloud secrets create SECRET_NAME --data-file=- --project=gen-lang-client-0436975498
+   $key | gcloud secrets create SECRET_NAME --data-file=- --project=$GCP_PROJECT_ID
    ```
 2. Add to `cloudbuild.yaml` in the `--set-secrets` line
 3. Add to `backend/app/config/settings.py` 
@@ -276,211 +276,15 @@ response = await client.messages_create(model="claude-sonnet-4-5", ...)
 > **Note**: The `OPENAI_API_KEY` environment variable must be set for fallback to work.
 > See `app/utils/resilient_llm.py` for implementation details.
 
-## Recent Changes (January 7, 2026)
+## Development History
 
-### Session 52 - Visual Research Agent (READY TO IMPLEMENT)
-- **New Feature**: Adding Visual Research Agent to Deep Research workflow
-- **Architecture**: 3-way parallel fan-out (Financial + Industry + Visual)
-- **Goal**: Surface relevant charts/graphs from `article_images` BigQuery table
-- **Zero Added Latency**: Visual agent (~10-15s) finishes before other agents (~30s)
-- **Files to Create**:
-  - `app/mcp/tools/corpus_visuals.py` - `corpus_visuals_search` tool
-  - `app/agents/research/visual.py` - Visual Research agent
-- **Files to Modify**:
-  - `app/agents/research/state.py` - Add `VisualAgentOutput`, `visual_output` field
-  - `app/graph/research_workflow.py` - Add `visual_research` node, 3-way fan-out
-  - `app/agents/research/synthesizer.py` - Place visuals in report sections
-  - `app/api/routes/deep_research.py` - SSE handling for visual_research
-  - `app/mcp/server.py` - Register new tool
-- **See**: `WORKLOG.md` Session 52 for detailed implementation plan
+This project was built iteratively over 70+ AI-assisted coding sessions (Jan–Feb 2026). Key milestones:
 
-### Session 51 - Deep Research Groomer Fix ✅
-- **Bug Fix**: Deep Research was "hanging" after groomer phase
-- **Root Cause**: Claude returned `clarifying_question` as string instead of object → Pydantic validation error
-- **Fix 1**: `groomer.py` - Convert string to `{question, options, default_if_skipped}` object
-- **Fix 2**: `deep_research.py` - Check for `grooming_failed` status, emit error SSE event, send `[DONE]`
+- **Sessions 7–14**: Core data pipeline — BigQuery migration, ingestion tuning, digest system
+- **Sessions 17–20**: Ad-hoc briefing session management, ingestion throughput optimization
+- **Sessions 23–29**: Deep Research multi-agent workflow (LangGraph parallel execution, SSE streaming, BigQuery persistence)
+- **Sessions 30–32**: Frontend UX polish, podcast generation, saved reports UI
+- **Sessions 41–52**: Conversational UX, progress events, Visual Research agent
+- **Sessions 60–72**: Interactive Architecture tab (React Flow), weekly briefing enhancements
 
-## Recent Changes (January 6, 2026)
-
-### Session 48 - Ad-Hoc Briefing Conversational UX ✅
-- **Bug Fix**: Streaming response not rendering (early return before setting response)
-- **Stacking Briefings**: `briefings[]` array replaces single `response`
-- **Collapsible History**: Older briefings collapse to headers, click to expand
-- **Removed Follow-up Limits**: No more "2 follow-ups available" buttons
-- **Gentle Deep Research Nudge**: Shows after 2 questions instead of hard redirect
-- **New Component**: `CollapsibleBriefing` handles expand/collapse UX
-- **Files Modified**: `useBriefing.ts`, `AdHocBriefing.tsx`
-
-### Session 41 - Ad-Hoc Briefing SSE Progress Events ✅
-- **Streaming Progress Events**: Real-time feedback during research phases
-  - Knowledge Base → Advanced Web Search → Stock Market News → Analysis
-- **Backend**: `StreamingAdHocBriefingAgent.generate_briefing_stream()` emits `progress` SSE events
-- **Frontend Hook**: `progressSteps` state in `useBriefing.ts`
-- **Frontend Display**: `ProgressStepDisplay` component with step icons, checkmarks, article counts
-- **Files Modified**: `agent.py`, `useBriefing.ts`, `AdHocBriefing.tsx`
-
-### Session 32 - Long-term Memory UI Components ✅
-- **PreferencesPanel**: New component for managing priority/blocked topics (`frontend/src/components/memory/PreferencesPanel.tsx`)
-- **SavedReportsPanel**: Browse saved Deep Research reports with search, expand/collapse, actions (`frontend/src/components/research/SavedReportsPanel.tsx`)
-- **ResearchSidebar**: Added "Saved Reports" section with 5 most recent reports, "View All" opens full panel
-- **API Methods**: Added `getPreferences()`, `addPreference()`, `removePreference()`, `getSavedReports()`, `getSavedReportById()`, `searchRelatedReports()` to `frontend/src/lib/api.ts`
-- **Integration**: PreferencesPanel in Data & Preferences tab, SavedReportsPanel accessible from Research sidebar
-
-### Session 31 - Podcast Generation for Weekly Briefings ✅
-- **ElevenLabs TTS Integration**: Weekly briefings now generate audio podcasts
-- **Backend**: `_format_text_for_speech()`, `_build_podcast_script()`, `_generate_podcast()` in `weekly_briefing.py`
-- **Frontend**: `PodcastPlayer.tsx` with play/pause, seek, volume, download
-- **Storage**: GCS bucket `/podcasts/{briefing_id}.mp3`
-
-### Session 30 - Frontend UX Enhancements ✅
-- Hidden chatbox on Products, Field Intel, Data & Preferences tabs
-- Pipeline tab: Updated seed questions, auto-submit on click
-- Sidebar: Text logo instead of PNG
-- Pulse tab: Removed helper text, adjusted spacing
-
-### Session 29 - Phase 4: BigQuery Persistence & Memory Integration ✅
-- Added `deep_research_reports` BigQuery table for persistent report storage
-- Created `ResearchMemory` service (`app/agents/research/memory.py`) for two-tier caching and context integration
-- Two-tier cache: in-memory (1h TTL) + BigQuery (24h TTL)
-- New API endpoints: `GET /api/research/reports`, `GET /api/research/reports/{id}`, `GET /api/research/reports/search/related`
-- Automatic persistence of completed reports with SSE event `report_saved`
-- **Context Injection**: Groomer now receives prior related research to avoid redundant clarifying questions
-- **Conditional Earnings API**: External earnings API only called when user mentions specific companies (corpus always runs)
-
-### Session 28 - API Reliability & Tool Health ✅
-- Added centralized retry utilities with exponential backoff, rate-limit handling, and default skipping for non-critical tools (`app/utils/retry.py`).
-- Wrapped StockNewsAPI tools (news, keyword search, press releases, analyst ratings) with retries, metrics, and skip-on-failure so research flow degrades gracefully.
-- Wrapped Google Trends tool with rate-limit-aware retry and metrics.
-- Added tool health endpoint `GET /api/research/tools/health` returning success rates, latency, and recent errors for instrumented tools.
-- Note: StockNewsAPI key must be set via `STOCKNEWS_API_KEY` in Cloud Run env (now configured).
-
-### Session 26 - Pulse UX Enhancements ✅
-- **Visual Dimensionality**: Added `slate-50` background to "Need to Know" column in Pulse dashboard for better separation.
-- **Entity Aggregator Revamp**: implemented "Heat Map" visualization for entity pills (opacity scales with frequency), replaced text labels with icons, and integrated counts.
-- **Component Polish**: Updated `AdHocBriefing` loading state to match card metaphor.
-- **Files Modified**: `PulseDashboard.tsx`, `EntityAggregator.tsx`, `AdHocBriefing.tsx`
-
-### Session 25 - Deep Research Workflow Fixed! 🎉
-- **Parallel Execution Working**: Fixed `InvalidUpdateError` by adding reducer annotations to ALL `DeepResearchState` fields
-- **Reducers Added**: `_keep_first()` for immutable fields, `_keep_last()` for outputs, `_merge_errors()` for error lists
-- **JSON Schemas Fixed**: Added explicit schemas to Financial, Industry, and Synthesizer extraction prompts
-- **Empty Message Bug Fixed**: Groomer now filters empty messages before Anthropic API call
-- **Files Modified**: `state.py`, `groomer.py`, `financial.py`, `industry.py`, `synthesizer.py`
-- **Result**: Full workflow runs end-to-end (Groomer → Financial/Industry parallel → Synthesizer → Category → Validator)
-
-### Session 24 - LangSmith Testing & Parallel Bug Discovery
-- **LangSmith Verified**: Traces sending to `c1-intelligence-hub-prod` project
-- **Groomer Infinite Loop Fixed**: Removed `"groom"` loop-back from routing
-- **Groomer JSON Schema Added**: Explicit `ResearchBrief` schema in prompt
-- **Bug Identified**: `InvalidUpdateError` in parallel state merge (fixed in Session 25)
-
-### Session 23 - LangSmith Observability Integration ✅
-- **LangSmith Config**: Added `RunnableConfig` with metadata to workflow invocation
-- **Run Metadata**: `run_id`, `query_hash`, `timestamp`, tags for filtering
-- **Observability Endpoint**: `GET /api/deep-research/observability/status`
-
-### Session 27 - Phase 2 Output Display ✅
-- **TerritoryInsights**: East/West relevance scores with visual progress bars
-- **ProductRecommendations**: Grid with relevance badges, "Ask About" integration
-- **SalesPlays**: Accordion with copy-to-clipboard hooks, objection handlers
-- **ValidationBadge**: Collapsible validation status with issue breakdown
-- **Files**: `TerritoryInsights.tsx`, `ProductRecommendations.tsx`, `SalesPlays.tsx`, `ValidationBadge.tsx`
-
-### Session 26 - Frontend SSE Integration ✅
-- **ResearchProgress Component**: Visual pipeline showing 6 workflow nodes with status indicators
-- **Live Activity Feed**: Real-time tool execution display (last 20 events)
-- **Parallel Execution Indicator**: Shows when Financial + Industry agents run together
-- **Full SSE Support**: Handles `node_start`, `node_complete`, `tool_progress`, `category`, `validation`, `warnings`
-- **Cancel Support**: AbortController-based request cancellation
-- **Files**: `ResearchProgress.tsx`, `useDeepResearch.ts`, `types/index.ts`
-
-### Session 20 - Ingestion Throughput Tuning ✅
-- **Lookback Reduced**: 3 days → 2 days for daily scheduled runs (orchestrator.py)
-- **Classifier Concurrency**: 3 → 10 concurrent Claude calls (classifier.py)
-- **Classifier Sleep**: 0.5s → 0.2s between calls
-- **Expected Impact**: ~30% fewer articles collected, classification ~3x faster
-- **Rationale**: System designed for daily runs now; 2-day window provides 1-day overlap buffer
-
-### Session 17 - Ad-Hoc Briefing Session Management ✅
-- **Fixed Stateless Issue**: Ad-hoc briefing `follow_up_count` now persists across requests
-- **Session Manager**: In-memory TTL cache (30-min expiry, max 1000 sessions) in `app/agents/adhoc_briefing/session_manager.py`
-- **API Updates**: New endpoints for session info (`GET /adhoc/session/{id}`), deletion, and stats
-- **Frontend Updates**: `useBriefing` hook tracks `sessionId` and `turnsRemaining`
-- **Result**: "Max 2 follow-ups then redirect to Deep Research" logic now works correctly
-
-### Session 14 - Digest System Investigation ✅
-- **"Lowium" Bug**: Investigated and confirmed resolved (0 items found)
-- **Priority Case Sensitivity**: Identified 12% capitalized values vs 88% lowercase (low priority issue)
-- **Production Health**: Verified system healthy - 170 articles stored, 95.5% efficiency
-- **Documentation**: Created comprehensive findings report and diagnostic script
-- **Status**: Digest system confirmed working correctly, ready for production use
-
-### Session 13b - Digest SQLite Cleanup ✅
-- **Deleted Legacy SQLite**: Removed `app/db/database.py` (1,128 lines)
-- **Cleaned Imports**: Updated `app/db/__init__.py` to remove `Database` and `get_db`
-- **Removed ChromaDB**: Deleted `chromadb>=0.5.0` from `requirements.txt`
-- **Verified Digest Flow**: Confirmed digest cards use BigQuery exclusively (no SQLite)
-- **Preserved Exa Pipeline**: `exa_websets_service.py` SQLite intentionally kept (different use case)
-
-### Session 13 - Agent 1 BigQuery Fix ✅ (READY TO DEPLOY)
-- **Fixed**: PreBriefGenerator now queries BigQuery `articles` (3,308+ items) instead of SQLite (776 items)
-- **Modified**: `_get_articles()` in [pre_briefing.py](backend/app/ingestion/generators/pre_briefing.py)
-- **Added**: Custom date range support (`start_date`, `end_date` params) for historical pre-briefings
-- **Generated**: 3 historical pre-briefings + 1 weekly briefing with proper net_new/continuing classification
-- **Scripts Created**: `scripts/testing/test_prebriefing_bq.py`, `scripts/operations/generate_briefings.py`
-
-### Session 12 - Digest Cards Data Source Verification ✅
-- **Verified BigQuery Integration**: Confirmed digest cards ARE pulling from `digest_items` table (not SQLite/ChromaDB)
-- **Storage Backend**: `BigQueryDataStorage` properly configured with hardcoded production defaults
-- **Data Flow Validated**: Frontend → API → DigestService → BigQueryDataStorage → BigQuery
-- **Current Status**: 44 items in last 72 hours being served correctly
-- **Legacy Files Identified**: SQLite files exist but are NOT in use by the application
-- **Diagnostic Scripts**: Created `check_digest_data.py` and `check_digest_service.py` for future debugging
-
-### Session 11 - Historical Context Enhancement ✅
-- **Historical Context Now Rich**: Agent 2 gets full context from prior briefings
-  - Before: Just topic names ("Defense, Resins, Aerospace")
-  - After: BLUF, section headlines with net_new/continuing status, key companies, overall trend
-  - Enables accurate "differential analysis" for net_new vs continuing classification
-  - Modified: `_get_historical_context()` in [weekly_briefing.py](backend/app/ingestion/generators/weekly_briefing.py)
-- **BLUF Now Persisted**: Added `bluf` column to BigQuery `weekly_briefings` table
-  - Added to schema, save method, and get methods in [gcp_storage.py](backend/app/db/gcp_storage.py)
-  - Created migration script: `scripts/operations/migrations/add_bluf_column.py`
-
-### Session 10 - Source Articles & BLUF ✅
-- **Source Articles Now Linked**: Citations `[1]`, `[2]`, `[Exa:N]` in briefings now have clickable links
-  - Added `_extract_citation_numbers()` to parse citations from text
-  - Each section includes `source_articles[]` array for the frontend
-- **BLUF Rendered**: "Bottom Line Up Front" now displays in briefing header
-  - Added `bluf` field to TypeScript types
-  - Styled callout in `WeeklyBriefingSection.tsx`
-- **Documentation**: Added generators README, updated CLAUDE.md with pipeline docs
-
-### Session 9 - Logo.dev Fix & Briefing Review ✅
-- **Logo.dev Integration Fixed**: Secret had trailing `\r` causing URL parsing error. Recreated clean secret.
-- **Cloud Scheduler Jobs Fixed (Again)**: All 6 jobs were pointing to dead URL. Updated to `https://c1-hub-4iz75bvpyq-uc.a.run.app`
-- **cloudbuild.yaml Updated**: Added `LOGO_DEV_TOKEN` to `--set-secrets` for future deployments
-- **Code Review of Briefing Pipeline**: Identified improvements for source articles, historical context, BLUF display
-
-### Session 8 - DRUMBEAT Feed Fix + FMP Premium News ✅
-- **DRUMBEAT Fix**: JSON parsing error in `gcp_storage.py` - added `_safe_parse_list()` helper for inconsistent formats
-- **FMP Fix**: `cloudbuild.yaml` referenced deleted secret `fmp-api-key` → changed to `FMP_API_KEY`
-- **FMP Backfill**: 170 premium news articles from Benzinga, SeekingAlpha, Bloomberg, etc.
-- **Note**: 403 errors during enrichment are expected (premium sites block scrapers) - FMP provides article text directly
-
-### Session 7 - Scheduler & Earnings ✅
-- **Earnings Backfill Complete** - 56 Q3 2025 transcripts found, 40 new stored
-- **Cloud Scheduler Jobs Fixed** - All 6 jobs updated with correct URLs
-- **Created WORKLOG.md** - Session continuity tracking
-
-### Key Technical Context
-- **Cloud Run URL**: `https://c1-hub-4iz75bvpyq-uc.a.run.app` (Service: `c1-hub`)
-- **BigQuery dataset**: `gen-lang-client-0436975498.c1_intelligence`
-- **MCP tools**: 48 loading correctly
-- **Working sources**: SEC filings, FMP News, StockNews, RSS, Tavily, API Ninja Earnings
-- **Secrets in Secret Manager**: ANTHROPIC_API_KEY, FMP_API_KEY, API_NINJA_KEY, TAVILY_API_KEY, EXA_API_KEY, LOGO_DEV_TOKEN
-- FMP Premium News collector working
-
-### Previous (January 4, 2026)
-- **Deduplication migrated to BigQuery** - `DeduplicationService` now uses `gcp_storage.py` instead of SQLite
-- Remaining SQLite usage: classifier/entity_linker entity loading, briefing generators
+See commit history for detailed changes.

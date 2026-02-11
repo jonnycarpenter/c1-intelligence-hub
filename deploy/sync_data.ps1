@@ -1,6 +1,6 @@
 
 # Workflow to sync local data to GCS bucket for production
-$ProjectId = "gen-lang-client-0436975498"
+$ProjectId = "<GCP_PROJECT_ID>"
 $BucketName = "${ProjectId}-c1-hub-data"
 
 Write-Host "Syncing local data to GCS bucket: $BucketName" -ForegroundColor Cyan

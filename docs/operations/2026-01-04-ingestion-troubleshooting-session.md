@@ -71,12 +71,12 @@ Data was not making it into BigQuery tables. Cloud Scheduler jobs were failing.
 We triggered a 7-day backfill via:
 ```powershell
 $body = @{backfill_days = 7; sources = @("rss", "tavily", "sec", "earnings", "stocknews", "freight", "press_releases")} | ConvertTo-Json
-Invoke-RestMethod -Uri "https://c1-hub-4iz75bvpyq-uc.a.run.app/api/v1/scheduler/ingest" -Method POST -ContentType "application/json" -Body $body -TimeoutSec 900
+Invoke-RestMethod -Uri "https://<CLOUD_RUN_URL>/api/v1/scheduler/ingest" -Method POST -ContentType "application/json" -Body $body -TimeoutSec 900
 ```
 
 **Note:** The Cloud Run URL changed from the old one. Current URL:
 ```
-https://c1-hub-4iz75bvpyq-uc.a.run.app
+https://<CLOUD_RUN_URL>
 ```
 
 You can get the current URL with:
@@ -290,12 +290,12 @@ gcloud run services describe c1-hub --region us-central1 --format="yaml(spec.tem
 ### Trigger ingestion
 ```powershell
 $body = @{backfill_days = 7; sources = @("rss", "tavily", "sec", "earnings")} | ConvertTo-Json
-Invoke-RestMethod -Uri "https://c1-hub-4iz75bvpyq-uc.a.run.app/api/v1/scheduler/ingest" -Method POST -ContentType "application/json" -Body $body -TimeoutSec 900
+Invoke-RestMethod -Uri "https://<CLOUD_RUN_URL>/api/v1/scheduler/ingest" -Method POST -ContentType "application/json" -Body $body -TimeoutSec 900
 ```
 
 ### Query BigQuery
 ```powershell
-bq query --nouse_legacy_sql "SELECT COUNT(*) FROM gen-lang-client-0436975498.c1_intelligence.articles"
+bq query --nouse_legacy_sql "SELECT COUNT(*) FROM <GCP_PROJECT_ID>.c1_intelligence.articles"
 ```
 
 ### Check Cloud Build Status
@@ -357,7 +357,7 @@ The `gcp_storage.py` had an `is_configured` property that checked for BOTH `proj
 
 **Investigation:** Found 21MB SQLite database in GCS bucket:
 ```
-gs://gen-lang-client-0436975498-c1-hub-data/c1_corpus.db
+gs://<GCP_PROJECT_ID>-c1-hub-data/c1_corpus.db
 ```
 
 This contained 776 articles that weren't making it to BigQuery.
@@ -369,8 +369,8 @@ This contained 776 articles that weren't making it to BigQuery.
 
 Added hardcoded defaults so the system ALWAYS uses BigQuery:
 ```python
-_DEFAULT_PROJECT_ID = "gen-lang-client-0436975498"
-_DEFAULT_BUCKET_NAME = "gen-lang-client-0436975498-c1-hub-data"
+_DEFAULT_PROJECT_ID = "<GCP_PROJECT_ID>"
+_DEFAULT_BUCKET_NAME = "<GCP_PROJECT_ID>-c1-hub-data"
 ```
 
 #### 2. Removed ChromaDB Vector Store

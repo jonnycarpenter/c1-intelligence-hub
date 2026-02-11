@@ -5,7 +5,7 @@ import sqlite3
 from google.cloud import bigquery
 from datetime import datetime
 
-PROJECT_ID = "gen-lang-client-0436975498"
+PROJECT_ID = "<GCP_PROJECT_ID>"
 DATASET = "c1_intelligence"
 CUTOFF_DATE = "2025-12-29"
 

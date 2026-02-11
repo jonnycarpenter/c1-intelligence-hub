@@ -2,12 +2,12 @@
 import json
 from google.cloud import bigquery
 
-c = bigquery.Client(project='gen-lang-client-0436975498')
+c = bigquery.Client(project='<GCP_PROJECT_ID>')
 
 # Get latest briefing
 r = list(c.query("""
     SELECT sections, article_ids
-    FROM `gen-lang-client-0436975498.c1_intelligence.weekly_briefings`
+    FROM `<GCP_PROJECT_ID>.c1_intelligence.weekly_briefings`
     WHERE id = 'f3a3915a-78fa-44e7-9f2b-604824094bcf' LIMIT 1
 """))
 
@@ -43,7 +43,7 @@ if article_ids:
     placeholders = ", ".join([f"'{aid}'" for aid in article_ids[:20]])
     check = list(c.query(f"""
         SELECT id, title, url 
-        FROM `gen-lang-client-0436975498.c1_intelligence.articles`
+        FROM `<GCP_PROJECT_ID>.c1_intelligence.articles`
         WHERE id IN ({placeholders})
     """))
     found_ids = {row.id for row in check}

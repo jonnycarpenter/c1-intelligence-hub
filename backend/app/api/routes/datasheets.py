@@ -3,7 +3,7 @@ Datasheets API Endpoints
 ========================
 
 Query and search material datasheets scraped from supplier websites.
-Data is stored in BigQuery: gen-lang-client-0436975498.c1_intelligence.datasheets
+Data is stored in BigQuery: <GCP_PROJECT_ID>.c1_intelligence.datasheets
 """
 
 from typing import Optional, List

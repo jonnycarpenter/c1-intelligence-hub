@@ -28,7 +28,7 @@ async def add_bluf_column():
     """Add bluf column to weekly_briefings table."""
     
     # Configuration
-    project_id = os.environ.get('GCP_PROJECT_ID', 'gen-lang-client-0436975498')
+    project_id = os.environ.get('GCP_PROJECT_ID', '<GCP_PROJECT_ID>')
     dataset_id = os.environ.get('GCP_DATASET_ID', 'c1_intelligence')
     table_id = f"{project_id}.{dataset_id}.weekly_briefings"
     

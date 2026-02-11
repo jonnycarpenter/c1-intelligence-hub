@@ -9,7 +9,7 @@ async def check_lowium():
     # Query for Lowium priority items
     query = """
     SELECT id, title, priority, source_type, published_at, classified_at
-    FROM `gen-lang-client-0436975498.c1_intelligence.digest_items`
+    FROM `<GCP_PROJECT_ID>.c1_intelligence.digest_items`
     WHERE priority = "Lowium"
     ORDER BY classified_at DESC
     LIMIT 20
@@ -33,7 +33,7 @@ async def check_lowium():
     # Also check what valid priorities exist
     priority_query = """
     SELECT priority, COUNT(*) as count
-    FROM `gen-lang-client-0436975498.c1_intelligence.digest_items`
+    FROM `<GCP_PROJECT_ID>.c1_intelligence.digest_items`
     GROUP BY priority
     ORDER BY count DESC
     """

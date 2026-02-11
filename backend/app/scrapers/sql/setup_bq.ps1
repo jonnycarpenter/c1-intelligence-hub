@@ -5,7 +5,7 @@
 #   .\setup_bq.ps1
 # ============================================================================
 
-$PROJECT = "gen-lang-client-0436975498"
+$PROJECT = "<GCP_PROJECT_ID>"
 $DATASET = "c1_intelligence"
 
 Write-Host "Creating BigQuery tables for Datasheet Scraper..." -ForegroundColor Cyan

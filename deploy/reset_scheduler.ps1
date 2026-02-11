@@ -2,7 +2,7 @@
 # Reset Cloud Scheduler to Normal Configuration
 # Run this AFTER backfill completes
 
-$ProjectId = "gen-lang-client-0436975498"
+$ProjectId = "<GCP_PROJECT_ID>"
 $Location = "us-central1"
 
 Write-Host "=" * 80 -ForegroundColor Cyan

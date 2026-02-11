@@ -41,7 +41,7 @@ def get_service_url(local: bool = False) -> str:
         print(f"Warning: Could not get Cloud Run URL: {e}")
     
     # Fallback - update if URL changes
-    return os.getenv("C1_HUB_URL", "https://c1-hub-4iz75bvpyq-uc.a.run.app")
+    return os.getenv("C1_HUB_URL", "https://<CLOUD_RUN_URL>")
 
 
 def backfill_industry_queries(days: int, local: bool = False, dry_run: bool = False):

@@ -40,7 +40,7 @@ def get_service_url(local: bool = False) -> str:
         print(f"Warning: Could not get Cloud Run URL: {e}")
     
     # Fallback - you may need to update this
-    return os.getenv("C1_HUB_URL", "https://c1-hub-476410387076.us-central1.run.app")
+    return os.getenv("C1_HUB_URL", "https://c1-hub-<GCP_PROJECT_NUMBER>.us-central1.run.app")
 
 
 def backfill_press_releases(days: int, local: bool = False, dry_run: bool = False):

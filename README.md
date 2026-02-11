@@ -197,8 +197,8 @@ c1-intelligence-hub_v2/
 | `FMP_API_KEY` | No | Financial Modeling Prep API key |
 | `ENVIRONMENT` | No | `development` or `production` |
 
-> **Note**: GCP project and bucket defaults are hardcoded in `backend/app/db/gcp_storage.py`
-> and `backend/app/config/settings.py`. The system works without env vars for GCP config.
+> **Note**: GCP project and bucket configuration is loaded from environment variables.
+> Set `GCP_PROJECT_ID` and `GCS_BUCKET_NAME` in your `.env` file.
 
 > **LLM Resilience**: When `OPENAI_API_KEY` is set, the system automatically falls back to OpenAI 
 > (GPT-4o) if Anthropic (Claude) fails due to credit exhaustion or API errors.
@@ -207,9 +207,9 @@ c1-intelligence-hub_v2/
 ### Data Storage
 
 **BigQuery is the single source of truth.** All data flows to:
-- `gen-lang-client-0436975498.c1_intelligence.digest_items` - Classified articles
-- `gen-lang-client-0436975498.c1_intelligence.articles` - Raw articles with embeddings
-- `gen-lang-client-0436975498.c1_intelligence.ingestion_events` - Pipeline logs
+- `<GCP_PROJECT_ID>.c1_intelligence.digest_items` - Classified articles
+- `<GCP_PROJECT_ID>.c1_intelligence.articles` - Raw articles with embeddings
+- `<GCP_PROJECT_ID>.c1_intelligence.ingestion_events` - Pipeline logs
 
 See `backend/app/db/README.md` for detailed documentation.
 
@@ -230,7 +230,7 @@ Cloud Scheduler jobs automatically collect data:
 
 If you have legacy data in SQLite (from GCS bucket):
 ```bash
-gsutil cp gs://gen-lang-client-0436975498-c1-hub-data/c1_corpus.db backend/data/
+gsutil cp gs://<GCS_BUCKET_NAME>/c1_corpus.db backend/data/
 cd backend && python migrate_sqlite_to_bq.py
 ```
 
@@ -289,4 +289,4 @@ A 7-node LangGraph pipeline for comprehensive industry research with parallel ag
 
 ## License
 
-Proprietary - Composites One LLC
+MIT License — see [LICENSE](LICENSE) for details.

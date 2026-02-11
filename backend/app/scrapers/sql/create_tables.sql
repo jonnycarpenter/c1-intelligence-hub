@@ -10,14 +10,14 @@
 -- ============================================================================
 
 -- Create dataset if it doesn't exist
--- CREATE SCHEMA IF NOT EXISTS `ketzero-consulting.c1_intelligence`;
+-- CREATE SCHEMA IF NOT EXISTS `<GCP_PROJECT_ID>.c1_intelligence`;
 
 -- ============================================================================
 -- Table 1: datasheets
 -- Core table storing all scraped datasheets
 -- ============================================================================
 
-CREATE TABLE IF NOT EXISTS `ketzero-consulting.c1_intelligence.datasheets` (
+CREATE TABLE IF NOT EXISTS `<GCP_PROJECT_ID>.c1_intelligence.datasheets` (
   -- Primary key
   datasheet_id STRING NOT NULL,
   
@@ -75,7 +75,7 @@ OPTIONS (
 -- Tracks each scraping run for monitoring and health checks
 -- ============================================================================
 
-CREATE TABLE IF NOT EXISTS `ketzero-consulting.c1_intelligence.datasheet_scrape_runs` (
+CREATE TABLE IF NOT EXISTS `<GCP_PROJECT_ID>.c1_intelligence.datasheet_scrape_runs` (
   -- Run identification
   run_id STRING NOT NULL,
   run_date TIMESTAMP NOT NULL,
@@ -114,7 +114,7 @@ OPTIONS (
 -- Configuration and status for each supplier
 -- ============================================================================
 
-CREATE TABLE IF NOT EXISTS `ketzero-consulting.c1_intelligence.datasheet_suppliers` (
+CREATE TABLE IF NOT EXISTS `<GCP_PROJECT_ID>.c1_intelligence.datasheet_suppliers` (
   -- Identification
   supplier_id STRING NOT NULL,
   supplier_name STRING NOT NULL,
@@ -152,10 +152,10 @@ OPTIONS (
 -- ============================================================================
 
 -- Clear existing data (idempotent)
-DELETE FROM `ketzero-consulting.c1_intelligence.datasheet_suppliers` WHERE TRUE;
+DELETE FROM `<GCP_PROJECT_ID>.c1_intelligence.datasheet_suppliers` WHERE TRUE;
 
 -- Insert supplier configurations
-INSERT INTO `ketzero-consulting.c1_intelligence.datasheet_suppliers` (
+INSERT INTO `<GCP_PROJECT_ID>.c1_intelligence.datasheet_suppliers` (
   supplier_id, supplier_name, display_name, website, datasheet_index_url,
   scraper_class, is_enabled, requires_javascript,
   primary_materials, primary_industries, notes
@@ -212,7 +212,7 @@ INSERT INTO `ketzero-consulting.c1_intelligence.datasheet_suppliers` (
 -- ============================================================================
 
 -- View: Active datasheets summary
-CREATE OR REPLACE VIEW `ketzero-consulting.c1_intelligence.v_datasheet_summary` AS
+CREATE OR REPLACE VIEW `<GCP_PROJECT_ID>.c1_intelligence.v_datasheet_summary` AS
 SELECT 
   supplier_name,
   material_category,
@@ -220,14 +220,14 @@ SELECT
   COUNTIF(text_extraction_success) as with_extracted_text,
   SUM(file_size_bytes) / 1024 / 1024 as total_size_mb,
   MAX(downloaded_at) as latest_download
-FROM `ketzero-consulting.c1_intelligence.datasheets`
+FROM `<GCP_PROJECT_ID>.c1_intelligence.datasheets`
 WHERE is_active = TRUE
 GROUP BY supplier_name, material_category
 ORDER BY supplier_name, datasheet_count DESC;
 
 
 -- View: Recent scrape health
-CREATE OR REPLACE VIEW `ketzero-consulting.c1_intelligence.v_scrape_health` AS
+CREATE OR REPLACE VIEW `<GCP_PROJECT_ID>.c1_intelligence.v_scrape_health` AS
 SELECT 
   supplier_name,
   COUNT(*) as runs_last_30d,
@@ -237,7 +237,7 @@ SELECT
   AVG(duration_seconds) as avg_duration_seconds,
   SUM(datasheets_downloaded) as total_downloaded,
   SUM(datasheets_failed) as total_errors
-FROM `ketzero-consulting.c1_intelligence.datasheet_scrape_runs`
+FROM `<GCP_PROJECT_ID>.c1_intelligence.datasheet_scrape_runs`
 WHERE run_date > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
 GROUP BY supplier_name;
 
@@ -249,7 +249,7 @@ GROUP BY supplier_name;
 
 -- For text search, consider adding a Search Index in the future:
 -- CREATE SEARCH INDEX datasheet_search_idx
--- ON `ketzero-consulting.c1_intelligence.datasheets`(extracted_text);
+-- ON `<GCP_PROJECT_ID>.c1_intelligence.datasheets`(extracted_text);
 
 
 -- ============================================================================
@@ -258,5 +258,5 @@ GROUP BY supplier_name;
 
 -- Example: Grant read access to a service account
 -- GRANT `roles/bigquery.dataViewer`
--- ON SCHEMA `ketzero-consulting.c1_intelligence`
--- TO "serviceAccount:c1-hub-backend@ketzero-consulting.iam.gserviceaccount.com";
+-- ON SCHEMA `<GCP_PROJECT_ID>.c1_intelligence`
+-- TO "serviceAccount:c1-hub-backend@<GCP_PROJECT_ID>.iam.gserviceaccount.com";

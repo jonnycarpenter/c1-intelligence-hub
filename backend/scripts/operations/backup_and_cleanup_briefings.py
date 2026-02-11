@@ -24,7 +24,7 @@ def main():
     
     query = f"""
         SELECT *
-        FROM `gen-lang-client-0436975498.c1_intelligence.weekly_briefings`
+        FROM `<GCP_PROJECT_ID>.c1_intelligence.weekly_briefings`
         WHERE id = '{GOOD_BRIEFING_ID}'
     """
     
@@ -53,34 +53,34 @@ def main():
     # Step 2: Delete all pre_briefings
     print(f"\n=== Step 2: Deleting ALL pre_briefings ===")
     
-    count_query = "SELECT COUNT(*) as cnt FROM `gen-lang-client-0436975498.c1_intelligence.pre_briefings`"
+    count_query = "SELECT COUNT(*) as cnt FROM `<GCP_PROJECT_ID>.c1_intelligence.pre_briefings`"
     count_result = list(client.query(count_query).result())
     pre_count = count_result[0].cnt if count_result else 0
     print(f"Found {pre_count} pre_briefings to delete")
     
     if pre_count > 0:
-        delete_query = "DELETE FROM `gen-lang-client-0436975498.c1_intelligence.pre_briefings` WHERE TRUE"
+        delete_query = "DELETE FROM `<GCP_PROJECT_ID>.c1_intelligence.pre_briefings` WHERE TRUE"
         client.query(delete_query).result()
         print(f"DELETED {pre_count} pre_briefings")
     
     # Step 3: Delete all weekly_briefings
     print(f"\n=== Step 3: Deleting ALL weekly_briefings ===")
     
-    count_query = "SELECT COUNT(*) as cnt FROM `gen-lang-client-0436975498.c1_intelligence.weekly_briefings`"
+    count_query = "SELECT COUNT(*) as cnt FROM `<GCP_PROJECT_ID>.c1_intelligence.weekly_briefings`"
     count_result = list(client.query(count_query).result())
     weekly_count = count_result[0].cnt if count_result else 0
     print(f"Found {weekly_count} weekly_briefings to delete")
     
     if weekly_count > 0:
-        delete_query = "DELETE FROM `gen-lang-client-0436975498.c1_intelligence.weekly_briefings` WHERE TRUE"
+        delete_query = "DELETE FROM `<GCP_PROJECT_ID>.c1_intelligence.weekly_briefings` WHERE TRUE"
         client.query(delete_query).result()
         print(f"DELETED {weekly_count} weekly_briefings")
     
     # Verify cleanup
     print(f"\n=== Verification ===")
     
-    pre_verify = list(client.query("SELECT COUNT(*) as cnt FROM `gen-lang-client-0436975498.c1_intelligence.pre_briefings`").result())
-    weekly_verify = list(client.query("SELECT COUNT(*) as cnt FROM `gen-lang-client-0436975498.c1_intelligence.weekly_briefings`").result())
+    pre_verify = list(client.query("SELECT COUNT(*) as cnt FROM `<GCP_PROJECT_ID>.c1_intelligence.pre_briefings`").result())
+    weekly_verify = list(client.query("SELECT COUNT(*) as cnt FROM `<GCP_PROJECT_ID>.c1_intelligence.weekly_briefings`").result())
     
     print(f"pre_briefings remaining: {pre_verify[0].cnt}")
     print(f"weekly_briefings remaining: {weekly_verify[0].cnt}")

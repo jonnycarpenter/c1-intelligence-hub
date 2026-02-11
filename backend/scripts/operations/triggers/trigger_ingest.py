@@ -12,7 +12,7 @@ except Exception as e:
     print(f"Error getting token: {e}")
     exit(1)
 
-url = "https://c1-hub-476410387076.us-central1.run.app/api/v1/scheduler/ingest"
+url = "https://c1-hub-<GCP_PROJECT_NUMBER>.us-central1.run.app/api/v1/scheduler/ingest"
 
 # 2. Send request with the token
 # Cloud Run (Gatekeeper) validates the token.

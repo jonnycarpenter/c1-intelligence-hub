@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from google.cloud import bigquery
-client = bigquery.Client(project='gen-lang-client-0436975498')
-dataset = 'gen-lang-client-0436975498.c1_intelligence'
+client = bigquery.Client(project='<GCP_PROJECT_ID>')
+dataset = '<GCP_PROJECT_ID>.c1_intelligence'
 
 query = f"""
     SELECT 

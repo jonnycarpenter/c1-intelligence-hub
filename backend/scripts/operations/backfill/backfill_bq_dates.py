@@ -18,7 +18,7 @@ from datetime import datetime
 from google.cloud import bigquery
 from app.utils.date_extraction import extract_publication_date
 
-PROJECT_ID = "gen-lang-client-0436975498"
+PROJECT_ID = "<GCP_PROJECT_ID>"
 DATASET = "c1_intelligence"
 
 def backfill_bigquery_dates():

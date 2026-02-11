@@ -40,7 +40,7 @@ API_DELAY_BETWEEN_CALLS = 0.5     # Courtesy delay between calls (seconds)
 # ─────────────────────────────────────────
 # BigQuery Settings
 # ─────────────────────────────────────────
-GCP_PROJECT_ID = os.getenv("GCP_PROJECT_ID", "gen-lang-client-0436975498")
+GCP_PROJECT_ID = os.getenv("GCP_PROJECT_ID", "")
 BQ_DATASET = "c1_intelligence"
 
 # Table names

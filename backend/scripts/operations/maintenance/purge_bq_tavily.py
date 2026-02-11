@@ -1,7 +1,7 @@
 """Purge Tavily-sourced data from BigQuery tables."""
 from google.cloud import bigquery
 
-PROJECT = "gen-lang-client-0436975498"
+PROJECT = "<GCP_PROJECT_ID>"
 DATASET = "c1_intelligence"
 
 client = bigquery.Client(project=PROJECT)

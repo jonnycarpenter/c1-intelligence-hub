@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from google.cloud import bigquery
 
 # Configuration
-PROJECT_ID = "gen-lang-client-0436975498"
+PROJECT_ID = "<GCP_PROJECT_ID>"
 DATASET = "c1_intelligence"
 
 def get_missing_articles(client: bigquery.Client) -> list[dict]:

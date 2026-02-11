@@ -2,7 +2,7 @@ from google.cloud import bigquery
 from datetime import datetime
 import os
 
-PROJECT_ID = "gen-lang-client-0436975498"
+PROJECT_ID = "<GCP_PROJECT_ID>"
 DATASET = "c1_intelligence"
 TODAY = datetime.utcnow().date()
 

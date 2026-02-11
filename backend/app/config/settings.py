@@ -87,10 +87,10 @@ class Settings(BaseSettings):
     )
     
     # GCP Configuration (for production storage)
-    # Hardcoded production defaults - BigQuery is ALWAYS the destination
-    gcp_project_id: str = "gen-lang-client-0436975498"
-    gcp_dataset_id: str = "c1_intelligence"
-    gcs_bucket_name: str = "gen-lang-client-0436975498-c1-hub-data"
+    # Set via environment variables or cloudbuild.yaml substitutions
+    gcp_project_id: str = Field(default="", validation_alias=AliasChoices("GCP_PROJECT_ID"))
+    gcp_dataset_id: str = Field(default="c1_intelligence", validation_alias=AliasChoices("GCP_DATASET_ID"))
+    gcs_bucket_name: str = Field(default="", validation_alias=AliasChoices("GCS_BUCKET_NAME"))
     gcp_location: str = "us-central1"
     
     # LangSmith (optional)

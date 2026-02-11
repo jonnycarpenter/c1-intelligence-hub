@@ -44,7 +44,7 @@ class ScraperConfig:
     retry_delay: float = 5.0  # Seconds between retries
     
     # User agent (identify ourselves)
-    user_agent: str = "C1IntelligenceHub/2.0 (Datasheet Indexer; contact@ketzeroconsulting.ai)"
+    user_agent: str = "C1IntelligenceHub/2.0 (Datasheet Indexer)"
     
     # PDF settings
     max_pdf_size_mb: int = 50  # Skip PDFs larger than this
@@ -52,7 +52,7 @@ class ScraperConfig:
     extract_tables: bool = True  # Use pdfplumber for table extraction
     
     # BigQuery settings
-    gcp_project: str = field(default_factory=lambda: os.getenv("GCP_PROJECT", "gen-lang-client-0436975498"))
+    gcp_project: str = field(default_factory=lambda: os.getenv("GCP_PROJECT_ID", ""))
     bq_dataset: str = "c1_intelligence"
     bq_datasheets_table: str = "datasheets"
     bq_scrape_runs_table: str = "datasheet_scrape_runs"

@@ -67,10 +67,10 @@ def _safe_parse_list(value: Any) -> List[str]:
 # =============================================================================
 # Configuration
 # =============================================================================
-# Production defaults - HARDCODED to prevent SQLite fallback
+# Set via environment variables: GCP_PROJECT_ID, GCS_BUCKET_NAME
 # =============================================================================
-_DEFAULT_PROJECT_ID = "gen-lang-client-0436975498"
-_DEFAULT_BUCKET_NAME = "gen-lang-client-0436975498-c1-hub-data"
+_DEFAULT_PROJECT_ID = os.getenv("GCP_PROJECT_ID", "")
+_DEFAULT_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME", "")
 
 @dataclass
 class GCPConfig:

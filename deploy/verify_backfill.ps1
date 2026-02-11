@@ -1,7 +1,7 @@
 #!/usr/bin/env pwsh
 # Verify Backfill Execution - Check what actually ran
 
-$ProjectId = "gen-lang-client-0436975498"
+$ProjectId = "<GCP_PROJECT_ID>"
 
 Write-Host "=" * 80 -ForegroundColor Cyan
 Write-Host "BACKFILL VERIFICATION REPORT" -ForegroundColor Cyan

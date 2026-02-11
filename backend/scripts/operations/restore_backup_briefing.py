@@ -23,7 +23,7 @@ def main():
     print(f"ID: {row.get('id')}")
     
     client = bigquery.Client()
-    table_id = "gen-lang-client-0436975498.c1_intelligence.weekly_briefings"
+    table_id = "<GCP_PROJECT_ID>.c1_intelligence.weekly_briefings"
     
     # Check if it already exists
     check_query = f"SELECT id FROM `{table_id}` WHERE id = '{row['id']}'"

@@ -144,7 +144,7 @@ app/mcp/tools/
 **Context**: Data was being lost to SQLite fallback when GCS_BUCKET_NAME env var was missing  
 **Decision**: Hardcode production GCP defaults in `gcp_storage.py` and `settings.py`  
 **Rationale**: Prevents silent fallback to SQLite; system always uses BigQuery even if env vars missing  
-**Values**: `project_id=gen-lang-client-0436975498`, `bucket=gen-lang-client-0436975498-c1-hub-data`  
+**Values**: `project_id=<GCP_PROJECT_ID>`, `bucket=<GCP_PROJECT_ID>-c1-hub-data`  
 
 ### ADR-006: Consolidated Script Organization
 **Date**: January 6, 2026  

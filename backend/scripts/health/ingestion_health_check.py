@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List
 import argparse
 
-PROJECT_ID = "gen-lang-client-0436975498"
+PROJECT_ID = "<GCP_PROJECT_ID>"
 DATASET = "c1_intelligence"
 BQ_PATH = os.path.expandvars(r"%LOCALAPPDATA%\Google\Cloud SDK\google-cloud-sdk\bin\bq.cmd")
 if not os.path.exists(BQ_PATH):

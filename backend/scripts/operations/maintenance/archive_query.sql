@@ -1,1 +1,1 @@
-UPDATE gen-lang-client-0436975498.c1_intelligence.articles SET source_type = 'earnings_transcript_api_ninja_archived' WHERE source_type IN ('earnings', 'earnings_transcript') AND (url LIKE '%api-ninjas.com%' OR url = '' OR url IS NULL)
+UPDATE <GCP_PROJECT_ID>.c1_intelligence.articles SET source_type = 'earnings_transcript_api_ninja_archived' WHERE source_type IN ('earnings', 'earnings_transcript') AND (url LIKE '%api-ninjas.com%' OR url = '' OR url IS NULL)

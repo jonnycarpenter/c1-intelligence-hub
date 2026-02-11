@@ -131,7 +131,7 @@ async def verify_backfill():
     print("\n=== Pre-Briefings ===")
     pre_query = """
         SELECT id, period_start, period_end, article_count, generated_at
-        FROM `gen-lang-client-0436975498.c1_intelligence.pre_briefings`
+        FROM `<GCP_PROJECT_ID>.c1_intelligence.pre_briefings`
         ORDER BY period_end ASC
     """
     pre_results = list(client.query(pre_query).result())
@@ -141,7 +141,7 @@ async def verify_backfill():
     print("\n=== Weekly Briefings ===")
     weekly_query = """
         SELECT id, briefing_title, period_end, generated_at
-        FROM `gen-lang-client-0436975498.c1_intelligence.weekly_briefings`
+        FROM `<GCP_PROJECT_ID>.c1_intelligence.weekly_briefings`
         ORDER BY period_end ASC
     """
     weekly_results = list(client.query(weekly_query).result())

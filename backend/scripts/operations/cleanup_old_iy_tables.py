@@ -28,7 +28,7 @@ import argparse
 import sys
 from google.cloud import bigquery
 
-GCP_PROJECT_ID = "gen-lang-client-0436975498"
+GCP_PROJECT_ID = "<GCP_PROJECT_ID>"
 BQ_DATASET = "c1_intelligence"
 
 OLD_TABLES = [

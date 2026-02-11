@@ -5,7 +5,7 @@
 # IMPORTANT: JSON body must use escaped quotes for PowerShell: '{\"key\": \"value\"}'
 # =============================================================================
 
-$ProjectId = "gen-lang-client-0436975498"
+$ProjectId = "<GCP_PROJECT_ID>"
 $Region = "us-central1"
 $ServiceName = "c1-hub"
 $ServiceAccount = "c1-hub-scheduler-sa@$ProjectId.iam.gserviceaccount.com"

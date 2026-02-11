@@ -1,7 +1,7 @@
 """Check digest_items table status."""
 from google.cloud import bigquery
 
-client = bigquery.Client(project='gen-lang-client-0436975498')
+client = bigquery.Client(project='<GCP_PROJECT_ID>')
 
 # Check schema
 print("=== digest_items schema ===")

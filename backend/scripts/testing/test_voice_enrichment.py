@@ -49,10 +49,10 @@ async def test():
     
     # Check table row counts
     from google.cloud import bigquery
-    c = bigquery.Client(project='gen-lang-client-0436975498')
+    c = bigquery.Client(project='<GCP_PROJECT_ID>')
     for table in ['sec_filing_nuggets', 'earnings_quotes', 'podcast_quotes']:
         try:
-            r = list(c.query(f'SELECT COUNT(*) as cnt FROM `gen-lang-client-0436975498.c1_intelligence.{table}`'))
+            r = list(c.query(f'SELECT COUNT(*) as cnt FROM `<GCP_PROJECT_ID>.c1_intelligence.{table}`'))
             print(f"\n{table}: {r[0].cnt} total rows")
         except Exception as e:
             print(f"\n{table}: TABLE NOT FOUND or ERROR - {e}")

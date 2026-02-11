@@ -21,7 +21,7 @@ async def test_agent2():
     # Get the latest pre-brief
     query = '''
         SELECT *
-        FROM `gen-lang-client-0436975498.c1_intelligence.pre_briefings`
+        FROM `<GCP_PROJECT_ID>.c1_intelligence.pre_briefings`
         ORDER BY generated_at DESC
         LIMIT 1
     '''
