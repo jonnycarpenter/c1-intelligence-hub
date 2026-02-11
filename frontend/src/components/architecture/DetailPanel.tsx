@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, FileCode, Cpu, Database, Globe, ArrowRight, ArrowLeft, ScrollText } from 'lucide-react'
+import { X, FileCode, Cpu, Database, Globe, ArrowRight, ArrowLeft, ScrollText, DollarSign, BarChart3 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { ArchNodeData, ArchNodeType } from './types'
 import PromptModal from './PromptModal'
@@ -140,6 +140,26 @@ export default function DetailPanel({ node, onClose }: DetailPanelProps) {
                       {node.technicalDetails.apis.map((api, i) => (
                         <p key={i} className="text-xs text-slate-700 font-mono">{api}</p>
                       ))}
+                    </div>
+                  </div>
+                )}
+
+                {node.technicalDetails.cost && (
+                  <div className="flex items-start gap-2">
+                    <DollarSign className="w-3.5 h-3.5 text-green-500 mt-0.5 shrink-0" />
+                    <div>
+                      <span className="text-[10px] font-medium text-slate-400 uppercase">Cost per Run</span>
+                      <p className="text-xs text-slate-700 font-mono">{node.technicalDetails.cost}</p>
+                    </div>
+                  </div>
+                )}
+
+                {node.technicalDetails.dataVolume && (
+                  <div className="flex items-start gap-2">
+                    <BarChart3 className="w-3.5 h-3.5 text-indigo-500 mt-0.5 shrink-0" />
+                    <div>
+                      <span className="text-[10px] font-medium text-slate-400 uppercase">Data Volume</span>
+                      <p className="text-xs text-slate-700 font-mono">{node.technicalDetails.dataVolume}</p>
                     </div>
                   </div>
                 )}

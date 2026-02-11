@@ -32,6 +32,8 @@ export const podcastNodes: Node<ArchNodeData>[] = [
         sourceFiles: ['ingestion/podcasts/discovery.py'],
         functions: ['discover_new_episodes()', '_parse_rss_feed()'],
         tables: ['podcast_episodes'],
+        cost: 'Free',
+        dataVolume: '12 feeds',
       },
       connections: {
         outgoing: ['Transcript Resolution Chain'],
@@ -55,6 +57,7 @@ export const podcastNodes: Node<ArchNodeData>[] = [
         sourceFiles: ['ingestion/podcasts/resolvers/chain.py'],
         functions: ['resolve_transcript()'],
         apis: ['YouTube Transcript API', 'AssemblyAI'],
+        cost: 'Free (public transcripts)',
       },
       connections: {
         incoming: ['Podcast RSS Discovery'],
@@ -80,6 +83,8 @@ export const podcastNodes: Node<ArchNodeData>[] = [
         model: 'claude-sonnet-4-5',
         functions: ['extract_quotes()', '_chunk_transcript()', '_heal_speaker_labels()'],
         lineCount: 508,
+        cost: '$0.05–0.15/episode (Claude Sonnet)',
+        dataVolume: '~20 episodes/week',
       },
       connections: {
         incoming: ['Transcript Resolution Chain'],
@@ -101,6 +106,7 @@ export const podcastNodes: Node<ArchNodeData>[] = [
       description: 'Episode metadata + full transcript text. Fields: title, podcast_name, published_at, duration, transcript, speakers, resolver_used, quality_score.',
       technicalDetails: {
         tables: ['podcast_episodes'],
+        dataVolume: '~500+ episodes',
       },
       connections: {
         incoming: ['Quote Extraction'],
@@ -121,6 +127,7 @@ export const podcastNodes: Node<ArchNodeData>[] = [
       technicalDetails: {
         tables: ['podcast_quotes'],
         functions: ['search_podcast_quotes()'],
+        dataVolume: 'speaker-attributed quotes',
       },
       connections: {
         incoming: ['Quote Extraction'],

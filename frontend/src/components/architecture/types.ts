@@ -20,6 +20,8 @@ export interface TechnicalDetail {
   apis?: string[]
   tables?: string[]
   lineCount?: number
+  cost?: string          // e.g. "$0.20–0.60 / filing"
+  dataVolume?: string    // e.g. "5,000+ articles"
 }
 
 export interface ConnectionInfo {
@@ -40,6 +42,8 @@ export interface ArchNodeData {
   badge?: string
   // Section grouping
   section?: string
+  // Which sub-tab this node belongs to (for search navigation)
+  tab?: ArchSubTab
   // Verbatim system prompt (for agent nodes)
   prompt?: string
 }

@@ -19,3 +19,8 @@ Diagnostic scripts for checking system health and data quality.
 ```bash
 python scripts/health/ingestion_health_check.py
 ```
+
+Optional API partner ping:
+```bash
+python scripts/health/ingestion_health_check.py --ping-apis
+```

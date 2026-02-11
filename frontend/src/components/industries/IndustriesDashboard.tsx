@@ -169,7 +169,7 @@ function ArticleDrawer({
       <div className="flex-1 overflow-y-auto">
         {isLoading ? (
           <div className="flex items-center justify-center h-40">
-            <Loader2 size={20} className="animate-spin text-purple-500" />
+            <Loader2 size={20} className="animate-spin text-emerald-500" />
           </div>
         ) : (
           <div className="divide-y divide-slate-100">
@@ -180,7 +180,7 @@ function ArticleDrawer({
                     href={article.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-sm font-medium text-slate-900 hover:text-purple-600 flex-1 line-clamp-2"
+                    className="text-sm font-medium text-slate-900 hover:text-emerald-600 flex-1 line-clamp-2"
                   >
                     {article.title}
                   </a>
@@ -190,7 +190,7 @@ function ArticleDrawer({
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-[10px] text-slate-400">{article.source_name}</span>
                   {article.event_type && (
-                    <span className="text-[10px] px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded">
+                    <span className="text-[10px] px-1.5 py-0.5 bg-emerald-50 text-emerald-600 rounded">
                       {article.event_type.replace(/_/g, ' ')}
                     </span>
                   )}
@@ -219,7 +219,7 @@ function ArticleDrawer({
           <button
             onClick={() => fetchArticles(Math.max(0, offset - limit))}
             disabled={offset === 0}
-            className="text-xs text-purple-600 disabled:text-slate-400"
+            className="text-xs text-emerald-600 disabled:text-slate-400"
           >
             Previous
           </button>
@@ -229,7 +229,7 @@ function ArticleDrawer({
           <button
             onClick={() => fetchArticles(offset + limit)}
             disabled={offset + limit >= totalCount}
-            className="text-xs text-purple-600 disabled:text-slate-400"
+            className="text-xs text-emerald-600 disabled:text-slate-400"
           >
             Next
           </button>
@@ -253,23 +253,23 @@ function NarrativeBanner({
   enrichmentSources: number
 }) {
   return (
-    <div className="mx-6 mt-4 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 p-5 text-white shadow-lg">
+    <div className="mx-6 mt-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 p-5 text-white shadow-lg">
       <div className="flex items-start gap-3 mb-3">
-        <Sparkles size={20} className="text-purple-200 shrink-0 mt-0.5" />
+        <Sparkles size={20} className="text-emerald-200 shrink-0 mt-0.5" />
         <div>
           <h3 className="font-semibold text-sm mb-2">90-Day Narrative Arc</h3>
-          <MarkdownContent content={narrative} className="text-sm leading-relaxed text-purple-100" isUser />
+          <MarkdownContent content={narrative} className="text-sm leading-relaxed text-emerald-100" isUser />
         </div>
       </div>
-      <div className="mt-4 pt-3 border-t border-purple-400/30">
+      <div className="mt-4 pt-3 border-t border-emerald-400/30">
         <div className="flex items-start gap-2">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-purple-300 shrink-0 mt-0.5">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-300 shrink-0 mt-0.5">
             Key Insight
           </span>
           <MarkdownContent content={keyInsight} className="text-sm font-medium" isUser />
         </div>
       </div>
-      <div className="mt-2 text-[10px] text-purple-300">
+      <div className="mt-2 text-[10px] text-emerald-300">
         Synthesized from {enrichmentSources} earnings quotes &amp; SEC filings
       </div>
     </div>
@@ -316,14 +316,14 @@ function MonthColumn({
       <div className="p-4 space-y-4 flex-1">
         {/* Month Narrative (if generated) */}
         {monthNarrative && (
-          <div className="bg-purple-50 border border-purple-100 rounded-lg p-3">
+          <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3">
             <div className="flex items-center gap-1.5 mb-1.5">
-              <Sparkles size={12} className="text-purple-500" />
-              <span className="text-[10px] font-semibold text-purple-600 uppercase tracking-wider">
+              <Sparkles size={12} className="text-emerald-500" />
+              <span className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wider">
                 Narrative
               </span>
             </div>
-            <MarkdownContent content={monthNarrative} className="text-xs text-purple-900 leading-relaxed" />
+            <MarkdownContent content={monthNarrative} className="text-xs text-emerald-900 leading-relaxed" />
           </div>
         )}
 
@@ -363,7 +363,7 @@ function MonthColumn({
             {data.top_themes.slice(0, 6).map((t) => (
               <span
                 key={t.name}
-                className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] bg-purple-50 text-purple-700 rounded-full"
+                className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] bg-emerald-50 text-emerald-700 rounded-full"
               >
                 {t.name.replace(/_/g, ' ')}
                 <span className="font-semibold">{t.per_day}/d</span>
@@ -410,13 +410,13 @@ function MonthColumn({
                 rel="noopener noreferrer"
                 className="block group"
               >
-                <p className="text-xs text-slate-800 group-hover:text-purple-600 line-clamp-2 leading-relaxed">
+                <p className="text-xs text-slate-800 group-hover:text-emerald-600 line-clamp-2 leading-relaxed">
                   {article.title}
                 </p>
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <span className="text-[10px] text-slate-400">{article.source_name}</span>
                   {article.event_type && (
-                    <span className="text-[10px] text-purple-500">
+                    <span className="text-[10px] text-emerald-500">
                       {article.event_type.replace(/_/g, ' ')}
                     </span>
                   )}
@@ -431,7 +431,7 @@ function MonthColumn({
       <div className="px-4 py-2 border-t border-slate-100 bg-slate-50/50 rounded-b-xl">
         <button
           onClick={() => onViewArticles(data.month, data.month_label)}
-          className="text-xs text-purple-600 hover:text-purple-700 font-medium flex items-center gap-1"
+          className="text-xs text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1"
         >
           <Newspaper size={12} />
           View all {data.article_count} articles
@@ -478,12 +478,12 @@ export default function IndustriesDashboard() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-gradient-to-br from-slate-50 to-purple-50/30">
+    <div className="h-full flex flex-col bg-gradient-to-br from-slate-50 to-emerald-50/30">
       {/* Header */}
       <div className="px-6 py-4 border-b border-slate-200 bg-white/80 backdrop-blur-sm shrink-0">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-purple-500 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-lg bg-emerald-500 flex items-center justify-center">
               <Factory size={18} className="text-white" />
             </div>
             <div>
@@ -514,15 +514,15 @@ export default function IndustriesDashboard() {
                   className={cn(
                     'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all shrink-0',
                     isActive
-                      ? 'bg-purple-600 text-white shadow-sm'
-                      : 'bg-white text-slate-600 border border-slate-200 hover:border-purple-300 hover:text-purple-600'
+                      ? 'bg-emerald-600 text-white shadow-sm'
+                      : 'bg-white text-slate-600 border border-slate-200 hover:border-emerald-300 hover:text-emerald-600'
                   )}
                 >
                   {ind.name}
                   <span
                     className={cn(
                       'text-xs tabular-nums',
-                      isActive ? 'text-purple-200' : 'text-slate-400'
+                      isActive ? 'text-emerald-200' : 'text-slate-400'
                     )}
                   >
                     {ind.article_count_90d}
@@ -534,7 +534,7 @@ export default function IndustriesDashboard() {
                     <TrendingDown size={12} className={isActive ? 'text-red-300' : 'text-red-500'} />
                   )}
                   {ind.trend === 'flat' && (
-                    <Minus size={12} className={isActive ? 'text-purple-300' : 'text-slate-400'} />
+                    <Minus size={12} className={isActive ? 'text-emerald-300' : 'text-slate-400'} />
                   )}
                 </button>
               )
@@ -555,7 +555,7 @@ export default function IndustriesDashboard() {
       {(isLoadingList || isLoadingTimeline) && !timeline && (
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
-            <Loader2 size={28} className="animate-spin text-purple-500 mx-auto mb-3" />
+            <Loader2 size={28} className="animate-spin text-emerald-500 mx-auto mb-3" />
             <p className="text-sm text-slate-500">Loading narrative data...</p>
           </div>
         </div>
@@ -600,8 +600,8 @@ export default function IndustriesDashboard() {
                 className={cn(
                   'inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all',
                   isGeneratingNarrative
-                    ? 'bg-purple-100 text-purple-400 cursor-not-allowed'
-                    : 'bg-purple-600 text-white hover:bg-purple-700 shadow-sm hover:shadow'
+                    ? 'bg-emerald-100 text-emerald-400 cursor-not-allowed'
+                    : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm hover:shadow'
                 )}
               >
                 {isGeneratingNarrative ? (
@@ -667,7 +667,7 @@ export default function IndustriesDashboard() {
       {/* Loading overlay for timeline refresh */}
       {isLoadingTimeline && timeline && (
         <div className="absolute inset-0 bg-white/50 flex items-center justify-center z-10">
-          <Loader2 size={28} className="animate-spin text-purple-500" />
+          <Loader2 size={28} className="animate-spin text-emerald-500" />
         </div>
       )}
 

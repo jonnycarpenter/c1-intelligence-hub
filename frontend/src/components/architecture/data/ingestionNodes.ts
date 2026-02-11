@@ -35,6 +35,8 @@ export const ingestionSectionANodes: Node<ArchNodeData>[] = [
         sourceFiles: ['ingestion/orchestrator.py'],
         functions: ['_collect_rss_articles()'],
         apis: ['feedparser'],
+        cost: 'Free',
+        dataVolume: '14 feeds / ~200 articles/day',
       },
       connections: {
         outgoing: ['Ingestion Orchestrator'],
@@ -55,6 +57,8 @@ export const ingestionSectionANodes: Node<ArchNodeData>[] = [
         sourceFiles: ['ingestion/orchestrator.py', 'tools/exa_search.py'],
         functions: ['_collect_exa_articles()'],
         apis: ['Exa.ai search_and_contents'],
+        cost: '~$0.01/query',
+        dataVolume: '~100 queries/day',
       },
       connections: {
         outgoing: ['Ingestion Orchestrator'],
@@ -75,6 +79,8 @@ export const ingestionSectionANodes: Node<ArchNodeData>[] = [
         sourceFiles: ['ingestion/orchestrator.py'],
         functions: ['_collect_tavily_articles()'],
         apis: ['Tavily Search API'],
+        cost: '~$0.01/query',
+        dataVolume: '~100 queries/day',
       },
       connections: {
         outgoing: ['Ingestion Orchestrator'],
@@ -132,6 +138,8 @@ export const ingestionSectionANodes: Node<ArchNodeData>[] = [
       technicalDetails: {
         sourceFiles: ['ingestion/orchestrator.py'],
         apis: ['StockNews API'],
+        cost: 'Free tier',
+        dataVolume: '~50 articles/day',
       },
       connections: {
         outgoing: ['Ingestion Orchestrator'],
@@ -226,6 +234,7 @@ export const ingestionSectionANodes: Node<ArchNodeData>[] = [
         sourceFiles: ['ingestion/orchestrator.py'],
         functions: ['run_full_ingestion()', 'run_rss_only()', 'run_financials_only()', 'run_earnings_only()', 'run_digest_only()'],
         lineCount: 1800,
+        dataVolume: '~500 articles/day',
       },
       connections: {
         incoming: ['RSS Feeds', 'Exa.ai', 'Tavily', 'SEC EDGAR', 'Earnings', 'StockNews', 'FMP', 'Drewry', 'Press Releases', 'Podcasts'],
@@ -248,6 +257,7 @@ export const ingestionSectionANodes: Node<ArchNodeData>[] = [
         sourceFiles: ['ingestion/processing/deduplication.py'],
         functions: ['is_duplicate()', '_fuzzy_title_match()'],
         tables: ['articles'],
+        dataVolume: '~500 articles/day',
       },
       connections: {
         incoming: ['Ingestion Orchestrator'],
@@ -288,6 +298,8 @@ export const ingestionSectionANodes: Node<ArchNodeData>[] = [
         sourceFiles: ['ingestion/processing/classifier.py'],
         model: 'claude-sonnet-4-5',
         functions: ['classify_article()', '_build_classification_prompt()'],
+        cost: '~$0.002/article (GPT-4o-mini)',
+        dataVolume: '~500 articles/day',
       },
       connections: {
         incoming: ['Web Scraper'],
@@ -351,6 +363,8 @@ export const ingestionSectionANodes: Node<ArchNodeData>[] = [
         model: 'Vertex AI text-embedding-004',
         functions: ['embed_and_store()'],
         tables: ['article_chunk_embeddings'],
+        cost: '~$0.0001/article',
+        dataVolume: '768-dim vectors',
       },
       connections: {
         incoming: ['Image Enrichment'],
@@ -372,6 +386,7 @@ export const ingestionSectionANodes: Node<ArchNodeData>[] = [
       description: 'Raw source of truth. All articles regardless of classification. Fields: title, content, url, source_type, companies_mentioned, published_at, fetched_at.',
       technicalDetails: {
         tables: ['articles'],
+        dataVolume: '5,200+ articles total',
       },
       connections: {
         incoming: ['Vector Embedding pipeline'],
@@ -390,6 +405,7 @@ export const ingestionSectionANodes: Node<ArchNodeData>[] = [
       description: 'Classified articles with AI-generated summaries. Fields: category, priority, relevance_score, summary, companies, materials, industries, sentiment, is_hero, narrative enrichment fields. Primary table for Pulse and Discovery tabs.',
       technicalDetails: {
         tables: ['digest_items'],
+        dataVolume: '5,200+ classified items',
       },
       connections: {
         incoming: ['AI Classifier pipeline'],
@@ -427,6 +443,7 @@ export const ingestionSectionANodes: Node<ArchNodeData>[] = [
       description: 'Vector store. Chunked text + 768-dim embeddings. Queried by Deep Research agents and ad-hoc briefing agent via query_corpus MCP tool. BigQuery native VECTOR_SEARCH with IVF index.',
       technicalDetails: {
         tables: ['article_chunk_embeddings'],
+        dataVolume: '768-dim vectors, 15K+ chunks',
       },
       connections: {
         incoming: ['Vector Embedding'],
@@ -488,6 +505,8 @@ export const ingestionSectionANodes: Node<ArchNodeData>[] = [
         functions: ['extract_nuggets()'],
         tables: ['sec_filing_nuggets'],
         lineCount: 487,
+        cost: '$0.20–0.60/filing (Claude Sonnet)',
+        dataVolume: '~50 filings/week',
       },
       connections: {
         incoming: ['articles table (SEC filings)'],
@@ -511,6 +530,8 @@ export const ingestionSectionANodes: Node<ArchNodeData>[] = [
         functions: ['extract_quotes()'],
         tables: ['earnings_quotes'],
         lineCount: 484,
+        cost: '$0.02–0.05/transcript (GPT-4o-mini)',
+        dataVolume: '~30 transcripts/quarter',
       },
       connections: {
         incoming: ['articles table (earnings transcripts)'],

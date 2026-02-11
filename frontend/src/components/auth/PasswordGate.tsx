@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Lock, User, Loader2 } from 'lucide-react'
+import { Sparkles, User, Loader2 } from 'lucide-react'
 
 const AUTH_KEY = 'c1_hub_authenticated'
 const USER_NAME_KEY = 'userName'  // Must match api.ts expectations
 const USER_TEAM_KEY = 'userTeam'  // Must match api.ts expectations
+const SITE_PASSWORD = 'partnership2026' // Shared access key - sent automatically
 
 interface PasswordGateProps {
   children: React.ReactNode
@@ -14,7 +15,6 @@ interface PasswordGateProps {
 export function PasswordGate({ children }: PasswordGateProps) {
   const [authenticated, setAuthenticated] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [password, setPassword] = useState('')
   const [userName, setUserName] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -56,46 +56,37 @@ export function PasswordGate({ children }: PasswordGateProps) {
     setSubmitting(true)
 
     try {
-      // LOCAL DEVELOPMENT BYPASS: Check if running on localhost
+      const trimmedName = userName.trim()
       const isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
 
-      if (isLocalDev && password === 'partnership2026') {
-        // Store authentication state in sessionStorage
+      if (isLocalDev) {
+        // Local dev: skip backend call
         sessionStorage.setItem(AUTH_KEY, 'true')
-
-        // Store user info in localStorage (for API headers)
-        const trimmedName = userName.trim()
         localStorage.setItem(USER_NAME_KEY, trimmedName)
         localStorage.setItem(USER_TEAM_KEY, defaultTeam)
-
         setAuthenticated(true)
         setSubmitting(false)
         return
       }
 
-      // Production: verify with backend
+      // Production: verify with backend (password sent automatically)
       const response = await fetch('/api/verify-access', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          password,
-          user_name: userName.trim(),
+          password: SITE_PASSWORD,
+          user_name: trimmedName,
           user_team: defaultTeam
         })
       })
 
       if (response.ok) {
-        // Store authentication state in sessionStorage
         sessionStorage.setItem(AUTH_KEY, 'true')
-
-        // Store user info in localStorage (for API headers)
-        const trimmedName = userName.trim()
         localStorage.setItem(USER_NAME_KEY, trimmedName)
         localStorage.setItem(USER_TEAM_KEY, defaultTeam)
-
         setAuthenticated(true)
       } else {
-        setError('Incorrect password. Please try again.')
+        setError('Something went wrong. Please try again.')
       }
     } catch (err) {
       setError('Connection error. Please try again.')
@@ -127,11 +118,11 @@ export function PasswordGate({ children }: PasswordGateProps) {
       <div className="bg-slate-800 p-8 rounded-xl shadow-2xl max-w-md w-full border border-slate-700">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Lock className="w-8 h-8 text-white" />
+          <div className="w-16 h-16 bg-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Sparkles className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-2xl font-bold text-white">C1 Intelligence Hub</h1>
-          <p className="text-slate-400 mt-2">Partner Access</p>
+          <p className="text-slate-400 mt-2">Jump in and explore</p>
         </div>
 
         {/* Form */}
@@ -140,38 +131,22 @@ export function PasswordGate({ children }: PasswordGateProps) {
           <div>
             <label className="block text-slate-300 text-sm font-medium mb-2">
               <User className="w-4 h-4 inline mr-2" />
-              Your Name
+              What should we call you?
             </label>
             <input
               type="text"
               value={userName}
               onChange={(e) => setUserName(e.target.value)}
-              placeholder="Enter your name"
-              className="w-full p-3 rounded-lg bg-slate-700 text-white border border-slate-600 
-                         focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none
+              placeholder="Your name or Roger Rabbit"
+              className="w-full p-3 rounded-lg bg-slate-700 text-white border border-slate-600
+                         focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none
                          placeholder-slate-400"
               required
               autoComplete="name"
             />
-          </div>
-
-          {/* Password Field */}
-          <div>
-            <label className="block text-slate-300 text-sm font-medium mb-2">
-              <Lock className="w-4 h-4 inline mr-2" />
-              Access Password
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter password"
-              className="w-full p-3 rounded-lg bg-slate-700 text-white border border-slate-600 
-                         focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none
-                         placeholder-slate-400"
-              required
-              autoComplete="current-password"
-            />
+            <p className="text-xs text-slate-500 mt-2">
+              No email, no spam. Just a name so we know who&apos;s poking around.
+            </p>
           </div>
 
           {/* Error Message */}
@@ -185,26 +160,21 @@ export function PasswordGate({ children }: PasswordGateProps) {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full p-3 rounded-lg bg-blue-600 text-white font-medium
-                       hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+            className="w-full p-3 rounded-lg bg-emerald-600 text-white font-medium
+                       hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2
                        focus:ring-offset-slate-800 disabled:opacity-50 disabled:cursor-not-allowed
                        transition-colors flex items-center justify-center gap-2"
           >
             {submitting ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Verifying...
+                Loading...
               </>
             ) : (
               'Enter Hub'
             )}
           </button>
         </form>
-
-        {/* Footer */}
-        <p className="text-center text-slate-500 text-xs mt-6">
-          Contact your C1 representative if you need access credentials.
-        </p>
       </div>
     </div>
   )

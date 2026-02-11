@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useState, useMemo, useEffect } from 'react'
 import {
   ReactFlow,
   Background,
@@ -22,7 +22,41 @@ import { briefingNodes } from './data/agenticNodes'
 import { briefingEdges } from './data/agenticEdges'
 import { deepResearchNodes } from './data/agenticNodes'
 import { deepResearchEdges } from './data/agenticEdges'
+import { adhocBriefingNodes } from './data/adhocBriefingNodes'
+import { adhocBriefingEdges } from './data/adhocBriefingEdges'
+import { pipelineNodes } from './data/pipelineNodes'
+import { pipelineEdges } from './data/pipelineEdges'
 import type { ArchNodeData } from './types'
+
+// Path highlighting helpers
+function getConnectedIds(selectedId: string | null, edges: Edge[]): Set<string> {
+  if (!selectedId) return new Set()
+  const connected = new Set<string>([selectedId])
+  for (const e of edges) {
+    if (e.source === selectedId) connected.add(e.target)
+    if (e.target === selectedId) connected.add(e.source)
+  }
+  return connected
+}
+
+function applyHighlight<T extends Node>(
+  nodes: T[],
+  edges: Edge[],
+  selectedId: string | null
+): { highlightedNodes: T[]; highlightedEdges: Edge[] } {
+  if (!selectedId) return { highlightedNodes: nodes, highlightedEdges: edges }
+  const connected = getConnectedIds(selectedId, edges)
+  const highlightedNodes = nodes.map((n) => ({
+    ...n,
+    style: { ...n.style, opacity: connected.has(n.id) ? 1 : 0.25, transition: 'opacity 0.3s ease' },
+  }))
+  const highlightedEdges = edges.map((e) => ({
+    ...e,
+    style: { ...e.style, opacity: e.source === selectedId || e.target === selectedId ? 1 : 0.12, transition: 'opacity 0.3s ease' },
+    animated: e.source === selectedId || e.target === selectedId ? true : (e.animated ?? false),
+  }))
+  return { highlightedNodes, highlightedEdges }
+}
 
 const nodeTypes: NodeTypes = {
   dataSource: DataSourceNode as any,
@@ -66,6 +100,23 @@ const researchColumns = [
   { label: 'OUTPUT', color: '#8b5cf6' },
 ]
 
+const adhocColumns = [
+  { label: 'TRIGGER', color: '#3b82f6' },
+  { label: 'SESSION', color: '#0ea5e9' },
+  { label: 'ROUTER', color: '#6b7280' },
+  { label: 'DATA SOURCES', color: '#8b5cf6' },
+  { label: 'SYNTHESIS', color: '#10b981' },
+  { label: 'OUTPUT', color: '#6366f1' },
+]
+
+const pipelineColumns = [
+  { label: 'INPUT', color: '#3b82f6' },
+  { label: 'MODE', color: '#6b7280' },
+  { label: 'MCP TOOLS', color: '#10b981' },
+  { label: 'FILTER', color: '#f59e0b' },
+  { label: 'OUTPUT', color: '#6366f1' },
+]
+
 // SSE event sequence for Deep Research overlay
 const sseEventSequence = [
   { event: 'node_start', node: 'groomer', time: '0.0s' },
@@ -87,6 +138,146 @@ const sseEventSequence = [
 ]
 
 // ────────────────────────────────────────────────
+// Animated SSE Replay Overlay
+// ────────────────────────────────────────────────
+function SSEReplayOverlay({ events }: { events: typeof sseEventSequence }) {
+  const [visibleCount, setVisibleCount] = useState(0)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [isComplete, setIsComplete] = useState(false)
+  const containerRef = useCallback((node: HTMLDivElement | null) => {
+    if (node) node.scrollTop = node.scrollHeight
+  }, [visibleCount]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Parse the time string (e.g. "2.1s", "30s") into seconds
+  const parseSec = (t: string) => parseFloat(t.replace('s', ''))
+
+  // Compute inter-event delays, compressed to ~15s total (63s real → ~4x speedup)
+  const delays = useMemo(() => {
+    const SPEEDUP = 4.2
+    return events.map((evt, i) => {
+      if (i === 0) return 300 // initial delay
+      const prev = parseSec(events[i - 1].time)
+      const curr = parseSec(evt.time)
+      const delta = Math.max((curr - prev) * 1000 / SPEEDUP, 80)
+      return delta
+    })
+  }, [events])
+
+  useEffect(() => {
+    if (!isPlaying || visibleCount >= events.length) {
+      if (visibleCount >= events.length && isPlaying) {
+        setIsPlaying(false)
+        setIsComplete(true)
+      }
+      return
+    }
+    const timer = setTimeout(() => {
+      setVisibleCount(c => c + 1)
+    }, delays[visibleCount])
+    return () => clearTimeout(timer)
+  }, [isPlaying, visibleCount, events.length, delays])
+
+  const handlePlay = () => {
+    setVisibleCount(0)
+    setIsComplete(false)
+    setIsPlaying(true)
+  }
+
+  const handleReset = () => {
+    setVisibleCount(0)
+    setIsPlaying(false)
+    setIsComplete(false)
+  }
+
+  const visibleEvents = events.slice(0, visibleCount)
+
+  return (
+    <div className="absolute bottom-2 left-2 z-10 bg-slate-900/95 backdrop-blur-sm border border-slate-700 rounded-lg shadow-lg max-w-[360px]">
+      {/* Header with controls */}
+      <div className="flex items-center justify-between px-3 pt-2 pb-1.5 border-b border-slate-700/50">
+        <div className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+          {isPlaying && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />}
+          {isComplete && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
+          {!isPlaying && !isComplete && <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />}
+          SSE Event Stream
+        </div>
+        <div className="flex items-center gap-1.5">
+          {!isPlaying ? (
+            <button
+              onClick={handlePlay}
+              className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-colors"
+            >
+              {isComplete ? '↻ Replay' : '▶ Play'}
+            </button>
+          ) : (
+            <button
+              onClick={() => setIsPlaying(false)}
+              className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 transition-colors"
+            >
+              ⏸ Pause
+            </button>
+          )}
+          {visibleCount > 0 && (
+            <button
+              onClick={handleReset}
+              className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-500/20 text-slate-400 hover:bg-slate-500/30 transition-colors"
+            >
+              Reset
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div className="h-0.5 bg-slate-800">
+        <div
+          className="h-full bg-emerald-400 transition-all duration-300 ease-out"
+          style={{ width: `${(visibleCount / events.length) * 100}%` }}
+        />
+      </div>
+
+      {/* Event stream */}
+      <div ref={containerRef} className="px-3 py-2 max-h-[180px] overflow-y-auto">
+        {visibleEvents.length === 0 && !isPlaying && (
+          <div className="text-[10px] text-slate-500 text-center py-2">
+            Press Play to replay a real 63-second deep research run
+          </div>
+        )}
+        {visibleEvents.map((evt, i) => (
+          <div
+            key={i}
+            className="flex items-start gap-2 text-[10px] py-0.5 font-mono animate-[fadeIn_0.2s_ease-out]"
+          >
+            <span className="text-slate-500 shrink-0 w-10 text-right">{evt.time}</span>
+            <span className={`shrink-0 ${
+              evt.event === 'node_start' ? 'text-sky-400' :
+              evt.event === 'node_complete' ? 'text-emerald-400' :
+              evt.event === 'tool_progress' ? 'text-amber-400' :
+              'text-violet-400'
+            }`}>
+              {evt.event}
+            </span>
+            <span className="text-slate-300">
+              {evt.node}
+              {evt.parallel && <span className="text-orange-400 ml-1">⚡</span>}
+            </span>
+            {evt.detail && (
+              <span className="text-slate-500 truncate">{evt.detail}</span>
+            )}
+          </div>
+        ))}
+        {isComplete && (
+          <div className="flex items-center gap-1.5 text-[10px] py-1 mt-1 border-t border-slate-700/50 text-emerald-400 font-bold">
+            <span>✓</span>
+            <span>Complete — 63s real-time → {Math.round(events.length * 0.9)}s replay</span>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ────────────────────────────────────────────────
 // Reusable Section Canvas component
 // ────────────────────────────────────────────────
 interface SectionCanvasProps {
@@ -100,6 +291,7 @@ interface SectionCanvasProps {
   onClose: () => void
   showSSE?: boolean
   sseEvents?: typeof sseEventSequence
+  focusNodeId?: string | null
 }
 
 function SectionCanvas({
@@ -113,15 +305,33 @@ function SectionCanvas({
   onClose,
   showSSE,
   sseEvents,
+  focusNodeId,
 }: SectionCanvasProps) {
   const [flowNodes, , onNodesChange] = useNodesState(nodes)
   const [flowEdges, , onEdgesChange] = useEdgesState(edges)
 
+  // Path highlighting
+  const selectedId = selectedNode ? nodes.find(n => n.data.label === selectedNode.label)?.id ?? null : null
+  const { highlightedNodes, highlightedEdges } = useMemo(
+    () => applyHighlight(flowNodes, flowEdges, selectedId),
+    [flowNodes, flowEdges, selectedId]
+  )
+
+  // Auto-select focused node from search
+  useEffect(() => {
+    if (focusNodeId) {
+      const match = nodes.find(n => n.id === focusNodeId)
+      if (match) {
+        onNodeClick({} as React.MouseEvent, match)
+      }
+    }
+  }, [focusNodeId, nodes, onNodeClick])
+
   return (
     <div className="relative" style={{ height }}>
       <ReactFlow
-        nodes={flowNodes}
-        edges={flowEdges}
+        nodes={selectedId ? highlightedNodes : flowNodes}
+        edges={selectedId ? highlightedEdges : flowEdges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onNodeClick={onNodeClick}
@@ -160,34 +370,9 @@ function SectionCanvas({
         ))}
       </div>
 
-      {/* SSE Progress Overlay */}
+      {/* SSE Animated Replay Overlay */}
       {showSSE && sseEvents && (
-        <div className="absolute bottom-2 left-2 z-10 bg-slate-900/95 backdrop-blur-sm border border-slate-700 rounded-lg px-3 py-2 shadow-lg max-w-[340px] max-h-[220px] overflow-y-auto">
-          <div className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            SSE Event Stream
-          </div>
-          {sseEvents.map((evt, i) => (
-            <div key={i} className="flex items-start gap-2 text-[10px] py-0.5 font-mono">
-              <span className="text-slate-500 shrink-0 w-10 text-right">{evt.time}</span>
-              <span className={`shrink-0 ${
-                evt.event === 'node_start' ? 'text-sky-400' :
-                evt.event === 'node_complete' ? 'text-emerald-400' :
-                evt.event === 'tool_progress' ? 'text-amber-400' :
-                'text-violet-400'
-              }`}>
-                {evt.event}
-              </span>
-              <span className="text-slate-300">
-                {evt.node}
-                {evt.parallel && <span className="text-orange-400 ml-1">⚡</span>}
-              </span>
-              {evt.detail && (
-                <span className="text-slate-500 truncate">{evt.detail}</span>
-              )}
-            </div>
-          ))}
-        </div>
+        <SSEReplayOverlay events={sseEvents} />
       )}
 
       {/* Detail Panel */}
@@ -199,13 +384,27 @@ function SectionCanvas({
 // ────────────────────────────────────────────────
 // Main Agentic Workflow Diagram
 // ────────────────────────────────────────────────
-export default function AgenticWorkflowDiagram() {
+interface AgenticWorkflowDiagramProps {
+  focusNodeId?: string | null
+  focusSection?: string | null
+}
+
+export default function AgenticWorkflowDiagram({ focusNodeId, focusSection }: AgenticWorkflowDiagramProps) {
   const [selectedNode, setSelectedNode] = useState<ArchNodeData | null>(null)
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     A: true,
     B: false,
+    C: false,
+    D: false,
   })
   const [showSSE, setShowSSE] = useState(false)
+
+  // Auto-expand section when triggered from search
+  useEffect(() => {
+    if (focusSection && !expandedSections[focusSection]) {
+      setExpandedSections(prev => ({ ...prev, [focusSection]: true }))
+    }
+  }, [focusSection]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const onNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
     setSelectedNode(node.data as ArchNodeData)
@@ -221,7 +420,12 @@ export default function AgenticWorkflowDiagram() {
 
   // Count expanded sections to determine sizing
   const expandedCount = Object.values(expandedSections).filter(Boolean).length
-  const sectionHeight = expandedCount <= 1 ? 'calc(100vh - 280px)' : 'calc(50vh - 140px)'
+  const sectionHeight =
+    expandedCount <= 1
+      ? 'calc(100vh - 280px)'
+      : expandedCount === 2
+        ? 'calc(50vh - 140px)'
+        : 'calc(33vh - 100px)'
 
   return (
     <div className="h-full flex flex-col overflow-y-auto">
@@ -265,6 +469,7 @@ export default function AgenticWorkflowDiagram() {
             onNodeClick={onNodeClick}
             onPaneClick={onPaneClick}
             onClose={() => setSelectedNode(null)}
+            focusNodeId={focusSection === 'A' ? focusNodeId : null}
           />
         </div>
       )}
@@ -294,6 +499,63 @@ export default function AgenticWorkflowDiagram() {
             onClose={() => setSelectedNode(null)}
             showSSE={showSSE}
             sseEvents={sseEventSequence}
+            focusNodeId={focusSection === 'B' ? focusNodeId : null}
+          />
+        </div>
+      )}
+
+      {/* Section C: Ad-Hoc Briefing Agent */}
+      <div className="px-4 pt-2 pb-1">
+        <SectionHeader
+          letter="C"
+          title="Ad-Hoc Briefing Agent"
+          description="Multi-source synthesis: 6 parallel searches → Claude Opus streaming response"
+          color="sky"
+          isExpanded={expandedSections.C}
+          onToggle={() => toggleSection('C')}
+          nodeCount={adhocBriefingNodes.length}
+        />
+      </div>
+      {expandedSections.C && (
+        <div className="px-2 pb-4 section-content-enter">
+          <SectionCanvas
+            nodes={adhocBriefingNodes}
+            edges={adhocBriefingEdges}
+            columnLabels={adhocColumns}
+            height={sectionHeight}
+            selectedNode={selectedNode}
+            onNodeClick={onNodeClick}
+            onPaneClick={onPaneClick}
+            onClose={() => setSelectedNode(null)}
+            focusNodeId={focusSection === 'C' ? focusNodeId : null}
+          />
+        </div>
+      )}
+
+      {/* Section D: Pipeline Sales Prospecting Agent */}
+      <div className="px-4 pt-2 pb-1">
+        <SectionHeader
+          letter="D"
+          title="Pipeline Sales Prospecting Agent"
+          description="Multi-tool prospecting: Exa + Apollo + BigQuery enrichment → filtered results"
+          color="violet"
+          isExpanded={expandedSections.D}
+          onToggle={() => toggleSection('D')}
+          nodeCount={pipelineNodes.length}
+        />
+      </div>
+      {expandedSections.D && (
+        <div className="px-2 pb-4 section-content-enter">
+          <SectionCanvas
+            nodes={pipelineNodes}
+            edges={pipelineEdges}
+            columnLabels={pipelineColumns}
+            height={sectionHeight}
+            selectedNode={selectedNode}
+            onNodeClick={onNodeClick}
+            onPaneClick={onPaneClick}
+            onClose={() => setSelectedNode(null)}
+            focusNodeId={focusSection === 'D' ? focusNodeId : null}
           />
         </div>
       )}

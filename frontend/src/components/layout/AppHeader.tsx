@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Activity, Search, Package, Building2, Factory, Database, RefreshCw, Bell, User, Mic, GitBranch, Ship, LogOut, Compass } from 'lucide-react'
-import { Button } from '@/components/ui'
+import { Activity, Search, Package, Building2, Factory, Database, User, Mic, GitBranch, Ship, LogOut, Compass, Cpu } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import TypewriterEffect from '@/components/ui/typewriter'
 import type { Mode } from '@/types'
 
 // Team color mapping
@@ -15,18 +15,20 @@ const teamColors: Record<string, string> = {
   'All Others': 'bg-slate-500',
 }
 
-const modeConfig: Record<Mode, { icon: typeof Activity; title: string; subtitle: string; color: string; bg: string }> = {
+const modeConfig: Record<Mode, { icon: typeof Activity; title: string; subtitle: string; description: string; color: string; bg: string }> = {
   pulse: {
     icon: Activity,
     title: 'The Brief',
     subtitle: 'Strategic Priorities',
+    description: 'Your weekly executive briefing. AI-synthesized from hundreds of articles into the key themes that matter. Hit play on the podcast for an audio walkthrough.',
     color: 'text-emerald-500',
     bg: 'bg-emerald-100',
   },
   discovery: {
-    icon: Activity,
+    icon: Compass,
     title: 'Discovery',
     subtitle: 'All Datasets',
+    description: 'Ask the AI assistant anything about your market. It searches across all ingested articles, earnings transcripts, and SEC filings to surface what you need.',
     color: 'text-teal-500',
     bg: 'bg-teal-100',
   },
@@ -34,6 +36,7 @@ const modeConfig: Record<Mode, { icon: typeof Activity; title: string; subtitle:
     icon: Search,
     title: 'Deep Research',
     subtitle: 'Comprehensive analysis & insights',
+    description: 'Launch a deep research workflow on any topic. Multiple AI agents run in parallel across financial data, industry trends, and web sources to build a comprehensive report.',
     color: 'text-emerald-500',
     bg: 'bg-emerald-100',
   },
@@ -41,6 +44,7 @@ const modeConfig: Record<Mode, { icon: typeof Activity; title: string; subtitle:
     icon: Package,
     title: 'Product Intelligence',
     subtitle: 'SKU analysis & comparisons',
+    description: 'Explore product-level intelligence across your tracked SKUs and competitive landscape.',
     color: 'text-blue-500',
     bg: 'bg-blue-100',
   },
@@ -48,6 +52,7 @@ const modeConfig: Record<Mode, { icon: typeof Activity; title: string; subtitle:
     icon: Mic,
     title: 'Field Intel',
     subtitle: 'Voice memos & field observations',
+    description: 'Capture and review field observations from your sales team.',
     color: 'text-rose-500',
     bg: 'bg-rose-100',
   },
@@ -55,6 +60,7 @@ const modeConfig: Record<Mode, { icon: typeof Activity; title: string; subtitle:
     icon: GitBranch,
     title: 'Company Lookup',
     subtitle: 'Companies, Prospects, and Decision Makers',
+    description: 'Search for any company to get an instant intelligence profile. Find similar companies, identify decision makers, and discover sales opportunities.',
     color: 'text-slate-500',
     bg: 'bg-slate-100',
   },
@@ -62,6 +68,7 @@ const modeConfig: Record<Mode, { icon: typeof Activity; title: string; subtitle:
     icon: Ship,
     title: 'Supply Network',
     subtitle: 'Supply chain graph & relationships',
+    description: 'Visualize supplier and customer relationships across the composites industry. Drill into any company to see shipment data, intelligence, and network connections.',
     color: 'text-indigo-500',
     bg: 'bg-indigo-100',
   },
@@ -69,6 +76,7 @@ const modeConfig: Record<Mode, { icon: typeof Activity; title: string; subtitle:
     icon: Building2,
     title: 'Company Intelligence',
     subtitle: 'Competitor & supplier tracking',
+    description: 'Track competitors and suppliers with automated intelligence gathering.',
     color: 'text-emerald-500',
     bg: 'bg-emerald-100',
   },
@@ -76,31 +84,26 @@ const modeConfig: Record<Mode, { icon: typeof Activity; title: string; subtitle:
     icon: Factory,
     title: 'Core Industries',
     subtitle: '90-day narrative timelines by end-market',
-    color: 'text-purple-500',
-    bg: 'bg-purple-100',
+    description: 'Select an end-market to see its 90-day narrative arc. AI generates a storyline from article volume, sentiment shifts, and key events across each month.',
+    color: 'text-emerald-500',
+    bg: 'bg-emerald-100',
   },
   'data-preferences': {
     icon: Database,
     title: 'Tracked Entities',
     subtitle: 'Manage tracked companies & data',
+    description: 'View and manage the companies, industries, and topics the platform is tracking. This is the data layer that feeds everything else.',
     color: 'text-cyan-500',
     bg: 'bg-cyan-100',
   },
   'app-architecture': {
-    icon: Activity,
+    icon: Cpu,
     title: 'Platform Architecture',
     subtitle: 'System design & data flows',
-    color: 'text-sky-500',
-    bg: 'bg-sky-100',
+    description: 'See how the entire platform is built. Explore the ingestion pipeline, agent workflows, and data flows. Click any node to view the actual prompts powering each agent.',
+    color: 'text-emerald-500',
+    bg: 'bg-emerald-100',
   },
-  // ARCHIVED - Trade Intel
-  // importyeti: {
-  //   icon: Ship,
-  //   title: 'Trade Intelligence',
-  //   subtitle: 'Supply chain & shipment tracking',
-  //   color: 'text-indigo-500',
-  //   bg: 'bg-indigo-100',
-  // },
 }
 
 interface AppHeaderProps {
@@ -111,7 +114,7 @@ interface AppHeaderProps {
   shouldAnimateGuide?: boolean
 }
 
-export default function AppHeader({ activeMode, onRefresh, isRefreshing = false, onOpenGuide, shouldAnimateGuide = false }: AppHeaderProps) {
+export default function AppHeader({ activeMode, onOpenGuide, shouldAnimateGuide = false }: AppHeaderProps) {
   const config = modeConfig[activeMode]
   const Icon = config.icon
 
@@ -144,25 +147,24 @@ export default function AppHeader({ activeMode, onRefresh, isRefreshing = false,
   }
 
   return (
-    <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 shrink-0">
-      <div className="flex items-center gap-3">
-        <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center', config.bg)}>
+    <header className="min-h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 shrink-0 py-3">
+      <div className="flex items-center gap-3 flex-1 min-w-0">
+        <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center shrink-0', config.bg)}>
           <Icon size={20} className={config.color} />
         </div>
-        <div>
+        <div className="min-w-0 flex-1">
           <h1 className="text-lg font-semibold text-slate-900">{config.title}</h1>
-          <p className="text-xs text-slate-500">{config.subtitle}</p>
+          <TypewriterEffect
+            key={activeMode}
+            text={config.description}
+            className="text-xs text-slate-500 leading-relaxed"
+            speed={15}
+            startDelay={200}
+          />
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
-        {activeMode === 'pulse' && onRefresh && (
-          <Button variant="ghost" size="sm" onClick={onRefresh} disabled={isRefreshing}>
-            <RefreshCw size={16} className={cn(isRefreshing && 'animate-spin')} />
-            Refresh
-          </Button>
-        )}
-
+      <div className="flex items-center gap-2 shrink-0 ml-4">
         {/* Guide button */}
         {onOpenGuide && (
           <button
@@ -179,12 +181,6 @@ export default function AppHeader({ activeMode, onRefresh, isRefreshing = false,
             )}
           </button>
         )}
-
-        <button className="relative p-2 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors">
-          <Bell size={20} />
-          <span className="absolute top-1 right-1 w-2 h-2 bg-emerald-500 rounded-full" />
-        </button>
-
 
         {/* User indicator with dropdown */}
         <div className="relative">

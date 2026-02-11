@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
 import {
   ChevronDown,
   ChevronUp,
@@ -10,6 +10,7 @@ import {
   ExternalLink,
   Clock,
   Headphones,
+  Pause,
   TrendingUp,
   Globe,
   Radio
@@ -18,7 +19,6 @@ import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui'
 import { API_BASE } from '@/lib/config'
-import PodcastModal from './PodcastModal'
 import MotionWrapper from '@/components/ui/motion-wrapper'
 import TypewriterEffect from '@/components/ui/typewriter'
 import type {
@@ -441,8 +441,61 @@ export default function WeeklyBriefingSection({
   isLoading,
   onHistoryClick
 }: WeeklyBriefingSectionProps) {
-  const [isPodcastModalOpen, setIsPodcastModalOpen] = useState(false)
   const [isOverallTrendExpanded, setIsOverallTrendExpanded] = useState(false)
+
+  // Inline podcast player state
+  const audioRef = useRef<HTMLAudioElement>(null)
+  const [isPodcastPlaying, setIsPodcastPlaying] = useState(false)
+  const [podcastProgress, setPodcastProgress] = useState(0)
+  const [podcastDuration, setPodcastDuration] = useState(0)
+  const [podcastCurrentTime, setPodcastCurrentTime] = useState(0)
+
+  const formatPodcastTime = (seconds: number) => {
+    if (isNaN(seconds) || seconds === 0) return '0:00'
+    const mins = Math.floor(seconds / 60)
+    const secs = Math.floor(seconds % 60)
+    return `${mins}:${secs.toString().padStart(2, '0')}`
+  }
+
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio) return
+    const onTimeUpdate = () => {
+      setPodcastCurrentTime(audio.currentTime)
+      if (audio.duration) setPodcastProgress((audio.currentTime / audio.duration) * 100)
+    }
+    const onLoadedMetadata = () => setPodcastDuration(audio.duration)
+    const onEnded = () => { setIsPodcastPlaying(false); setPodcastProgress(0); setPodcastCurrentTime(0) }
+    audio.addEventListener('timeupdate', onTimeUpdate)
+    audio.addEventListener('loadedmetadata', onLoadedMetadata)
+    audio.addEventListener('ended', onEnded)
+    return () => {
+      audio.removeEventListener('timeupdate', onTimeUpdate)
+      audio.removeEventListener('loadedmetadata', onLoadedMetadata)
+      audio.removeEventListener('ended', onEnded)
+    }
+  }, [])
+
+  const togglePodcast = useCallback(() => {
+    const audio = audioRef.current
+    if (!audio) return
+    if (isPodcastPlaying) {
+      audio.pause()
+      setIsPodcastPlaying(false)
+    } else {
+      audio.play().catch(console.error)
+      setIsPodcastPlaying(true)
+    }
+  }, [isPodcastPlaying])
+
+  const handleProgressClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const audio = audioRef.current
+    if (!audio || !audio.duration) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const pct = x / rect.width
+    audio.currentTime = pct * audio.duration
+  }, [])
 
   if (isLoading) {
     return (
@@ -509,21 +562,55 @@ export default function WeeklyBriefingSection({
             </div>
           </div>
 
-          {/* Listen to Podcast Button */}
+          {/* Inline Podcast Player */}
           {briefing.podcast_url && (
-            <motion.button
+            <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ delay: 0.3 }}
-              onClick={() => setIsPodcastModalOpen(true)}
-              className="ml-2 flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-emerald-100 to-teal-50 hover:from-emerald-200 hover:to-teal-100 text-emerald-800 rounded-full transition-all border border-emerald-200/60 shadow-sm hover:shadow-md group"
-              title="Listen to podcast"
+              className="ml-2 flex items-center gap-2"
             >
-              <div className="p-1 bg-white rounded-full">
-                <Headphones size={12} className="text-emerald-600 group-hover:scale-110 transition-transform" />
-              </div>
-              <span className="text-xs font-bold mr-1">Listen to Briefing</span>
-            </motion.button>
+              <audio ref={audioRef} src={`${API_BASE}/api/podcast/briefing/${briefing.id}`} preload="metadata" />
+              <button
+                onClick={togglePodcast}
+                className={cn(
+                  "flex items-center gap-2 px-3 py-1.5 rounded-full transition-all border shadow-sm hover:shadow-md group",
+                  isPodcastPlaying
+                    ? "bg-emerald-600 text-white border-emerald-700 hover:bg-emerald-700"
+                    : "bg-gradient-to-r from-emerald-100 to-teal-50 hover:from-emerald-200 hover:to-teal-100 text-emerald-800 border-emerald-200/60"
+                )}
+                title={isPodcastPlaying ? "Pause podcast" : "Listen to podcast"}
+              >
+                <div className={cn("p-1 rounded-full", isPodcastPlaying ? "bg-emerald-500" : "bg-white")}>
+                  {isPodcastPlaying ? (
+                    <Pause size={12} className="text-white" />
+                  ) : (
+                    <Headphones size={12} className="text-emerald-600 group-hover:scale-110 transition-transform" />
+                  )}
+                </div>
+                <span className="text-xs font-bold mr-1">
+                  {isPodcastPlaying ? formatPodcastTime(podcastCurrentTime) : 'Listen to Briefing'}
+                </span>
+              </button>
+              {/* Progress bar - visible when playing or partially played */}
+              {(isPodcastPlaying || podcastProgress > 0) && (
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-24 h-1.5 bg-emerald-100 rounded-full cursor-pointer overflow-hidden"
+                    onClick={handleProgressClick}
+                    title={`${formatPodcastTime(podcastCurrentTime)} / ${formatPodcastTime(podcastDuration)}`}
+                  >
+                    <div
+                      className="h-full bg-emerald-500 rounded-full transition-all duration-300"
+                      style={{ width: `${podcastProgress}%` }}
+                    />
+                  </div>
+                  <span className="text-[10px] text-slate-400 font-mono tabular-nums">
+                    {formatPodcastTime(podcastDuration)}
+                  </span>
+                </div>
+              )}
+            </motion.div>
           )}
         </motion.div>
 
@@ -570,7 +657,7 @@ export default function WeeklyBriefingSection({
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.8, delay: 0.4 }}
-                className="text-sm font-medium text-slate-800 leading-relaxed font-serif"
+                className="text-sm font-medium text-slate-800 leading-relaxed"
               >
                 {renderTextWithLogosAndCitations(briefing.bluf, allCompaniesWithLogos)}
               </motion.p>
@@ -634,17 +721,6 @@ export default function WeeklyBriefingSection({
           </div>
         </div>
       </motion.div>
-
-      {/* Podcast Modal */}
-      {briefing.podcast_url && (
-        <PodcastModal
-          isOpen={isPodcastModalOpen}
-          onClose={() => setIsPodcastModalOpen(false)}
-          audioUrl={`${API_BASE}/api/podcast/briefing/${briefing.id}`}
-          duration={briefing.podcast_duration_seconds}
-          title={briefing.briefing_title}
-        />
-      )}
 
       {/* Industry Headlines Section */}
       <div className="mt-10">

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState, useMemo } from 'react'
+import { useCallback, useState, useMemo, useEffect } from 'react'
 import {
   ReactFlow,
   Background,
@@ -27,6 +27,46 @@ import { podcastEdges } from './data/podcastEdges'
 import { importYetiNodes } from './data/importYetiNodes'
 import { importYetiEdges } from './data/importYetiEdges'
 import type { ArchNodeData } from './types'
+
+// ────────────────────────────────────────────────
+// Path-highlighting helper: given selected node + edges, compute connected set
+// ────────────────────────────────────────────────
+function getConnectedIds(selectedId: string | null, edges: Edge[]): Set<string> {
+  if (!selectedId) return new Set()
+  const connected = new Set<string>([selectedId])
+  for (const e of edges) {
+    if (e.source === selectedId) connected.add(e.target)
+    if (e.target === selectedId) connected.add(e.source)
+  }
+  return connected
+}
+
+function applyHighlight<T extends Node>(
+  nodes: T[],
+  edges: Edge[],
+  selectedId: string | null
+): { highlightedNodes: T[]; highlightedEdges: Edge[] } {
+  if (!selectedId) return { highlightedNodes: nodes, highlightedEdges: edges }
+  const connected = getConnectedIds(selectedId, edges)
+  const highlightedNodes = nodes.map((n) => ({
+    ...n,
+    style: {
+      ...n.style,
+      opacity: connected.has(n.id) ? 1 : 0.25,
+      transition: 'opacity 0.3s ease',
+    },
+  }))
+  const highlightedEdges = edges.map((e) => ({
+    ...e,
+    style: {
+      ...e.style,
+      opacity: e.source === selectedId || e.target === selectedId ? 1 : 0.12,
+      transition: 'opacity 0.3s ease',
+    },
+    animated: e.source === selectedId || e.target === selectedId ? true : (e.animated ?? false),
+  }))
+  return { highlightedNodes, highlightedEdges }
+}
 
 const nodeTypes: NodeTypes = {
   dataSource: DataSourceNode as any,
@@ -106,6 +146,7 @@ interface SectionCanvasProps {
   onPaneClick: () => void
   onClose: () => void
   showScheduler?: boolean
+  focusNodeId?: string | null
 }
 
 function SectionCanvas({
@@ -118,15 +159,33 @@ function SectionCanvas({
   onPaneClick,
   onClose,
   showScheduler,
+  focusNodeId,
 }: SectionCanvasProps) {
-  const [flowNodes, , onNodesChange] = useNodesState(nodes)
-  const [flowEdges, , onEdgesChange] = useEdgesState(edges)
+  const [flowNodes, setFlowNodes, onNodesChange] = useNodesState(nodes)
+  const [flowEdges, setFlowEdges, onEdgesChange] = useEdgesState(edges)
+
+  // When a node is selected, compute path highlighting
+  const selectedId = selectedNode ? nodes.find(n => n.data.label === selectedNode.label)?.id ?? null : null
+  const { highlightedNodes, highlightedEdges } = useMemo(
+    () => applyHighlight(flowNodes, flowEdges, selectedId),
+    [flowNodes, flowEdges, selectedId]
+  )
+
+  // Auto-select the focused node when it arrives from search
+  useEffect(() => {
+    if (focusNodeId) {
+      const match = nodes.find(n => n.id === focusNodeId)
+      if (match) {
+        onNodeClick({ } as React.MouseEvent, match)
+      }
+    }
+  }, [focusNodeId, nodes, onNodeClick])
 
   return (
     <div className="relative" style={{ height }}>
       <ReactFlow
-        nodes={flowNodes}
-        edges={flowEdges}
+        nodes={selectedId ? highlightedNodes : flowNodes}
+        edges={selectedId ? highlightedEdges : flowEdges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onNodeClick={onNodeClick}
@@ -191,7 +250,12 @@ function SectionCanvas({
 // ────────────────────────────────────────────────
 // Main Ingestion Flow Diagram
 // ────────────────────────────────────────────────
-export default function IngestionFlowDiagram() {
+interface IngestionFlowDiagramProps {
+  focusNodeId?: string | null
+  focusSection?: string | null
+}
+
+export default function IngestionFlowDiagram({ focusNodeId, focusSection }: IngestionFlowDiagramProps) {
   const [selectedNode, setSelectedNode] = useState<ArchNodeData | null>(null)
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     A: true,
@@ -200,6 +264,13 @@ export default function IngestionFlowDiagram() {
     D: false,
   })
   const [showScheduler, setShowScheduler] = useState(false)
+
+  // Auto-expand section when triggered from search
+  useEffect(() => {
+    if (focusSection && !expandedSections[focusSection]) {
+      setExpandedSections(prev => ({ ...prev, [focusSection]: true }))
+    }
+  }, [focusSection]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const onNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
     setSelectedNode(node.data as ArchNodeData)
@@ -262,6 +333,7 @@ export default function IngestionFlowDiagram() {
             onPaneClick={onPaneClick}
             onClose={() => setSelectedNode(null)}
             showScheduler={showScheduler}
+            focusNodeId={focusSection === 'A' ? focusNodeId : null}
           />
         </div>
       )}
@@ -289,6 +361,7 @@ export default function IngestionFlowDiagram() {
             onNodeClick={onNodeClick}
             onPaneClick={onPaneClick}
             onClose={() => setSelectedNode(null)}
+            focusNodeId={focusSection === 'B' ? focusNodeId : null}
           />
         </div>
       )}
@@ -316,6 +389,7 @@ export default function IngestionFlowDiagram() {
             onNodeClick={onNodeClick}
             onPaneClick={onPaneClick}
             onClose={() => setSelectedNode(null)}
+            focusNodeId={focusSection === 'C' ? focusNodeId : null}
           />
         </div>
       )}
@@ -343,6 +417,7 @@ export default function IngestionFlowDiagram() {
             onNodeClick={onNodeClick}
             onPaneClick={onPaneClick}
             onClose={() => setSelectedNode(null)}
+            focusNodeId={focusSection === 'D' ? focusNodeId : null}
           />
         </div>
       )}

@@ -21,6 +21,7 @@ from fastapi import APIRouter, HTTPException, Header
 from pydantic import BaseModel, Field
 
 from app.db.gcp_storage import get_storage
+from app.services.api_partner_health import DEFAULT_PARTNERS, check_api_partners
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -78,6 +79,18 @@ class BriefingResponse(BaseModel):
     articles_used: int = 0
     message: str
     execution_time_seconds: float
+
+
+class ApiPartnerPingRequest(BaseModel):
+    """Request body for API partner pings."""
+
+    partners: Optional[list[str]] = Field(
+        default=None,
+        description=(
+            "Optional partner list. Defaults to: "
+            + ", ".join(DEFAULT_PARTNERS)
+        ),
+    )
 
 
 class IngestResponse(BaseModel):
@@ -188,6 +201,48 @@ async def trigger_ingestion(
             status_code=500,
             detail=f"Ingestion failed: {str(e)}"
         )
+
+
+# =============================================================================
+# API Partner Ping Endpoint
+# =============================================================================
+
+@router.post("/ping-apis")
+async def ping_partner_apis(
+    request: ApiPartnerPingRequest,
+    authorization: Optional[str] = Header(None),
+):
+    """
+    Ping external API partners from Cloud Run.
+
+    Returns status/latency details for each partner.
+    """
+    import time
+
+    start_time = time.time()
+
+    if not verify_scheduler_auth(authorization):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    partners = request.partners if request and request.partners else None
+    logger.info(f"[API_HEALTH] Partner ping START: partners={partners or 'default'}")
+
+    try:
+        results = await check_api_partners(partners=partners)
+        execution_time = time.time() - start_time
+        logger.info(f"[API_HEALTH] Partner ping COMPLETE: {execution_time:.2f}s")
+        return {
+            "status": "success",
+            "execution_time_seconds": execution_time,
+            **results,
+        }
+    except Exception as e:
+        execution_time = time.time() - start_time
+        logger.error(
+            f"[API_HEALTH] Partner ping FAILED: {execution_time:.2f}s, error={e}",
+            exc_info=True,
+        )
+        raise HTTPException(status_code=500, detail=f"Partner ping failed: {e}")
 
 
 # =============================================================================

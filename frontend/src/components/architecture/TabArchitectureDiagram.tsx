@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useState, useMemo, useEffect } from 'react'
 import {
   ReactFlow,
   Background,
@@ -10,6 +10,7 @@ import {
   useEdgesState,
   type NodeTypes,
   type Node,
+  type Edge,
   BackgroundVariant,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
@@ -29,6 +30,36 @@ import DetailPanel from './DetailPanel'
 import { tabArchitectureNodes } from './data/tabArchitectureNodes'
 import { tabArchitectureEdges } from './data/tabArchitectureEdges'
 import type { ArchNodeData } from './types'
+
+// Path highlighting helpers
+function getConnectedIds(selectedId: string | null, edges: Edge[]): Set<string> {
+  if (!selectedId) return new Set()
+  const connected = new Set<string>([selectedId])
+  for (const e of edges) {
+    if (e.source === selectedId) connected.add(e.target)
+    if (e.target === selectedId) connected.add(e.source)
+  }
+  return connected
+}
+
+function applyHighlight<T extends Node>(
+  nodes: T[],
+  edges: Edge[],
+  selectedId: string | null
+): { highlightedNodes: T[]; highlightedEdges: Edge[] } {
+  if (!selectedId) return { highlightedNodes: nodes, highlightedEdges: edges }
+  const connected = getConnectedIds(selectedId, edges)
+  const highlightedNodes = nodes.map((n) => ({
+    ...n,
+    style: { ...n.style, opacity: connected.has(n.id) ? 1 : 0.25, transition: 'opacity 0.3s ease' },
+  }))
+  const highlightedEdges = edges.map((e) => ({
+    ...e,
+    style: { ...e.style, opacity: e.source === selectedId || e.target === selectedId ? 1 : 0.12, transition: 'opacity 0.3s ease' },
+    animated: e.source === selectedId || e.target === selectedId ? true : (e.animated ?? false),
+  }))
+  return { highlightedNodes, highlightedEdges }
+}
 
 const nodeTypes: NodeTypes = {
   dataSource: DataSourceNode as any,
@@ -61,7 +92,11 @@ const columnLabels = [
   { label: 'GOOGLE CLOUD PLATFORM', color: '#4285F4' },
 ]
 
-export default function TabArchitectureDiagram() {
+interface TabArchitectureDiagramProps {
+  focusNodeId?: string | null
+}
+
+export default function TabArchitectureDiagram({ focusNodeId }: TabArchitectureDiagramProps) {
   const [selectedNode, setSelectedNode] = useState<ArchNodeData | null>(null)
   const [showIam, setShowIam] = useState(true)
 
@@ -76,10 +111,27 @@ export default function TabArchitectureDiagram() {
     setSelectedNode(null)
   }, [])
 
+  // Auto-select the focused node when it arrives from search
+  useEffect(() => {
+    if (focusNodeId) {
+      const match = tabArchitectureNodes.find(n => n.id === focusNodeId)
+      if (match) {
+        setSelectedNode(match.data)
+      }
+    }
+  }, [focusNodeId])
+
   // Filter IAM/logging edges for clarity toggle
   const visibleEdges = showIam
     ? flowEdges
     : flowEdges.filter(e => !e.id.startsWith('iam-'))
+
+  // Path highlighting
+  const selectedId = selectedNode ? tabArchitectureNodes.find(n => n.data.label === selectedNode.label)?.id ?? null : null
+  const { highlightedNodes, highlightedEdges } = useMemo(
+    () => applyHighlight(flowNodes, visibleEdges, selectedId),
+    [flowNodes, visibleEdges, selectedId]
+  )
 
   return (
     <div className="h-full flex flex-col">
@@ -114,8 +166,8 @@ export default function TabArchitectureDiagram() {
       {/* Main canvas */}
       <div className="flex-1 relative">
         <ReactFlow
-          nodes={flowNodes}
-          edges={visibleEdges}
+          nodes={selectedId ? highlightedNodes : flowNodes}
+          edges={selectedId ? highlightedEdges : visibleEdges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onNodeClick={onNodeClick}

@@ -93,6 +93,7 @@ export const briefingNodes: Node<ArchNodeData>[] = [
         functions: ['generate_pre_briefing()', '_analyze_batch()', '_merge_observations()'],
         lineCount: 480,
         tables: ['pre_briefings'],
+        cost: '~$0.50/briefing (Claude Sonnet)',
       },
       connections: {
         incoming: ['14-Day Digest Input'],
@@ -166,6 +167,7 @@ export const briefingNodes: Node<ArchNodeData>[] = [
         functions: ['generate_weekly_briefing()', '_build_synthesis_prompt()', '_extract_citation_numbers()'],
         apis: ['Exa.ai (peripheral intelligence, max 3 calls)'],
         lineCount: 1771,
+        cost: '~$0.50/briefing (Claude Opus)',
       },
       connections: {
         incoming: ['Agent 1: Pre-Brief', 'Voice Enrichment', 'Historical Context'],
@@ -283,6 +285,7 @@ export const deepResearchNodes: Node<ArchNodeData>[] = [
         model: 'claude-haiku-4-5',
         functions: ['groom_query()', '_build_grooming_prompt()', '_inject_memory_context()'],
         lineCount: 658,
+        cost: '$0.02/run (GPT-4o-mini)',
       },
       connections: {
         incoming: ['User Query', 'Research Memory (context)'],
@@ -332,6 +335,7 @@ export const deepResearchNodes: Node<ArchNodeData>[] = [
         tables: ['earnings_quotes', 'sec_filing_nuggets', 'article_chunk_embeddings'],
         apis: ['StockNews API', 'BigQuery VECTOR_SEARCH'],
         lineCount: 738,
+        cost: '$0.30–0.80/run (Claude Sonnet)',
       },
       connections: {
         incoming: ['Parallel Fan-Out'],
@@ -360,6 +364,7 @@ export const deepResearchNodes: Node<ArchNodeData>[] = [
         tables: ['article_chunk_embeddings', 'podcast_quotes', 'freight_rates'],
         apis: ['Exa.ai', 'Google Trends', 'StockNews API'],
         lineCount: 685,
+        cost: '$0.30–0.80/run (Claude Sonnet)',
       },
       connections: {
         incoming: ['Parallel Fan-Out'],
@@ -387,6 +392,7 @@ export const deepResearchNodes: Node<ArchNodeData>[] = [
         functions: ['run_visual_research()', 'corpus_visuals_search()'],
         tables: ['article_images'],
         lineCount: 442,
+        cost: '$0.10–0.20/run',
       },
       connections: {
         incoming: ['Parallel Fan-Out'],
@@ -435,6 +441,7 @@ export const deepResearchNodes: Node<ArchNodeData>[] = [
         model: 'claude-opus-4-5 (extended thinking)',
         functions: ['run_synthesis()', '_build_synthesis_prompt()', '_normalize_blocks()'],
         lineCount: 812,
+        cost: '$0.40–0.80/run (Claude Sonnet)',
       },
       connections: {
         incoming: ['Fan-In (State Merge)'],
@@ -460,6 +467,7 @@ export const deepResearchNodes: Node<ArchNodeData>[] = [
         sourceFiles: ['agents/research/validator.py'],
         functions: ['run_validation()', '_check_citations()', '_flag_unsubstantiated()'],
         lineCount: 359,
+        cost: '$0.05–0.10/run (GPT-4o-mini)',
       },
       connections: {
         incoming: ['Synthesizer Agent'],

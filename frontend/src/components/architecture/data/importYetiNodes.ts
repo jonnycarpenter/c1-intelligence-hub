@@ -51,6 +51,7 @@ export const importYetiNodes: Node<ArchNodeData>[] = [
       technicalDetails: {
         sourceFiles: ['ingestion/importyeti/ingestion.py'],
         functions: ['_run_resolve_phase()'],
+        cost: '$0.01/company (GPT-4o-mini)',
       },
       connections: {
         incoming: ['Competitor Config', 'ImportYeti API Client'],
@@ -137,6 +138,8 @@ export const importYetiNodes: Node<ArchNodeData>[] = [
         sourceFiles: ['ingestion/importyeti/client.py'],
         functions: ['search_company()', 'get_company()', 'search_supplier()', 'get_supplier()'],
         apis: ['ImportYeti API'],
+        cost: 'Free (web scraping)',
+        dataVolume: '~200 companies',
       },
       connections: {
         outgoing: ['Phase 1', 'Phase 2', 'Phase 3'],
@@ -193,6 +196,7 @@ export const importYetiNodes: Node<ArchNodeData>[] = [
       description: 'Directional relationships: source → target, edge_type (imports_from / supplies_to), shipment_count, period. Core of the supply chain graph.',
       technicalDetails: {
         tables: ['iy_edges'],
+        dataVolume: 'supplier network graph',
       },
       connections: {
         incoming: ['Phase 2: COMPANIES', 'Phase 3: SUPPLIERS'],
@@ -234,6 +238,7 @@ export const importYetiNodes: Node<ArchNodeData>[] = [
       technicalDetails: {
         tables: ['iy_v_shared_suppliers', 'iy_v_shared_suppliers_12m', 'iy_v_exclusive_suppliers', 'iy_v_competitor_activity_12m', 'iy_v_buyer_overlap'],
         sourceFiles: ['db/gcp_storage.py'],
+        dataVolume: 'supplier network graph',
       },
       connections: {
         incoming: ['iy_edges'],

@@ -14,6 +14,7 @@ Usage:
 import subprocess
 import json
 import os
+import asyncio
 from datetime import datetime, timedelta
 from typing import Dict, List
 import argparse
@@ -270,7 +271,39 @@ def get_briefing_quality() -> Dict:
         return {"error": str(e)}
 
 
-def print_report(days_back: int):
+def print_api_ping_report(results: Dict) -> None:
+    """Print API partner ping results."""
+    checked_at = results.get("checked_at", "Unknown")
+    partners = results.get("partners", {})
+
+    print(f"   Checked at: {checked_at} UTC")
+    if not partners:
+        print("   ⚠️  No partner results returned")
+        return
+
+    for name, info in partners.items():
+        if info.get("skipped"):
+            print(f"   ⚠️  {name}: skipped ({info.get('reason', 'unknown')})")
+            continue
+
+        ok = info.get("ok", False)
+        status = "✅" if ok else "❌"
+        status_code = info.get("status_code", "?")
+        latency = info.get("latency_ms", "?")
+        result_count = info.get("result_count")
+
+        details = f"status={status_code}, latency_ms={latency}"
+        if result_count is not None:
+            details += f", results={result_count}"
+
+        if ok:
+            print(f"   {status} {name}: {details}")
+        else:
+            error = info.get("error", "unknown_error")
+            print(f"   {status} {name}: {details}, error={error}")
+
+
+def print_report(days_back: int, ping_apis: bool = False):
     """Generate and print the health check report."""
     print("=" * 80)
     print("🏥 PRODUCTION INGESTION HEALTH CHECK")
@@ -425,6 +458,18 @@ def print_report(days_back: int):
             print("   ✅ Briefing pipeline healthy")
         else:
             print("   ⚠️  Briefing may need attention")
+
+    if ping_apis:
+        print()
+        print("🔌 API PARTNER PING CHECK")
+        print("-" * 80)
+        try:
+            from app.services.api_partner_health import check_api_partners
+
+            results = asyncio.run(check_api_partners())
+            print_api_ping_report(results)
+        except Exception as e:
+            print(f"   ❌ API partner ping failed: {e}")
     
     # 7. Health Summary
     print()
@@ -472,6 +517,7 @@ def print_report(days_back: int):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Check production ingestion health")
     parser.add_argument("--days", type=int, default=7, help="Number of days to check")
+    parser.add_argument("--ping-apis", action="store_true", help="Ping API partners")
     args = parser.parse_args()
     
-    print_report(args.days)
+    print_report(args.days, ping_apis=args.ping_apis)

@@ -31,6 +31,8 @@ export const secEarningsNodes: Node<ArchNodeData>[] = [
         sourceFiles: ['tools/sec_filings/collector.py', 'tools/sec_filings/sec_client.py'],
         functions: ['collect_sec_filings()', 'search_filings()', 'get_filing_sections()'],
         apis: ['sec-api.io'],
+        cost: 'Free (govt API)',
+        dataVolume: '~200 tracked companies',
       },
       connections: {
         outgoing: ['SEC Nugget Extractor'],
@@ -52,6 +54,7 @@ export const secEarningsNodes: Node<ArchNodeData>[] = [
         sourceFiles: ['tools/earnings/collector.py'],
         functions: ['collect_earnings_transcripts()', '_parse_transcript()'],
         apis: ['API Ninjas Earnings'],
+        dataVolume: '~30 transcripts/quarter',
       },
       connections: {
         outgoing: ['Earnings Quote Extractor'],
@@ -76,6 +79,8 @@ export const secEarningsNodes: Node<ArchNodeData>[] = [
         model: 'claude-sonnet-4-5',
         functions: ['extract_nuggets()', '_build_extraction_prompt()'],
         lineCount: 487,
+        cost: '$0.20–0.60/filing (Claude Sonnet)',
+        dataVolume: '~50 filings/week',
       },
       connections: {
         incoming: ['SEC Filing Collector'],
@@ -99,6 +104,8 @@ export const secEarningsNodes: Node<ArchNodeData>[] = [
         model: 'claude-haiku-3-5',
         functions: ['extract_quotes()', '_build_quote_prompt()'],
         lineCount: 484,
+        cost: '$0.02–0.05/transcript (GPT-4o-mini)',
+        dataVolume: '~30 transcripts/quarter',
       },
       connections: {
         incoming: ['Earnings Collector'],
@@ -120,6 +127,7 @@ export const secEarningsNodes: Node<ArchNodeData>[] = [
       description: 'Filing metadata: company, filing_type, date, CIK, extracted sections. One row per filing with full section text for downstream extraction.',
       technicalDetails: {
         tables: ['sec_filings'],
+        dataVolume: '~200 filings stored',
       },
       connections: {
         incoming: ['SEC Nugget Extractor'],
@@ -140,6 +148,7 @@ export const secEarningsNodes: Node<ArchNodeData>[] = [
       technicalDetails: {
         tables: ['sec_filing_nuggets'],
         functions: ['search_sec_nuggets()'],
+        dataVolume: '~3,000+ nuggets',
       },
       connections: {
         incoming: ['SEC Nugget Extractor'],
@@ -161,6 +170,7 @@ export const secEarningsNodes: Node<ArchNodeData>[] = [
       technicalDetails: {
         tables: ['earnings_quotes'],
         functions: ['search_earnings_quotes()'],
+        dataVolume: '~2,000+ executive quotes',
       },
       connections: {
         incoming: ['Earnings Quote Extractor'],

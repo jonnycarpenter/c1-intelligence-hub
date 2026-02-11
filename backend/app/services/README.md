@@ -8,6 +8,27 @@ This directory contains service classes that implement business logic and orches
 
 ## Services
 
+### `api_partner_health.py` - API Partner Health Checks
+
+**Purpose**: Lightweight connectivity checks for ingestion data partners.
+
+**Partners**:
+- Exa (web search, press releases)
+- Tavily (web search)
+- SEC API (sec-api.io)
+- FMP (Financial Modeling Prep)
+- StockNewsAPI
+- API Ninjas (earnings calendar)
+
+**Usage**:
+```python
+from app.services.api_partner_health import check_api_partners
+
+results = await check_api_partners()
+```
+
+---
+
 ### `digest_service.py` - Intelligence Digest Service
 
 **Purpose**: Manages the intelligence digest (news feed/DRUMBEAT) for the Pulse and Discovery tabs.

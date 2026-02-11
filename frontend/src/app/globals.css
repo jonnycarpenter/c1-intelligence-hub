@@ -222,6 +222,12 @@ html {
   animation: tab-fade-in 0.25s ease-out;
 }
 
+/* SSE replay event fade-in */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateX(-4px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
 /* =============================================================================
    Discovery Subtab Glow Animations
    ============================================================================= */

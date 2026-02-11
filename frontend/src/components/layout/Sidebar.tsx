@@ -32,6 +32,7 @@ interface NavItem {
   isDemo?: boolean
   isHidden?: boolean
   tooltip?: string
+  highlight?: boolean
 }
 
 // Core workflow tabs
@@ -39,14 +40,14 @@ const coreNavItems: NavItem[] = [
   { id: 'pulse', label: 'The Brief', icon: Activity, description: 'Strategic Priorities', color: 'text-emerald-500', bg: 'bg-emerald-500' },
   { id: 'discovery', label: 'Discovery', icon: Compass, description: 'All Datasets', color: 'text-teal-500', bg: 'bg-teal-500', tooltip: 'Explore market intelligence with AI assistant' },
   { id: 'research', label: 'Deep Research', icon: Search, description: 'Deep analysis', color: 'text-emerald-500', bg: 'bg-emerald-500' },
-  { id: 'industries', label: 'Core Industries', icon: Factory, description: 'Narrative timelines', color: 'text-purple-500', bg: 'bg-purple-500' },
+  { id: 'industries', label: 'Core Industries', icon: Factory, description: 'Narrative timelines', color: 'text-emerald-500', bg: 'bg-emerald-500' },
   { id: 'supply-network', label: 'Supply Network', icon: Ship, description: 'Supply chain graph', color: 'text-indigo-500', bg: 'bg-indigo-500' },
   { id: 'pipeline', label: 'Company Lookup', icon: GitBranch, description: 'Prospect discovery', color: 'text-purple-500', bg: 'bg-purple-500', isBeta: true, tooltip: 'Find similar companies and decision makers' },
 ]
 
 // Documentation & settings tabs (below divider)
 const secondaryNavItems: NavItem[] = [
-  { id: 'app-architecture', label: 'Architecture', icon: Cpu, description: 'System design', color: 'text-sky-500', bg: 'bg-sky-500' },
+  { id: 'app-architecture', label: 'Architecture', icon: Cpu, description: 'System design', color: 'text-emerald-400', bg: 'bg-emerald-500', highlight: true },
   { id: 'data-preferences', label: 'Tracked Entities', icon: Database, description: 'Manage tracked data', color: 'text-cyan-500', bg: 'bg-cyan-500' },
 ]
 
@@ -112,7 +113,11 @@ export default function Sidebar({
         {!collapsed && (
           <span className="flex-1 text-left">
             <span className="flex items-center gap-2">
-              <span className={cn('text-sm font-medium', isDisabled && 'text-slate-500')}>{item.label}</span>
+              <span className={cn(
+                'text-sm font-medium',
+                isDisabled && 'text-slate-500',
+                !isDisabled && !isActive && item.highlight && 'text-emerald-400'
+              )}>{item.label}</span>
               {isDisabled && (
                 <span className="text-[10px] px-1.5 py-0.5 bg-slate-700 text-slate-400 rounded-full">Soon</span>
               )}

@@ -271,6 +271,7 @@ const gcpTier1Nodes: Node<ArchNodeData>[] = [
       badge: 'us-central1',
       technicalDetails: {
         sourceFiles: ['Dockerfile.prod', 'cloudbuild.yaml', 'deploy/service.yaml'],
+        cost: '~$50/month',
       },
       connections: {
         incoming: ['api-layer', 'gcp-scheduler', 'gcp-artifact', 'gcp-cloudbuild', 'gcp-secretmgr', 'gcp-iam'],
@@ -290,6 +291,7 @@ const gcpTier1Nodes: Node<ArchNodeData>[] = [
       badge: '20+ tables',
       technicalDetails: {
         tables: ['articles', 'digest_items', 'sec_filing_nuggets', 'earnings_quotes', 'podcast_quotes', 'article_chunk_embeddings', 'iy_companies', 'iy_suppliers', 'iy_edges', 'weekly_briefings', 'deep_research_reports'],
+        dataVolume: '20+ tables, 100GB+',
       },
       connections: {
         incoming: ['bq-client', 'vector-store', 'gcp-iam'],
@@ -327,6 +329,8 @@ const gcpTier1Nodes: Node<ArchNodeData>[] = [
       badge: 'FUSE + API',
       technicalDetails: {
         sourceFiles: ['deploy/service.yaml'],
+        cost: '~$2/month',
+        dataVolume: 'audio cache, exports',
       },
       connections: {
         incoming: ['gcs-client', 'gcp-iam'],
@@ -350,6 +354,7 @@ const gcpTier2Nodes: Node<ArchNodeData>[] = [
       technicalDetails: {
         sourceFiles: ['deploy/scheduler/scheduler-jobs.yaml'],
         functions: ['orchestrator-ingestion-morning', 'orchestrator-ingestion-evening', 'weekly-executive-briefing', 'importyeti-ingestion'],
+        cost: '~$3/month',
       },
       connections: {
         outgoing: ['gcp-cloudrun'],
