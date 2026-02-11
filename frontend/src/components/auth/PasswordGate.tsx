@@ -6,7 +6,7 @@ import { Sparkles, User, Loader2 } from 'lucide-react'
 const AUTH_KEY = 'c1_hub_authenticated'
 const USER_NAME_KEY = 'userName'  // Must match api.ts expectations
 const USER_TEAM_KEY = 'userTeam'  // Must match api.ts expectations
-const SITE_PASSWORD = process.env.NEXT_PUBLIC_SITE_PASSWORD || '' // Set via environment variable
+// No password required - simplified login (name only)
 
 interface PasswordGateProps {
   children: React.ReactNode
@@ -69,12 +69,11 @@ export function PasswordGate({ children }: PasswordGateProps) {
         return
       }
 
-      // Production: verify with backend (password sent automatically)
+      // Production: verify with backend (name-only login)
       const response = await fetch('/api/verify-access', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          password: SITE_PASSWORD,
           user_name: trimmedName,
           user_team: defaultTeam
         })
