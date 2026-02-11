@@ -4,7 +4,7 @@ from app.agents.research.state import DeepResearchState, ResearchBrief, QuerySta
 from app.agents.research.memory import get_research_memory
 from app.agents.research.progress import emit_progress_sync, ToolProgress
 from app.config.settings import settings
-from app.utils.resilient_llm import create_resilient_llm_with_openai_fallback
+from app.utils.resilient_llm import create_resilient_llm_with_gemini_fallback
 import json
 import re
 import logging
@@ -344,10 +344,10 @@ async def query_grooming_node(state: DeepResearchState) -> DeepResearchState:
     prior_clarifications = _count_prior_clarifications(history)
     logger.info(f"[GROOMER] Prior clarifications detected: {prior_clarifications}")
     
-    llm = create_resilient_llm_with_openai_fallback(
+    llm = create_resilient_llm_with_gemini_fallback(
         primary_model=settings.deep_research_groomer_model,
         anthropic_api_key=settings.anthropic_api_key,
-        openai_api_key=settings.openai_api_key,
+        gemini_api_key=settings.gemini_api_key,
         temperature=0,
     )
     

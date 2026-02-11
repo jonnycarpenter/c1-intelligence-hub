@@ -190,7 +190,7 @@ class DigestClassifier:
         self.max_concurrent = max_concurrent
         self.client = get_resilient_async_client(
             anthropic_api_key=settings.anthropic_api_key,
-            openai_api_key=settings.openai_api_key,
+            gemini_api_key=settings.gemini_api_key,
         )
         self._semaphore = asyncio.Semaphore(max_concurrent)
     

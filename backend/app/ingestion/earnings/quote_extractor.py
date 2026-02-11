@@ -258,7 +258,7 @@ class EarningsQuoteExtractor:
 
             client = get_resilient_async_client(
                 anthropic_api_key=settings.anthropic_api_key,
-                openai_api_key=settings.openai_api_key,
+                gemini_api_key=settings.gemini_api_key,
             )
 
             response = await asyncio.wait_for(

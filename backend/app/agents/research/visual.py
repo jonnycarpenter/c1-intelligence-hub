@@ -19,7 +19,7 @@ from typing import Dict, Any, List, Optional
 from langchain_core.messages import SystemMessage, HumanMessage
 from app.agents.research.state import DeepResearchState, VisualAgentOutput, SupportingVisual
 from app.agents.research.progress import emit_progress_sync, ToolProgress
-from app.utils.resilient_llm import create_resilient_llm_with_openai_fallback
+from app.utils.resilient_llm import create_resilient_llm_with_gemini_fallback
 from app.config.settings import settings
 from app.mcp.tools.corpus_visuals import corpus_visuals_search
 import json
@@ -112,10 +112,10 @@ async def visual_research_node(state: DeepResearchState) -> Dict[str, Any]:
     emit_progress_sync(ToolProgress(tool_name="visual_agent", message="Analyzing visual needs for research"))
     
     # Initialize LLM for intelligent visual selection
-    llm = create_resilient_llm_with_openai_fallback(
+    llm = create_resilient_llm_with_gemini_fallback(
         primary_model=settings.deep_research_financial_model,  # Use same model as financial agent
         anthropic_api_key=settings.anthropic_api_key,
-        openai_api_key=settings.openai_api_key,
+        gemini_api_key=settings.gemini_api_key,
         temperature=0,
     )
     

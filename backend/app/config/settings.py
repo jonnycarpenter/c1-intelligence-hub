@@ -37,7 +37,8 @@ class Settings(BaseSettings):
     # API Keys
     anthropic_api_key: str = ""
     anthropic_c1_ingestion: str = ""  # Separate key for data ingestion pipeline (cost isolation)
-    openai_api_key: str = ""  # Fallback provider when Anthropic credits run out
+    gemini_api_key: str = ""  # Google Gemini - fallback provider when Anthropic fails
+    openai_api_key: str = ""  # DEPRECATED: Kept for backward compat, use gemini_api_key
     tavily_api_key: str = ""
     exa_api_key: str = Field(validation_alias=AliasChoices("EXA_API_KEY", "EXA_AI_API_KEY"), default="")
     groq_api_key: str = ""

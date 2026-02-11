@@ -22,7 +22,7 @@ from typing import Optional, Dict, Any, List
 from difflib import SequenceMatcher
 
 from app.utils.logger import get_logger
-from app.utils.resilient_llm import create_resilient_llm_with_openai_fallback
+from app.utils.resilient_llm import create_resilient_llm_with_gemini_fallback
 from app.config.settings import settings
 from .models import PodcastQuoteRecord, QuoteTheme, SpeakerRole
 
@@ -155,10 +155,10 @@ class QuoteExtractor:
     def _get_llm(self):
         """Lazy-initialize LLM with resilient wrapper."""
         if self._llm is None:
-            self._llm = create_resilient_llm_with_openai_fallback(
+            self._llm = create_resilient_llm_with_gemini_fallback(
                 primary_model=self.model,
                 anthropic_api_key=settings.anthropic_api_key,
-                openai_api_key=settings.openai_api_key,
+                gemini_api_key=settings.gemini_api_key,
                 temperature=self.temperature,
                 max_tokens=self.max_tokens,
             )

@@ -3,7 +3,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from app.agents.research.state import DeepResearchState, SynthesisAgentOutput, FindingSection, FieldSalesSection, SupportingVisual, CompanyWithLogo
 from app.agents.research.memory import get_research_memory
 from app.config.settings import settings
-from app.utils.resilient_llm import create_resilient_llm_with_openai_fallback, get_resilient_async_client
+from app.utils.resilient_llm import create_resilient_llm_with_gemini_fallback, get_resilient_async_client
 from app.services.logo_service import logo_service, company_name_to_domain
 import json
 import time
@@ -684,13 +684,13 @@ async def synthesis_node(state: DeepResearchState) -> DeepResearchState:
         logger.info(f"[SYNTHESIZER] Extended thinking ENABLED with budget: {thinking_budget} tokens")
         client = get_resilient_async_client(
             anthropic_api_key=settings.anthropic_api_key,
-            openai_api_key=settings.openai_api_key,
+            gemini_api_key=settings.gemini_api_key,
         )
     else:
-        llm = create_resilient_llm_with_openai_fallback(
+        llm = create_resilient_llm_with_gemini_fallback(
             primary_model=settings.deep_research_synthesizer_model,
             anthropic_api_key=settings.anthropic_api_key,
-            openai_api_key=settings.openai_api_key,
+            gemini_api_key=settings.gemini_api_key,
             temperature=0,
         )
     

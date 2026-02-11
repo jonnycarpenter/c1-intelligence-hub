@@ -27,7 +27,7 @@ from app.agents.research.state import (
     ProductRecommendation,
     SalesPlay,
 )
-from app.utils.resilient_llm import create_resilient_llm_with_openai_fallback
+from app.utils.resilient_llm import create_resilient_llm_with_gemini_fallback
 from app.config.settings import settings
 from app.utils.logger import get_logger
 
@@ -229,10 +229,10 @@ async def category_node(state: DeepResearchState) -> DeepResearchState:
     
     state["current_status"] = "categorizing"
     
-    llm = create_resilient_llm_with_openai_fallback(
+    llm = create_resilient_llm_with_gemini_fallback(
         primary_model=settings.deep_research_category_model,
         anthropic_api_key=settings.anthropic_api_key,
-        openai_api_key=settings.openai_api_key,
+        gemini_api_key=settings.gemini_api_key,
         temperature=0.2,  # Slightly higher for creative sales angles
     )
     

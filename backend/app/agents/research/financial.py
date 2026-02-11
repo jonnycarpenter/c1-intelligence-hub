@@ -2,7 +2,7 @@ from typing import Dict, Any, List, Optional, Set
 from langchain_core.messages import SystemMessage, HumanMessage
 from app.agents.research.state import DeepResearchState, FinancialAgentOutput, FinancialFinding, ConfidenceLevel, SourceType, Citation
 from app.agents.research.progress import emit_progress_sync, ToolProgress, get_tool_description
-from app.utils.resilient_llm import create_resilient_llm_with_openai_fallback
+from app.utils.resilient_llm import create_resilient_llm_with_gemini_fallback
 from app.config.settings import settings
 from app.mcp.tools.earnings_quotes import search_earnings_quotes
 from app.mcp.tools.sec_nuggets import search_sec_nuggets
@@ -401,10 +401,10 @@ async def financial_research_node(state: DeepResearchState) -> Dict[str, Any]:
     logger.info(f"[FINANCIAL_RESEARCH] START - query: {state.get('user_query', '')[:50]}...")
     logger.info(f"[FINANCIAL_RESEARCH] State keys: {list(state.keys())}")
     
-    llm = create_resilient_llm_with_openai_fallback(
+    llm = create_resilient_llm_with_gemini_fallback(
         primary_model=settings.deep_research_financial_model,
         anthropic_api_key=settings.anthropic_api_key,
-        openai_api_key=settings.openai_api_key,
+        gemini_api_key=settings.gemini_api_key,
         temperature=0,
         max_tokens=12288,  # Increased to 12K for richer extraction with wider result funnel
     )

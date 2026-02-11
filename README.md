@@ -187,7 +187,7 @@ c1-intelligence-hub_v2/
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `ANTHROPIC_API_KEY` | Yes | Claude API key (primary LLM) |
-| `OPENAI_API_KEY` | No | OpenAI API key (fallback LLM when Anthropic fails) |
+| `GEMINI_API_KEY` | No | Google Gemini API key (fallback LLM when Anthropic fails) |
 | `TAVILY_API_KEY` | Yes | Tavily web search API key |
 | `EXA_API_KEY` | Yes | Exa semantic search API key |
 | `ELEVENLABS_API_KEY` | No | ElevenLabs TTS for podcast generation |
@@ -200,9 +200,9 @@ c1-intelligence-hub_v2/
 > **Note**: GCP project and bucket configuration is loaded from environment variables.
 > Set `GCP_PROJECT_ID` and `GCS_BUCKET_NAME` in your `.env` file.
 
-> **LLM Resilience**: When `OPENAI_API_KEY` is set, the system automatically falls back to OpenAI 
-> (GPT-4o) if Anthropic (Claude) fails due to credit exhaustion or API errors.
-> See `backend/app/utils/resilient_llm.py` for details.
+> **LLM Resilience**: When `GEMINI_API_KEY` is set, the system automatically falls back to Google Gemini
+> (gemini-3-pro) if Anthropic (Claude) fails due to API outages or credit exhaustion.
+> max_tokens are automatically clamped to Gemini model limits. See `backend/app/utils/resilient_llm.py`.
 
 ### Data Storage
 

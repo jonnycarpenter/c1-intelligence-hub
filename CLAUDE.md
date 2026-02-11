@@ -245,27 +245,29 @@ These files have critical bug fixes - be careful editing:
 | Digest generation | `claude-sonnet-4-5` | `app/ingestion/generators/digest.py` |
 | Classification | `claude-sonnet-4-5` | `app/ingestion/classifier.py` |
 
-### Fallback Models (OpenAI) - Credit Safety Net
-OpenAI is ONLY used as a fallback when Anthropic fails (e.g., credit exhaustion):
+### Fallback Models (Google Gemini) - Resilience Safety Net
+Google Gemini is ONLY used as a fallback when Anthropic fails (e.g., API outage, credit exhaustion):
 
-| Anthropic Model | OpenAI Fallback |
-|-----------------|-----------------|
-| `claude-sonnet-4-5` | `gpt-4o` |
-| `claude-opus-4-5` | `gpt-4o` |
-| `claude-haiku-4-5` | `gpt-4o-mini` |
-| `claude-3-5-haiku-20241022` (legacy) | `gpt-4o-mini` |
+| Anthropic Model | Gemini Fallback | Max Output Tokens |
+|-----------------|-----------------|-------------------|
+| `claude-sonnet-4-5` | `gemini-3-pro` | 65,536 |
+| `claude-opus-4-5` | `gemini-3-pro` | 65,536 |
+| `claude-haiku-4-5` | `gemini-2.0-flash` | 8,192 |
+| `claude-3-5-haiku-20241022` (legacy) | `gemini-2.0-flash` | 8,192 |
+
+The fallback layer automatically clamps `max_tokens` to the Gemini model's limit and drops unsupported params (e.g., extended thinking).
 
 ### Using Resilient LLM Wrappers
 
 **For LangChain code:**
 ```python
-from app.utils.resilient_llm import create_resilient_llm_with_openai_fallback
+from app.utils.resilient_llm import create_resilient_llm_with_gemini_fallback
 from app.config.settings import settings
 
-llm = create_resilient_llm_with_openai_fallback(
+llm = create_resilient_llm_with_gemini_fallback(
     primary_model="claude-sonnet-4-5",
     anthropic_api_key=settings.anthropic_api_key,
-    openai_api_key=settings.openai_api_key,
+    gemini_api_key=settings.gemini_api_key,
 )
 ```
 
@@ -275,12 +277,12 @@ from app.utils.resilient_llm import get_resilient_async_client
 
 client = get_resilient_async_client(
     anthropic_api_key=settings.anthropic_api_key,
-    openai_api_key=settings.openai_api_key,
+    gemini_api_key=settings.gemini_api_key,
 )
 response = await client.messages_create(model="claude-sonnet-4-5", ...)
 ```
 
-> **Note**: The `OPENAI_API_KEY` environment variable must be set for fallback to work.
+> **Note**: The `GEMINI_API_KEY` environment variable must be set for fallback to work.
 > See `app/utils/resilient_llm.py` for implementation details.
 
 ## Development History

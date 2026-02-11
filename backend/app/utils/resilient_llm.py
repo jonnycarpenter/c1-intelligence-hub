@@ -4,15 +4,19 @@ This module provides two resilient wrapper patterns:
 1. ResilientChatAnthropic - For LangChain-based code (agents, workflows)
 2. ResilientAsyncClient - For raw SDK code (ingestion, services)
 
-Both support cross-provider fallback: Anthropic (primary) -> OpenAI (fallback)
+Both support cross-provider fallback: Anthropic (primary) -> Google Gemini (fallback)
 to protect against credit outages.
+
+Fallback notes:
+- Gemini does NOT support extended thinking, so thinking params are dropped on fallback
+- max_tokens is clamped to Gemini's model limit (65536 for gemini-3-pro)
+- Messages are converted from Anthropic format to Gemini/OpenAI-compatible format
 """
 
 import os
 import time
 from typing import Any, List, Optional, Sequence, Literal, Dict
 from langchain_anthropic import ChatAnthropic
-from langchain_openai import ChatOpenAI
 from langchain_core.messages import BaseMessage
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.outputs import ChatResult
@@ -20,7 +24,20 @@ from langchain_core.runnables import RunnableConfig
 
 # Raw SDK imports for async resilient client
 from anthropic import AsyncAnthropic
-from openai import AsyncOpenAI
+
+# Google Gemini imports (lazy-loaded for fallback)
+try:
+    from langchain_google_genai import ChatGoogleGenerativeAI
+    HAS_LANGCHAIN_GEMINI = True
+except ImportError:
+    HAS_LANGCHAIN_GEMINI = False
+
+try:
+    from google import genai
+    from google.genai import types as genai_types
+    HAS_GOOGLE_GENAI = True
+except ImportError:
+    HAS_GOOGLE_GENAI = False
 
 from app.utils.logger import get_logger
 
@@ -60,32 +77,51 @@ def _track_tokens(model: str, result: Any, provider: str = "anthropic", caller: 
 
 
 # =============================================================================
-# Model Mapping: Anthropic -> OpenAI equivalents
+# Model Mapping: Anthropic -> Google Gemini equivalents
 # =============================================================================
 
-ANTHROPIC_TO_OPENAI_MODEL_MAP = {
-    "claude-sonnet-4-5": "gpt-4o",
-    "claude-3-5-sonnet-20241022": "gpt-4o",
-    "claude-opus-4-5": "gpt-4o",  # Opus -> GPT-4o (best available)
-    "claude-haiku-4-5": "gpt-4o-mini",  # Haiku alias
-    "claude-3-5-haiku-20241022": "gpt-4o-mini",  # Legacy haiku
+ANTHROPIC_TO_GEMINI_MODEL_MAP = {
+    "claude-sonnet-4-5": "gemini-3-pro",
+    "claude-3-5-sonnet-20241022": "gemini-3-pro",
+    "claude-opus-4-5": "gemini-3-pro",
+    "claude-opus-4-5-20250514": "gemini-3-pro",
+    "claude-haiku-4-5": "gemini-2.0-flash",  # Haiku -> Flash (fast + cheap)
+    "claude-3-5-haiku-20241022": "gemini-2.0-flash",
 }
+
+# Gemini model output token limits (for clamping)
+GEMINI_MAX_OUTPUT_TOKENS = {
+    "gemini-3-pro": 65536,
+    "gemini-2.5-pro": 65536,
+    "gemini-2.0-flash": 8192,
+    "gemini-2.5-flash": 65536,
+}
+DEFAULT_GEMINI_MAX_OUTPUT = 8192  # Safe default if model not in map
+
+
+def _clamp_max_tokens_for_gemini(max_tokens: int, gemini_model: str) -> int:
+    """Clamp max_tokens to the Gemini model's output limit to prevent 400 errors."""
+    model_limit = GEMINI_MAX_OUTPUT_TOKENS.get(gemini_model, DEFAULT_GEMINI_MAX_OUTPUT)
+    if max_tokens > model_limit:
+        logger.info(f"Clamping max_tokens from {max_tokens} to {model_limit} for {gemini_model}")
+        return model_limit
+    return max_tokens
 
 
 class ResilientChatAnthropic(BaseChatModel):
     """
     A resilient LLM wrapper that automatically falls back to a secondary model if primary fails.
     
-    Supports both Anthropic and OpenAI models for cross-provider failover.
+    Supports Anthropic primary with Google Gemini or Anthropic fallback.
     
     Usage:
-        # Anthropic primary -> OpenAI fallback (recommended for credit safety)
+        # Anthropic primary -> Gemini fallback (recommended for credit safety)
         llm = ResilientChatAnthropic(
             primary_model="claude-sonnet-4-5",
-            fallback_model="gpt-4o",
-            fallback_provider="openai",
+            fallback_model="gemini-3-pro",
+            fallback_provider="gemini",
             api_key=settings.anthropic_api_key,
-            fallback_api_key=settings.openai_api_key,
+            fallback_api_key=settings.gemini_api_key,
         )
         
         # Anthropic primary -> Anthropic fallback (same provider)
@@ -98,7 +134,7 @@ class ResilientChatAnthropic(BaseChatModel):
     
     primary_model: str
     fallback_model: Optional[str] = None
-    fallback_provider: Literal["anthropic", "openai"] = "anthropic"
+    fallback_provider: Literal["anthropic", "gemini"] = "anthropic"
     api_key: str
     fallback_api_key: Optional[str] = None
     temperature: float = 0.3
@@ -108,7 +144,7 @@ class ResilientChatAnthropic(BaseChatModel):
     
     # Internal clients (not part of pydantic model)
     _primary_client: Optional[ChatAnthropic] = None
-    _fallback_client: Optional[Any] = None  # Can be ChatAnthropic or ChatOpenAI
+    _fallback_client: Optional[Any] = None  # Can be ChatAnthropic or ChatGoogleGenerativeAI
     _tools: List[Any] = []
     
     class Config:
@@ -132,23 +168,29 @@ class ResilientChatAnthropic(BaseChatModel):
         )
         
         if self.fallback_model:
-            if self.fallback_provider == "openai":
-                # OpenAI fallback - use fallback_api_key or environment variable
-                openai_key = self.fallback_api_key or os.getenv("OPENAI_API_KEY")
-                if not openai_key:
-                    logger.warning("OpenAI fallback model specified but no API key available. Skipping fallback.")
+            if self.fallback_provider == "gemini":
+                # Google Gemini fallback
+                gemini_key = self.fallback_api_key or os.getenv("GEMINI_API_KEY")
+                if not gemini_key:
+                    logger.warning("Gemini fallback model specified but no API key available. Skipping fallback.")
                     return
-                    
-                self._fallback_client = ChatOpenAI(
+                if not HAS_LANGCHAIN_GEMINI:
+                    logger.warning("langchain-google-genai not installed. Skipping Gemini fallback.")
+                    return
+                
+                # Clamp max_tokens for Gemini
+                clamped_tokens = _clamp_max_tokens_for_gemini(self.max_tokens, self.fallback_model)
+                
+                self._fallback_client = ChatGoogleGenerativeAI(
                     model=self.fallback_model,
-                    api_key=openai_key,
+                    google_api_key=gemini_key,
                     temperature=self.temperature,
-                    max_tokens=self.max_tokens,
+                    max_output_tokens=clamped_tokens,
                     timeout=self.timeout,
                     max_retries=self.max_retries,
                 )
-                logger.info(f"Initialized resilient LLM: {self.primary_model} (Anthropic) -> {self.fallback_model} (OpenAI)")
-            else:
+                logger.info(f"Initialized resilient LLM: {self.primary_model} (Anthropic) -> {self.fallback_model} (Gemini, max_tokens={clamped_tokens})")
+            elif self.fallback_provider == "anthropic":
                 # Anthropic fallback
                 self._fallback_client = ChatAnthropic(
                     model=self.fallback_model,
@@ -315,45 +357,72 @@ class ResilientChatAnthropic(BaseChatModel):
 # Helper Functions for LangChain Usage
 # =============================================================================
 
-def create_resilient_llm_with_openai_fallback(
+def create_resilient_llm_with_gemini_fallback(
     primary_model: str,
     anthropic_api_key: str,
-    openai_api_key: str,
-    fallback_model: str = "gpt-4o",
+    gemini_api_key: str,
+    fallback_model: Optional[str] = None,
     **kwargs
 ) -> ResilientChatAnthropic:
     """
-    Create a resilient LLM with OpenAI as fallback provider.
+    Create a resilient LLM with Google Gemini as fallback provider.
     
     This is the recommended pattern to protect against Anthropic credit outages.
+    Gemini does NOT support extended thinking - thinking params are dropped on fallback.
+    max_tokens is automatically clamped to the Gemini model's limit.
     
     Args:
         primary_model: Anthropic model name (e.g., "claude-sonnet-4-5")
         anthropic_api_key: Your Anthropic API key
-        openai_api_key: Your OpenAI API key (fallback)
-        fallback_model: OpenAI model to use as fallback (default: "gpt-4o")
+        gemini_api_key: Your Google Gemini API key (fallback)
+        fallback_model: Gemini model to use as fallback (auto-mapped if None)
         **kwargs: Additional parameters (temperature, max_tokens, etc.)
     
     Returns:
-        ResilientChatAnthropic instance with OpenAI fallback
+        ResilientChatAnthropic instance with Gemini fallback
         
     Example:
         from app.config.settings import settings
         
-        llm = create_resilient_llm_with_openai_fallback(
+        llm = create_resilient_llm_with_gemini_fallback(
             primary_model="claude-sonnet-4-5",
             anthropic_api_key=settings.anthropic_api_key,
-            openai_api_key=settings.openai_api_key,
-            fallback_model="gpt-4o",
+            gemini_api_key=settings.gemini_api_key,
             temperature=0.3,
         )
     """
+    if not fallback_model:
+        fallback_model = ANTHROPIC_TO_GEMINI_MODEL_MAP.get(primary_model, "gemini-3-pro")
+    
     return ResilientChatAnthropic(
         primary_model=primary_model,
         fallback_model=fallback_model,
-        fallback_provider="openai",
+        fallback_provider="gemini",
         api_key=anthropic_api_key,
-        fallback_api_key=openai_api_key,
+        fallback_api_key=gemini_api_key,
+        **kwargs
+    )
+
+
+# Backward-compatible alias (callers use this name)
+def create_resilient_llm_with_openai_fallback(
+    primary_model: str,
+    anthropic_api_key: str,
+    openai_api_key: str,  # This param name is kept for backward compat but now expects Gemini key
+    fallback_model: Optional[str] = None,
+    **kwargs
+) -> ResilientChatAnthropic:
+    """
+    DEPRECATED: Use create_resilient_llm_with_gemini_fallback() instead.
+    
+    This function exists for backward compatibility. It routes to the Gemini fallback.
+    The openai_api_key parameter now accepts a Gemini API key.
+    """
+    return create_resilient_llm_with_gemini_fallback(
+        primary_model=primary_model,
+        anthropic_api_key=anthropic_api_key,
+        gemini_api_key=openai_api_key,
+        fallback_model=fallback_model,
         **kwargs
     )
 
@@ -364,15 +433,20 @@ def create_resilient_llm_with_openai_fallback(
 
 class ResilientAsyncClient:
     """
-    Resilient async client that wraps Anthropic SDK with OpenAI fallback.
+    Resilient async client that wraps Anthropic SDK with Google Gemini fallback.
     
     For use in ingestion pipelines, services, and other async code that 
     uses the raw Anthropic SDK (not LangChain).
     
+    Gemini fallback notes:
+    - Extended thinking params are dropped (Gemini doesn't support them)
+    - max_tokens is clamped to the Gemini model's output limit
+    - Response is adapted to Anthropic-like structure for seamless caller compat
+    
     Usage:
         client = ResilientAsyncClient(
             anthropic_api_key=settings.anthropic_api_key,
-            openai_api_key=settings.openai_api_key,
+            gemini_api_key=settings.gemini_api_key,
         )
         
         response = await client.messages_create(
@@ -385,42 +459,46 @@ class ResilientAsyncClient:
     def __init__(
         self,
         anthropic_api_key: str,
-        openai_api_key: Optional[str] = None,
+        gemini_api_key: Optional[str] = None,
+        openai_api_key: Optional[str] = None,  # Kept for backward compat, treated as gemini key
     ):
         self.anthropic_client = AsyncAnthropic(api_key=anthropic_api_key)
-        self.openai_api_key = openai_api_key or os.getenv("OPENAI_API_KEY")
-        self._openai_client: Optional[AsyncOpenAI] = None
+        # Accept gemini_api_key directly, or fall back to openai_api_key param (backward compat),
+        # or check env var
+        self.gemini_api_key = gemini_api_key or openai_api_key or os.getenv("GEMINI_API_KEY")
+        self._gemini_client = None
         
     @property
-    def openai_client(self) -> Optional[AsyncOpenAI]:
-        """Lazy init OpenAI client only when needed."""
-        if self._openai_client is None and self.openai_api_key:
-            self._openai_client = AsyncOpenAI(api_key=self.openai_api_key)
-        return self._openai_client
+    def gemini_client(self):
+        """Lazy init Google Gemini client only when needed."""
+        if self._gemini_client is None and self.gemini_api_key and HAS_GOOGLE_GENAI:
+            self._gemini_client = genai.Client(api_key=self.gemini_api_key)
+        return self._gemini_client
     
-    def _get_openai_model(self, anthropic_model: str) -> str:
-        """Map Anthropic model to equivalent OpenAI model."""
-        return ANTHROPIC_TO_OPENAI_MODEL_MAP.get(anthropic_model, "gpt-4o")
+    def _get_gemini_model(self, anthropic_model: str) -> str:
+        """Map Anthropic model to equivalent Gemini model."""
+        return ANTHROPIC_TO_GEMINI_MODEL_MAP.get(anthropic_model, "gemini-3-pro")
     
-    def _convert_messages_for_openai(
+    def _build_gemini_contents(
         self, 
         messages: List[Dict[str, Any]],
         system: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
-        """Convert Anthropic message format to OpenAI format."""
-        openai_messages = []
+    ) -> tuple:
+        """Convert Anthropic message format to Gemini format.
         
-        # Add system message if provided
-        if system:
-            openai_messages.append({"role": "system", "content": system})
+        Returns (system_instruction, contents) tuple.
+        """
+        contents = []
         
         for msg in messages:
             role = msg.get("role", "user")
             content = msg.get("content", "")
             
+            # Map Anthropic role -> Gemini role
+            gemini_role = "user" if role == "user" else "model"
+            
             # Handle complex content (e.g., with images)
             if isinstance(content, list):
-                # For now, extract text only (OpenAI has different image format)
                 text_parts = [
                     part.get("text", "") 
                     for part in content 
@@ -428,9 +506,12 @@ class ResilientAsyncClient:
                 ]
                 content = "\n".join(text_parts) if text_parts else str(content)
             
-            openai_messages.append({"role": role, "content": content})
+            contents.append(genai_types.Content(
+                role=gemini_role,
+                parts=[genai_types.Part(text=content)],
+            ))
         
-        return openai_messages
+        return system, contents
     
     async def messages_create(
         self,
@@ -444,7 +525,7 @@ class ResilientAsyncClient:
         **kwargs,
     ) -> Any:
         """
-        Create a message with automatic OpenAI fallback.
+        Create a message with automatic Gemini fallback.
         
         Args:
             model: The model to use (e.g., "claude-sonnet-4-5")
@@ -453,10 +534,10 @@ class ResilientAsyncClient:
             system: Optional system prompt
             temperature: Sampling temperature (ignored when thinking is enabled)
             thinking: Optional extended thinking config, e.g. {"type": "enabled", "budget_tokens": 10000}
-                     See: https://platform.claude.com/docs/en/build-with-claude/extended-thinking
+                     Note: Thinking is NOT supported by Gemini and will be dropped on fallback.
         
-        Returns an Anthropic-style response object (or OpenAI response adapted).
-        The response may include 'thinking' content blocks when thinking is enabled.
+        Returns an Anthropic-style response object (or Gemini response adapted).
+        The response may include 'thinking' content blocks when thinking is enabled (Anthropic only).
         """
         # Try Anthropic first
         try:
@@ -495,10 +576,9 @@ class ResilientAsyncClient:
                 logger.info(f"Anthropic ({model}) succeeded in {elapsed:.2f}s")
             
             # Check for empty response (API succeeded but returned nothing)
-            # For thinking responses, check for text blocks specifically
             text_content = [b for b in response.content if getattr(b, 'type', None) == 'text']
             if not response.content or (not thinking_enabled and len(response.content) == 0):
-                logger.warning(f"Anthropic ({model}) returned empty content, falling back to OpenAI")
+                logger.warning(f"Anthropic ({model}) returned empty content, falling back to Gemini")
                 raise ValueError("Anthropic returned empty response")
             if thinking_enabled and not text_content:
                 logger.warning(f"Anthropic ({model}) returned only thinking blocks, no text output")
@@ -510,56 +590,78 @@ class ResilientAsyncClient:
         except Exception as anthropic_error:
             logger.warning(f"Anthropic ({model}) failed: {anthropic_error}")
             
-            # Try OpenAI fallback
-            if not self.openai_client:
-                logger.error("No OpenAI API key configured for fallback")
+            # Try Gemini fallback
+            if not self.gemini_client:
+                if not HAS_GOOGLE_GENAI:
+                    logger.error("google-genai not installed for Gemini fallback")
+                else:
+                    logger.error("No Gemini API key configured for fallback")
                 raise anthropic_error
             
             try:
-                openai_model = self._get_openai_model(model)
-                openai_messages = self._convert_messages_for_openai(messages, system)
+                gemini_model = self._get_gemini_model(model)
+                system_instruction, contents = self._build_gemini_contents(messages, system)
                 
-                logger.info(f"Falling back to OpenAI ({openai_model})")
+                # Clamp max_tokens for Gemini model limits
+                clamped_tokens = _clamp_max_tokens_for_gemini(max_tokens, gemini_model)
+                
+                # Note: Gemini does NOT support extended thinking.
+                # We drop thinking params and use higher max_tokens instead.
+                if thinking and thinking.get("type") == "enabled":
+                    logger.info(f"Dropping extended thinking for Gemini fallback (not supported). Using max_tokens={clamped_tokens}")
+                
+                logger.info(f"Falling back to Gemini ({gemini_model}, max_tokens={clamped_tokens})")
                 start = time.time()
                 
-                openai_response = await self.openai_client.chat.completions.create(
-                    model=openai_model,
-                    max_tokens=max_tokens,
-                    messages=openai_messages,
+                gemini_config = genai_types.GenerateContentConfig(
+                    system_instruction=system_instruction,
                     temperature=temperature,
+                    max_output_tokens=clamped_tokens,
+                )
+                
+                gemini_response = await self.gemini_client.aio.models.generate_content(
+                    model=gemini_model,
+                    contents=contents,
+                    config=gemini_config,
                 )
                 elapsed = time.time() - start
-                logger.info(f"OpenAI fallback ({openai_model}) succeeded in {elapsed:.2f}s")
+                logger.info(f"Gemini fallback ({gemini_model}) succeeded in {elapsed:.2f}s")
 
-                # Wrap OpenAI response in Anthropic-like structure
-                adapted = OpenAIResponseAdapter(openai_response)
-                _track_tokens(openai_model, adapted, "openai", _caller)
+                # Wrap Gemini response in Anthropic-like structure
+                adapted = GeminiResponseAdapter(gemini_response, gemini_model)
+                _track_tokens(gemini_model, adapted, "gemini", _caller)
                 return adapted
                 
-            except Exception as openai_error:
-                logger.error(f"OpenAI fallback also failed: {openai_error}")
-                raise anthropic_error from openai_error
+            except Exception as gemini_error:
+                logger.error(f"Gemini fallback also failed: {gemini_error}")
+                raise anthropic_error from gemini_error
 
 
-class OpenAIResponseAdapter:
+class GeminiResponseAdapter:
     """
-    Adapter to make OpenAI responses look like Anthropic responses.
+    Adapter to make Gemini responses look like Anthropic responses.
     
     This allows existing code using Anthropic response structure to work
-    with OpenAI fallback responses without modification.
+    with Gemini fallback responses without modification.
     """
     
-    def __init__(self, openai_response):
-        self._openai_response = openai_response
+    def __init__(self, gemini_response, model: str = "gemini-3-pro"):
+        self._gemini_response = gemini_response
         
-        # Create content list like Anthropic
-        choice = openai_response.choices[0] if openai_response.choices else None
-        text = choice.message.content if choice else ""
+        # Extract text from Gemini response
+        text = ""
+        if gemini_response.candidates:
+            candidate = gemini_response.candidates[0]
+            if candidate.content and candidate.content.parts:
+                text_parts = [p.text for p in candidate.content.parts if hasattr(p, 'text') and p.text]
+                text = "\n".join(text_parts)
         
         self.content = [ContentBlock(text=text)]
-        self.stop_reason = choice.finish_reason if choice else "end_turn"
-        self.model = openai_response.model
-        self.usage = UsageAdapter(openai_response.usage)
+        self.stop_reason = "end_turn"
+        self.model = model
+        
+        # Build usage adapter from Gemini usage metadata
+        self.usage = GeminiUsageAdapter(gemini_response)
 
 
 class ContentBlock:
@@ -569,19 +671,26 @@ class ContentBlock:
         self.type = type
 
 
-class UsageAdapter:
-    """Mimics Anthropic's Usage object."""
-    def __init__(self, openai_usage):
-        self.input_tokens = openai_usage.prompt_tokens if openai_usage else 0
-        self.output_tokens = openai_usage.completion_tokens if openai_usage else 0
+class GeminiUsageAdapter:
+    """Mimics Anthropic's Usage object from Gemini usage metadata."""
+    def __init__(self, gemini_response):
+        usage = getattr(gemini_response, 'usage_metadata', None)
+        self.input_tokens = getattr(usage, 'prompt_token_count', 0) if usage else 0
+        self.output_tokens = getattr(usage, 'candidates_token_count', 0) if usage else 0
 
 
 def get_resilient_async_client(
     anthropic_api_key: str,
     openai_api_key: Optional[str] = None,
+    gemini_api_key: Optional[str] = None,
 ) -> ResilientAsyncClient:
     """
-    Get a resilient async client with OpenAI fallback.
+    Get a resilient async client with Gemini fallback.
+    
+    Args:
+        anthropic_api_key: Your Anthropic API key
+        openai_api_key: DEPRECATED - kept for backward compat, treated as gemini_api_key
+        gemini_api_key: Your Google Gemini API key (preferred)
     
     Example:
         from app.config.settings import settings
@@ -589,7 +698,7 @@ def get_resilient_async_client(
         
         client = get_resilient_async_client(
             anthropic_api_key=settings.anthropic_api_key,
-            openai_api_key=settings.openai_api_key,
+            gemini_api_key=settings.gemini_api_key,
         )
         
         response = await client.messages_create(
@@ -601,5 +710,5 @@ def get_resilient_async_client(
     """
     return ResilientAsyncClient(
         anthropic_api_key=anthropic_api_key,
-        openai_api_key=openai_api_key,
+        gemini_api_key=gemini_api_key or openai_api_key,
     )

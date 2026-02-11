@@ -17,7 +17,7 @@ from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
 from app.utils.logger import get_logger
 from app.config import settings
-from app.utils.resilient_llm import create_resilient_llm_with_openai_fallback
+from app.utils.resilient_llm import create_resilient_llm_with_gemini_fallback
 from app.mcp.tools.pipeline_search import (
     PIPELINE_TOOLS_INSTANT,
     PIPELINE_TOOLS_FULL,
@@ -350,10 +350,10 @@ class PipelineAgent:
             mode: "instant" for quick search, "full" for comprehensive lists
         """
         self.mode = mode
-        self.llm = create_resilient_llm_with_openai_fallback(
+        self.llm = create_resilient_llm_with_gemini_fallback(
             primary_model="claude-sonnet-4-5",
             anthropic_api_key=settings.anthropic_api_key,
-            openai_api_key=settings.openai_api_key,
+            gemini_api_key=settings.gemini_api_key,
             temperature=0,
             max_tokens=4096,
         )

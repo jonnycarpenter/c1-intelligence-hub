@@ -91,7 +91,7 @@ class DigestService:
         if use_llm_summaries and settings.anthropic_api_key:
             self._anthropic = get_resilient_async_client(
                 anthropic_api_key=settings.anthropic_api_key,
-                openai_api_key=settings.openai_api_key,
+                gemini_api_key=settings.gemini_api_key,
             )
         else:
             self._anthropic = None

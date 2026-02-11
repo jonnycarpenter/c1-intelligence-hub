@@ -2,7 +2,7 @@ from typing import Dict, Any, List, Optional
 from langchain_core.messages import SystemMessage, HumanMessage
 from app.agents.research.state import DeepResearchState, IndustryAgentOutput, IndustryFinding, Sentiment, Citation
 from app.agents.research.progress import emit_progress_sync, ToolProgress
-from app.utils.resilient_llm import create_resilient_llm_with_openai_fallback
+from app.utils.resilient_llm import create_resilient_llm_with_gemini_fallback
 from app.config.settings import settings
 from app.mcp.tools.exa_search import news_search, web_search, find_similar  # Exa for semantic search
 from app.mcp.tools.corpus_query import query_corpus, get_market_signals
@@ -413,10 +413,10 @@ async def industry_research_node(state: DeepResearchState) -> Dict[str, Any]:
     logger.info(f"[INDUSTRY_RESEARCH] START - query: {state.get('user_query', '')[:50]}...")
     logger.info(f"[INDUSTRY_RESEARCH] State keys: {list(state.keys())}")
     
-    llm = create_resilient_llm_with_openai_fallback(
+    llm = create_resilient_llm_with_gemini_fallback(
         primary_model=settings.deep_research_industry_model,
         anthropic_api_key=settings.anthropic_api_key,
-        openai_api_key=settings.openai_api_key,
+        gemini_api_key=settings.gemini_api_key,
         temperature=0,
         max_tokens=16384,  # Increased to 16K for richer extraction with wider result funnel
     )
