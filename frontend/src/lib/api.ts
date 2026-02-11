@@ -5,7 +5,7 @@
 import { API_BASE } from './config'
 
 // Timeout configuration
-const AD_HOC_BRIEFING_TIMEOUT_MS = 60000 // 60 seconds
+const AD_HOC_BRIEFING_TIMEOUT_MS = 150000 // 150 seconds — matches backend LLM timeout (120s) + buffer
 
 // Custom error for timeout handling
 export class TimeoutError extends Error {
@@ -53,7 +53,7 @@ export interface ApiDigest {
 
 export interface ApiQueryRequest {
   message: string
-  mode: 'pulse' | 'discovery' | 'research' | 'products' | 'field-sales' | 'pipeline' | 'supply-network' | 'companies' | 'industries' | 'data-preferences' | 'importyeti' | 'app-architecture' | 'ai-quality'
+  mode: 'pulse' | 'discovery' | 'research' | 'products' | 'field-sales' | 'pipeline' | 'supply-network' | 'companies' | 'industries' | 'data-preferences' | 'importyeti' | 'app-architecture' | 'evals'
   conversation_id?: string
   context?: {
     companies?: string[]
@@ -484,7 +484,7 @@ class ApiClient {
 
       // Check if error is due to abort (timeout)
       if (error instanceof Error && error.name === 'AbortError') {
-        throw new TimeoutError('Request timed out after 60 seconds. Try simplifying your question or ask again.')
+        throw new TimeoutError('Request timed out. Try simplifying your question or ask again.')
       }
       throw error
     }
@@ -533,7 +533,7 @@ class ApiClient {
 
       // Check if error is due to abort (timeout)
       if (error instanceof Error && error.name === 'AbortError') {
-        throw new TimeoutError('Request timed out after 60 seconds. Try simplifying your question or ask again.')
+        throw new TimeoutError('Request timed out. Try simplifying your question or ask again.')
       }
       throw error
     }
@@ -1289,46 +1289,6 @@ class ApiClient {
   // Apollo Service
   // =====================================
 
-  // =====================================
-  // Feedback / Eval
-  // =====================================
-
-  /**
-   * Submit feedback (thumbs up/down) on a report
-   */
-  async submitFeedback(data: {
-    report_id: string
-    report_type: string
-    rating: string
-    comment?: string
-    section_id?: string
-  }): Promise<{ id: string; success: boolean }> {
-    const response = await fetch(`${this.baseUrl}/api/feedback`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    })
-    if (!response.ok) {
-      throw new Error(`Failed to submit feedback: ${response.statusText}`)
-    }
-    return response.json()
-  }
-
-  /**
-   * Fetch eval dashboard data (quality, cost, judge scores, feedback)
-   */
-  async getEvalDashboard(days: number = 30): Promise<any> {
-    const response = await fetch(`${this.baseUrl}/api/evals/dashboard?days=${days}`)
-    if (!response.ok) {
-      throw new Error(`Failed to fetch eval dashboard: ${response.statusText}`)
-    }
-    return response.json()
-  }
-
-  // =====================================
-  // Apollo Service
-  // =====================================
-
   /**
    * Enrich an organization by domain
    */
@@ -1344,6 +1304,146 @@ class ApiClient {
     if (!response.ok) {
       throw new Error(`Failed to enrich organization: ${response.statusText}`)
     }
+    return response.json()
+  }
+
+  // =====================================
+  // Evals Dashboard
+  // =====================================
+
+  /**
+   * Get eval dashboard data (quality metrics, cost, judge scores, feedback)
+   */
+  async getEvalDashboard(days: number = 30, compare: boolean = false): Promise<any> {
+    const params = new URLSearchParams({ days: String(days) })
+    if (compare) params.set('compare', 'true')
+    const response = await fetch(`${this.baseUrl}/api/evals/dashboard?${params}`)
+    if (!response.ok) {
+      throw new Error(`Failed to load eval dashboard: ${response.statusText}`)
+    }
+    return response.json()
+  }
+
+  /**
+   * T3.1: Trigger LLM-as-Judge evaluation batch
+   */
+  async runEvalJudge(count: number = 5, model: string = 'claude-haiku-4-5'): Promise<any> {
+    const response = await fetch(`${this.baseUrl}/api/evals/run-judge`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ count, model }),
+    })
+    if (!response.ok) {
+      throw new Error(`Failed to start eval: ${response.statusText}`)
+    }
+    return response.json()
+  }
+
+  /**
+   * T3.1: Check eval job status
+   */
+  async getEvalJobStatus(): Promise<any> {
+    const response = await fetch(`${this.baseUrl}/api/evals/run-judge/status`)
+    if (!response.ok) {
+      throw new Error(`Failed to get eval status: ${response.statusText}`)
+    }
+    return response.json()
+  }
+
+  /**
+   * T3.4: Get individual eval reports with metadata
+   */
+  async getEvalReports(days: number = 30, limit: number = 20): Promise<any> {
+    const response = await fetch(`${this.baseUrl}/api/evals/reports?days=${days}&limit=${limit}`)
+    if (!response.ok) {
+      throw new Error(`Failed to load eval reports: ${response.statusText}`)
+    }
+    return response.json()
+  }
+
+  /**
+   * Submit feedback on a report
+   */
+  async submitFeedback(data: {
+    report_id: string
+    report_type: 'deep_research' | 'weekly_briefing'
+    rating: 'positive' | 'negative'
+    comment?: string
+    section_id?: string
+  }): Promise<{ id: string; success: boolean }> {
+    const response = await fetch(`${this.baseUrl}/api/feedback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+    if (!response.ok) {
+      throw new Error(`Failed to submit feedback: ${response.statusText}`)
+    }
+    return response.json()
+  }
+
+  /**
+   * T4.2: Get ingestion pipeline health data
+   */
+  async getIngestionHealth(days: number = 30): Promise<any> {
+    const response = await fetch(`${this.baseUrl}/api/evals/ingestion-health?days=${days}`)
+    if (!response.ok) throw new Error(`Failed to load ingestion health: ${response.statusText}`)
+    return response.json()
+  }
+
+  /**
+   * T4.4: Get recent alerts
+   */
+  async getAlerts(days: number = 7): Promise<any> {
+    const response = await fetch(`${this.baseUrl}/api/evals/alerts?days=${days}`)
+    if (!response.ok) throw new Error(`Failed to load alerts: ${response.statusText}`)
+    return response.json()
+  }
+
+  /**
+   * T4.4: Get/update alert thresholds
+   */
+  async getAlertThresholds(): Promise<any> {
+    const response = await fetch(`${this.baseUrl}/api/evals/alerts/thresholds`)
+    if (!response.ok) throw new Error(`Failed to load thresholds: ${response.statusText}`)
+    return response.json()
+  }
+
+  async updateAlertThresholds(thresholds: Record<string, number>): Promise<any> {
+    const response = await fetch(`${this.baseUrl}/api/evals/alerts/thresholds`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(thresholds),
+    })
+    if (!response.ok) throw new Error(`Failed to update thresholds: ${response.statusText}`)
+    return response.json()
+  }
+
+  /**
+   * T4.5: Get/update model pricing
+   */
+  async getModelPricing(): Promise<any> {
+    const response = await fetch(`${this.baseUrl}/api/evals/pricing`)
+    if (!response.ok) throw new Error(`Failed to load pricing: ${response.statusText}`)
+    return response.json()
+  }
+
+  async updateModelPricing(model: string, inputPrice: number, outputPrice: number): Promise<any> {
+    const response = await fetch(`${this.baseUrl}/api/evals/pricing`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, input_price: inputPrice, output_price: outputPrice }),
+    })
+    if (!response.ok) throw new Error(`Failed to update pricing: ${response.statusText}`)
+    return response.json()
+  }
+
+  /**
+   * T4.6: Get eval score trends over time
+   */
+  async getEvalTrends(weeks: number = 12): Promise<any> {
+    const response = await fetch(`${this.baseUrl}/api/evals/trends?weeks=${weeks}`)
+    if (!response.ok) throw new Error(`Failed to load eval trends: ${response.statusText}`)
     return response.json()
   }
 

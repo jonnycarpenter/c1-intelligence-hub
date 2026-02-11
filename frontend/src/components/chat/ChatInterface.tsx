@@ -65,7 +65,7 @@ const modeSuggestions: Record<Mode, string[]> = {
     "Show me the agent workflow",
     "What GCP services are used?",
   ],
-  'ai-quality': [
+  'evals': [
     "Show me quality metrics",
     "What is the LLM cost breakdown?",
     "How are reports scored?",
@@ -84,7 +84,7 @@ const welcomeMessages: Record<Mode, string> = {
   industries: "Explore Core Industries. See how news evolves over 90 days with monthly timelines, top companies, and themes.",
   'data-preferences': "Manage your tracked entities and preferences. I can help add or remove companies, materials, and industries.",
   'app-architecture': "Welcome to Platform Architecture. Explore the system design: data ingestion pipelines, frontend architecture, and agentic workflows.",
-  'ai-quality': "Welcome to AI Quality Dashboard. Monitor evaluation metrics, LLM cost tracking, and user feedback.",
+  'evals': "Welcome to AI Quality Dashboard. Monitor evaluation metrics, LLM cost tracking, and user feedback.",
 }
 
 interface ChatInterfaceProps {

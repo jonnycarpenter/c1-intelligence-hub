@@ -478,6 +478,7 @@ export default function AdHocBriefing({
     briefings,
     isLoading,
     isStreaming,
+    streamedText,
     error,
     isTimeout,
     followUpCount,
@@ -547,14 +548,16 @@ export default function AdHocBriefing({
         )}
       </div>
 
-      {/* Loading State with Progress */}
+      {/* Loading State with Progress + Live Streaming Text */}
       {(isLoading || isStreaming) && (
         <div className="bg-white border border-slate-200 rounded-xl p-4">
           <div className="flex items-center gap-2 mb-3">
             <Loader2 size={16} className="animate-spin text-emerald-500" />
-            <span className="text-sm font-medium text-slate-700">Researching your question...</span>
+            <span className="text-sm font-medium text-slate-700">
+              {streamedText ? 'Generating response...' : 'Researching your question...'}
+            </span>
           </div>
-          {progressSteps.length > 0 ? (
+          {progressSteps.length > 0 && !streamedText && (
             <div className="space-y-1 ml-6">
               {progressSteps.map((step) => (
                 <ProgressStepDisplay
@@ -567,8 +570,14 @@ export default function AdHocBriefing({
                 />
               ))}
             </div>
-          ) : (
+          )}
+          {!progressSteps.length && !streamedText && (
             <div className="ml-6 text-sm text-slate-500">Initializing search...</div>
+          )}
+          {streamedText && (
+            <div className="mt-2 prose prose-sm max-w-none">
+              <MarkdownContent content={streamedText} />
+            </div>
           )}
         </div>
       )}
@@ -595,7 +604,7 @@ export default function AdHocBriefing({
               isTimeout ? "text-emerald-600" : "text-rose-600"
             )}>
               {isTimeout
-                ? 'The request took longer than 60 seconds. Try simplifying your question or ask again.'
+                ? 'The request took too long. Try simplifying your question or ask again.'
                 : error.message
               }
             </p>

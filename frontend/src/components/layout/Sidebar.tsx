@@ -47,8 +47,8 @@ const coreNavItems: NavItem[] = [
 
 // Documentation & settings tabs (below divider)
 const secondaryNavItems: NavItem[] = [
+  { id: 'evals', label: 'AI Quality', icon: BarChart3, description: 'Eval & cost tracking', color: 'text-amber-500', bg: 'bg-amber-500' },
   { id: 'app-architecture', label: 'Architecture', icon: Cpu, description: 'System design', color: 'text-emerald-400', bg: 'bg-emerald-500', highlight: true },
-  { id: 'ai-quality', label: 'AI Quality', icon: BarChart3, description: 'Eval & cost metrics', color: 'text-amber-500', bg: 'bg-amber-500' },
   { id: 'data-preferences', label: 'Tracked Entities', icon: Database, description: 'Manage tracked data', color: 'text-cyan-500', bg: 'bg-cyan-500' },
 ]
 

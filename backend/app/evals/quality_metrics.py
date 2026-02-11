@@ -17,11 +17,14 @@ from app.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-async def compute_quality_report(days_back: int = 30) -> Dict[str, Any]:
+async def compute_quality_report(days_back: int = 30, period_end: str = None) -> Dict[str, Any]:
     """Compute quality metrics across deep research reports and weekly briefings.
 
     Args:
         days_back: Number of days to look back for metrics.
+        period_end: Optional ISO timestamp — if provided, metrics are computed
+                    for the window [cutoff, period_end) instead of [cutoff, now).
+                    Used for T3.8 previous-period comparison.
 
     Returns:
         Dictionary with quality metrics organized by report type.
@@ -36,8 +39,8 @@ async def compute_quality_report(days_back: int = 30) -> Dict[str, Any]:
 
     logger.info(f"[EVAL_METRICS] Computing quality report for last {days_back} days")
 
-    deep_research = await _compute_deep_research_metrics(client, dataset, cutoff)
-    weekly_briefing = await _compute_weekly_briefing_metrics(client, dataset, cutoff)
+    deep_research = await _compute_deep_research_metrics(client, dataset, cutoff, period_end)
+    weekly_briefing = await _compute_weekly_briefing_metrics(client, dataset, cutoff, period_end)
 
     report = {
         "period_days": days_back,
@@ -55,11 +58,12 @@ async def compute_quality_report(days_back: int = 30) -> Dict[str, Any]:
 
 
 async def _compute_deep_research_metrics(
-    client: Any, dataset: str, cutoff: str
+    client: Any, dataset: str, cutoff: str, period_end: str = None
 ) -> Dict[str, Any]:
     """Compute metrics for deep research reports."""
     from google.cloud import bigquery
 
+    end_clause = "AND created_at < @period_end" if period_end else ""
     query = f"""
         SELECT
             COUNT(*) as total_reports,
@@ -77,14 +81,13 @@ async def _compute_deep_research_metrics(
             COUNTIF(data_completeness = 'partial') as completeness_partial,
             COUNTIF(data_completeness = 'limited') as completeness_limited,
         FROM `{dataset}.deep_research_reports`
-        WHERE created_at >= @cutoff
+        WHERE created_at >= @cutoff {end_clause}
     """
 
-    job_config = bigquery.QueryJobConfig(
-        query_parameters=[
-            bigquery.ScalarQueryParameter("cutoff", "TIMESTAMP", cutoff),
-        ]
-    )
+    params = [bigquery.ScalarQueryParameter("cutoff", "TIMESTAMP", cutoff)]
+    if period_end:
+        params.append(bigquery.ScalarQueryParameter("period_end", "TIMESTAMP", period_end))
+    job_config = bigquery.QueryJobConfig(query_parameters=params)
 
     results = list(client.query(query, job_config=job_config).result())
 
@@ -116,25 +119,25 @@ async def _compute_deep_research_metrics(
 
 
 async def _compute_weekly_briefing_metrics(
-    client: Any, dataset: str, cutoff: str
+    client: Any, dataset: str, cutoff: str, period_end: str = None
 ) -> Dict[str, Any]:
     """Compute metrics for weekly briefings."""
     from google.cloud import bigquery
 
+    end_clause = "AND generated_at < @period_end" if period_end else ""
     query = f"""
         SELECT
             COUNT(*) as total_briefings,
             AVG(JSON_ARRAY_LENGTH(JSON_QUERY(sections, '$'))) as avg_section_count,
         FROM `{dataset}.weekly_briefings`
-        WHERE generated_at >= @cutoff
+        WHERE generated_at >= @cutoff {end_clause}
             AND sections IS NOT NULL
     """
 
-    job_config = bigquery.QueryJobConfig(
-        query_parameters=[
-            bigquery.ScalarQueryParameter("cutoff", "TIMESTAMP", cutoff),
-        ]
-    )
+    params = [bigquery.ScalarQueryParameter("cutoff", "TIMESTAMP", cutoff)]
+    if period_end:
+        params.append(bigquery.ScalarQueryParameter("period_end", "TIMESTAMP", period_end))
+    job_config = bigquery.QueryJobConfig(query_parameters=params)
 
     try:
         results = list(client.query(query, job_config=job_config).result())

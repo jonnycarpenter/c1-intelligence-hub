@@ -104,7 +104,7 @@ const modeConfig: Record<Mode, { icon: typeof Activity; title: string; subtitle:
     color: 'text-emerald-500',
     bg: 'bg-emerald-100',
   },
-  'ai-quality': {
+  'evals': {
     icon: Activity,
     title: 'AI Quality',
     subtitle: 'Eval & cost metrics',

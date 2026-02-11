@@ -1,7 +1,7 @@
 // ============================================
 // Core Types
 // ============================================
-export type Mode = 'pulse' | 'discovery' | 'research' | 'products' | 'field-sales' | 'pipeline' | 'supply-network' | 'companies' | 'industries' | 'data-preferences' | 'app-architecture' | 'ai-quality' // | 'importyeti' // ARCHIVED
+export type Mode = 'pulse' | 'discovery' | 'research' | 'products' | 'field-sales' | 'pipeline' | 'supply-network' | 'companies' | 'industries' | 'data-preferences' | 'app-architecture' | 'evals' // | 'importyeti' // ARCHIVED
 export type ViewMode = 'grid' | 'list'
 export type Priority = 'critical' | 'high' | 'medium' | 'low'
 // Categories aligned with backend ContentCategory/DigestCategory enums
@@ -657,7 +657,7 @@ export const chatSuggestions: Record<Mode, string[]> = {
   industries: ['Show Aerospace narrative timeline', 'What themes are trending in Wind?', 'Compare Defense Space event types'],
   'data-preferences': ['Update my tracked companies', 'Change my material preferences', 'Set industry focus'],
   'app-architecture': ['How does data ingestion work?', 'Show me the agent workflow', 'What GCP services are used?'],
-  'ai-quality': ['Show me quality metrics', 'What is the LLM cost breakdown?', 'How are reports scored?'],
+  'evals': ['Show me quality metrics', 'What is the LLM cost breakdown?', 'How are reports scored?'],
 
   // importyeti: ['Show top suppliers', 'Analyze Jushi Group shipments', 'Find suppliers for fiberglass'], // ARCHIVED
 }
@@ -673,8 +673,8 @@ export const welcomeMessages: Record<Mode, string> = {
   companies: "Welcome to Company Intelligence.\n\nI can help you with:\n• **Company tracking** — competitors, suppliers, customers\n• **Earnings analysis** — financial performance\n• **Market position** — competitive landscape",
   industries: "Welcome to Core Industries.\n\nExplore how news evolves over 90 days:\n• **Monthly timelines** — article counts, event types, deltas\n• **Top companies & themes** — who and what is driving each industry\n• **Drill-down** — click into any month for full article list",
   'data-preferences': "Welcome to Tracked Entities.\n\nI can help you with:\n• **Company tracking** — add or remove companies\n• **Material preferences** — focus materials\n• **Industry settings** — customize your focus areas",
+  'evals': "Welcome to AI Quality Dashboard.\n\nMonitor and evaluate AI performance:\n� **Quality Metrics** � citation health, validation rates\n� **LLM Costs** � token usage, daily trends\n� **User Feedback** � satisfaction tracking",
   'app-architecture': "Welcome to Platform Architecture.\n\nExplore the system design:\n• **Data Ingestion** — 10 source pipelines\n• **Frontend Architecture** — Tab data flows + GCP infrastructure\n• **Agentic Workflows** — Multi-agent briefings & research",
-  'ai-quality': "Welcome to AI Quality Dashboard.\n\nMonitor AI performance:\n• **Quality Metrics** — citation health, validation rates\n• **Cost Tracking** — token usage and spend by model\n• **User Feedback** — satisfaction ratings",
 
   // importyeti: "Welcome to Trade Intelligence.\n\nI can help you with:\n• **Shipment tracking** — Monitor import volumes\n• **Supplier analysis** — Deep dive into supplier relationships\n• **Competitive intel** — See who else is buying from your suppliers", // ARCHIVED
 }

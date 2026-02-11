@@ -189,6 +189,8 @@ export function useAdHocBriefing() {
         setIsTimeout(false)
         setProgressSteps([])  // Reset progress for new stream
 
+        let fullText = ''
+
         try {
             const stream = await api.streamAdHocBriefing({
                 question,
@@ -204,7 +206,6 @@ export function useAdHocBriefing() {
 
             const reader = stream.getReader()
             const decoder = new TextDecoder()
-            let fullText = ''
 
             while (true) {
                 const { done, value } = await reader.read()
@@ -290,6 +291,7 @@ export function useAdHocBriefing() {
                                     session_id: parsed.session_id,
                                 })
                             }
+                            // heartbeat and unknown types are silently ignored
                         } catch {
                             // Plain text chunk
                             fullText += data
@@ -322,7 +324,22 @@ export function useAdHocBriefing() {
             setError(error)
             setIsTimeout(err instanceof TimeoutError)
             console.error('Error streaming ad hoc briefing:', err)
-            throw error
+
+            // Save any partial response so the user can still see what was generated
+            if (fullText) {
+                addBriefing({
+                    id: sessionId || `stream-partial-${Date.now()}`,
+                    question,
+                    answer: fullText,
+                    sources_used: [],
+                    confidence: 'low',
+                    suggest_deep_research: true,
+                    related_topics: [],
+                    follow_up_count: followUpCount,
+                    generated_at: new Date().toISOString(),
+                    session_id: sessionId ?? undefined,
+                })
+            }
         } finally {
             setIsStreaming(false)
         }

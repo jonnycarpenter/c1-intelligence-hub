@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
 from app.config.settings import settings
-from app.api.routes import chat, reports, data, digest, briefing, podcast, ingest, products, companies, industries, data_preferences, data_ingestion, scheduler, deep_research, exa_pipeline, datasheets, memory, auth, discovery, guide, supply_network, supply_chain_agent, industry_narratives, financial_feed, expert_feed, feedback, evals
+from app.api.routes import chat, reports, data, digest, briefing, podcast, ingest, products, companies, industries, data_preferences, data_ingestion, scheduler, deep_research, exa_pipeline, datasheets, memory, auth, discovery, guide, supply_network, supply_chain_agent, industry_narratives, financial_feed, expert_feed, evals, feedback
 from app.utils.logger import setup_logging, get_logger
 
 # ImportYeti supply chain data now handled via MCP tools (supply_chain.py)
@@ -77,8 +77,8 @@ app.include_router(supply_chain_agent.router, prefix="/api/supply-network", tags
 app.include_router(industry_narratives.router, prefix="/api/industry-narratives", tags=["industry-narratives"])
 app.include_router(financial_feed.router, prefix="/api/discovery", tags=["discovery-financial"])
 app.include_router(expert_feed.router, prefix="/api/discovery", tags=["discovery-expert"])
-app.include_router(feedback.router, prefix="/api/feedback", tags=["feedback"])
 app.include_router(evals.router, prefix="/api/evals", tags=["evals"])
+app.include_router(feedback.router, prefix="/api/feedback", tags=["feedback"])
 
 
 @app.get("/api/health")

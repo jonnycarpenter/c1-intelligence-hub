@@ -553,15 +553,53 @@ async def create_adhoc_briefing_stream(
         agent = StreamingAdHocBriefingAgent()
         
         async def generate():
-            async for chunk in agent.generate_briefing_stream(
-                question=request.question,
-                context=context,
-                is_follow_up=request.is_follow_up,
-                session=session,
-                user_team=x_user_team,
-                subtab=request.subtab,
-            ):
-                yield f"data: {chunk}\n\n"
+            import asyncio
+            import json as _json
+
+            # Use an async queue to interleave heartbeats with agent chunks.
+            # This prevents Cloud Run's load balancer from dropping idle SSE
+            # connections (default ~60s idle timeout).
+            queue: asyncio.Queue = asyncio.Queue()
+
+            producer_error = None
+
+            async def _producer():
+                nonlocal producer_error
+                try:
+                    async for chunk in agent.generate_briefing_stream(
+                        question=request.question,
+                        context=context,
+                        is_follow_up=request.is_follow_up,
+                        session=session,
+                        user_team=x_user_team,
+                        subtab=request.subtab,
+                    ):
+                        await queue.put(chunk)
+                except Exception as e:
+                    producer_error = e
+                finally:
+                    await queue.put(None)  # Sentinel to signal completion
+
+            producer_task = asyncio.create_task(_producer())
+
+            try:
+                while True:
+                    try:
+                        chunk = await asyncio.wait_for(queue.get(), timeout=15.0)
+                    except asyncio.TimeoutError:
+                        # No data for 15s — send heartbeat to keep connection alive
+                        yield f"data: {_json.dumps({'type': 'heartbeat'})}\n\n"
+                        continue
+
+                    if chunk is None:
+                        if producer_error:
+                            raise producer_error
+                        break
+                    yield f"data: {chunk}\n\n"
+            except Exception:
+                producer_task.cancel()
+                raise
+
             yield "data: [DONE]\n\n"
         
         return StreamingResponse(

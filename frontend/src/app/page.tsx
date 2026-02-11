@@ -449,7 +449,7 @@ export default function Home() {
           {/* Left panel - Dashboard/Content */}
           <div className={cn(
             "flex-1 min-w-0 overflow-hidden border-r border-slate-200",
-            (activeMode === 'pulse' || activeMode === 'discovery' || activeMode === 'app-architecture' || activeMode === 'ai-quality') && "border-r-0"
+            (activeMode === 'pulse' || activeMode === 'discovery' || activeMode === 'app-architecture' || activeMode === 'evals') && "border-r-0"
           )}>
             {activeMode === 'pulse' && (
               <PulseDashboard
@@ -555,16 +555,16 @@ export default function Home() {
                 onAskAgent={handleSendMessage}
               />
             )}
+            {activeMode === 'evals' && (
+              <EvalDashboard />
+            )}
             {activeMode === 'app-architecture' && (
               <ArchitectureDashboard />
-            )}
-            {activeMode === 'ai-quality' && (
-              <EvalDashboard />
             )}
           </div>
 
           {/* Right panel - Chat (hidden for pulse, discovery, research, pipeline, supply-network, products, field-sales, data-preferences, and app-architecture) */}
-          {activeMode !== 'pulse' && activeMode !== 'discovery' && activeMode !== 'research' && activeMode !== 'pipeline' && activeMode !== 'supply-network' && activeMode !== 'products' && activeMode !== 'field-sales' && activeMode !== 'industries' && activeMode !== 'data-preferences' && activeMode !== 'app-architecture' && activeMode !== 'ai-quality' && (
+          {activeMode !== 'pulse' && activeMode !== 'discovery' && activeMode !== 'research' && activeMode !== 'pipeline' && activeMode !== 'supply-network' && activeMode !== 'products' && activeMode !== 'field-sales' && activeMode !== 'industries' && activeMode !== 'data-preferences' && activeMode !== 'app-architecture' && activeMode !== 'evals' && (
             <div className="w-[400px] shrink-0 border-l border-slate-200 bg-white">
               <ChatInterface
                 mode={activeMode}

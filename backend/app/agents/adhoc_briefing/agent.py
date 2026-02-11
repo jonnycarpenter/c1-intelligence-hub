@@ -403,61 +403,68 @@ If data is insufficient, recommend the **Deep Research** feature."""
     
     async def search_external_news(self, query: str) -> Dict[str, List[Dict[str, Any]]]:
         """
-        Search external news sources (Exa, StockNews).
-        
+        Search external news sources (Exa, StockNews) in parallel.
+
         Returns combined results from available external tools.
         This supplements the corpus search with live/recent sources.
         """
         external_start = time.time()
         query_preview = query[:60] + ("..." if len(query) > 60 else "")
         logger.info(f"[ADHOC_AGENT] External news search START: query='{query_preview}'")
-        
+
         results = {
             "exa_news": [],
             "stocknews": [],
         }
-        
-        # Try Exa news search
-        try:
-            exa_start = time.time()
-            from app.mcp.tools.exa_search import news_search
-            exa_result = news_search.invoke({"query": query, "max_results": 5, "time_range": "week"})
-            exa_elapsed = time.time() - exa_start
-            if exa_result and isinstance(exa_result, str):
-                data = json.loads(exa_result)
-                if data.get("results"):
-                    results["exa_news"] = data["results"][:5]
-                    logger.info(
-                        f"[ADHOC_AGENT] Exa news COMPLETE: {exa_elapsed:.2f}s, "
-                        f"{len(results['exa_news'])} results"
-                    )
-        except Exception as e:
-            logger.warning(f"[ADHOC_AGENT] Exa news search FAILED: {str(e)}")
-        
-        # Try StockNews keyword search (more flexible than FMP - supports keyword queries)
-        try:
-            sn_start = time.time()
-            from app.mcp.tools.stocknews_api import search_news_keyword
-            stocknews_result = search_news_keyword.invoke({"keyword": query, "days": 7, "items": 8})
-            sn_elapsed = time.time() - sn_start
-            if stocknews_result and isinstance(stocknews_result, str):
-                data = json.loads(stocknews_result)
-                if data.get("articles"):
-                    results["stocknews"] = data["articles"][:8]
-                    logger.info(
-                        f"[ADHOC_AGENT] StockNews COMPLETE: {sn_elapsed:.2f}s, "
-                        f"{len(results['stocknews'])} results"
-                    )
-        except Exception as e:
-            logger.warning(f"[ADHOC_AGENT] StockNews search FAILED: {str(e)}")
-        
+
+        async def _search_exa():
+            try:
+                exa_start = time.time()
+                from app.mcp.tools.exa_search import news_search
+                exa_result = await asyncio.to_thread(
+                    news_search.invoke, {"query": query, "max_results": 5, "time_range": "week"}
+                )
+                exa_elapsed = time.time() - exa_start
+                if exa_result and isinstance(exa_result, str):
+                    data = json.loads(exa_result)
+                    if data.get("results"):
+                        results["exa_news"] = data["results"][:5]
+                        logger.info(
+                            f"[ADHOC_AGENT] Exa news COMPLETE: {exa_elapsed:.2f}s, "
+                            f"{len(results['exa_news'])} results"
+                        )
+            except Exception as e:
+                logger.warning(f"[ADHOC_AGENT] Exa news search FAILED: {str(e)}")
+
+        async def _search_stocknews():
+            try:
+                sn_start = time.time()
+                from app.mcp.tools.stocknews_api import search_news_keyword
+                stocknews_result = await asyncio.to_thread(
+                    search_news_keyword.invoke, {"keyword": query, "days": 7, "items": 8}
+                )
+                sn_elapsed = time.time() - sn_start
+                if stocknews_result and isinstance(stocknews_result, str):
+                    data = json.loads(stocknews_result)
+                    if data.get("articles"):
+                        results["stocknews"] = data["articles"][:8]
+                        logger.info(
+                            f"[ADHOC_AGENT] StockNews COMPLETE: {sn_elapsed:.2f}s, "
+                            f"{len(results['stocknews'])} results"
+                        )
+            except Exception as e:
+                logger.warning(f"[ADHOC_AGENT] StockNews search FAILED: {str(e)}")
+
+        # Run Exa and StockNews in parallel
+        await asyncio.gather(_search_exa(), _search_stocknews())
+
         external_elapsed = time.time() - external_start
         total_results = len(results["exa_news"]) + len(results["stocknews"])
         logger.info(
             f"[ADHOC_AGENT] External news search COMPLETE: {external_elapsed:.2f}s, "
             f"{total_results} total results"
         )
-        
+
         return results
 
     async def search_financial_data(self, query: str) -> Dict[str, Any]:
@@ -1068,6 +1075,7 @@ class StreamingAdHocBriefingAgent(AdHocBriefingAgent):
 
         else:
             # --- Article feed (default): corpus + exa + stocknews ---
+            # Show all search steps as running simultaneously
             yield json.dumps({
                 "type": "progress",
                 "step": "corpus_search",
@@ -1075,9 +1083,28 @@ class StreamingAdHocBriefingAgent(AdHocBriefingAgent):
                 "message": "Searching internal knowledge base...",
                 "status": "running",
             })
+            yield json.dumps({
+                "type": "progress",
+                "step": "exa_search",
+                "label": "Advanced Web Search",
+                "message": "Searching web for recent news...",
+                "status": "running",
+            })
+            yield json.dumps({
+                "type": "progress",
+                "step": "stocknews_search",
+                "label": "Stock Market News",
+                "message": "Searching stock market news...",
+                "status": "running",
+            })
 
-            search_results = await self.search_articles(question, limit=8)
+            # Run all searches in parallel for speed
+            search_results, external_results = await asyncio.gather(
+                self.search_articles(question, limit=8),
+                self.search_external_news(question),
+            )
 
+            # Emit completion events for each search
             yield json.dumps({
                 "type": "progress",
                 "step": "corpus_search",
@@ -1094,15 +1121,6 @@ class StreamingAdHocBriefingAgent(AdHocBriefingAgent):
                     for r in search_results[:8]
                 ])
 
-            yield json.dumps({
-                "type": "progress",
-                "step": "exa_search",
-                "label": "Advanced Web Search",
-                "message": "Searching web for recent news...",
-                "status": "running",
-            })
-
-            external_results = await self.search_external_news(question)
             exa_count = len(external_results.get("exa_news", []))
             stocknews_count = len(external_results.get("stocknews", []))
 
