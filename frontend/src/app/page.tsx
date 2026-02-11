@@ -7,14 +7,27 @@ import AppHeader from '@/components/layout/AppHeader'
 import { PulseDashboard } from '@/components/dashboard'
 import { ChatInterface } from '@/components/chat'
 import { ReportDrawer } from '@/components/report'
-import { ResearchDashboard } from '@/components/research'
-import { ProductsDashboard } from '@/components/products'
-import { CompaniesDashboard } from '@/components/companies'
-import { IndustriesDashboard } from '@/components/industries'
-import { FieldIntelDashboard } from '@/components/field-intel'
-import { PipelineDashboard } from '@/components/pipeline'
-// import { ImportYetiDashboard } from '@/components/importyeti' // ARCHIVED - Trade Intel feature
 import dynamic from 'next/dynamic'
+
+// Lazy-load dashboards — only the active tab's code is downloaded
+const ResearchDashboard = dynamic(() => import('@/components/research').then(m => ({ default: m.ResearchDashboard })), {
+  loading: () => <div className="h-full flex items-center justify-center"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-500" /></div>,
+})
+const ProductsDashboard = dynamic(() => import('@/components/products').then(m => ({ default: m.ProductsDashboard })), {
+  loading: () => <div className="h-full flex items-center justify-center"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500" /></div>,
+})
+const CompaniesDashboard = dynamic(() => import('@/components/companies').then(m => ({ default: m.CompaniesDashboard })), {
+  loading: () => <div className="h-full flex items-center justify-center"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-slate-500" /></div>,
+})
+const IndustriesDashboard = dynamic(() => import('@/components/industries').then(m => ({ default: m.IndustriesDashboard })), {
+  loading: () => <div className="h-full flex items-center justify-center"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-500" /></div>,
+})
+const FieldIntelDashboard = dynamic(() => import('@/components/field-intel').then(m => ({ default: m.FieldIntelDashboard })), {
+  loading: () => <div className="h-full flex items-center justify-center"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-500" /></div>,
+})
+const PipelineDashboard = dynamic(() => import('@/components/pipeline').then(m => ({ default: m.PipelineDashboard })), {
+  loading: () => <div className="h-full flex items-center justify-center"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-500" /></div>,
+})
 const SupplyNetworkDashboard = dynamic(() => import('@/components/supply-network/SupplyNetworkDashboard'), {
   ssr: false,
   loading: () => (
@@ -23,7 +36,9 @@ const SupplyNetworkDashboard = dynamic(() => import('@/components/supply-network
     </div>
   ),
 })
-import DataPreferencesDashboard from '@/components/data-preferences/DataPreferencesDashboard'
+const DataPreferencesDashboard = dynamic(() => import('@/components/data-preferences/DataPreferencesDashboard'), {
+  loading: () => <div className="h-full flex items-center justify-center"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-cyan-500" /></div>,
+})
 const EvalDashboard = dynamic(() => import('@/components/evals/EvalDashboard'), {
   ssr: false,
   loading: () => (
@@ -40,7 +55,9 @@ const ArchitectureDashboard = dynamic(() => import('@/components/architecture/Ar
     </div>
   ),
 })
-import { DiscoveryView } from '@/components/feed'
+const DiscoveryView = dynamic(() => import('@/components/feed').then(m => ({ default: m.DiscoveryView })), {
+  loading: () => <div className="h-full flex items-center justify-center"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-teal-500" /></div>,
+})
 import { GuidePanel } from '@/components/guide'
 import { useDigest, useStreamingChat, useDeepResearch } from '@/hooks'
 import { useToast } from '@/components/ui'

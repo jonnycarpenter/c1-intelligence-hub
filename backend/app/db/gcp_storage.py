@@ -1122,7 +1122,7 @@ class BigQueryDataStorage(DataStorageInterface):
         source_type: Optional[str] = None,
         limit: int = 20,
     ) -> List[dict]:
-        """Get trending tags for dashboard metrics.
+        """Get trending tags for dashboard metrics (30-min cache).
         
         Returns tags ordered by frequency over the time period.
         
@@ -1132,6 +1132,11 @@ class BigQueryDataStorage(DataStorageInterface):
             source_type: Filter by article source (rss, tavily, sec)
             limit: Max results to return
         """
+        cache_key = f'trending_tags_{tag_type}_{days}_{source_type}_{limit}'
+        cached = self._get_cached(cache_key)
+        if cached is not None:
+            return cached
+        
         query = f"""
             SELECT 
                 tag,
@@ -1161,6 +1166,7 @@ class BigQueryDataStorage(DataStorageInterface):
                 "article_count": row.article_count,
                 "avg_confidence": row.avg_confidence,
             })
+        self._set_cache(cache_key, results)
         return results
     
     async def get_tag_time_series(
@@ -1636,7 +1642,7 @@ class BigQueryDataStorage(DataStorageInterface):
             return False
     
     async def get_latest_briefings(self, limit_per_category: int = 1) -> List[Dict[str, Any]]:
-        """Get the latest briefing for each category from BigQuery.
+        """Get the latest briefing for each category from BigQuery (30-min cache).
         
         Args:
             limit_per_category: Number of briefings per category (default 1 = latest only)
@@ -1644,6 +1650,11 @@ class BigQueryDataStorage(DataStorageInterface):
         Returns:
             List of briefing dicts with parsed JSON fields
         """
+        cache_key = f'latest_briefings_{limit_per_category}'
+        cached = self._get_cached(cache_key)
+        if cached is not None:
+            return cached
+        
         import json
         
         table_id = f"{self.config.full_dataset_id}.briefings"
@@ -1678,6 +1689,7 @@ class BigQueryDataStorage(DataStorageInterface):
                             briefing[json_field] = [] if json_field != 'sources_breakdown' else {}
                 briefings.append(briefing)
             
+            self._set_cache(cache_key, briefings)
             return briefings
         except Exception as e:
             logger.error(f"Error fetching briefings from BigQuery: {e}")
@@ -3475,7 +3487,12 @@ class BigQueryDataStorage(DataStorageInterface):
         return industries
 
     async def get_digest_stats(self, hours: int = 72) -> Dict[str, Any]:
-        """Get statistics for digest items."""
+        """Get statistics for digest items (10-min cache)."""
+        cache_key = f'digest_stats_{hours}'
+        cached = self._get_cached(cache_key)
+        if cached is not None:
+            return cached
+        
         from datetime import timedelta
         
         cutoff = (datetime.utcnow() - timedelta(hours=hours)).isoformat()
@@ -3495,7 +3512,7 @@ class BigQueryDataStorage(DataStorageInterface):
         result = list(self.client.query(query))
         if result:
             row = result[0]
-            return {
+            stats = {
                 "total_items": row.total_items,
                 "by_priority": {
                     "critical": row.critical_count,
@@ -3505,6 +3522,8 @@ class BigQueryDataStorage(DataStorageInterface):
                 },
                 "category_count": row.category_count,
             }
+            self._set_cache(cache_key, stats)
+            return stats
         
         return {"total_items": 0, "by_priority": {}, "category_count": 0}
 

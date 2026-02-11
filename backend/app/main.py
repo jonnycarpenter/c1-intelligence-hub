@@ -1,9 +1,10 @@
 """FastAPI application entry point."""
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
 from pathlib import Path
 
 from app.config.settings import settings
@@ -96,6 +97,24 @@ async def health_check_root():
     """Root health check endpoint (alias)."""
     return await health_check()
 
+
+# Static asset caching middleware — hashed Next.js files are immutable
+class StaticCacheMiddleware(BaseHTTPMiddleware):
+    """Add aggressive Cache-Control headers for hashed static assets."""
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        path = request.url.path
+        if path.startswith("/_next/static/"):
+            # Hashed filenames are safe to cache forever
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        elif path.endswith((".js", ".css")) and "_next" not in path:
+            # Un-hashed root assets: cache 1 hour
+            response.headers["Cache-Control"] = "public, max-age=3600"
+        elif path.endswith((".png", ".jpg", ".svg", ".ico", ".webp")):
+            response.headers["Cache-Control"] = "public, max-age=86400"
+        return response
+
+app.add_middleware(StaticCacheMiddleware)
 
 # Serve static files (for production - Next.js build output)
 # In Docker: /app/app/main.py, frontend at /app/frontend/out

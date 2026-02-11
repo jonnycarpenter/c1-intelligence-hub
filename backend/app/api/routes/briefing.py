@@ -195,13 +195,20 @@ class AdHocBriefingResponse(BaseModel):
 # Helper Functions
 # =============================================================================
 
+# Module-level singleton — avoids re-creating BQ client on every request
+_bq_storage_singleton = None
+
 async def _get_bq_storage():
-    """Get BigQuery storage if available."""
+    """Get BigQuery storage if available (cached singleton)."""
+    global _bq_storage_singleton
+    if _bq_storage_singleton is not None:
+        return _bq_storage_singleton
     try:
         from app.db.gcp_storage import BigQueryDataStorage, gcp_config
         if gcp_config.is_configured:
             storage = BigQueryDataStorage(gcp_config)
             await storage.initialize()
+            _bq_storage_singleton = storage
             return storage
     except Exception as e:
         logger.warning(f"BigQuery not available: {e}")

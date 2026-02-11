@@ -42,24 +42,28 @@ const coreNavItems: NavItem[] = [
   { id: 'research', label: 'Deep Research', icon: Search, description: 'Deep analysis', color: 'text-emerald-500', bg: 'bg-emerald-500' },
   { id: 'industries', label: 'Core Industries', icon: Factory, description: 'Narrative timelines', color: 'text-emerald-500', bg: 'bg-emerald-500' },
   { id: 'supply-network', label: 'Supply Network', icon: Ship, description: 'Supply chain graph', color: 'text-indigo-500', bg: 'bg-indigo-500' },
-  { id: 'pipeline', label: 'Company Lookup', icon: GitBranch, description: 'Prospect discovery', color: 'text-purple-500', bg: 'bg-purple-500', isBeta: true, tooltip: 'Find similar companies and decision makers' },
 ]
 
-// Documentation & settings tabs (below divider)
-const secondaryNavItems: NavItem[] = [
-  { id: 'evals', label: 'AI Quality', icon: BarChart3, description: 'Eval & cost tracking', color: 'text-amber-500', bg: 'bg-amber-500' },
+// "How It Works" showcase tabs (below divider) — visually highlighted
+const showcaseNavItems: NavItem[] = [
   { id: 'app-architecture', label: 'Architecture', icon: Cpu, description: 'System design', color: 'text-emerald-400', bg: 'bg-emerald-500', highlight: true },
+  { id: 'evals', label: 'AI Quality', icon: BarChart3, description: 'Eval & cost tracking', color: 'text-amber-500', bg: 'bg-amber-500', highlight: true },
+]
+
+// Settings tabs
+const secondaryNavItems: NavItem[] = [
   { id: 'data-preferences', label: 'Tracked Entities', icon: Database, description: 'Manage tracked data', color: 'text-cyan-500', bg: 'bg-cyan-500' },
 ]
 
 // Hidden tabs (kept for type completeness)
 const hiddenNavItems: NavItem[] = [
+  { id: 'pipeline', label: 'Company Lookup', icon: GitBranch, description: 'Prospect discovery', color: 'text-purple-500', bg: 'bg-purple-500', isBeta: true, isHidden: true, tooltip: 'Find similar companies and decision makers' },
   { id: 'products', label: 'Products', icon: Package, description: 'Product intelligence', color: 'text-blue-500', bg: 'bg-blue-500', isBeta: true, isHidden: true },
   { id: 'field-sales', label: 'Field Intel', icon: Mic, description: 'Field observations', color: 'text-emerald-500', bg: 'bg-emerald-500', isDemo: true, isHidden: true, tooltip: 'Capture field intelligence' },
   { id: 'companies', label: 'Companies', icon: Building2, description: 'Coming soon', color: 'text-slate-500', bg: 'bg-slate-500', isDisabled: true, isHidden: true },
 ]
 
-const navItems: NavItem[] = [...coreNavItems, ...secondaryNavItems, ...hiddenNavItems]
+const navItems: NavItem[] = [...coreNavItems, ...showcaseNavItems, ...secondaryNavItems, ...hiddenNavItems]
 
 interface SidebarProps {
   activeMode: Mode
@@ -82,6 +86,7 @@ export default function Sidebar({
     const isActive = activeMode === item.id
     const Icon = item.icon
     const isDisabled = item.isDisabled
+    const isShowcase = item.highlight && !isActive && !isDisabled
     return (
       <button
         key={item.id}
@@ -93,7 +98,9 @@ export default function Sidebar({
             ? 'opacity-50 cursor-default'
             : isActive
               ? 'bg-slate-800/80 text-white'
-              : 'text-slate-300 hover:bg-slate-800/40 hover:text-white'
+              : isShowcase
+                ? 'text-slate-200 bg-slate-800/30 border border-slate-700/60 hover:bg-slate-800/50 hover:border-slate-600/80 hover:text-white'
+                : 'text-slate-300 hover:bg-slate-800/40 hover:text-white'
         )}
       >
         {isActive && !isDisabled && (
@@ -106,10 +113,10 @@ export default function Sidebar({
         <span
           className={cn(
             'w-8 h-8 rounded-lg flex items-center justify-center transition-colors relative z-10',
-            isDisabled ? 'bg-slate-800/30' : isActive ? `${item.bg}/20` : 'bg-slate-800/50'
+            isDisabled ? 'bg-slate-800/30' : isActive ? `${item.bg}/20` : isShowcase ? `${item.bg}/15` : 'bg-slate-800/50'
           )}
         >
-          <Icon size={18} className={isDisabled ? 'text-slate-600' : isActive ? item.color : 'text-slate-400'} />
+          <Icon size={18} className={isDisabled ? 'text-slate-600' : isActive ? item.color : isShowcase ? item.color : 'text-slate-400'} />
         </span>
         {!collapsed && (
           <span className="flex-1 text-left">
@@ -117,7 +124,7 @@ export default function Sidebar({
               <span className={cn(
                 'text-sm font-medium',
                 isDisabled && 'text-slate-500',
-                !isDisabled && !isActive && item.highlight && 'text-emerald-400'
+                isShowcase && item.color
               )}>{item.label}</span>
               {isDisabled && (
                 <span className="text-[10px] px-1.5 py-0.5 bg-slate-700 text-slate-400 rounded-full">Soon</span>
@@ -129,7 +136,7 @@ export default function Sidebar({
                 <span className="text-[10px] px-1.5 py-0.5 bg-blue-600 text-blue-100 rounded-full font-medium">Demo</span>
               )}
             </span>
-            <span className="text-xs text-slate-500 block">{item.description}</span>
+            <span className={cn('text-xs block', isShowcase ? 'text-slate-400' : 'text-slate-500')}>{item.description}</span>
           </span>
         )}
       </button>
@@ -162,10 +169,18 @@ export default function Sidebar({
         {/* Core workflow tabs */}
         {coreNavItems.filter(item => !item.isHidden).map((item) => renderNavItem(item))}
 
-        {/* Divider between core and secondary */}
+        {/* Divider + "How It Works" section label */}
         <div className="my-4 mx-3 border-t border-slate-800/50" />
+        {!collapsed && (
+          <div className="px-3 pb-1.5">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">How It Works</p>
+          </div>
+        )}
 
-        {/* Documentation & settings tabs */}
+        {/* Showcase tabs — Architecture & AI Quality */}
+        {showcaseNavItems.filter(item => !item.isHidden).map((item) => renderNavItem(item))}
+
+        {/* Settings tabs */}
         {secondaryNavItems.filter(item => !item.isHidden).map((item) => renderNavItem(item))}
 
         {/* Divider before future pages */}
