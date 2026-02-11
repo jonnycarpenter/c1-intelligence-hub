@@ -112,7 +112,7 @@ You must respond with a single, valid JSON object. Do not include any text befor
         self.config = config or settings
         self.client = get_resilient_async_client(
             anthropic_api_key=self.config.anthropic_api_key,
-            openai_api_key=getattr(self.config, 'openai_api_key', None),
+            gemini_api_key=getattr(self.config, 'gemini_api_key', None),
         )
         self.model = "claude-sonnet-4-5"
         self._bq_storage = None

@@ -295,12 +295,12 @@ If data is insufficient, recommend the **Deep Research** feature."""
 
     def __init__(self, config=None):
         self.config = config or settings
-        # Resilient client for non-streaming calls
+        # Resilient client for non-streaming calls (Anthropic primary -> Gemini fallback)
         self.client = get_resilient_async_client(
             anthropic_api_key=self.config.anthropic_api_key,
-            openai_api_key=getattr(self.config, 'openai_api_key', None),
+            gemini_api_key=getattr(self.config, 'gemini_api_key', None),
         )
-        # Raw client for streaming (fallback to Anthropic-only for streaming)
+        # Raw client for streaming (Anthropic-only; Gemini streaming fallback not yet supported)
         self._streaming_client = AsyncAnthropic(api_key=self.config.anthropic_api_key)
         self.model = "claude-opus-4-5"  # Upgraded for quality intelligence responses
         self.timeout_seconds = 120  # 2-minute timeout

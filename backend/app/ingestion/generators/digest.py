@@ -41,7 +41,7 @@ Do not use bullet points - write in flowing paragraphs."""
         self.storage = storage  # BigQuery storage
         self.client = get_resilient_async_client(
             anthropic_api_key=config.anthropic_api_key,
-            openai_api_key=getattr(config, 'openai_api_key', None),
+            gemini_api_key=getattr(config, 'gemini_api_key', None),
         )
         self.max_items = getattr(config, 'digest_max_items', 50)
         self.model = getattr(config, 'digest_model', "claude-sonnet-4-5")

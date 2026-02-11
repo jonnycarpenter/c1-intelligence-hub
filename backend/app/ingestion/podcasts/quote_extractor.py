@@ -130,7 +130,7 @@ class QuoteExtractor:
     """
     LLM-based quote extraction using chunked processing.
 
-    Uses the project's resilient LLM wrapper (Claude + OpenAI fallback).
+    Uses the project's resilient LLM wrapper (Claude + Gemini fallback).
     """
 
     DEFAULT_CHUNK_SIZE = 30000

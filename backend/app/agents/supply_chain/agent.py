@@ -187,7 +187,7 @@ class SupplyChainAgent:
     def __init__(self):
         self.client = get_resilient_async_client(
             anthropic_api_key=settings.anthropic_api_key,
-            openai_api_key=getattr(settings, "openai_api_key", None),
+            gemini_api_key=getattr(settings, 'gemini_api_key', None),
         )
 
     async def query_stream(self, query: str) -> AsyncIterator[Dict[str, Any]]:

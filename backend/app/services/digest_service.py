@@ -87,7 +87,7 @@ class DigestService:
         self._use_llm_summaries = use_llm_summaries
         self._initialized = False
         
-        # Resilient client for summaries (Anthropic primary, OpenAI fallback)
+        # Resilient client for summaries (Anthropic primary, Gemini fallback)
         if use_llm_summaries and settings.anthropic_api_key:
             self._anthropic = get_resilient_async_client(
                 anthropic_api_key=settings.anthropic_api_key,

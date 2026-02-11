@@ -86,7 +86,7 @@ Respond with JSON only:
         self.config = config
         self.client = get_resilient_async_client(
             anthropic_api_key=config.anthropic_api_key,
-            openai_api_key=getattr(config, 'openai_api_key', None),
+            gemini_api_key=getattr(config, 'gemini_api_key', None),
         )
         self.model = getattr(config, 'briefing_model', "claude-opus-4-5")
         self.scheduler_run = scheduler_run or self._detect_scheduler_run()

@@ -135,7 +135,7 @@ async def run_eval_batch(count: int = 5, model: str = "claude-haiku-4-5") -> dic
 
         llm_client = get_resilient_async_client(
             anthropic_api_key=settings.anthropic_api_key,
-            openai_api_key=getattr(settings, "openai_api_key", None),
+            gemini_api_key=getattr(settings, 'gemini_api_key', None),
         )
 
         results = []

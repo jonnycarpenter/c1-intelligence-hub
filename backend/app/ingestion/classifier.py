@@ -164,7 +164,7 @@ Relevance Score Guidelines:
         self.config = config
         self.client = get_resilient_async_client(
             anthropic_api_key=config.anthropic_api_key,
-            openai_api_key=getattr(config, 'openai_api_key', None),
+            gemini_api_key=getattr(config, 'gemini_api_key', None),
         )
         self.model = config.classifier_model
         self.temperature = config.classifier_temperature

@@ -10,7 +10,7 @@ Optimized for:
 - Competitor filings (Sherwin-Williams, PPG, Sika, etc.)
 - Raw material suppliers and channel partners
 
-Uses resilient LLM wrapper with OpenAI fallback.
+Uses resilient LLM wrapper with Gemini fallback.
 
 Usage:
     from app.ingestion.sec_filings.nugget_extractor import SecNuggetExtractor

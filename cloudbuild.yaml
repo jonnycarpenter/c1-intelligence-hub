@@ -87,5 +87,5 @@ images:
   - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE_NAME}:${_TAG}'
   - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE_NAME}:latest'
 
-# Timeout for entire build
-timeout: '1800s'
+# Timeout for entire build (60 min — npm ci + Next.js build can exceed 30 min)
+timeout: '3600s'

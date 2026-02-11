@@ -300,7 +300,7 @@ class ResilientChatAnthropic(BaseChatModel):
                 result = self._fallback_client.invoke(messages, config=config, **kwargs)
                 elapsed = time.time() - start
                 logger.info(f"Fallback model ({self.fallback_model}) succeeded in {elapsed:.2f}s")
-                fb_provider = "openai" if self.fallback_provider == "openai" else "anthropic"
+                fb_provider = "gemini" if self.fallback_provider == "gemini" else "anthropic"
                 _track_tokens(self.fallback_model, result, fb_provider)
                 return result
 
@@ -344,7 +344,7 @@ class ResilientChatAnthropic(BaseChatModel):
                 result = await self._fallback_client.ainvoke(messages, config=config, **kwargs)
                 elapsed = time.time() - start
                 logger.info(f"Fallback model ({self.fallback_model}) succeeded in {elapsed:.2f}s")
-                fb_provider = "openai" if self.fallback_provider == "openai" else "anthropic"
+                fb_provider = "gemini" if self.fallback_provider == "gemini" else "anthropic"
                 _track_tokens(self.fallback_model, result, fb_provider)
                 return result
 
