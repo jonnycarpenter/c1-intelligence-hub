@@ -19,6 +19,7 @@ import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui'
 import { API_BASE } from '@/lib/config'
+import { FeedbackWidget } from '@/components/ui/FeedbackWidget'
 import MotionWrapper from '@/components/ui/motion-wrapper'
 import TypewriterEffect from '@/components/ui/typewriter'
 import type {
@@ -779,6 +780,11 @@ export default function WeeklyBriefingSection({
               </Badge>
             ))}
           </div>
+
+          {/* Feedback */}
+          {briefing.id && (
+            <FeedbackWidget reportId={briefing.id} reportType="weekly_briefing" />
+          )}
 
           {/* AI Attribution Footer */}
           <div className="flex items-center justify-between text-[10px] text-slate-300 font-medium border-t border-slate-50 pt-2">

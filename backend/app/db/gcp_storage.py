@@ -760,6 +760,9 @@ class BigQueryDataStorage(DataStorageInterface):
         await self._create_earnings_quotes_table()
         await self._create_sec_filing_nuggets_table()
         await self._create_sec_filings_table()
+        await self._create_llm_token_usage_table()
+        await self._create_eval_results_table()
+        await self._create_user_feedback_table()
 
         self._initialized = True
         logger.info("BigQuery storage initialized")
@@ -4367,6 +4370,112 @@ class BigQueryDataStorage(DataStorageInterface):
             type_=bigquery.TimePartitioningType.MONTH,
         )
         table.clustering_fields = ["ticker", "nugget_type"]
+
+        try:
+            self.client.create_table(table)
+            logger.info(f"Created table {table_id}")
+        except Exception as e:
+            if "Already Exists" in str(e):
+                logger.info(f"Table {table_id} already exists")
+            else:
+                raise
+
+    # =========================================================================
+    # Eval Suite Tables
+    # =========================================================================
+
+    async def _create_llm_token_usage_table(self):
+        """Create llm_token_usage table for tracking LLM costs across the platform."""
+        from google.cloud import bigquery
+
+        table_id = f"{self.config.full_dataset_id}.llm_token_usage"
+        schema = [
+            bigquery.SchemaField("id", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("model", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("provider", "STRING"),  # 'anthropic' or 'openai'
+            bigquery.SchemaField("input_tokens", "INT64"),
+            bigquery.SchemaField("output_tokens", "INT64"),
+            bigquery.SchemaField("total_tokens", "INT64"),
+            bigquery.SchemaField("estimated_cost_usd", "FLOAT64"),
+            bigquery.SchemaField("caller", "STRING"),  # module that made the call
+            bigquery.SchemaField("created_at", "TIMESTAMP", mode="REQUIRED"),
+        ]
+
+        table = bigquery.Table(table_id, schema=schema)
+        table.time_partitioning = bigquery.TimePartitioning(
+            field="created_at",
+            type_=bigquery.TimePartitioningType.MONTH,
+        )
+        table.clustering_fields = ["caller", "model"]
+
+        try:
+            self.client.create_table(table)
+            logger.info(f"Created table {table_id}")
+        except Exception as e:
+            if "Already Exists" in str(e):
+                logger.info(f"Table {table_id} already exists")
+            else:
+                raise
+
+    async def _create_eval_results_table(self):
+        """Create eval_results table for LLM-as-judge evaluation scores."""
+        from google.cloud import bigquery
+
+        table_id = f"{self.config.full_dataset_id}.eval_results"
+        schema = [
+            bigquery.SchemaField("id", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("report_id", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("report_type", "STRING"),  # 'deep_research' | 'weekly_briefing'
+            bigquery.SchemaField("eval_model", "STRING"),
+            bigquery.SchemaField("factual_grounding_score", "FLOAT64"),
+            bigquery.SchemaField("factual_grounding_reasoning", "STRING"),
+            bigquery.SchemaField("coherence_score", "FLOAT64"),
+            bigquery.SchemaField("coherence_reasoning", "STRING"),
+            bigquery.SchemaField("actionability_score", "FLOAT64"),
+            bigquery.SchemaField("actionability_reasoning", "STRING"),
+            bigquery.SchemaField("overall_score", "FLOAT64"),
+            bigquery.SchemaField("overall_reasoning", "STRING"),
+            bigquery.SchemaField("eval_time_seconds", "FLOAT64"),
+            bigquery.SchemaField("created_at", "TIMESTAMP", mode="REQUIRED"),
+        ]
+
+        table = bigquery.Table(table_id, schema=schema)
+        table.time_partitioning = bigquery.TimePartitioning(
+            field="created_at",
+            type_=bigquery.TimePartitioningType.MONTH,
+        )
+        table.clustering_fields = ["report_type"]
+
+        try:
+            self.client.create_table(table)
+            logger.info(f"Created table {table_id}")
+        except Exception as e:
+            if "Already Exists" in str(e):
+                logger.info(f"Table {table_id} already exists")
+            else:
+                raise
+
+    async def _create_user_feedback_table(self):
+        """Create user_feedback table for thumbs up/down on reports."""
+        from google.cloud import bigquery
+
+        table_id = f"{self.config.full_dataset_id}.user_feedback"
+        schema = [
+            bigquery.SchemaField("id", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("report_id", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("report_type", "STRING", mode="REQUIRED"),  # 'deep_research' | 'weekly_briefing'
+            bigquery.SchemaField("rating", "STRING", mode="REQUIRED"),  # 'positive' | 'negative'
+            bigquery.SchemaField("comment", "STRING"),
+            bigquery.SchemaField("section_id", "STRING"),
+            bigquery.SchemaField("created_at", "TIMESTAMP", mode="REQUIRED"),
+        ]
+
+        table = bigquery.Table(table_id, schema=schema)
+        table.time_partitioning = bigquery.TimePartitioning(
+            field="created_at",
+            type_=bigquery.TimePartitioningType.MONTH,
+        )
+        table.clustering_fields = ["report_type"]
 
         try:
             self.client.create_table(table)

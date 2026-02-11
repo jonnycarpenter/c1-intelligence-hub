@@ -1,6 +1,6 @@
 'use client'
 
-import { Activity, Search, Package, Building2, Factory, FileText, ChevronLeft, ChevronRight, Database, Users, ShoppingCart, Construction, Mic, GitBranch, Ship, Compass, Cpu } from 'lucide-react'
+import { Activity, Search, Package, Building2, Factory, FileText, ChevronLeft, ChevronRight, Database, Users, ShoppingCart, Construction, Mic, GitBranch, Ship, Compass, Cpu, BarChart3 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import type { Mode } from '@/types'
@@ -48,6 +48,7 @@ const coreNavItems: NavItem[] = [
 // Documentation & settings tabs (below divider)
 const secondaryNavItems: NavItem[] = [
   { id: 'app-architecture', label: 'Architecture', icon: Cpu, description: 'System design', color: 'text-emerald-400', bg: 'bg-emerald-500', highlight: true },
+  { id: 'ai-quality', label: 'AI Quality', icon: BarChart3, description: 'Eval & cost metrics', color: 'text-amber-500', bg: 'bg-amber-500' },
   { id: 'data-preferences', label: 'Tracked Entities', icon: Database, description: 'Manage tracked data', color: 'text-cyan-500', bg: 'bg-cyan-500' },
 ]
 

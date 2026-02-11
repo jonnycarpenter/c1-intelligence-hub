@@ -53,7 +53,7 @@ export interface ApiDigest {
 
 export interface ApiQueryRequest {
   message: string
-  mode: 'pulse' | 'discovery' | 'research' | 'products' | 'field-sales' | 'pipeline' | 'supply-network' | 'companies' | 'industries' | 'data-preferences' | 'importyeti' | 'app-architecture'
+  mode: 'pulse' | 'discovery' | 'research' | 'products' | 'field-sales' | 'pipeline' | 'supply-network' | 'companies' | 'industries' | 'data-preferences' | 'importyeti' | 'app-architecture' | 'ai-quality'
   conversation_id?: string
   context?: {
     companies?: string[]
@@ -1281,6 +1281,46 @@ class ApiClient {
     const response = await fetch(`${this.baseUrl}/api/research/reports/search/related?${params}`)
     if (!response.ok) {
       throw new Error(`Failed to search reports: ${response.statusText}`)
+    }
+    return response.json()
+  }
+
+  // =====================================
+  // Apollo Service
+  // =====================================
+
+  // =====================================
+  // Feedback / Eval
+  // =====================================
+
+  /**
+   * Submit feedback (thumbs up/down) on a report
+   */
+  async submitFeedback(data: {
+    report_id: string
+    report_type: string
+    rating: string
+    comment?: string
+    section_id?: string
+  }): Promise<{ id: string; success: boolean }> {
+    const response = await fetch(`${this.baseUrl}/api/feedback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+    if (!response.ok) {
+      throw new Error(`Failed to submit feedback: ${response.statusText}`)
+    }
+    return response.json()
+  }
+
+  /**
+   * Fetch eval dashboard data (quality, cost, judge scores, feedback)
+   */
+  async getEvalDashboard(days: number = 30): Promise<any> {
+    const response = await fetch(`${this.baseUrl}/api/evals/dashboard?days=${days}`)
+    if (!response.ok) {
+      throw new Error(`Failed to fetch eval dashboard: ${response.statusText}`)
     }
     return response.json()
   }

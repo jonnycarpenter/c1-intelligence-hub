@@ -132,6 +132,9 @@ When adding a new API key/secret:
 | **Pipeline agent** | `app/agents/pipeline/agent.py` |
 | **Pipeline search tools** | `app/mcp/tools/pipeline_search.py` |
 | **Pipeline filters (post-enrichment)** | `app/agents/pipeline/filters.py` |
+| **Eval suite (token tracking)** | `app/evals/token_tracker.py` |
+| **Eval suite (quality metrics)** | `app/evals/quality_metrics.py` |
+| **Feedback API** | `app/api/routes/feedback.py` |
 
 ## README Documentation Index
 
@@ -149,6 +152,7 @@ When adding a new API key/secret:
 | `backend/app/ingestion/generators/README.md` | Briefing generators (2-agent pipeline) | Briefing logic changes |
 | **`backend/app/agents/research/README.md`** | **Deep Research workflow (7-node, parallel)** | **Modifying research pipeline** |
 | **`backend/app/agents/pipeline/README.md`** | **Pipeline (sales prospecting) tab** | **Modifying pipeline tools/filters** |
+| **`backend/app/evals/README.md`** | **Eval suite (token tracking, quality, feedback)** | **Adding eval components** |
 | `frontend/README.md` | Frontend architecture, components, hooks | Adding/modifying frontend features |
 | `backend/scripts/README.md` | Script directory index | Adding new scripts |
 | `backend/scripts/monitoring/README.md` | Production monitoring scripts | Adding monitoring scripts |
@@ -218,6 +222,9 @@ python scripts/operations/backfill_briefings.py --verify  # Check results
 | `companies` | Tracked companies (tickers, names) |
 | `deep_research_reports` | **Saved Deep Research reports (Phase 4)** |
 | `article_images` | **Classified images from articles** - image_type, chart_type, topics, companies, industries, relevance_score. Used by Visual Research agent (Phase 6) |
+| `llm_token_usage` | **Token/cost tracking** - per-call token counts, estimated cost, model, caller module |
+| `eval_results` | **LLM-as-judge scores** - factual grounding, coherence, actionability ratings per report |
+| `user_feedback` | **User feedback** - thumbs up/down ratings with optional comments on reports |
 
 ## Don't Touch (Bug Fix Protected)
 

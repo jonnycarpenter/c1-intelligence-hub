@@ -104,6 +104,14 @@ const modeConfig: Record<Mode, { icon: typeof Activity; title: string; subtitle:
     color: 'text-emerald-500',
     bg: 'bg-emerald-100',
   },
+  'ai-quality': {
+    icon: Activity,
+    title: 'AI Quality',
+    subtitle: 'Eval & cost metrics',
+    description: 'Monitor AI quality scores, LLM cost tracking, token usage, and user satisfaction. The evaluation layer that measures system performance.',
+    color: 'text-amber-500',
+    bg: 'bg-amber-100',
+  },
 }
 
 interface AppHeaderProps {

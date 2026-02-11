@@ -27,6 +27,38 @@ from app.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
+def _track_tokens(model: str, result: Any, provider: str = "anthropic", caller: str = "unknown") -> None:
+    """Record token usage from an LLM response. Fails silently."""
+    try:
+        from app.evals.token_tracker import token_tracker
+
+        input_tokens = 0
+        output_tokens = 0
+
+        if provider == "anthropic" and hasattr(result, "response_metadata"):
+            # LangChain ChatAnthropic response
+            usage = result.response_metadata.get("usage", {})
+            input_tokens = usage.get("input_tokens", 0)
+            output_tokens = usage.get("output_tokens", 0)
+        elif provider == "anthropic" and hasattr(result, "usage"):
+            # Raw Anthropic SDK response
+            input_tokens = getattr(result.usage, "input_tokens", 0)
+            output_tokens = getattr(result.usage, "output_tokens", 0)
+        elif provider == "openai" and hasattr(result, "usage"):
+            input_tokens = getattr(result.usage, "input_tokens", 0)
+            output_tokens = getattr(result.usage, "output_tokens", 0)
+
+        if input_tokens or output_tokens:
+            token_tracker.record(
+                model=model,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                caller=caller,
+            )
+    except Exception:
+        pass  # Token tracking must never break LLM calls
+
+
 # =============================================================================
 # Model Mapping: Anthropic -> OpenAI equivalents
 # =============================================================================
@@ -208,16 +240,17 @@ class ResilientChatAnthropic(BaseChatModel):
             result = self._primary_client.invoke(messages, config=config, **kwargs)
             elapsed = time.time() - start
             logger.info(f"Primary model ({self.primary_model}) succeeded in {elapsed:.2f}s")
+            _track_tokens(self.primary_model, result, "anthropic")
             return result
-            
+
         except Exception as primary_error:
             logger.warning(f"Primary model ({self.primary_model}) failed: {primary_error}")
-            
+
             # If no fallback configured, re-raise
             if not self._fallback_client:
                 logger.error("No fallback model configured, re-raising error")
                 raise
-            
+
             # Try fallback model
             try:
                 logger.info(f"Falling back to: {self.fallback_model}")
@@ -225,13 +258,15 @@ class ResilientChatAnthropic(BaseChatModel):
                 result = self._fallback_client.invoke(messages, config=config, **kwargs)
                 elapsed = time.time() - start
                 logger.info(f"Fallback model ({self.fallback_model}) succeeded in {elapsed:.2f}s")
+                fb_provider = "openai" if self.fallback_provider == "openai" else "anthropic"
+                _track_tokens(self.fallback_model, result, fb_provider)
                 return result
-                
+
             except Exception as fallback_error:
                 logger.error(f"Fallback model ({self.fallback_model}) also failed: {fallback_error}")
                 # Raise the original error (more informative)
                 raise primary_error from fallback_error
-    
+
     async def ainvoke(
         self,
         input: Sequence[BaseMessage],
@@ -249,16 +284,17 @@ class ResilientChatAnthropic(BaseChatModel):
             result = await self._primary_client.ainvoke(messages, config=config, **kwargs)
             elapsed = time.time() - start
             logger.info(f"Primary model ({self.primary_model}) succeeded in {elapsed:.2f}s")
+            _track_tokens(self.primary_model, result, "anthropic")
             return result
-            
+
         except Exception as primary_error:
             logger.warning(f"Primary model ({self.primary_model}) failed: {primary_error}")
-            
+
             # If no fallback configured, re-raise
             if not self._fallback_client:
                 logger.error("No fallback model configured, re-raising error")
                 raise
-            
+
             # Try fallback model
             try:
                 logger.info(f"Falling back to: {self.fallback_model}")
@@ -266,8 +302,10 @@ class ResilientChatAnthropic(BaseChatModel):
                 result = await self._fallback_client.ainvoke(messages, config=config, **kwargs)
                 elapsed = time.time() - start
                 logger.info(f"Fallback model ({self.fallback_model}) succeeded in {elapsed:.2f}s")
+                fb_provider = "openai" if self.fallback_provider == "openai" else "anthropic"
+                _track_tokens(self.fallback_model, result, fb_provider)
                 return result
-                
+
             except Exception as fallback_error:
                 logger.error(f"Fallback model ({self.fallback_model}) also failed: {fallback_error}")
                 raise primary_error from fallback_error
@@ -402,6 +440,7 @@ class ResilientAsyncClient:
         system: Optional[str] = None,
         temperature: float = 0.3,
         thinking: Optional[Dict[str, Any]] = None,
+        _caller: str = "unknown",
         **kwargs,
     ) -> Any:
         """
@@ -464,7 +503,8 @@ class ResilientAsyncClient:
             if thinking_enabled and not text_content:
                 logger.warning(f"Anthropic ({model}) returned only thinking blocks, no text output")
                 # Still return - thinking-only responses can be valid
-            
+
+            _track_tokens(model, response, "anthropic", _caller)
             return response
             
         except Exception as anthropic_error:
@@ -490,9 +530,11 @@ class ResilientAsyncClient:
                 )
                 elapsed = time.time() - start
                 logger.info(f"OpenAI fallback ({openai_model}) succeeded in {elapsed:.2f}s")
-                
+
                 # Wrap OpenAI response in Anthropic-like structure
-                return OpenAIResponseAdapter(openai_response)
+                adapted = OpenAIResponseAdapter(openai_response)
+                _track_tokens(openai_model, adapted, "openai", _caller)
+                return adapted
                 
             except Exception as openai_error:
                 logger.error(f"OpenAI fallback also failed: {openai_error}")

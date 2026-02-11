@@ -22,6 +22,7 @@ import ReactMarkdown from 'react-markdown'
 import { api } from '@/lib/api'
 import { API_BASE } from '@/lib/config'
 import { ReportBlockRenderer } from './ReportBlockRenderer'
+import { FeedbackWidget } from '@/components/ui/FeedbackWidget'
 import type { ReportBlock } from '@/types'
 
 // Friendly labels for agent reasoning nodes
@@ -604,6 +605,11 @@ export default function ResearchReport({ report, agentReasoning }: DeepResearchR
                         )}
                     </div>
                 </section>
+            )}
+
+            {/* Feedback Widget */}
+            {report.report_id && (
+                <FeedbackWidget reportId={report.report_id} reportType="deep_research" />
             )}
         </div>
     )
