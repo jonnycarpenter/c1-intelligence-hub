@@ -45,6 +45,8 @@ interface DeepResearchState {
     isCacheHit: boolean
     queryHash: string | null
     warnings: any[]
+    // Agent reasoning summaries
+    agentReasoning: Record<string, string>
     // Timeout handling
     isTimeout: boolean
     timeoutInfo: {
@@ -72,6 +74,7 @@ const initialState: DeepResearchState = {
     isCacheHit: false,
     queryHash: null,
     warnings: [],
+    agentReasoning: {},
     isTimeout: false,
     timeoutInfo: null,
 }
@@ -253,6 +256,16 @@ function handleSSEEvent(
                     ),
                 }
             })
+            break
+
+        case 'agent_reasoning':
+            setState(prev => ({
+                ...prev,
+                agentReasoning: {
+                    ...prev.agentReasoning,
+                    [data.content.node]: data.content.reasoning,
+                },
+            }))
             break
 
         case 'tool_progress':

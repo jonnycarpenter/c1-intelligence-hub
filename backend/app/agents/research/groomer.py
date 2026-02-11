@@ -172,18 +172,20 @@ You should almost NEVER ask for clarification. Set status="ready" in 95%+ of cas
 ## Query Augmentation Strategy
 
 ### For the Financial Agent (searches SEC filings, earnings calls, 10-K/10-Q)
-Generate 3-5 queries optimized for financial document search:
+Generate 4-6 queries optimized for financial document search:
 - Include relevant public company names and tickers
 - Use financial terminology (revenue, margins, guidance, outlook, headwinds)
 - Reference specific filing types when relevant
 - Think about what executives would say in earnings calls
+- Ensure query DIVERSITY — don't generate overlapping queries
 
 ### For the Industry Agent (searches web, press releases, RSS feeds, trade publications)
-Generate 3-5 queries optimized for industry news and trade coverage:
+Generate 4-6 queries optimized for industry news and trade coverage:
 - Use technical/trade terminology
 - Include trade publication names for better results
 - Think about how journalists and analysts write about these topics
 - Consider geographic and end-market angles
+- Ensure query DIVERSITY — cover different facets of the topic
 
 ## AGENT TOOL CAPABILITIES
 
@@ -362,16 +364,17 @@ async def query_grooming_node(state: DeepResearchState) -> DeepResearchState:
     # =========================================================================
     # Context Injection: Fetch related prior research (DISABLED for debugging)
     # This was causing workflow hangs - disabled until root cause identified
-    # TODO: Re-enable once workflow is stable
-    # =========================================================================
-    # emit_progress_sync(ToolProgress(
-    #     tool_name="prior_research",
-    #     message="Checking for related prior research...",
-    #     status="running"
-    # ))
-    # prior_context = await _get_prior_research_context(user_query)
-    prior_context = ""  # DISABLED - skip prior research lookup
-    logger.info("[GROOMER] Prior research context injection DISABLED for debugging")
+    # Re-enabled: Prior research context injection (10s timeout + error handling built in)
+    emit_progress_sync(ToolProgress(
+        tool_name="prior_research",
+        message="Checking for related prior research...",
+        status="running"
+    ))
+    prior_context = await _get_prior_research_context(user_query)
+    if prior_context:
+        logger.info(f"[GROOMER] Prior research context injected: {len(prior_context)} chars")
+    else:
+        logger.info("[GROOMER] No prior research context found")
     
     # Build system prompt with optional prior context
     system_content = GROOMER_SYSTEM_PROMPT
@@ -633,6 +636,24 @@ Remember: Your response MUST be valid JSON matching the schema above."""
         elapsed = time.time() - start_time
         logger.info(f"[GROOMER] COMPLETE in {elapsed:.1f}s - status: {research_brief.status}")
         logger.info(f"[GROOMER] Financial queries: {len(research_brief.financial_agent_queries or [])}, Industry queries: {len(research_brief.industry_agent_queries or [])}")
+
+        # Build agent reasoning summary for frontend display
+        fin_queries = research_brief.financial_agent_queries or []
+        ind_queries = research_brief.industry_agent_queries or []
+        entities = research_brief.entities_to_track or []
+        reasoning_parts = [
+            f"**Query Interpretation**: {research_brief.clarified_intent or 'N/A'}",
+            f"**Timeframe**: {research_brief.timeframe or 'Recent'}",
+            f"**Entities to Track**: {', '.join(entities) if entities else 'None identified'}",
+            f"**Domain Context**: {(research_brief.domain_context or 'N/A')[:200]}",
+            "",
+            f"**Financial Queries** ({len(fin_queries)}):",
+            *[f"- {q}" for q in fin_queries],
+            "",
+            f"**Industry Queries** ({len(ind_queries)}):",
+            *[f"- {q}" for q in ind_queries],
+        ]
+        state["agent_reasoning"] = {"groom": "\n".join(reasoning_parts)}
 
         if research_brief.status == QueryStatus.NEEDS_CLARIFICATION:
             state["clarification_count"] += 1

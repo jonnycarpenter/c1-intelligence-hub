@@ -60,6 +60,7 @@ interface ResearchDashboardProps {
   researchStatus?: string
   clarification?: any | null
   deepResearchReport?: any | null
+  agentReasoning?: Record<string, string>
 
   // Progress tracking props
   nodeStatuses?: NodeStatus[]
@@ -101,6 +102,7 @@ export default function ResearchDashboard({
   researchStatus,
   clarification,
   deepResearchReport,
+  agentReasoning,
   nodeStatuses,
   toolProgress,
   activeNode,
@@ -507,7 +509,7 @@ export default function ResearchDashboard({
               {/* Deep Research Report */}
               {deepResearchReport && (
                 <div className="space-y-6">
-                  <ResearchReport report={deepResearchReport} />
+                  <ResearchReport report={deepResearchReport} agentReasoning={agentReasoning} />
 
                   {/* Validation Badge */}
                   {validationOutput && (

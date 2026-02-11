@@ -24,8 +24,16 @@ import { API_BASE } from '@/lib/config'
 import { ReportBlockRenderer } from './ReportBlockRenderer'
 import type { ReportBlock } from '@/types'
 
+// Friendly labels for agent reasoning nodes
+const AGENT_LABELS: Record<string, { label: string; emoji: string }> = {
+    groom: { label: 'Query Analysis', emoji: '🔍' },
+    financial_research: { label: 'Financial Research', emoji: '📊' },
+    industry_research: { label: 'Industry Research', emoji: '🏭' },
+}
+
 interface DeepResearchReportProps {
     report: any
+    agentReasoning?: Record<string, string>
 }
 
 // =============================================================================
@@ -145,13 +153,19 @@ function CitationList({ citations }: { citations: Citation[] }) {
     )
 }
 
-export default function ResearchReport({ report }: DeepResearchReportProps) {
+export default function ResearchReport({ report, agentReasoning }: DeepResearchReportProps) {
     const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+    const [reasoningExpanded, setReasoningExpanded] = useState(false)
+    const [expandedAgents, setExpandedAgents] = useState<Record<string, boolean>>({})
 
     if (!report) return null
 
     const { executive_summary, sections, field_sales, companies_with_logos, sources_used, data_gaps, thinking_content } = report
     const [thinkingExpanded, setThinkingExpanded] = useState(false)
+
+    const toggleAgent = (key: string) => {
+        setExpandedAgents(prev => ({ ...prev, [key]: !prev[key] }))
+    }
 
     const handleSaveToMemory = async () => {
         if (saveStatus === 'saving' || saveStatus === 'saved') return
@@ -316,9 +330,87 @@ export default function ResearchReport({ report }: DeepResearchReportProps) {
                 </section>
             )}
 
+            {/* Research Agent Insights (collapsible) */}
+            {agentReasoning && Object.keys(agentReasoning).length > 0 && (
+                <section className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl border border-blue-200 overflow-hidden shadow-sm">
+                    <button
+                        onClick={() => setReasoningExpanded(!reasoningExpanded)}
+                        className="w-full px-6 py-4 flex items-center justify-between hover:bg-blue-100/50 transition-colors"
+                    >
+                        <div className="flex items-center gap-3">
+                            <Brain size={20} className="text-blue-600" />
+                            <div className="text-left">
+                                <h2 className="font-semibold text-blue-900">Research Agent Insights</h2>
+                                <p className="text-xs text-blue-600">How each agent interpreted and analyzed your query</p>
+                            </div>
+                        </div>
+                        {reasoningExpanded ? (
+                            <ChevronDown size={20} className="text-blue-600" />
+                        ) : (
+                            <ChevronRight size={20} className="text-blue-600" />
+                        )}
+                    </button>
+                    {reasoningExpanded && (
+                        <div className="px-6 pb-4 space-y-3">
+                            {Object.entries(agentReasoning).map(([nodeKey, text]) => {
+                                const info = AGENT_LABELS[nodeKey] || { label: nodeKey, emoji: '🤖' }
+                                const isOpen = expandedAgents[nodeKey] ?? true
+                                return (
+                                    <div key={nodeKey} className="bg-white/80 rounded-lg border border-blue-100 overflow-hidden">
+                                        <button
+                                            onClick={() => toggleAgent(nodeKey)}
+                                            className="w-full px-4 py-2.5 flex items-center justify-between hover:bg-blue-50/50 transition-colors"
+                                        >
+                                            <span className="text-sm font-medium text-slate-700">
+                                                {info.emoji} {info.label}
+                                            </span>
+                                            {isOpen ? (
+                                                <ChevronDown size={14} className="text-slate-400" />
+                                            ) : (
+                                                <ChevronRight size={14} className="text-slate-400" />
+                                            )}
+                                        </button>
+                                        {isOpen && (
+                                            <div className="px-4 pb-3 border-t border-blue-50">
+                                                <div className="prose prose-sm prose-slate max-w-none pt-2 text-xs leading-relaxed">
+                                                    <ReactMarkdown>{text}</ReactMarkdown>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    )}
+                </section>
+            )}
+
+            {/* Table of Contents (for reports with 4+ sections) */}
+            {sections && sections.length >= 4 && (
+                <nav className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                    <h3 className="text-sm font-semibold text-slate-600 mb-3 flex items-center gap-2">
+                        <LayoutDashboard size={14} />
+                        Report Contents
+                    </h3>
+                    <ol className="space-y-1.5">
+                        {sections.map((section: any, idx: number) => (
+                            <li key={idx}>
+                                <a
+                                    href={`#report-section-${idx}`}
+                                    className="text-sm text-slate-600 hover:text-slate-900 hover:underline flex items-center gap-2"
+                                >
+                                    <span className="text-xs text-slate-400 font-mono w-5">{idx + 1}.</span>
+                                    {section.section_title}
+                                </a>
+                            </li>
+                        ))}
+                    </ol>
+                </nav>
+            )}
+
             {/* Main Sections */}
             {sections?.map((section: any, idx: number) => (
-                <section key={idx} className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                <section key={idx} id={`report-section-${idx}`} className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
                     <div className="bg-slate-50 px-6 py-3 border-b border-slate-200 flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <FileText size={18} className="text-slate-600" />

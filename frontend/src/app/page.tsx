@@ -119,6 +119,8 @@ export default function Home() {
     isCacheHit,
     validationOutput,
     error: researchError,
+    // Agent reasoning
+    agentReasoning,
     // Timeout handling
     isTimeout: isResearchTimeout,
     timeoutInfo,
@@ -482,6 +484,7 @@ export default function Home() {
                 researchStatus={researchStatus}
                 clarification={clarification}
                 deepResearchReport={deepResearchReport}
+                agentReasoning={agentReasoning}
                 // Progress tracking
                 nodeStatuses={nodeStatuses}
                 toolProgress={toolProgress}

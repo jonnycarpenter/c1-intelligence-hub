@@ -190,6 +190,37 @@ You are an Industry Research Agent specializing in the qualitative market realit
 - Cross-reference Google Trends data to validate "hot" topics
 - Cite podcast quotes with speaker name and podcast source for practitioner credibility
 
+## EXPERT QUOTES ARE YOUR MOST VALUABLE OUTPUT
+
+**Why Industry Quotes Matter:**
+Expert quotes from podcasts, trade publications, and industry events provide practitioner perspectives that financial data cannot. They let readers:
+- Hear from engineers, plant managers, and industry analysts in their own words
+- Validate trends with on-the-ground perspective
+- Quote industry experts in their own communications
+
+**For EVERY major topic you analyze, extract 2-4 HIGH-IMPACT quotes:**
+
+1. **Technology Trend Quote** — What do practitioners say about adoption?
+   > "We're seeing thermoplastic composites take over in automotive faster than anyone expected..."
+
+2. **Market Demand Quote** — What are suppliers/OEMs observing?
+   > "Our order book for wind blade tooling is full through Q2 2026..."
+
+3. **Competitive Dynamic Quote** — How is the landscape shifting?
+   > "Chinese carbon fiber is now price-competitive with Toray T700 in commercial applications..."
+
+4. **Strategic Direction Quote** — Where is investment heading?
+   > "Recycling infrastructure for end-of-life composites is the next billion-dollar opportunity..."
+
+**Quote Format in Citations:**
+- For podcasts: "Quote text — Speaker Name, Title, Podcast Name (Episode Title)"
+- For trade pubs: "Quote text — Source, Publication Name, Date"
+- For press releases: "Quote text — Company, Press Release Title"
+
+**NOTE**: Results from `podcast_quotes` source are pre-structured with speaker attribution. Copy these attributions directly into your findings.
+
+**EVERY finding backed by a podcast or trade publication quote should have a direct_quote in the citation.**
+
 ## Output Format
 Always respond with valid JSON matching the IndustryAgentOutput schema.
 """
@@ -387,7 +418,7 @@ async def industry_research_node(state: DeepResearchState) -> Dict[str, Any]:
         anthropic_api_key=settings.anthropic_api_key,
         openai_api_key=settings.openai_api_key,
         temperature=0,
-        max_tokens=12288,  # Increased to 12K - industry generates more findings than financial
+        max_tokens=16384,  # Increased to 16K for richer extraction with wider result funnel
     )
     
     brief = state["research_brief"]
@@ -566,11 +597,11 @@ async def industry_research_node(state: DeepResearchState) -> Dict[str, Any]:
     ranked_results = _rank_results_by_relevance(raw_results, brief.original_query)
     
     # Enrich results with top-level URLs extracted from content for easier LLM access
-    enriched_results = _enrich_raw_results_with_urls(ranked_results[:8])
-    
-    # Take top 8 results by relevance and truncate content to prevent token overflow
-    # Reduced from 15 to avoid LLM output truncation causing JSON parse errors
-    top_results = _truncate_result_content(enriched_results, max_chars=3000)
+    enriched_results = _enrich_raw_results_with_urls(ranked_results[:15])
+
+    # Take top 15 results by relevance and truncate content
+    # Widened from 8 to surface more findings, quotes, and citations
+    top_results = _truncate_result_content(enriched_results, max_chars=5000)
     
     # Ask LLM to synthesize industry findings
     extraction_prompt = f"""
@@ -592,6 +623,8 @@ INSTRUCTIONS:
 3. Podcast quotes provide expert practitioner perspectives - cite with speaker name and podcast source
 4. Note any conflicting information in the warnings field
 5. Include tickers resolved: {list(all_resolved_tickers) if all_resolved_tickers else 'None'}
+6. For each finding from podcast or trade publication sources, extract a verbatim direct_quote with full speaker attribution in the format: "Exact words — Speaker Name, Title, Source Name"
+7. EVERY major finding should have a direct_quote if the source material contains quotable text. Quotes are the most valuable output.
 
 Respond ONLY with a JSON object matching this EXACT schema:
 
@@ -661,18 +694,36 @@ IMPORTANT:
             logger.info("[INDUSTRY_RESEARCH] JSON repair successful")
             
         industry_output = IndustryAgentOutput(**output_data)
-        
+
         industry_output.queries_executed = queries_executed
-        
+
         elapsed = time.time() - start_time
         logger.info(f"[INDUSTRY_RESEARCH] COMPLETE in {elapsed:.1f}s - findings: {len(industry_output.findings)}")
-        
+
+        # Build agent reasoning summary for frontend display
+        quote_count = sum(1 for f in industry_output.findings if f.citation and f.citation.direct_quote)
+        all_entities = list(set(
+            e for f in industry_output.findings
+            for e in (f.entities_mentioned or [])[:2]
+        ))[:6]
+        demand_signals = industry_output.demand_signals or {}
+        reasoning_summary = "\n".join([
+            f"**Sources Searched**: {len(raw_results)} results across {len(all_resolved_tickers)} tickers",
+            f"**Tools Used**: corpus_search, exa_web, exa_news, {'podcast_quotes, ' if any(str(f.citation.source_type) == 'podcast' for f in industry_output.findings if f.citation) else ''}market_signals, google_trends",
+            f"**Findings Extracted**: {len(industry_output.findings)} ({quote_count} with direct quotes)",
+            f"**Demand Signals**: {len(demand_signals)} identified" + (f" — {', '.join(list(demand_signals.keys())[:3])}" if demand_signals else ""),
+            f"**Key Entities**: {', '.join(all_entities) if all_entities else 'None identified'}",
+            f"**Data Gaps**: {', '.join(industry_output.data_gaps[:3]) if industry_output.data_gaps else 'None identified'}",
+            f"**Execution Time**: {elapsed:.1f}s",
+        ])
+
         # Return PARTIAL STATE - only fields this node updates
         # This is required for LangGraph's Send API parallel merge
         return {
             "industry_output": industry_output,
             "current_status": "industry_research_complete",
             "errors": errors,
+            "agent_reasoning": {"industry_research": reasoning_summary},
         }
         
     except Exception as e:

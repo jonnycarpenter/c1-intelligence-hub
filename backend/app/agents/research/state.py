@@ -352,6 +352,13 @@ def _merge_errors(left: List[Dict[str, Any]], right: List[Dict[str, Any]]) -> Li
     return merged
 
 
+def _merge_reasoning(a: Dict[str, str], b: Dict[str, str]) -> Dict[str, str]:
+    """Merge agent reasoning dicts from parallel branches."""
+    merged = dict(a or {})
+    merged.update(b or {})
+    return merged
+
+
 class DeepResearchState(TypedDict):
     """
     The state object for the Deep Research Workflow.
@@ -393,3 +400,6 @@ class DeepResearchState(TypedDict):
     # Metadata and progress tracking
     current_status: Annotated[str, _keep_last]  # Last writer wins for status
     errors: Annotated[List[Dict[str, Any]], _merge_errors]  # Merged from parallel branches
+
+    # Agent reasoning summaries (for frontend display)
+    agent_reasoning: Annotated[Dict[str, str], _merge_reasoning]  # node_name -> markdown reasoning text

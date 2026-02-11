@@ -291,6 +291,7 @@ async def run_deep_research(request: DeepResearchRequest):
         "validator_output": None,
         "current_status": "starting",
         "errors": [],
+        "agent_reasoning": {},
     }
     logger.info(f"[DEEP_RESEARCH] Initial state keys: {list(initial_state.keys())}")
 
@@ -516,7 +517,18 @@ async def run_deep_research(request: DeepResearchRequest):
                         "node": node_name,
                         "duration_hint": "complete",
                     })
-                    
+
+                    # Emit agent reasoning if available from this node's output
+                    if output and isinstance(output, dict):
+                        reasoning_dict = output.get("agent_reasoning", {})
+                        if reasoning_dict and isinstance(reasoning_dict, dict):
+                            for reasoning_node, reasoning_text in reasoning_dict.items():
+                                if reasoning_text:
+                                    yield _emit_event("agent_reasoning", {
+                                        "node": reasoning_node,
+                                        "reasoning": reasoning_text,
+                                    })
+
                     # Use accumulated state OR the last node's output (validator has full state)
                     if output:
                         final_state = output

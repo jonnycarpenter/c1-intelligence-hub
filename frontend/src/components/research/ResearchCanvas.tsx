@@ -114,6 +114,7 @@ interface ResearchCanvasProps {
   researchStatus?: string
   clarification?: any | null
   deepResearchReport?: any | null
+  agentReasoning?: Record<string, string>
   onStartResearch?: (prompt: string) => void
   onCancelResearch?: () => void
   onDismissClarification?: () => void  // Dismiss clarification modal without answering
@@ -149,6 +150,7 @@ export default function ResearchCanvas({
   researchStatus,
   clarification,
   deepResearchReport,
+  agentReasoning,
   onStartResearch,
   onCancelResearch,
   onDismissClarification,
@@ -417,7 +419,7 @@ export default function ResearchCanvas({
           {/* Deep Research Report */}
           {deepResearchReport && (
             <div className="space-y-6">
-              <ResearchReport report={deepResearchReport} />
+              <ResearchReport report={deepResearchReport} agentReasoning={agentReasoning} />
               
               {/* Validation Badge */}
               {validationOutput && (

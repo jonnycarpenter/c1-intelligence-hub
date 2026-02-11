@@ -402,17 +402,17 @@ def _condense_findings(output) -> Dict[str, Any]:
     condensed = {
         "findings": [],
         "key_metrics": data.get("key_metrics_summary"),
-        "data_gaps": data.get("data_gaps", [])[:3],  # Limit gaps
+        "data_gaps": data.get("data_gaps", [])[:5],
     }
     
     # Condense findings to just the core content
-    for f in data.get("findings", [])[:10]:  # Limit to top 10 findings
+    for f in data.get("findings", [])[:20]:  # Widened from 10 to surface more findings
         citation = f.get("citation", {}) or {}
         entry = {
             "finding": f.get("finding"),
             "type": f.get("finding_type") or f.get("event_type"),
             "confidence": f.get("confidence"),
-            "entities": f.get("entities_mentioned", [])[:3],
+            "entities": f.get("entities_mentioned", [])[:6],
             "source": citation.get("source_title"),
             "source_url": citation.get("source_url"),
             "source_date": citation.get("source_date"),
@@ -496,7 +496,7 @@ def _build_quotes_section(quotable: Dict[str, List[Dict]]) -> str:
 
     if quotable["executive_quotes"]:
         parts.append(f"### Executive Quotes ({len(quotable['executive_quotes'])} available)")
-        for i, q in enumerate(quotable["executive_quotes"][:5]):
+        for i, q in enumerate(quotable["executive_quotes"][:8]):
             parts.append(f'{i+1}. "{q["quote"]}"')
             parts.append(f'   Source: {q.get("source", "Unknown")} | {q.get("source_date", "")}')
             parts.append(f'   Sentiment: {q.get("sentiment", "neutral")} | source_type: earnings_call')
@@ -504,7 +504,7 @@ def _build_quotes_section(quotable: Dict[str, List[Dict]]) -> str:
 
     if quotable["sec_nuggets"]:
         parts.append(f"### SEC Filing Nuggets ({len(quotable['sec_nuggets'])} available)")
-        for i, q in enumerate(quotable["sec_nuggets"][:5]):
+        for i, q in enumerate(quotable["sec_nuggets"][:8]):
             parts.append(f'{i+1}. "{q["quote"]}"')
             parts.append(f'   Source: {q.get("source", "Unknown")} | {q.get("source_date", "")}')
             parts.append(f'   source_type: sec_filing')
@@ -512,7 +512,7 @@ def _build_quotes_section(quotable: Dict[str, List[Dict]]) -> str:
 
     if quotable["podcast_quotes"]:
         parts.append(f"### Podcast Expert Insights ({len(quotable['podcast_quotes'])} available)")
-        for i, q in enumerate(quotable["podcast_quotes"][:5]):
+        for i, q in enumerate(quotable["podcast_quotes"][:8]):
             parts.append(f'{i+1}. "{q["quote"]}"')
             parts.append(f'   Source: {q.get("source", "Unknown")} | {q.get("source_date", "")}')
             parts.append(f'   source_type: podcast')
@@ -561,33 +561,35 @@ def _hydrate_visual_blocks(sections: list, available_visuals: list) -> list:
     return sections
 
 
-SYNTHESIZER_SYSTEM_PROMPT = """You are a synthesis agent. Convert research findings into a dynamic, block-based executive report.
+SYNTHESIZER_SYSTEM_PROMPT = """You are a synthesis agent producing comprehensive, deep-dive intelligence briefs. Convert research findings into a thorough, block-based report with rich evidence.
 
-## GOLDEN RULE: Design the report page. Don't just write text blocks.
+## GOLDEN RULE: Thoroughness with visual structure. Every claim needs evidence, every section needs depth. Use block variety to create a scannable yet comprehensive intelligence brief.
 
 ## AVAILABLE COMPONENTS (BLOCK TYPES)
 
 You build the report by stacking these blocks. Choose the best block for the data.
 
-1. `paragraph`: Standard text analysis.
-   - Use for: Narrative explanation, context, synthesis.
+1. `paragraph`: Detailed text analysis (3-6 sentences per block).
+   - Use for: Narrative explanation, context, synthesis, implications.
+   - Write substantive multi-sentence paragraphs, NOT 1-2 sentence summaries.
    - Must include `citation_badges` metadata.
 
-2. `metric_grid`: A horizontal row of 2-4 key numbers.
+2. `metric_grid`: A horizontal row of 3-4 key numbers with context.
    - Use for: "At a glance" financials or KPI comparisons.
-   - Example: Revenue $1.2B | Margin 18% | YoY +12%
+   - Each metric should have a `context` string explaining significance.
+   - Example: Revenue $1.2B (+12% YoY) | Margin 18% (up 200bps) | CapEx $340M (record) | Backlog $4.1B
 
 3. `visual_split`: Side-by-side layout with Text (left/right) and Visual (right/left).
    - Use for: Highlighting a specific chart while analyzing it.
    - constraint: **ONLY use if you have a relevant visual in `available_visuals`**.
    - constraint: You MUST copy the `visual_id` exactly from the input.
 
-4. `quote`: A styled executive quote callout.
+4. `quote`: A styled executive/expert quote callout — your most important evidence tool.
    - Use for: Verbatim quotes from earnings calls, podcasts, or SEC filings that ground the narrative.
    - source: Must come from `direct_quote` in findings.
    - REQUIRED fields in data:
-     - text: The actual quote text (copy exactly from direct_quote)
-     - speaker: Full name and title (e.g., "Gary McGuire, CEO")
+     - text: The actual quote text (copy exactly from direct_quote, WITHOUT the speaker attribution suffix)
+     - speaker: Full name and title (e.g., "Nick Stanage, CEO, Hexcel")
      - context: Source event — format depends on source_type:
        - For earnings_call: "{Quarter} {Year} Earnings Call" (e.g., "Q3 2025 Earnings Call")
        - For podcast: "{Episode Title}, {Podcast Name}" (e.g., "Wind Blade Recycling, CW Talks")
@@ -596,19 +598,22 @@ You build the report by stacking these blocks. Choose the best block for the dat
      - sentiment: "positive" | "neutral" | "negative" (optional)
 
 5. `table`: A structured data table.
-   - Use for: Comparing 3+ items or dimensions.
+   - Use for: Comparing 3+ items or dimensions across companies/time periods/metrics.
 
 ## CITATION REQUIREMENTS (CRITICAL)
-Every block that makes a claim MUST have a `citations` array.
-- Use `source_url` from findings.
+Every block that makes a factual claim MUST have a `citations` array with `source_url`.
+- Copy `source_url` directly from findings — users need clickable links.
+- Include `source_title`, `source_date`, and `source_type` in each citation.
 - If a block has no citation, use empty array (but valid blocks usually have sources).
 
 ## QUOTE BLOCK MANDATE (CRITICAL)
 - If findings contain `direct_quote` fields, you MUST create `quote` blocks for them.
-- Minimum: If 1+ direct quotes are available, include AT LEAST 2 `quote` blocks in the report.
-- Maximum: No more than 4 quote blocks total (balance with analysis).
-- Quote blocks add executive credibility — they are proof points, not decoration.
-- Place quote blocks AFTER the paragraph that introduces the topic they relate to.
+- Minimum: If 3+ direct quotes are available, include AT LEAST 4 `quote` blocks.
+- Target: 6-10 quote blocks across the full report (approximately 1-2 per section).
+- Maximum: 12 quote blocks total.
+- DIVERSITY: Include quotes from DIFFERENT sources (earnings calls, podcasts, SEC filings) and different companies/speakers. Do not repeat the same speaker twice.
+- PLACEMENT: Each quote block goes AFTER the paragraph that introduces the topic it covers.
+- Quote blocks are PROOF POINTS — they let readers verify your analysis with primary sources.
 - Look in the QUOTABLE MATERIAL section of the prompt for pre-extracted quotes ready to use.
 
 ## VISUALS STRATEGY (CRITICAL)
@@ -619,13 +624,31 @@ Every block that makes a claim MUST have a `citations` array.
 ## OUTPUT STRUCTURE (follow exactly)
 
 1. EXECUTIVE SUMMARY
-   - headline: 12 words max.
-   - key_metrics: 2-3 top metadata metrics.
-   - key_points: 3-4 bullets.
+   - headline: 8-15 words, insight-driven with a specific finding or data point (not generic).
+   - key_metrics: 3-5 metrics with sources.
+   - key_points: 5-8 bullets, each 15-30 words. Every key point must reference a specific data point, date, or source.
+   - key_point_citations: Include a citation for EVERY key point.
 
-2. SECTIONS (2-4 customized sections)
-   - title: Punchy header.
-   - blocks: Array of component blocks (mix paragraphs, grids, quotes, visuals).
+2. SECTIONS (4-8 sections, proportional to findings volume)
+   - For single-company queries: 4-5 sections minimum.
+   - For multi-company or industry-wide queries: 6-8 sections.
+   - Each section should have 3-7 blocks with a MIX of block types.
+   - title: Insight-driven header (not generic like "Financial Overview").
+   - blocks: Array of component blocks — mix paragraphs, metric_grids, quotes, tables, and visuals.
+
+## DEPTH AND THOROUGHNESS REQUIREMENTS
+
+This is a COMPREHENSIVE intelligence brief, NOT an executive summary. It should rival the depth of a professional analyst report.
+
+1. **Paragraph blocks**: 3-6 sentences each with context, analysis, and implications. NOT 1-2 sentence summaries. Explain the "so what" — why does this matter?
+2. **Multi-paragraph sections**: Most sections should have 2-4 paragraph blocks interspersed with metric_grid and quote blocks.
+3. **Quote blocks are PROOF POINTS** — they validate your analysis. Place them after the analysis they support.
+4. **Metric grids**: 3-4 metrics with context strings explaining significance (e.g., "+12% YoY", "record high", "below guidance").
+5. **Tables**: Compare 3+ dimensions (companies, time periods, metrics) when data supports it.
+6. **Connect findings**: Show how financial data relates to industry signals. Draw cause-and-effect connections between different sources.
+7. **Be specific**: Use exact numbers, dates, company names, and speaker attributions. Never use vague language like "industry sources say" or "expected to grow."
+8. **Do NOT discard findings**: If you receive 20+ findings, create enough sections to cover them all. Every finding with a direct_quote should appear as a quote block.
+9. **Source attribution**: Every paragraph should reference which data source supports its claims via the citations array.
 
 """
 
@@ -741,7 +764,7 @@ Available Visuals: {json.dumps(available_visuals, indent=2)}
 ## RESEARCH DATA
 {json.dumps(research_data, indent=2, default=str)}
 
-OUTPUT FORMAT (valid JSON):
+OUTPUT FORMAT (valid JSON). Note: this example shows the expected DEPTH and STRUCTURE — produce 4-8 sections like this:
 {{
   "report_id": "REP-{int(time.time())}",
   "generated_at": "{datetime.now().isoformat()}",
@@ -749,52 +772,124 @@ OUTPUT FORMAT (valid JSON):
   "data_completeness": "complete|partial",
   "overall_confidence": "high|medium",
   "executive_summary": {{
-    "headline": "Insight lead headline",
-    "key_metrics": [{{"label": "Rev", "value": "$1B"}}],
-    "key_points": ["Point 1", "Point 2"],
+    "headline": "Carbon Fiber Demand Surges 18% as Aerospace Recovery Accelerates Into 2026",
+    "key_metrics": [
+      {{"label": "Market Growth", "value": "+18% YoY", "context": "Driven by narrowbody production ramp"}},
+      {{"label": "Hexcel Revenue", "value": "$1.9B", "context": "Record FY2025, +14% YoY"}},
+      {{"label": "Boeing MAX Rate", "value": "42/mo", "context": "Up from 31/mo in Jan 2025"}},
+      {{"label": "Wind CapEx", "value": "$28B", "context": "Global turbine installations 2026E"}}
+    ],
+    "key_points": [
+      "Hexcel reported record Q4 revenue of $512M with aerospace composites up 22% as Boeing and Airbus ramp narrowbody production rates through 2026.",
+      "Chinese carbon fiber producers have expanded capacity by 40% since 2023, putting significant pricing pressure on mid-tier commercial grades.",
+      "Wind energy blade demand is bifurcating: onshore slowing due to permitting delays while offshore mega-turbine orders surge 35% in Europe.",
+      "SEC filings reveal Toray is investing $800M in new PAN precursor capacity in South Carolina, signaling long-term bullish aerospace outlook.",
+      "Podcast experts highlight recycling infrastructure as the critical bottleneck for automotive composites adoption at scale.",
+      "Analyst consensus has shifted bullish on HXL with 4 upgrades in Q4, citing aerospace cycle tailwinds and margin expansion."
+    ],
     "key_point_citations": [
-       {{"source_type": "sec", "source_title": "10K", "source_url": "http...", "source_date": "2025-01-01"}}
+      {{"source_type": "earnings_call", "source_title": "Hexcel Q4 2025 Earnings Call", "source_url": "https://...", "source_date": "2026-01-30"}},
+      {{"source_type": "trade_publication", "source_title": "CompositesWorld: China CF Capacity Report", "source_url": "https://...", "source_date": "2025-12-15"}},
+      {{"source_type": "industry_news", "source_title": "Wind Power Monthly", "source_url": "https://...", "source_date": "2026-01-20"}},
+      {{"source_type": "sec_filing", "source_title": "Toray Industries 8-K Filing", "source_url": "https://...", "source_date": "2025-11-15"}},
+      {{"source_type": "podcast", "source_title": "CW Talks: Composites Recycling", "source_url": "https://...", "source_date": "2025-12-01"}},
+      {{"source_type": "financial_news", "source_title": "Analyst Ratings Summary", "source_url": "https://...", "source_date": "2026-01-15"}}
     ]
   }},
   "sections": [
     {{
       "section_id": "sec_01",
-      "section_title": "Financial Performance",
-      "content": null, // LEGACY field - leave null
+      "section_title": "Aerospace Production Ramp Driving Record Demand",
+      "content": null,
       "blocks": [
         {{
             "block_type": "paragraph",
-            "block_id": "blk_1",
-            "data": {{ "text": "Revenue grew 12%..." }},
-            "citations": [{{ "source_url": "..." }}]
+            "block_id": "blk_01",
+            "data": {{ "text": "The aerospace composites sector is experiencing its strongest growth cycle since the pre-COVID era, driven by accelerating narrowbody production at both Boeing and Airbus. Boeing's 737 MAX production has reached 42 aircraft per month as of January 2026, up from 31 per month at the start of 2025, with management targeting 50 per month by year-end. Airbus A320neo production is similarly ramping, with the company confirming rate 75 remains on track for 2027. This dual-OEM ramp creates sustained demand for carbon fiber prepreg, structural adhesives, and composite sub-assemblies that flows through the entire supply chain." }},
+            "citations": [{{"source_type": "earnings_call", "source_title": "Boeing Q4 2025 Earnings", "source_url": "https://..."}}]
         }},
         {{
             "block_type": "metric_grid",
-            "block_id": "blk_2",
-            "data": {{ 
+            "block_id": "blk_02",
+            "data": {{
                 "metrics": [
-                    {{ "label": "Revenue", "value": "$1.2B", "context": "+12% YoY" }}
+                    {{"label": "MAX Production", "value": "42/mo", "context": "+35% vs Jan 2025"}},
+                    {{"label": "A320neo Target", "value": "Rate 75", "context": "On track for 2027"}},
+                    {{"label": "Hexcel Aero Rev", "value": "$1.14B", "context": "+22% YoY"}},
+                    {{"label": "Spirit Aero Backlog", "value": "$37B", "context": "Record high"}}
                 ]
             }}
         }},
         {{
-            "block_type": "visual_split",
-            "block_id": "blk_3",
+            "block_type": "quote",
+            "block_id": "blk_03",
             "data": {{
-                "visual_id": "vis_123",
-                "layout": "text_left",
-                "text": "As seen in the chart...",
-                "caption": "Figure 1: Revenue trend"
+                "text": "We're seeing the strongest demand environment in our company's history. Aerospace revenue grew 22% year-over-year and we expect continued acceleration as build rates increase through 2026 and into 2027.",
+                "speaker": "Nick Stanage, CEO, Hexcel",
+                "context": "Q4 2025 Earnings Call",
+                "source_type": "earnings_call",
+                "sentiment": "positive"
             }},
-            "citations": []
+            "citations": [{{"source_type": "earnings_call", "source_title": "Hexcel Q4 2025 Earnings", "source_url": "https://..."}}]
+        }},
+        {{
+            "block_type": "paragraph",
+            "block_id": "blk_04",
+            "data": {{ "text": "Hexcel's earnings commentary confirms the supply chain is keeping pace with the ramp. The company reported record Q4 revenue of $512M and full-year revenue of $1.9B, with aerospace composites accounting for 60% of total sales. Notably, management raised full-year 2026 guidance above consensus, citing visibility into Boeing and Airbus delivery schedules extending through 2028. This contrasts with 2023-2024 when production disruptions caused significant order volatility." }},
+            "citations": [{{"source_type": "earnings_call", "source_title": "Hexcel Q4 2025 Earnings", "source_url": "https://..."}}]
+        }},
+        {{
+            "block_type": "quote",
+            "block_id": "blk_05",
+            "data": {{
+                "text": "Our visibility into the aerospace cycle has never been better. We have contractual commitments extending through 2028 on key programs, giving us confidence to invest in capacity expansion.",
+                "speaker": "Patrick Winterlich, CFO, Hexcel",
+                "context": "Q4 2025 Earnings Call",
+                "source_type": "earnings_call",
+                "sentiment": "positive"
+            }},
+            "citations": [{{"source_type": "earnings_call", "source_title": "Hexcel Q4 2025 Earnings", "source_url": "https://..."}}]
         }}
       ],
       "citations": [],
-      "supporting_visuals": [] // LEGACY field - okay to leave empty if visuals are in blocks
+      "supporting_visuals": []
+    }},
+    {{
+      "section_id": "sec_02",
+      "section_title": "Chinese Capacity Expansion Reshaping Competitive Landscape",
+      "content": null,
+      "blocks": [
+        {{
+            "block_type": "paragraph",
+            "block_id": "blk_06",
+            "data": {{ "text": "Chinese carbon fiber producers have dramatically expanded capacity over the past two years, with total nameplate capacity increasing approximately 40% since 2023. Zhongfu Shenying, CFCCARBON, and Jilin Chemical Fiber now collectively produce over 30,000 tonnes annually of T700-equivalent fiber, increasingly competitive with Japanese producers on commercial-grade applications. This capacity surge is depressing pricing on mid-tier grades used in wind energy, automotive, and sporting goods applications, though aerospace-grade fiber remains insulated due to certification barriers." }},
+            "citations": [{{"source_type": "trade_publication", "source_title": "CompositesWorld CF Capacity Analysis", "source_url": "https://..."}}]
+        }},
+        {{
+            "block_type": "quote",
+            "block_id": "blk_07",
+            "data": {{
+                "text": "The quality gap between Chinese and Japanese carbon fiber in commercial grades has essentially closed. For wind blade spar caps and automotive structural parts, buyers are increasingly price-sensitive and Chinese producers are winning on cost.",
+                "speaker": "Dr. Sarah Chen, Principal Analyst",
+                "context": "Composites Industry Outlook, CW Talks",
+                "source_type": "podcast",
+                "sentiment": "neutral"
+            }},
+            "citations": [{{"source_type": "podcast", "source_title": "CW Talks: Composites Industry Outlook", "source_url": "https://..."}}]
+        }},
+        {{
+            "block_type": "paragraph",
+            "block_id": "blk_08",
+            "data": {{ "text": "SEC filings from Toray reveal a strategic response to this competitive pressure. The company disclosed an $800M investment in new PAN precursor capacity at its South Carolina facility, specifically targeting aerospace-grade T800 and T1100 fiber where Chinese competitors lack FAA certification. This investment signals confidence in the long-term aerospace demand cycle while conceding commercial-grade market share to lower-cost producers." }},
+            "citations": [{{"source_type": "sec_filing", "source_title": "Toray Industries 8-K", "source_url": "https://..."}}]
+        }}
+      ],
+      "citations": [],
+      "supporting_visuals": []
     }}
   ],
-  "sources_used": [],
-  "data_gaps": [],
+  "sources_used": [{{"source_type": "earnings_call", "source_title": "Hexcel Q4 2025", "source_url": "https://...", "source_date": "2026-01-30"}}],
+  "data_gaps": ["No Airbus earnings data available for Q4 2025", "Limited pricing data for Chinese carbon fiber exports"],
   "warnings": []
 }}
 """
@@ -806,7 +901,7 @@ OUTPUT FORMAT (valid JSON):
         messages_raw = [{"role": "user", "content": synthesis_prompt}]
         response = await client.messages_create(
             model=settings.deep_research_synthesizer_model,
-            max_tokens=16000,
+            max_tokens=32000,
             messages=messages_raw,
             system=system_content,
             thinking={"type": "enabled", "budget_tokens": thinking_budget},

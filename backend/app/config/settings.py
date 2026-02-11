@@ -121,12 +121,12 @@ class Settings(BaseSettings):
     # Extended Thinking Configuration
     # See: https://platform.claude.com/docs/en/build-with-claude/extended-thinking
     deep_research_thinking_enabled: bool = True  # Enable Claude's extended thinking for synthesis
-    deep_research_thinking_budget_tokens: int = 16000  # Token budget for thinking (min 1024, affects latency)
-    
+    deep_research_thinking_budget_tokens: int = 24000  # Token budget for thinking (increased for richer synthesis)
+
     # Deep Research Timeout Configuration (in seconds)
-    deep_research_workflow_timeout: int = 300  # 5 minutes total workflow timeout
+    deep_research_workflow_timeout: int = 420  # 7 minutes - wider funnel + richer output needs more time
     deep_research_tool_timeout: int = 60  # 60 seconds per external tool call
-    deep_research_llm_timeout: int = 180  # 180 seconds for LLM extraction calls (Opus needs more time)
+    deep_research_llm_timeout: int = 240  # 240 seconds for LLM extraction calls (larger input/output)
     
     # Groq model for X/Twitter analysis (fast inference)
     model_groq_x_analyzer: str = "llama-3.3-70b-versatile"

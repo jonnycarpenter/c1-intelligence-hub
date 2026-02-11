@@ -406,7 +406,7 @@ async def financial_research_node(state: DeepResearchState) -> Dict[str, Any]:
         anthropic_api_key=settings.anthropic_api_key,
         openai_api_key=settings.openai_api_key,
         temperature=0,
-        max_tokens=8192,  # Increased from default 4096 to prevent truncation
+        max_tokens=12288,  # Increased to 12K for richer extraction with wider result funnel
     )
     
     brief = state["research_brief"]
@@ -590,11 +590,11 @@ async def financial_research_node(state: DeepResearchState) -> Dict[str, Any]:
     ranked_results = _rank_financial_results(raw_results, brief.original_query)
     
     # Enrich results with top-level URLs extracted from content for easier LLM access
-    enriched_results = _enrich_raw_results_with_urls(ranked_results[:8])
-    
-    # Take top 8 results by relevance and truncate content to prevent token overflow
-    # Reduced from 15 to avoid LLM output truncation causing JSON parse errors
-    top_results = _truncate_result_content(enriched_results, max_chars=3000)
+    enriched_results = _enrich_raw_results_with_urls(ranked_results[:15])
+
+    # Take top 15 results by relevance and truncate content
+    # Widened from 8 to surface more findings, quotes, and citations
+    top_results = _truncate_result_content(enriched_results, max_chars=5000)
     
     # Prepare research context for the extraction prompt
     research_context = f"""
@@ -615,6 +615,8 @@ async def financial_research_node(state: DeepResearchState) -> Dict[str, Any]:
 Based on the following ranked research results, extract structured financial findings.
 
 ## PRIORITY 1: EXECUTIVE QUOTES (Most Important)
+**DIVERSITY RULE**: If researching 3+ companies, ensure quotes from AT LEAST 3 different companies. Do not extract 4 quotes from the same CEO. Spread across companies and roles (CEO, CFO, COO).
+
 For each company in the results, extract 2-4 verbatim quotes from earnings calls:
 - **Guidance Quote**: CEO/CFO statement on revenue/earnings outlook
 - **Demand Quote**: What they're seeing from customers, order book, backlog
@@ -644,7 +646,7 @@ Example:
 - LOW: Single source, outdated, or ambiguous
 
 RAW RESULTS (ranked by source priority):
-{json.dumps(top_results, indent=2, default=str)[:50000]}
+{json.dumps(top_results, indent=2, default=str)[:80000]}
 
 Respond ONLY with a JSON object matching this EXACT schema:
 
@@ -712,20 +714,41 @@ IMPORTANT:
             logger.info("[FINANCIAL_RESEARCH] JSON repair successful")
             
         financial_output = FinancialAgentOutput(**output_data)
-        
+
         # Add execution metadata
         financial_output.execution_time_seconds = time.time() - start_time
         financial_output.queries_executed = queries_executed
-        
+
         elapsed = time.time() - start_time
         logger.info(f"[FINANCIAL_RESEARCH] COMPLETE in {elapsed:.1f}s - findings: {len(financial_output.findings)}")
-        
+
+        # Build agent reasoning summary for frontend display
+        quote_count = sum(1 for f in financial_output.findings if f.citation and f.citation.direct_quote)
+        all_entities = list(set(
+            e for f in financial_output.findings
+            for e in (f.entities_mentioned or [])[:2]
+        ))[:6]
+        source_types = list(set(
+            str(f.citation.source_type) for f in financial_output.findings
+            if f.citation and f.citation.source_type
+        ))
+        reasoning_summary = "\n".join([
+            f"**Sources Searched**: {len(raw_results)} results across {len(all_tickers)} tickers ({', '.join(sorted(all_tickers)[:5])}{'...' if len(all_tickers) > 5 else ''})",
+            f"**Tools Used**: corpus_earnings, {'earnings_quotes, ' if all_tickers else ''}{'sec_nuggets, ' if all_tickers else ''}company_news, press_releases, analyst_ratings",
+            f"**Findings Extracted**: {len(financial_output.findings)} ({quote_count} with direct quotes)",
+            f"**Source Types**: {', '.join(source_types) if source_types else 'N/A'}",
+            f"**Key Companies**: {', '.join(all_entities) if all_entities else 'None identified'}",
+            f"**Data Gaps**: {', '.join(financial_output.data_gaps[:3]) if financial_output.data_gaps else 'None identified'}",
+            f"**Execution Time**: {elapsed:.1f}s",
+        ])
+
         # Return PARTIAL STATE - only fields this node updates
         # This is required for LangGraph's Send API parallel merge
         return {
             "financial_output": financial_output,
             "current_status": "financial_research_complete",
             "errors": errors,
+            "agent_reasoning": {"financial_research": reasoning_summary},
         }
         
     except Exception as e:
