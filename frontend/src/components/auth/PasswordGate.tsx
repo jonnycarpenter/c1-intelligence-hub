@@ -6,7 +6,7 @@ import { Sparkles, User, Loader2 } from 'lucide-react'
 const AUTH_KEY = 'c1_hub_authenticated'
 const USER_NAME_KEY = 'userName'  // Must match api.ts expectations
 const USER_TEAM_KEY = 'userTeam'  // Must match api.ts expectations
-const SITE_PASSWORD = process.env.NEXT_PUBLIC_SITE_PASSWORD || '' // Set via environment variable
+const SITE_PASSWORD = process.env.NEXT_PUBLIC_SITE_PASSWORD || '' // Optional - empty enables open access mode
 
 interface PasswordGateProps {
   children: React.ReactNode
@@ -86,7 +86,9 @@ export function PasswordGate({ children }: PasswordGateProps) {
         localStorage.setItem(USER_TEAM_KEY, defaultTeam)
         setAuthenticated(true)
       } else {
-        setError('Something went wrong. Please try again.')
+        const errorData = await response.json().catch(() => null)
+        const detail = errorData?.detail || 'Something went wrong.'
+        setError(`${detail} Please try again.`)
       }
     } catch (err) {
       setError('Connection error. Please try again.')
