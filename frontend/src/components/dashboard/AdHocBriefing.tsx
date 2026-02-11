@@ -16,7 +16,10 @@ import {
   Globe,
   TrendingUp,
   Brain,
-  ChevronDown
+  ChevronDown,
+  Rows3,
+  DollarSign,
+  Mic
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Badge, Button } from '@/components/ui'
@@ -280,11 +283,18 @@ interface CollapsibleBriefingProps {
   index: number
   totalCount: number
   onDeepResearch?: (query: string) => void
+  collapseGeneration: number
 }
 
-function CollapsibleBriefing({ briefing, index, totalCount, onDeepResearch }: CollapsibleBriefingProps) {
+function CollapsibleBriefing({ briefing, index, totalCount, onDeepResearch, collapseGeneration }: CollapsibleBriefingProps) {
   // First briefing (newest) starts expanded, others start collapsed
   const [isExpanded, setIsExpanded] = useState(index === 0)
+
+  // Auto-collapse when a new briefing is added: newest (index 0) expands, others collapse
+  useEffect(() => {
+    setIsExpanded(index === 0)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [collapseGeneration])
 
   // Collapsed header (used for all briefings when collapsed)
   const CollapsedHeader = () => (
@@ -298,13 +308,14 @@ function CollapsibleBriefing({ briefing, index, totalCount, onDeepResearch }: Co
       )}
     >
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <MessageSquare size={14} className="text-slate-400" />
-          <span className="text-sm font-medium text-slate-600">
+        <div className="flex items-center gap-2 min-w-0">
+          <MessageSquare size={14} className="text-slate-400 shrink-0" />
+          {briefing.subtab && <FeedBadge subtab={briefing.subtab} />}
+          <span className="text-sm font-medium text-slate-600 truncate">
             {briefing.question.slice(0, 60)}{briefing.question.length > 60 ? '...' : ''}
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <ConfidenceBadge confidence={briefing.confidence} />
           <ChevronDown
             size={16}
@@ -333,6 +344,7 @@ function CollapsibleBriefing({ briefing, index, totalCount, onDeepResearch }: Co
             <MessageSquare size={16} className="text-emerald-600" />
             <span className="text-sm font-medium text-slate-700">Quick Briefing</span>
             <ConfidenceBadge confidence={briefing.confidence} />
+            {briefing.subtab && <FeedBadge subtab={briefing.subtab} />}
           </div>
           <div className="flex items-center gap-1">
             <button
@@ -443,6 +455,24 @@ const SUBTAB_PLACEHOLDERS: Record<string, string> = {
   expertFeed: "Ask about podcast insights, expert opinions...",
 }
 
+// Per-subtab badge config — colors match Discovery tab styling
+const SUBTAB_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
+  articleFeed:   { label: 'Articles',  color: 'text-teal-700',   bg: 'bg-teal-100',   icon: <Rows3 size={10} /> },
+  financialFeed: { label: 'Financial', color: 'text-amber-700',  bg: 'bg-amber-100',  icon: <DollarSign size={10} /> },
+  expertFeed:    { label: 'Expert',    color: 'text-purple-700', bg: 'bg-purple-100',  icon: <Mic size={10} /> },
+}
+
+function FeedBadge({ subtab }: { subtab: string }) {
+  const config = SUBTAB_CONFIG[subtab]
+  if (!config) return null
+  return (
+    <span className={cn(config.bg, config.color, "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium")}>
+      {config.icon}
+      {config.label}
+    </span>
+  )
+}
+
 interface AdHocBriefingProps {
   /** Context from current weekly briefing for better responses */
   context?: AdHocBriefingContext
@@ -483,6 +513,7 @@ export default function AdHocBriefing({
     isTimeout,
     followUpCount,
     progressSteps,
+    collapseGeneration,
     streamQuestion,
     reset
   } = useAdHocBriefing()
@@ -633,6 +664,7 @@ export default function AdHocBriefing({
               index={index}
               totalCount={briefings.length}
               onDeepResearch={onDeepResearch}
+              collapseGeneration={collapseGeneration}
             />
           ))}
 

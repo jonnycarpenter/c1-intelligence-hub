@@ -131,10 +131,15 @@ export function useAdHocBriefing() {
     const [turnsRemaining, setTurnsRemaining] = useState(2)
     // Progress tracking for streaming
     const [progressSteps, setProgressSteps] = useState<ProgressStep[]>([])
+    // Collapse signal — increments when a new briefing is added so CollapsibleBriefing can auto-collapse
+    const [collapseGeneration, setCollapseGeneration] = useState(0)
 
-    // Helper to add a new briefing to the stack (prepend)
+    const MAX_BRIEFINGS = 5
+
+    // Helper to add a new briefing to the stack (prepend, cap at MAX_BRIEFINGS)
     const addBriefing = useCallback((briefing: AdHocBriefing) => {
-        setBriefings(prev => [briefing, ...prev])
+        setBriefings(prev => [briefing, ...prev].slice(0, MAX_BRIEFINGS))
+        setCollapseGeneration(prev => prev + 1)
     }, [])
 
     const askQuestion = useCallback(async (
@@ -231,6 +236,7 @@ export function useAdHocBriefing() {
                                     follow_up_count: followUpCount,
                                     generated_at: new Date().toISOString(),
                                     session_id: sessionId ?? undefined,
+                                    subtab,
                                 }
                                 addBriefing(streamedResponse)
                             }
@@ -289,6 +295,7 @@ export function useAdHocBriefing() {
                                     redirect_to_deep_research: true,
                                     generated_at: new Date().toISOString(),
                                     session_id: parsed.session_id,
+                                    subtab,
                                 })
                             }
                             // heartbeat and unknown types are silently ignored
@@ -314,6 +321,7 @@ export function useAdHocBriefing() {
                     follow_up_count: followUpCount,
                     generated_at: new Date().toISOString(),
                     session_id: sessionId ?? undefined,
+                    subtab,
                 }
                 addBriefing(streamedResponse)
             }
@@ -338,6 +346,7 @@ export function useAdHocBriefing() {
                     follow_up_count: followUpCount,
                     generated_at: new Date().toISOString(),
                     session_id: sessionId ?? undefined,
+                    subtab,
                 })
             }
         } finally {
@@ -354,6 +363,7 @@ export function useAdHocBriefing() {
         setError(null)
         setIsTimeout(false)
         setProgressSteps([])  // Clear progress
+        setCollapseGeneration(0)
     }, [])
 
     // Current briefing is the first in the stack (most recent)
@@ -372,6 +382,7 @@ export function useAdHocBriefing() {
         sessionId,        // Expose session ID for debugging/display
         turnsRemaining,   // How many follow-ups left before redirect
         progressSteps,    // Research phase progress
+        collapseGeneration, // Increments when new briefing added — drives auto-collapse
         askQuestion,
         streamQuestion,
         reset,

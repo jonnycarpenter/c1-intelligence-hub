@@ -138,6 +138,8 @@ export interface AdHocBriefing {
   // Session management fields
   session_id?: string
   session?: BriefingSessionInfo
+  // Discovery feed subtab that generated this briefing
+  subtab?: string
 }
 
 // =============================================================================
