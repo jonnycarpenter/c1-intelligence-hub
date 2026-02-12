@@ -765,7 +765,7 @@ Available Visuals: {json.dumps(available_visuals, indent=2)}
 ## RESEARCH DATA
 {json.dumps(research_data, indent=2, default=str)}
 
-OUTPUT FORMAT (valid JSON). Note: this example shows the expected DEPTH and STRUCTURE — produce 4-8 sections like this:
+OUTPUT FORMAT (valid JSON). Produce 4-8 sections following this structure — each section should have 3-7 blocks mixing paragraph, metric_grid, quote, and visual_split types:
 {{
   "report_id": "REP-{int(time.time())}",
   "generated_at": "{datetime.now().isoformat()}",
@@ -777,23 +777,18 @@ OUTPUT FORMAT (valid JSON). Note: this example shows the expected DEPTH and STRU
     "key_metrics": [
       {{"label": "Market Growth", "value": "+18% YoY", "context": "Driven by narrowbody production ramp"}},
       {{"label": "Hexcel Revenue", "value": "$1.9B", "context": "Record FY2025, +14% YoY"}},
-      {{"label": "Boeing MAX Rate", "value": "42/mo", "context": "Up from 31/mo in Jan 2025"}},
-      {{"label": "Wind CapEx", "value": "$28B", "context": "Global turbine installations 2026E"}}
+      {{"label": "Boeing MAX Rate", "value": "42/mo", "context": "Up from 31/mo in Jan 2025"}}
     ],
     "key_points": [
-      "Hexcel reported record Q4 revenue of $512M with aerospace composites up 22% as Boeing and Airbus ramp narrowbody production rates through 2026.",
-      "Chinese carbon fiber producers have expanded capacity by 40% since 2023, putting significant pricing pressure on mid-tier commercial grades.",
-      "Wind energy blade demand is bifurcating: onshore slowing due to permitting delays while offshore mega-turbine orders surge 35% in Europe.",
-      "SEC filings reveal Toray is investing $800M in new PAN precursor capacity in South Carolina, signaling long-term bullish aerospace outlook.",
-      "Podcast experts highlight recycling infrastructure as the critical bottleneck for automotive composites adoption at scale.",
-      "Analyst consensus has shifted bullish on HXL with 4 upgrades in Q4, citing aerospace cycle tailwinds and margin expansion."
+      "Hexcel reported record Q4 revenue of $512M with aerospace composites up 22% as both OEMs ramp narrowbody production.",
+      "Chinese carbon fiber producers expanded capacity 40% since 2023, pressuring mid-tier commercial grades.",
+      "SEC filings reveal Toray investing $800M in South Carolina PAN precursor capacity, signaling bullish aerospace outlook.",
+      "Analyst consensus shifted bullish on HXL with 4 upgrades in Q4, citing aerospace cycle tailwinds."
     ],
     "key_point_citations": [
       {{"source_type": "earnings_call", "source_title": "Hexcel Q4 2025 Earnings Call", "source_url": "https://...", "source_date": "2026-01-30"}},
-      {{"source_type": "trade_publication", "source_title": "CompositesWorld: China CF Capacity Report", "source_url": "https://...", "source_date": "2025-12-15"}},
-      {{"source_type": "industry_news", "source_title": "Wind Power Monthly", "source_url": "https://...", "source_date": "2026-01-20"}},
+      {{"source_type": "trade_publication", "source_title": "CompositesWorld: China CF Report", "source_url": "https://...", "source_date": "2025-12-15"}},
       {{"source_type": "sec_filing", "source_title": "Toray Industries 8-K Filing", "source_url": "https://...", "source_date": "2025-11-15"}},
-      {{"source_type": "podcast", "source_title": "CW Talks: Composites Recycling", "source_url": "https://...", "source_date": "2025-12-01"}},
       {{"source_type": "financial_news", "source_title": "Analyst Ratings Summary", "source_url": "https://...", "source_date": "2026-01-15"}}
     ]
   }},
@@ -806,7 +801,7 @@ OUTPUT FORMAT (valid JSON). Note: this example shows the expected DEPTH and STRU
         {{
             "block_type": "paragraph",
             "block_id": "blk_01",
-            "data": {{ "text": "The aerospace composites sector is experiencing its strongest growth cycle since the pre-COVID era, driven by accelerating narrowbody production at both Boeing and Airbus. Boeing's 737 MAX production has reached 42 aircraft per month as of January 2026, up from 31 per month at the start of 2025, with management targeting 50 per month by year-end. Airbus A320neo production is similarly ramping, with the company confirming rate 75 remains on track for 2027. This dual-OEM ramp creates sustained demand for carbon fiber prepreg, structural adhesives, and composite sub-assemblies that flows through the entire supply chain." }},
+            "data": {{ "text": "Boeing 737 MAX production reached 42/mo in Jan 2026 (up from 31/mo), targeting 50/mo by year-end. Airbus A320neo rate 75 on track for 2027. This dual-OEM ramp creates sustained demand for carbon fiber prepreg and composite sub-assemblies across the supply chain." }},
             "citations": [{{"source_type": "earnings_call", "source_title": "Boeing Q4 2025 Earnings", "source_url": "https://..."}}]
         }},
         {{
@@ -816,8 +811,7 @@ OUTPUT FORMAT (valid JSON). Note: this example shows the expected DEPTH and STRU
                 "metrics": [
                     {{"label": "MAX Production", "value": "42/mo", "context": "+35% vs Jan 2025"}},
                     {{"label": "A320neo Target", "value": "Rate 75", "context": "On track for 2027"}},
-                    {{"label": "Hexcel Aero Rev", "value": "$1.14B", "context": "+22% YoY"}},
-                    {{"label": "Spirit Aero Backlog", "value": "$37B", "context": "Record high"}}
+                    {{"label": "Hexcel Aero Rev", "value": "$1.14B", "context": "+22% YoY"}}
                 ]
             }}
         }},
@@ -825,7 +819,7 @@ OUTPUT FORMAT (valid JSON). Note: this example shows the expected DEPTH and STRU
             "block_type": "quote",
             "block_id": "blk_03",
             "data": {{
-                "text": "We're seeing the strongest demand environment in our company's history. Aerospace revenue grew 22% year-over-year and we expect continued acceleration as build rates increase through 2026 and into 2027.",
+                "text": "We're seeing the strongest demand environment in our company's history.",
                 "speaker": "Nick Stanage, CEO, Hexcel",
                 "context": "Q4 2025 Earnings Call",
                 "source_type": "earnings_call",
@@ -836,53 +830,8 @@ OUTPUT FORMAT (valid JSON). Note: this example shows the expected DEPTH and STRU
         {{
             "block_type": "paragraph",
             "block_id": "blk_04",
-            "data": {{ "text": "Hexcel's earnings commentary confirms the supply chain is keeping pace with the ramp. The company reported record Q4 revenue of $512M and full-year revenue of $1.9B, with aerospace composites accounting for 60% of total sales. Notably, management raised full-year 2026 guidance above consensus, citing visibility into Boeing and Airbus delivery schedules extending through 2028. This contrasts with 2023-2024 when production disruptions caused significant order volatility." }},
+            "data": {{ "text": "Hexcel reported record Q4 revenue of $512M and full-year $1.9B, with aerospace 60% of sales. Management raised 2026 guidance above consensus citing delivery schedule visibility through 2028." }},
             "citations": [{{"source_type": "earnings_call", "source_title": "Hexcel Q4 2025 Earnings", "source_url": "https://..."}}]
-        }},
-        {{
-            "block_type": "quote",
-            "block_id": "blk_05",
-            "data": {{
-                "text": "Our visibility into the aerospace cycle has never been better. We have contractual commitments extending through 2028 on key programs, giving us confidence to invest in capacity expansion.",
-                "speaker": "Patrick Winterlich, CFO, Hexcel",
-                "context": "Q4 2025 Earnings Call",
-                "source_type": "earnings_call",
-                "sentiment": "positive"
-            }},
-            "citations": [{{"source_type": "earnings_call", "source_title": "Hexcel Q4 2025 Earnings", "source_url": "https://..."}}]
-        }}
-      ],
-      "citations": [],
-      "supporting_visuals": []
-    }},
-    {{
-      "section_id": "sec_02",
-      "section_title": "Chinese Capacity Expansion Reshaping Competitive Landscape",
-      "content": null,
-      "blocks": [
-        {{
-            "block_type": "paragraph",
-            "block_id": "blk_06",
-            "data": {{ "text": "Chinese carbon fiber producers have dramatically expanded capacity over the past two years, with total nameplate capacity increasing approximately 40% since 2023. Zhongfu Shenying, CFCCARBON, and Jilin Chemical Fiber now collectively produce over 30,000 tonnes annually of T700-equivalent fiber, increasingly competitive with Japanese producers on commercial-grade applications. This capacity surge is depressing pricing on mid-tier grades used in wind energy, automotive, and sporting goods applications, though aerospace-grade fiber remains insulated due to certification barriers." }},
-            "citations": [{{"source_type": "trade_publication", "source_title": "CompositesWorld CF Capacity Analysis", "source_url": "https://..."}}]
-        }},
-        {{
-            "block_type": "quote",
-            "block_id": "blk_07",
-            "data": {{
-                "text": "The quality gap between Chinese and Japanese carbon fiber in commercial grades has essentially closed. For wind blade spar caps and automotive structural parts, buyers are increasingly price-sensitive and Chinese producers are winning on cost.",
-                "speaker": "Dr. Sarah Chen, Principal Analyst",
-                "context": "Composites Industry Outlook, CW Talks",
-                "source_type": "podcast",
-                "sentiment": "neutral"
-            }},
-            "citations": [{{"source_type": "podcast", "source_title": "CW Talks: Composites Industry Outlook", "source_url": "https://..."}}]
-        }},
-        {{
-            "block_type": "paragraph",
-            "block_id": "blk_08",
-            "data": {{ "text": "SEC filings from Toray reveal a strategic response to this competitive pressure. The company disclosed an $800M investment in new PAN precursor capacity at its South Carolina facility, specifically targeting aerospace-grade T800 and T1100 fiber where Chinese competitors lack FAA certification. This investment signals confidence in the long-term aerospace demand cycle while conceding commercial-grade market share to lower-cost producers." }},
-            "citations": [{{"source_type": "sec_filing", "source_title": "Toray Industries 8-K", "source_url": "https://..."}}]
         }}
       ],
       "citations": [],
@@ -890,9 +839,11 @@ OUTPUT FORMAT (valid JSON). Note: this example shows the expected DEPTH and STRU
     }}
   ],
   "sources_used": [{{"source_type": "earnings_call", "source_title": "Hexcel Q4 2025", "source_url": "https://...", "source_date": "2026-01-30"}}],
-  "data_gaps": ["No Airbus earnings data available for Q4 2025", "Limited pricing data for Chinese carbon fiber exports"],
+  "data_gaps": ["No Airbus earnings data available for Q4 2025"],
   "warnings": []
 }}
+
+NOTE: The above is ONE example section. Your report should have 4-8 sections, each with 3-7 blocks. Mix block types (paragraph, metric_grid, quote, visual_split, table) for a scannable layout.
 """
     
     # Variable to capture thinking content
@@ -903,7 +854,7 @@ OUTPUT FORMAT (valid JSON). Note: this example shows the expected DEPTH and STRU
         try:
             response = await client.messages_create(
                 model=settings.deep_research_synthesizer_model,
-                max_tokens=32000,
+                max_tokens=16000,
                 messages=messages_raw,
                 system=system_content,
                 thinking={"type": "enabled", "budget_tokens": thinking_budget},
