@@ -108,6 +108,23 @@ def _clamp_max_tokens_for_gemini(max_tokens: int, gemini_model: str) -> int:
     return max_tokens
 
 
+def _get_default_timeout_for_model(model: str) -> float:
+    """Return appropriate HTTP timeout based on model class.
+
+    Opus-class models are significantly slower than Haiku/Sonnet,
+    especially with large context windows and complex prompts.
+    """
+    model_lower = model.lower()
+    if "opus" in model_lower:
+        return 180.0  # 3 minutes for Opus (large prompts, complex reasoning)
+    elif "sonnet" in model_lower:
+        return 90.0   # 90 seconds for Sonnet
+    elif "haiku" in model_lower:
+        return 45.0   # 45 seconds for Haiku (fast model)
+    else:
+        return 120.0  # Safe default for unknown models
+
+
 class ResilientChatAnthropic(BaseChatModel):
     """
     A resilient LLM wrapper that automatically falls back to a secondary model if primary fails.
@@ -139,8 +156,8 @@ class ResilientChatAnthropic(BaseChatModel):
     fallback_api_key: Optional[str] = None
     temperature: float = 0.3
     max_tokens: int = 4096
-    timeout: float = 45.0  # Reduced from 120s - should fail fast, let fallback handle slow requests
-    max_retries: int = 1   # Reduced from 2 - faster failure, let asyncio timeout handle retries
+    timeout: float = 120.0  # Model-aware default applied in __init__; see _get_default_timeout_for_model()
+    max_retries: int = 2
     
     # Internal clients (not part of pydantic model)
     _primary_client: Optional[ChatAnthropic] = None
@@ -152,6 +169,10 @@ class ResilientChatAnthropic(BaseChatModel):
         underscore_attrs_are_private = True
     
     def __init__(self, **kwargs):
+        # Apply model-aware timeout if caller didn't set an explicit one
+        if "timeout" not in kwargs:
+            model = kwargs.get("primary_model", "")
+            kwargs["timeout"] = _get_default_timeout_for_model(model)
         super().__init__(**kwargs)
         self._initialize_clients()
     
@@ -244,13 +265,16 @@ class ResilientChatAnthropic(BaseChatModel):
             return result
             
         except Exception as primary_error:
-            logger.warning(f"Primary model ({self.primary_model}) failed: {primary_error}")
-            
+            logger.warning(
+                f"Primary model ({self.primary_model}) failed: [{type(primary_error).__name__}] {primary_error}",
+                exc_info=True,
+            )
+
             # If no fallback configured, re-raise
             if not self._fallback_client:
                 logger.error("No fallback model configured, re-raising error")
                 raise
-            
+
             # Try fallback model
             try:
                 logger.info(f"Falling back to: {self.fallback_model}")
@@ -259,12 +283,15 @@ class ResilientChatAnthropic(BaseChatModel):
                 elapsed = time.time() - start
                 logger.info(f"Fallback model ({self.fallback_model}) succeeded in {elapsed:.2f}s")
                 return result
-                
+
             except Exception as fallback_error:
-                logger.error(f"Fallback model ({self.fallback_model}) also failed: {fallback_error}")
+                logger.error(
+                    f"Fallback model ({self.fallback_model}) also failed: [{type(fallback_error).__name__}] {fallback_error}",
+                    exc_info=True,
+                )
                 # Raise the original error (more informative)
                 raise primary_error from fallback_error
-    
+
     def invoke(
         self,
         input: Sequence[BaseMessage],
@@ -286,7 +313,10 @@ class ResilientChatAnthropic(BaseChatModel):
             return result
 
         except Exception as primary_error:
-            logger.warning(f"Primary model ({self.primary_model}) failed: {primary_error}")
+            logger.warning(
+                f"Primary model ({self.primary_model}) failed: [{type(primary_error).__name__}] {primary_error}",
+                exc_info=True,
+            )
 
             # If no fallback configured, re-raise
             if not self._fallback_client:
@@ -305,7 +335,10 @@ class ResilientChatAnthropic(BaseChatModel):
                 return result
 
             except Exception as fallback_error:
-                logger.error(f"Fallback model ({self.fallback_model}) also failed: {fallback_error}")
+                logger.error(
+                    f"Fallback model ({self.fallback_model}) also failed: [{type(fallback_error).__name__}] {fallback_error}",
+                    exc_info=True,
+                )
                 # Raise the original error (more informative)
                 raise primary_error from fallback_error
 
@@ -330,7 +363,10 @@ class ResilientChatAnthropic(BaseChatModel):
             return result
 
         except Exception as primary_error:
-            logger.warning(f"Primary model ({self.primary_model}) failed: {primary_error}")
+            logger.warning(
+                f"Primary model ({self.primary_model}) failed: [{type(primary_error).__name__}] {primary_error}",
+                exc_info=True,
+            )
 
             # If no fallback configured, re-raise
             if not self._fallback_client:
@@ -349,7 +385,10 @@ class ResilientChatAnthropic(BaseChatModel):
                 return result
 
             except Exception as fallback_error:
-                logger.error(f"Fallback model ({self.fallback_model}) also failed: {fallback_error}")
+                logger.error(
+                    f"Fallback model ({self.fallback_model}) also failed: [{type(fallback_error).__name__}] {fallback_error}",
+                    exc_info=True,
+                )
                 raise primary_error from fallback_error
 
 
@@ -461,8 +500,10 @@ class ResilientAsyncClient:
         anthropic_api_key: str,
         gemini_api_key: Optional[str] = None,
         openai_api_key: Optional[str] = None,  # Kept for backward compat, treated as gemini key
+        timeout: float = 180.0,  # HTTP timeout for Anthropic SDK calls (generous for Opus + thinking)
     ):
-        self.anthropic_client = AsyncAnthropic(api_key=anthropic_api_key)
+        self.anthropic_client = AsyncAnthropic(api_key=anthropic_api_key, timeout=timeout)
+        self.timeout = timeout
         # Accept gemini_api_key directly, or fall back to openai_api_key param (backward compat),
         # or check env var
         self.gemini_api_key = gemini_api_key or openai_api_key or os.getenv("GEMINI_API_KEY")
@@ -588,8 +629,11 @@ class ResilientAsyncClient:
             return response
             
         except Exception as anthropic_error:
-            logger.warning(f"Anthropic ({model}) failed: {anthropic_error}")
-            
+            logger.warning(
+                f"Anthropic ({model}) failed: [{type(anthropic_error).__name__}] {anthropic_error}",
+                exc_info=True,
+            )
+
             # Try Gemini fallback
             if not self.gemini_client:
                 if not HAS_GOOGLE_GENAI:
@@ -633,7 +677,10 @@ class ResilientAsyncClient:
                 return adapted
                 
             except Exception as gemini_error:
-                logger.error(f"Gemini fallback also failed: {gemini_error}")
+                logger.error(
+                    f"Gemini fallback also failed: [{type(gemini_error).__name__}] {gemini_error}",
+                    exc_info=True,
+                )
                 raise anthropic_error from gemini_error
 
 
@@ -683,24 +730,26 @@ def get_resilient_async_client(
     anthropic_api_key: str,
     openai_api_key: Optional[str] = None,
     gemini_api_key: Optional[str] = None,
+    timeout: float = 180.0,
 ) -> ResilientAsyncClient:
     """
     Get a resilient async client with Gemini fallback.
-    
+
     Args:
         anthropic_api_key: Your Anthropic API key
         openai_api_key: DEPRECATED - kept for backward compat, treated as gemini_api_key
         gemini_api_key: Your Google Gemini API key (preferred)
-    
+        timeout: HTTP timeout in seconds (default 180s, generous for Opus + thinking)
+
     Example:
         from app.config.settings import settings
         from app.utils.resilient_llm import get_resilient_async_client
-        
+
         client = get_resilient_async_client(
             anthropic_api_key=settings.anthropic_api_key,
             gemini_api_key=settings.gemini_api_key,
         )
-        
+
         response = await client.messages_create(
             model="claude-sonnet-4-5",
             max_tokens=4096,
@@ -711,4 +760,5 @@ def get_resilient_async_client(
     return ResilientAsyncClient(
         anthropic_api_key=anthropic_api_key,
         gemini_api_key=gemini_api_key or openai_api_key,
+        timeout=timeout,
     )

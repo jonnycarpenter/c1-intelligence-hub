@@ -685,6 +685,7 @@ async def synthesis_node(state: DeepResearchState) -> DeepResearchState:
         client = get_resilient_async_client(
             anthropic_api_key=settings.anthropic_api_key,
             gemini_api_key=settings.gemini_api_key,
+            timeout=240.0,  # Extended thinking + large synthesis needs generous timeout
         )
     else:
         llm = create_resilient_llm_with_gemini_fallback(
@@ -899,21 +900,39 @@ OUTPUT FORMAT (valid JSON). Note: this example shows the expected DEPTH and STRU
     
     if use_thinking:
         messages_raw = [{"role": "user", "content": synthesis_prompt}]
-        response = await client.messages_create(
-            model=settings.deep_research_synthesizer_model,
-            max_tokens=32000,
-            messages=messages_raw,
-            system=system_content,
-            thinking={"type": "enabled", "budget_tokens": thinking_budget},
-        )
-        # Parser for thinking blocks (same as before)
+        try:
+            response = await client.messages_create(
+                model=settings.deep_research_synthesizer_model,
+                max_tokens=32000,
+                messages=messages_raw,
+                system=system_content,
+                thinking={"type": "enabled", "budget_tokens": thinking_budget},
+                _caller="synthesizer",
+            )
+        except Exception as llm_error:
+            logger.error(f"[SYNTHESIZER] LLM call failed: [{type(llm_error).__name__}] {llm_error}", exc_info=True)
+            raise
+
+        # Parse response content — handle both Anthropic native and Gemini adapter formats
         text_content_parts = []
-        for block in response.content:
-            if getattr(block, 'type', None) == 'thinking':
-                thinking_content = getattr(block, 'thinking', None)
-            elif getattr(block, 'type', None) == 'text':
-                text_content_parts.append(getattr(block, 'text', ''))
+        try:
+            for block in response.content:
+                block_type = getattr(block, 'type', None)
+                if block_type == 'thinking':
+                    thinking_content = getattr(block, 'thinking', None)
+                elif block_type == 'text':
+                    text_content_parts.append(getattr(block, 'text', ''))
+        except Exception as parse_error:
+            logger.warning(f"[SYNTHESIZER] Response block parsing error: {parse_error}, attempting raw text extraction")
+            # Fallback: try extracting text from any block with a .text attribute
+            for block in response.content:
+                if hasattr(block, 'text') and block.text:
+                    text_content_parts.append(block.text)
+
         content = '\n'.join(text_content_parts)
+        if not content:
+            logger.error(f"[SYNTHESIZER] Empty content after parsing {len(response.content)} response blocks")
+            raise ValueError("Synthesizer LLM returned empty text content")
     else:
         messages = [SystemMessage(content=system_content), HumanMessage(content=synthesis_prompt)]
         response = await llm.ainvoke(messages)
