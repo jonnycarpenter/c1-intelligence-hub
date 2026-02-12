@@ -250,10 +250,10 @@ Google Gemini is ONLY used as a fallback when Anthropic fails (e.g., API outage,
 
 | Anthropic Model | Gemini Fallback | Max Output Tokens |
 |-----------------|-----------------|-------------------|
-| `claude-sonnet-4-5` | `gemini-3-pro` | 65,536 |
-| `claude-opus-4-5` | `gemini-3-pro` | 65,536 |
-| `claude-haiku-4-5` | `gemini-2.0-flash` | 8,192 |
-| `claude-3-5-haiku-20241022` (legacy) | `gemini-2.0-flash` | 8,192 |
+| `claude-opus-4-6` | `gemini-2.5-pro` | 65,536 |
+| `claude-sonnet-4-5` | `gemini-2.5-pro` | 65,536 |
+| `claude-haiku-4-5` | `gemini-2.5-flash` | 65,536 |
+| `claude-3-5-haiku-20241022` (legacy) | `gemini-2.5-flash` | 65,536 |
 
 The fallback layer automatically clamps `max_tokens` to the Gemini model's limit and drops unsupported params (e.g., extended thinking).
 

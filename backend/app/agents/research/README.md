@@ -302,11 +302,11 @@ Model settings in `backend/app/config/settings.py`:
 
 ```python
 deep_research_groomer_model = "claude-haiku-4-5"
-deep_research_financial_model = "claude-opus-4-5-20250514"
-deep_research_industry_model = "claude-opus-4-5-20250514"
-deep_research_synthesizer_model = "claude-opus-4-5-20250514"
-deep_research_category_model = "claude-opus-4-5-20250514"
-deep_research_validator_model = "claude-opus-4-5-20250514"
+deep_research_financial_model = "claude-opus-4-6"
+deep_research_industry_model = "claude-opus-4-6"
+deep_research_synthesizer_model = "claude-opus-4-6"
+deep_research_category_model = "claude-opus-4-6"
+deep_research_validator_model = "claude-opus-4-6"
 ```
 
 ### Timeout Configuration

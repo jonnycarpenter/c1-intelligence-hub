@@ -9,7 +9,7 @@ to protect against credit outages.
 
 Fallback notes:
 - Gemini does NOT support extended thinking, so thinking params are dropped on fallback
-- max_tokens is clamped to Gemini's model limit (65536 for gemini-3-pro)
+- max_tokens is clamped to Gemini's model limit (65536 for gemini-2.5-pro)
 - Messages are converted from Anthropic format to Gemini/OpenAI-compatible format
 """
 
@@ -81,20 +81,20 @@ def _track_tokens(model: str, result: Any, provider: str = "anthropic", caller: 
 # =============================================================================
 
 ANTHROPIC_TO_GEMINI_MODEL_MAP = {
-    "claude-sonnet-4-5": "gemini-3-pro",
-    "claude-3-5-sonnet-20241022": "gemini-3-pro",
-    "claude-opus-4-5": "gemini-3-pro",
-    "claude-opus-4-5-20250514": "gemini-3-pro",
-    "claude-haiku-4-5": "gemini-2.0-flash",  # Haiku -> Flash (fast + cheap)
-    "claude-3-5-haiku-20241022": "gemini-2.0-flash",
+    "claude-sonnet-4-5": "gemini-2.5-pro",
+    "claude-3-5-sonnet-20241022": "gemini-2.5-pro",
+    "claude-opus-4-6": "gemini-2.5-pro",
+    "claude-opus-4-5": "gemini-2.5-pro",  # Legacy alias
+    "claude-haiku-4-5": "gemini-2.5-flash",  # Haiku -> Flash (fast + cheap)
+    "claude-3-5-haiku-20241022": "gemini-2.5-flash",
 }
 
 # Gemini model output token limits (for clamping)
 GEMINI_MAX_OUTPUT_TOKENS = {
-    "gemini-3-pro": 65536,
     "gemini-2.5-pro": 65536,
-    "gemini-2.0-flash": 8192,
     "gemini-2.5-flash": 65536,
+    "gemini-3-pro": 65536,
+    "gemini-2.0-flash": 8192,  # Deprecated March 2026
 }
 DEFAULT_GEMINI_MAX_OUTPUT = 8192  # Safe default if model not in map
 
@@ -118,7 +118,7 @@ class ResilientChatAnthropic(BaseChatModel):
         # Anthropic primary -> Gemini fallback (recommended for credit safety)
         llm = ResilientChatAnthropic(
             primary_model="claude-sonnet-4-5",
-            fallback_model="gemini-3-pro",
+            fallback_model="gemini-2.5-pro",
             fallback_provider="gemini",
             api_key=settings.anthropic_api_key,
             fallback_api_key=settings.gemini_api_key,
@@ -392,7 +392,7 @@ def create_resilient_llm_with_gemini_fallback(
         )
     """
     if not fallback_model:
-        fallback_model = ANTHROPIC_TO_GEMINI_MODEL_MAP.get(primary_model, "gemini-3-pro")
+        fallback_model = ANTHROPIC_TO_GEMINI_MODEL_MAP.get(primary_model, "gemini-2.5-pro")
     
     return ResilientChatAnthropic(
         primary_model=primary_model,
@@ -477,7 +477,7 @@ class ResilientAsyncClient:
     
     def _get_gemini_model(self, anthropic_model: str) -> str:
         """Map Anthropic model to equivalent Gemini model."""
-        return ANTHROPIC_TO_GEMINI_MODEL_MAP.get(anthropic_model, "gemini-3-pro")
+        return ANTHROPIC_TO_GEMINI_MODEL_MAP.get(anthropic_model, "gemini-2.5-pro")
     
     def _build_gemini_contents(
         self, 
@@ -645,7 +645,7 @@ class GeminiResponseAdapter:
     with Gemini fallback responses without modification.
     """
     
-    def __init__(self, gemini_response, model: str = "gemini-3-pro"):
+    def __init__(self, gemini_response, model: str = "gemini-2.5-pro"):
         self._gemini_response = gemini_response
         
         # Extract text from Gemini response

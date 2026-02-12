@@ -780,7 +780,7 @@ async def generate_industry_narrative(industry: str):
         try:
             response = await asyncio.wait_for(
                 client.messages_create(
-                    model="claude-opus-4-5-20250514",
+                    model="claude-opus-4-6",
                     max_tokens=8192,
                     system=NARRATIVE_SYSTEM_PROMPT,
                     messages=[{"role": "user", "content": prompt}],

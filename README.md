@@ -201,7 +201,7 @@ c1-intelligence-hub_v2/
 > Set `GCP_PROJECT_ID` and `GCS_BUCKET_NAME` in your `.env` file.
 
 > **LLM Resilience**: When `GEMINI_API_KEY` is set, the system automatically falls back to Google Gemini
-> (gemini-3-pro) if Anthropic (Claude) fails due to API outages or credit exhaustion.
+> (gemini-2.5-pro) if Anthropic (Claude) fails due to API outages or credit exhaustion.
 > max_tokens are automatically clamped to Gemini model limits. See `backend/app/utils/resilient_llm.py`.
 
 ### Data Storage

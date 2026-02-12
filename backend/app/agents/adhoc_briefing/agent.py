@@ -302,7 +302,7 @@ If data is insufficient, recommend the **Deep Research** feature."""
         )
         # Raw client for streaming (Anthropic-only; Gemini streaming fallback not yet supported)
         self._streaming_client = AsyncAnthropic(api_key=self.config.anthropic_api_key)
-        self.model = "claude-opus-4-5"  # Upgraded for quality intelligence responses
+        self.model = "claude-opus-4-6"  # Upgraded for quality intelligence responses
         self.timeout_seconds = 120  # 2-minute timeout
         self._vector_store = None
         self._bq_storage = None

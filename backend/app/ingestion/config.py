@@ -41,7 +41,7 @@ class IngestionConfig:
     digest_model: str = "claude-sonnet-4-5"
     
     # Briefings (Pulse tab summaries - uses Opus for higher quality)
-    briefing_model: str = "claude-opus-4-5"
+    briefing_model: str = "claude-opus-4-6"
 
 
 # ============================================================================

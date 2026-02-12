@@ -113,11 +113,11 @@ class Settings(BaseSettings):
     
     # Deep Research Workflow models
     deep_research_groomer_model: str = "claude-haiku-4-5"  # Haiku for faster query analysis
-    deep_research_financial_model: str = "claude-opus-4-5-20250514"
-    deep_research_industry_model: str = "claude-opus-4-5-20250514"
-    deep_research_synthesizer_model: str = "claude-opus-4-5-20250514"
-    deep_research_category_model: str = "claude-opus-4-5-20250514"  # Phase 2: Sales intelligence
-    deep_research_validator_model: str = "claude-opus-4-5-20250514"  # Phase 2: Citation verification
+    deep_research_financial_model: str = "claude-opus-4-6"
+    deep_research_industry_model: str = "claude-opus-4-6"
+    deep_research_synthesizer_model: str = "claude-opus-4-6"
+    deep_research_category_model: str = "claude-opus-4-6"  # Phase 2: Sales intelligence
+    deep_research_validator_model: str = "claude-opus-4-6"  # Phase 2: Citation verification
     
     # Extended Thinking Configuration
     # See: https://platform.claude.com/docs/en/build-with-claude/extended-thinking

@@ -187,7 +187,7 @@ FINAL BRIEFING JSON FORMAT:
         # Use Anthropic Opus 4.5 for highest quality executive synthesis
         api_key = self.config.anthropic_api_key or os.getenv('ANTHROPIC_API_KEY')
         self.client = AsyncAnthropic(api_key=api_key)
-        self.model = "claude-opus-4-5"  # Best quality for executive briefings 
+        self.model = "claude-opus-4-6"  # Best quality for executive briefings
         self._bq_storage = None
         self._vector_store = None
         # Initialize Exa client for peripheral intelligence search

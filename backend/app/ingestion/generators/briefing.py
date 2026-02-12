@@ -88,7 +88,7 @@ Respond with JSON only:
             anthropic_api_key=config.anthropic_api_key,
             gemini_api_key=getattr(config, 'gemini_api_key', None),
         )
-        self.model = getattr(config, 'briefing_model', "claude-opus-4-5")
+        self.model = getattr(config, 'briefing_model', "claude-opus-4-6")
         self.scheduler_run = scheduler_run or self._detect_scheduler_run()
         
         # BigQuery storage for production
