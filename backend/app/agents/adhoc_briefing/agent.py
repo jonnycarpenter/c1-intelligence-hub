@@ -484,29 +484,45 @@ If data is insufficient, recommend the **Deep Research** feature."""
         try:
             eq_start = time.time()
             from app.mcp.tools.earnings_quotes import search_earnings_quotes
+            logger.info(f"[ADHOC_AGENT] Earnings quotes tool imported OK, invoking with query='{query_preview}'")
             eq_result = await search_earnings_quotes.ainvoke({"query": query, "limit": 15, "quotable_only": True})
             eq_elapsed = time.time() - eq_start
+            logger.info(f"[ADHOC_AGENT] Earnings quotes raw result: type={type(eq_result).__name__}, len={len(eq_result) if eq_result else 0}, elapsed={eq_elapsed:.2f}s")
             if eq_result and isinstance(eq_result, str):
                 data = json.loads(eq_result)
+                status = data.get('status', 'unknown')
+                quote_count = len(data.get('quotes', []))
+                logger.info(f"[ADHOC_AGENT] Earnings quotes parsed: status={status}, quotes={quote_count}, keys={list(data.keys())}")
                 if data.get("quotes"):
                     results["earnings_quotes"] = data["quotes"]
-                    logger.info(f"[ADHOC_AGENT] Earnings quotes COMPLETE: {eq_elapsed:.2f}s, {len(results['earnings_quotes'])} quotes")
+                else:
+                    logger.warning(f"[ADHOC_AGENT] Earnings quotes returned NO DATA: status={status}, message={data.get('message', 'none')}")
+            else:
+                logger.warning(f"[ADHOC_AGENT] Earnings quotes returned unexpected type or empty: {type(eq_result).__name__}")
         except Exception as e:
-            logger.warning(f"[ADHOC_AGENT] Earnings quotes search FAILED: {str(e)}")
+            logger.error(f"[ADHOC_AGENT] Earnings quotes search FAILED: {str(e)}", exc_info=True)
 
         # Search SEC nuggets
         try:
             sn_start = time.time()
             from app.mcp.tools.sec_nuggets import search_sec_nuggets
+            logger.info(f"[ADHOC_AGENT] SEC nuggets tool imported OK, invoking with query='{query_preview}'")
             sn_result = await search_sec_nuggets.ainvoke({"query": query, "limit": 15})
             sn_elapsed = time.time() - sn_start
+            logger.info(f"[ADHOC_AGENT] SEC nuggets raw result: type={type(sn_result).__name__}, len={len(sn_result) if sn_result else 0}, elapsed={sn_elapsed:.2f}s")
             if sn_result and isinstance(sn_result, str):
                 data = json.loads(sn_result)
+                status = data.get('status', 'unknown')
+                nugget_count = len(data.get('nuggets', []))
+                logger.info(f"[ADHOC_AGENT] SEC nuggets parsed: status={status}, nuggets={nugget_count}, keys={list(data.keys())}")
                 if data.get("nuggets"):
                     results["sec_nuggets"] = data["nuggets"]
-                    logger.info(f"[ADHOC_AGENT] SEC nuggets COMPLETE: {sn_elapsed:.2f}s, {len(results['sec_nuggets'])} nuggets")
+                else:
+                    logger.warning(f"[ADHOC_AGENT] SEC nuggets returned NO DATA: status={status}, message={data.get('message', 'none')}")
+            else:
+                logger.warning(f"[ADHOC_AGENT] SEC nuggets returned unexpected type or empty: {type(sn_result).__name__}")
         except Exception as e:
-            logger.warning(f"[ADHOC_AGENT] SEC nuggets search FAILED: {str(e)}")
+            logger.error(f"[ADHOC_AGENT] SEC nuggets search FAILED: {str(e)}", exc_info=True)
 
         elapsed = time.time() - start_time
         total = len(results["earnings_quotes"]) + len(results["sec_nuggets"])
@@ -554,15 +570,24 @@ If data is insufficient, recommend the **Deep Research** feature."""
         try:
             pq_start = time.time()
             from app.mcp.tools.podcast_quotes import search_podcast_quotes
+            logger.info(f"[ADHOC_AGENT] Podcast quotes tool imported OK (sync tool), invoking with query='{query_preview}'")
             pq_result = search_podcast_quotes.invoke({"search_query": query, "limit": 15, "days": 90})
             pq_elapsed = time.time() - pq_start
+            logger.info(f"[ADHOC_AGENT] Podcast quotes raw result: type={type(pq_result).__name__}, len={len(pq_result) if pq_result else 0}, elapsed={pq_elapsed:.2f}s")
             if pq_result and isinstance(pq_result, str):
                 data = json.loads(pq_result)
+                quote_count = len(data.get('quotes', []))
+                logger.info(f"[ADHOC_AGENT] Podcast quotes parsed: quotes={quote_count}, keys={list(data.keys())}")
                 if data.get("quotes"):
                     results["podcast_quotes"] = data["quotes"]
-                    logger.info(f"[ADHOC_AGENT] Podcast quotes COMPLETE: {pq_elapsed:.2f}s, {len(results['podcast_quotes'])} quotes")
+                elif data.get("error"):
+                    logger.warning(f"[ADHOC_AGENT] Podcast quotes returned ERROR: {data['error']}")
+                else:
+                    logger.warning(f"[ADHOC_AGENT] Podcast quotes returned NO DATA: keys={list(data.keys())}")
+            else:
+                logger.warning(f"[ADHOC_AGENT] Podcast quotes returned unexpected type or empty: {type(pq_result).__name__}")
         except Exception as e:
-            logger.warning(f"[ADHOC_AGENT] Podcast quotes search FAILED: {str(e)}")
+            logger.error(f"[ADHOC_AGENT] Podcast quotes search FAILED: {str(e)}", exc_info=True)
 
         elapsed = time.time() - start_time
         logger.info(f"[ADHOC_AGENT] Expert data search COMPLETE: {elapsed:.2f}s, {len(results['podcast_quotes'])} results")
@@ -748,6 +773,16 @@ If data is insufficient, recommend the **Deep Research** feature."""
                 has_results = True
                 logger.info("Added external tool results to context")
 
+        # --- Fallback: if financial/expert returned nothing, try external news ---
+        if not has_results and subtab in ("financialFeed", "expertFeed"):
+            logger.info(f"[ADHOC_AGENT] No specialized results for {subtab}, falling back to external news search")
+            external_results = await self.search_external_news(question)
+            external_context = self._format_external_results(external_results)
+            if external_context:
+                search_context += "\n\n" + external_context
+                has_results = True
+                logger.info(f"[ADHOC_AGENT] Fallback external search provided results for {subtab}")
+
         if not has_results:
             return {
                 "id": str(uuid.uuid4()),
@@ -847,7 +882,7 @@ Respond with a JSON object:
                     "headlines_count": len(context.current_brief_headlines),
                     "digest_topics_count": len(context.recent_digest_topics),
                 },
-                "search_results_count": len(search_results),
+                "search_results_count": len(search_results) if 'search_results' in locals() else 0,
                 "follow_up_count": follow_up_count,
                 "generated_at": datetime.utcnow().isoformat(),
                 "model": self.model,
@@ -884,7 +919,7 @@ Respond with a JSON object:
                 "id": str(uuid.uuid4()),
                 "question": question,
                 "answer": result_text if 'result_text' in locals() else "Error generating response",
-                "sources_used": [{"title": r["title"], "url": r["url"]} for r in search_results[:3]],
+                "sources_used": [{"title": r["title"], "url": r["url"]} for r in search_results[:3]] if 'search_results' in locals() and search_results else [],
                 "confidence": "low",
                 "generated_at": datetime.utcnow().isoformat(),
             }
@@ -1146,6 +1181,32 @@ class StreamingAdHocBriefingAgent(AdHocBriefingAgent):
             if external_context:
                 search_context += "\n\n" + external_context
                 has_results = True
+
+        # --- Fallback: if financial/expert returned nothing, try external news ---
+        if not has_results and subtab in ("financialFeed", "expertFeed"):
+            logger.info(f"[ADHOC_AGENT] No specialized results for {subtab}, falling back to external news search")
+            yield json.dumps({
+                "type": "progress",
+                "step": "fallback_search",
+                "label": "Web Search Fallback",
+                "message": "Specialized sources empty — searching web news...",
+                "status": "running",
+            })
+
+            external_results = await self.search_external_news(question)
+            external_context = self._format_external_results(external_results)
+            if external_context:
+                search_context += "\n\n" + external_context
+                has_results = True
+                logger.info(f"[ADHOC_AGENT] Fallback external search provided results for {subtab}")
+
+            yield json.dumps({
+                "type": "progress",
+                "step": "fallback_search",
+                "label": "Web Search Fallback",
+                "message": "Fallback search complete" if has_results else "No web results found either",
+                "status": "complete",
+            })
 
         if not has_results:
             yield json.dumps({

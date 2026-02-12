@@ -281,6 +281,24 @@ export function useAdHocBriefing() {
                                 if (parsed.turns_remaining !== undefined) {
                                     setTurnsRemaining(parsed.turns_remaining)
                                 }
+                            } else if (parsed.type === 'no_results') {
+                                // Handle empty search results — show message to user
+                                const noResultsMsg = parsed.message || 'No relevant data found for this query.';
+                                addBriefing({
+                                    id: `no-results-${Date.now()}`,
+                                    question,
+                                    answer: noResultsMsg + '\n\nFor a more comprehensive answer, try the **Deep Research** feature which can search additional external sources.',
+                                    sources_used: [],
+                                    confidence: 'low',
+                                    suggest_deep_research: true,
+                                    related_topics: [],
+                                    follow_up_count: followUpCount,
+                                    generated_at: new Date().toISOString(),
+                                    session_id: parsed.session_id ?? sessionId ?? undefined,
+                                    subtab,
+                                })
+                                setIsStreaming(false)
+                                return ''
                             } else if (parsed.type === 'redirect') {
                                 addBriefing({
                                     id: '',
