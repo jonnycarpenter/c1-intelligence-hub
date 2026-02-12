@@ -58,8 +58,8 @@ interface IngestionSourceHealth {
   source: string
   status: 'green' | 'yellow' | 'red'
   last_run: string | null
+  total_articles: number
   articles_24h: number
-  articles_7d: number
   avg_daily: number
 }
 
@@ -694,8 +694,8 @@ export default function EvalDashboard() {
         source: s.source || 'unknown',
         status: s.status || 'red',
         last_run: s.last_run || null,
-        articles_24h: s.articles_24h ?? s.successes ?? 0,
-        articles_7d: s.articles_7d ?? s.total_runs ?? 0,
+        total_articles: s.total_runs ?? s.successes ?? 0,
+        articles_24h: s.articles_24h ?? 0,
         avg_daily: s.avg_daily ?? (s.total_runs ? +(s.total_runs / 30).toFixed(1) : 0),
       })))
     } catch (err: any) {
@@ -1208,8 +1208,8 @@ export default function EvalDashboard() {
                           {src.source.replace(/_/g, ' ')}
                         </span>
                       </div>
-                      <p className="text-lg font-semibold text-slate-800">{src.articles_24h ?? 0}</p>
-                      <p className="text-[10px] text-slate-400">last 24h · avg {(src.avg_daily ?? 0).toFixed(0)}/day</p>
+                      <p className="text-lg font-semibold text-slate-800">{src.total_articles ?? 0}</p>
+                      <p className="text-[10px] text-slate-400">{days}d total · avg {(src.avg_daily ?? 0).toFixed(0)}/day</p>
                     </div>
                   ))}
                 </div>
