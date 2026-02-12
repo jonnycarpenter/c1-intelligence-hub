@@ -35,9 +35,16 @@ import logging
 import sys
 import os
 import time
+from pathlib import Path
 
 # Add backend to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+BACKEND_DIR = Path(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.insert(0, str(BACKEND_DIR))
+
+# Load .env BEFORE importing app modules that read env vars at import time
+from dotenv import load_dotenv
+load_dotenv(BACKEND_DIR / ".env")
+load_dotenv(BACKEND_DIR.parent / ".env")
 
 from app.db.gcp_storage import get_storage, gcp_config
 from app.db.semantic_search import get_semantic_searcher

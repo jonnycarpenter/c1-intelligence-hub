@@ -149,8 +149,9 @@ class EmbeddingGenerator:
         """Generate embeddings using Vertex AI with retry logic."""
         import asyncio
         
-        # Vertex AI has batch limits, process in chunks
-        batch_size = 250
+        # Vertex AI has a 20k token limit per batch request.
+        # Use small batches (20) to handle longer texts like earnings quotes.
+        batch_size = 20
         all_embeddings = []
         
         for i in range(0, len(texts), batch_size):
