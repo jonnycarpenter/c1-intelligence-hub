@@ -392,7 +392,7 @@ interface AgenticWorkflowDiagramProps {
 export default function AgenticWorkflowDiagram({ focusNodeId, focusSection }: AgenticWorkflowDiagramProps) {
   const [selectedNode, setSelectedNode] = useState<ArchNodeData | null>(null)
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
-    A: true,
+    A: false,
     B: false,
     C: false,
     D: false,

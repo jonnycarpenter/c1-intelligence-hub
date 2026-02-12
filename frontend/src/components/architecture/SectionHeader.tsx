@@ -48,7 +48,10 @@ export default function SectionHeader({
           {nodeCount} nodes
         </span>
       )}
-      <div className="ml-auto">
+      <div className="ml-auto flex items-center gap-1.5">
+        {!isExpanded && (
+          <span className="text-[10px] font-medium text-slate-400 hidden sm:inline">Click to explore</span>
+        )}
         <ChevronDown
           className={`w-4 h-4 ${colors.text} transition-transform duration-200 ${isExpanded ? 'rotate-0' : '-rotate-90'}`}
         />

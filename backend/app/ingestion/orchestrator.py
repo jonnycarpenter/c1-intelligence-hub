@@ -484,10 +484,10 @@ class IngestionOrchestrator:
                 stats.web_articles_fetched = len(web_items)
             
             
-            # Convert to RawArticle (StockNewsAPI items already converted above)
+            # Convert to RawArticle (StockNewsAPI and earnings items already converted above)
             converted_prs = [self._convert_pr_to_article(item) for item in pr_items]
             converted_sec = [self._convert_sec_to_article(item) for item in sec_items]
-            converted_earnings = [self._convert_earnings_to_article(item) for item in earnings_items]
+            converted_earnings = earnings_items  # Already RawArticle from _convert_earnings_to_article() at collection time
             
             # Store SEC filings in dedicated sec_filings table (preserves metadata)
             if sec_items:
