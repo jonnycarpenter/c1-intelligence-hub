@@ -22,6 +22,7 @@ Usage:
     summary = token_tracker.get_session_summary()
 """
 
+import asyncio
 import time
 import uuid
 from datetime import datetime, timezone
@@ -71,11 +72,14 @@ def _detect_provider(model: str) -> str:
 
 
 class TokenTracker:
-    """In-memory token usage tracker with BigQuery flush support."""
+    """In-memory token usage tracker with auto-flush to BigQuery."""
+
+    AUTO_FLUSH_THRESHOLD = 5  # Flush after this many buffered records
 
     def __init__(self):
         self._buffer: List[Dict[str, Any]] = []
         self._session_start = time.time()
+        self._flush_pending = False
 
     def record(
         self,
@@ -84,7 +88,7 @@ class TokenTracker:
         output_tokens: int,
         caller: str = "unknown",
     ) -> None:
-        """Record token usage from an LLM call."""
+        """Record token usage from an LLM call. Auto-flushes to BigQuery."""
         cost = _estimate_cost(model, input_tokens, output_tokens)
         provider = _detect_provider(model)
 
@@ -105,6 +109,31 @@ class TokenTracker:
             f"[TOKEN_TRACKER] {model} | {input_tokens:,} in + {output_tokens:,} out "
             f"= {input_tokens + output_tokens:,} tokens | ${cost:.4f} | caller={caller}"
         )
+
+        # Auto-flush when buffer reaches threshold
+        if len(self._buffer) >= self.AUTO_FLUSH_THRESHOLD and not self._flush_pending:
+            self._schedule_flush()
+
+    def _schedule_flush(self) -> None:
+        """Schedule a background flush to BigQuery."""
+        self._flush_pending = True
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(self._auto_flush())
+        except RuntimeError:
+            # No running event loop — skip auto-flush (will flush later)
+            self._flush_pending = False
+
+    async def _auto_flush(self) -> None:
+        """Background auto-flush task."""
+        try:
+            count = await self.flush_to_bigquery()
+            if count > 0:
+                logger.info(f"[TOKEN_TRACKER] Auto-flushed {count} records to BigQuery")
+        except Exception as e:
+            logger.warning(f"[TOKEN_TRACKER] Auto-flush failed: {e}")
+        finally:
+            self._flush_pending = False
 
     def get_session_summary(self) -> Dict[str, Any]:
         """Get summary of token usage for the current session."""

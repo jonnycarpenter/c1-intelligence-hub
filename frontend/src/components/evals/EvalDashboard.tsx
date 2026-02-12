@@ -4,8 +4,8 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   BarChart3, DollarSign, ThumbsUp, Brain, RefreshCw, AlertCircle,
   CheckCircle, FileText, Clock, Zap, TrendingUp, ChevronDown, ChevronRight,
-  Search, FlaskConical, Play, Download, RotateCcw, MessageSquare,
-  ArrowUp, ArrowDown, ToggleLeft, ToggleRight, AlertTriangle,
+  Search, FlaskConical, Play, Download, RotateCcw,
+  ArrowUp, ArrowDown, AlertTriangle,
   ThumbsDown,
 } from 'lucide-react'
 import {
@@ -14,9 +14,6 @@ import {
 } from 'recharts'
 import { cn } from '@/lib/utils'
 import { api } from '@/lib/api'
-import CostExplorer from './CostExplorer'
-import QualityView from './QualityView'
-import FeedbackView from './FeedbackView'
 
 // ── T3.7: Cost alert threshold ──
 const COST_ALERT_THRESHOLD_USD = 5.00
@@ -679,10 +676,6 @@ export default function EvalDashboard() {
   const [autoRefresh, setAutoRefresh] = useState(false)
   const autoRefreshRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // T4.1: Sub-tab navigation
-  type SubTab = 'overview' | 'costs' | 'quality' | 'feedback'
-  const [activeTab, setActiveTab] = useState<SubTab>('overview')
-
   // T4.2: Ingestion health
   const [ingestionHealth, setIngestionHealth] = useState<IngestionSourceHealth[]>([])
 
@@ -875,31 +868,6 @@ export default function EvalDashboard() {
         </div>
       </div>
 
-      {/* T4.1: Sub-tab navigation */}
-      <div className="bg-white border-b border-slate-200 px-6">
-        <nav className="flex gap-1 -mb-px">
-          {[
-            { key: 'overview' as SubTab, label: 'Overview', icon: BarChart3 },
-            { key: 'costs' as SubTab, label: 'Cost Explorer', icon: DollarSign },
-            { key: 'quality' as SubTab, label: 'Quality', icon: Brain },
-            { key: 'feedback' as SubTab, label: 'Feedback', icon: MessageSquare },
-          ].map(tab => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={cn(
-                'flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors',
-                activeTab === tab.key
-                  ? 'border-amber-500 text-amber-700'
-                  : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-              )}
-            >
-              <tab.icon size={15} />
-              {tab.label}
-            </button>
-          ))}
-        </nav>
-      </div>
 
       {/* Content */}
       <div className="p-6 max-w-7xl mx-auto">
@@ -932,7 +900,7 @@ export default function EvalDashboard() {
         {data && (
           <>
             {/* T4.3: Anomaly alerts banner */}
-            {data.anomalies && data.anomalies.length > 0 && activeTab === 'overview' && (
+            {data.anomalies && data.anomalies.length > 0 && (
               <div className="mb-4 space-y-2">
                 {data.anomalies.map((a, i) => (
                   <div
@@ -952,8 +920,8 @@ export default function EvalDashboard() {
               </div>
             )}
 
-            {/* T3.7: Cost alert banner (overview only) */}
-            {activeTab === 'overview' && (data.token_usage_and_cost.total_cost_usd || 0) > COST_ALERT_THRESHOLD_USD && (
+            {/* T3.7: Cost alert banner */}
+            {(data.token_usage_and_cost.total_cost_usd || 0) > COST_ALERT_THRESHOLD_USD && (
               <div className="mb-4 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center gap-2 text-sm text-amber-800">
                 <AlertTriangle size={16} className="shrink-0" />
                 <span>
@@ -963,46 +931,7 @@ export default function EvalDashboard() {
               </div>
             )}
 
-            {/* ── Cost Explorer Tab ── */}
-            {activeTab === 'costs' && (
-              <CostExplorer data={data.token_usage_and_cost} days={days} />
-            )}
-
-            {/* ── Quality Tab ── */}
-            {activeTab === 'quality' && (
-              <QualityView
-                quality={data.quality_metrics}
-                judge={data.llm_judge_scores}
-                evalReports={evalReports}
-                days={days}
-              />
-            )}
-
-            {/* ── Feedback Tab ── */}
-            {activeTab === 'feedback' && (
-              <FeedbackView
-                overview={{
-                  total_feedback: data.user_feedback.total_feedback || 0,
-                  avg_rating: data.user_feedback.avg_rating || 0,
-                  helpful_rate: data.user_feedback.helpful_rate || (data.user_feedback.positive_rate ? Math.round(data.user_feedback.positive_rate * 100) : 0),
-                  total_ratings: data.user_feedback.total_ratings || data.user_feedback.total_feedback || 0,
-                  total_comments: data.user_feedback.total_comments || (data.user_feedback.recent_comments?.length || 0),
-                  rating_distribution: data.user_feedback.rating_distribution || {},
-                }}
-                comments={(data.user_feedback.recent_comments || []).map((c, i) => ({
-                  id: `fb-${i}`,
-                  report_id: '',
-                  query: c.report_type?.replace('_', ' ') || 'Report',
-                  rating: c.rating === 'positive' ? 5 : c.rating === 'negative' ? 1 : 3,
-                  helpful: c.rating === 'positive' ? true : c.rating === 'negative' ? false : null,
-                  comment: c.comment,
-                  created_at: c.created_at,
-                }))}
-              />
-            )}
-
-            {/* ── Overview Tab ── */}
-            {activeTab === 'overview' && (
+            {/* ── Overview ── */}
             <>
             {/* Top-level stat cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -1288,7 +1217,6 @@ export default function EvalDashboard() {
             )}
 
             </>
-            )}
 
             {/* Footer info */}
             <div className="mt-6 text-center text-xs text-slate-400">

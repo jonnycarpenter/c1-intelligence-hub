@@ -128,10 +128,11 @@ async def _compute_weekly_briefing_metrics(
     query = f"""
         SELECT
             COUNT(*) as total_briefings,
-            AVG(JSON_ARRAY_LENGTH(JSON_QUERY(sections, '$'))) as avg_section_count,
+            AVG(ARRAY_LENGTH(JSON_EXTRACT_ARRAY(sections))) as avg_section_count,
         FROM `{dataset}.weekly_briefings`
         WHERE generated_at >= @cutoff {end_clause}
             AND sections IS NOT NULL
+            AND sections != '[]'
     """
 
     params = [bigquery.ScalarQueryParameter("cutoff", "TIMESTAMP", cutoff)]

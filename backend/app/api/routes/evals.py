@@ -41,11 +41,18 @@ class UpdatePricingRequest(BaseModel):
 @router.get("/dashboard")
 async def get_eval_dashboard(days: int = 30, compare: bool = False):
     """Return unified eval dashboard data (quality, cost, judge scores, feedback).
-    
+
     If compare=True, also returns previous_period data for delta comparison (T3.8).
     """
     from google.cloud import bigquery
     from app.evals.quality_metrics import compute_quality_report
+
+    # Flush any buffered token records before querying
+    try:
+        from app.evals.token_tracker import token_tracker
+        await token_tracker.flush_to_bigquery()
+    except Exception:
+        pass
 
     storage = await get_storage()
     client = storage.client
@@ -490,6 +497,7 @@ async def get_ingestion_health(days: int = 30):
 
     # ── Articles per day trend ──
     articles_trend = []
+    source_article_counts: Dict[str, Dict[str, Any]] = {}  # also used for fallback
     try:
         articles_query = f"""
             SELECT DATE(created_at) as day,
@@ -503,9 +511,22 @@ async def get_ingestion_health(days: int = 30):
         article_rows = list(client.query(articles_query, job_config=job_config).result())
 
         day_totals: Dict[str, int] = {}
+        now = datetime.now(timezone.utc)
+        cutoff_24h = (now - timedelta(hours=24)).date()
+
         for r in article_rows:
             day = r.day.isoformat()
             day_totals[day] = day_totals.get(day, 0) + r.articles
+
+            # Track per-source counts for fallback health
+            src = r.source_type or "unknown"
+            if src not in source_article_counts:
+                source_article_counts[src] = {"total": 0, "last_24h": 0, "last_day": None}
+            source_article_counts[src]["total"] += r.articles
+            if r.day >= cutoff_24h:
+                source_article_counts[src]["last_24h"] += r.articles
+            if source_article_counts[src]["last_day"] is None or r.day > source_article_counts[src]["last_day"]:
+                source_article_counts[src]["last_day"] = r.day
 
         articles_trend = [
             {"date": day, "articles": count}
@@ -514,6 +535,37 @@ async def get_ingestion_health(days: int = 30):
 
     except Exception as e:
         logger.warning(f"[EVALS] Articles trend query failed: {e}")
+
+    # ── Fallback: derive source health from articles table if ingestion_events is empty ──
+    if not sources_health and source_article_counts:
+        now = datetime.now(timezone.utc)
+        for src, counts in source_article_counts.items():
+            hours_since = None
+            if counts["last_day"]:
+                last_dt = datetime.combine(counts["last_day"], datetime.min.time()).replace(tzinfo=timezone.utc)
+                hours_since = round((now - last_dt).total_seconds() / 3600, 1)
+
+            status = "green"
+            if hours_since is None or hours_since > 48:
+                status = "red"
+            elif hours_since > 24:
+                status = "yellow"
+
+            avg_daily = round(counts["total"] / max(days, 1), 1)
+            sources_health.append({
+                "source": src,
+                "status": status,
+                "total_runs": counts["total"],
+                "successes": counts["total"],
+                "failures": 0,
+                "error_rate": 0,
+                "hours_since_last_run": hours_since,
+                "last_run": counts["last_day"].isoformat() if counts["last_day"] else None,
+                "last_success": counts["last_day"].isoformat() if counts["last_day"] else None,
+                "last_error": None,
+                "articles_24h": counts["last_24h"],
+                "avg_daily": avg_daily,
+            })
 
     # Sort sources by status priority (red first, then yellow, then green)
     status_order = {"red": 0, "yellow": 1, "green": 2}

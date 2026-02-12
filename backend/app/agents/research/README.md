@@ -313,9 +313,9 @@ deep_research_validator_model = "claude-opus-4-6"
 
 ```python
 # Timeout settings (in seconds)
-deep_research_workflow_timeout = 300  # 5 minutes total workflow timeout
+deep_research_workflow_timeout = 600  # 10 minutes - Opus + extended thinking synthesis needs generous time
 deep_research_tool_timeout = 60       # 60 seconds per external tool call
-deep_research_llm_timeout = 120       # 120 seconds for LLM extraction calls
+deep_research_llm_timeout = 240       # 240 seconds for LLM extraction calls (larger input/output)
 ```
 
 **Timeout Behavior:**
@@ -323,6 +323,7 @@ deep_research_llm_timeout = 120       # 120 seconds for LLM extraction calls
 - If exceeded, a `timeout` SSE event is emitted with details about completed/active nodes
 - Frontend displays a user-friendly timeout message with retry option
 - Individual tool timeouts can be applied using the `sync_tool_with_timeout` decorator from `app/utils/retry.py`
+- **Typical timing**: Groom (~10s) + Parallel research (~60s) + Synthesizer with Opus+thinking (~120-240s) + Validator (~15s) = ~200-325s total
 
 ### Extended Thinking Configuration
 
@@ -331,7 +332,7 @@ Claude's Extended Thinking feature provides transparency into the model's reason
 ```python
 # Extended Thinking settings
 deep_research_thinking_enabled = True   # Enable Claude's extended thinking
-deep_research_thinking_budget_tokens = 10000  # Token budget (min 1024, affects latency)
+deep_research_thinking_budget_tokens = 16000  # Token budget (16k balances quality vs latency)
 ```
 
 **How It Works:**
