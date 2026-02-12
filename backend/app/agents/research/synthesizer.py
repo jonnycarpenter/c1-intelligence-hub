@@ -851,10 +851,14 @@ NOTE: The above is ONE example section. Your report should have 4-8 sections, ea
     
     if use_thinking:
         messages_raw = [{"role": "user", "content": synthesis_prompt}]
+        # max_tokens MUST be greater than thinking.budget_tokens (Anthropic API requirement)
+        # We add 16k output tokens on top of the thinking budget for the actual report content
+        synthesis_max_tokens = thinking_budget + 16000
+        logger.info(f"[SYNTHESIZER] max_tokens={synthesis_max_tokens} (thinking_budget={thinking_budget} + 16000 output)")
         try:
             response = await client.messages_create(
                 model=settings.deep_research_synthesizer_model,
-                max_tokens=16000,
+                max_tokens=synthesis_max_tokens,
                 messages=messages_raw,
                 system=system_content,
                 thinking={"type": "enabled", "budget_tokens": thinking_budget},

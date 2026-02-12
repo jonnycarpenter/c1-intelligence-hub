@@ -599,6 +599,12 @@ class ResilientAsyncClient:
             if thinking_enabled:
                 anthropic_params["thinking"] = thinking
                 # Don't set temperature when thinking is enabled (API requirement)
+                # Safety: max_tokens MUST be > thinking.budget_tokens
+                budget = thinking.get("budget_tokens", 0)
+                if budget and max_tokens <= budget:
+                    fixed_max = budget + 16000
+                    logger.warning(f"max_tokens ({max_tokens}) must be > thinking.budget_tokens ({budget}). Auto-fixing to {fixed_max}")
+                    anthropic_params["max_tokens"] = fixed_max
             else:
                 anthropic_params["temperature"] = temperature
             
