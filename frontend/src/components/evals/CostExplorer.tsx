@@ -36,15 +36,17 @@ interface ModelPricing {
 }
 
 function formatTokens(n: number) {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`
-  return String(n)
+  const v = n ?? 0
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`
+  if (v >= 1_000) return `${(v / 1_000).toFixed(0)}K`
+  return String(v)
 }
 
 function formatCost(n: number) {
-  if (n >= 1) return `$${n.toFixed(2)}`
-  if (n >= 0.01) return `$${n.toFixed(3)}`
-  return `$${n.toFixed(4)}`
+  const v = n ?? 0
+  if (v >= 1) return `$${v.toFixed(2)}`
+  if (v >= 0.01) return `$${v.toFixed(3)}`
+  return `$${v.toFixed(4)}`
 }
 
 // ── Sortable table ──
@@ -200,8 +202,8 @@ function PricingTable({ pricing, onUpdate }: {
                   </>
                 ) : (
                   <>
-                    <td className="text-right px-4 py-2.5 text-slate-600">${price.input.toFixed(2)}</td>
-                    <td className="text-right px-4 py-2.5 text-slate-600">${price.output.toFixed(2)}</td>
+                    <td className="text-right px-4 py-2.5 text-slate-600">${(price.input ?? 0).toFixed(2)}</td>
+                    <td className="text-right px-4 py-2.5 text-slate-600">${(price.output ?? 0).toFixed(2)}</td>
                     <td className="text-right px-4 py-2.5">
                       <button
                         onClick={() => {
@@ -360,9 +362,9 @@ export default function CostExplorer({ data, days }: { data: CostData; days: num
           defaultSort="cost_usd"
           columns={[
             { key: 'model', label: 'Model' },
-            { key: 'calls', label: 'Calls', align: 'right', format: (v: number) => v.toLocaleString() },
-            { key: 'cost_usd', label: 'Cost', align: 'right', format: (v: number) => formatCost(v) },
-            { key: 'tokens', label: 'Tokens', align: 'right', format: (v: number) => formatTokens(v) },
+            { key: 'calls', label: 'Calls', align: 'right', format: (v: number) => (v ?? 0).toLocaleString() },
+            { key: 'cost_usd', label: 'Cost', align: 'right', format: (v: number) => formatCost(v ?? 0) },
+            { key: 'tokens', label: 'Tokens', align: 'right', format: (v: number) => formatTokens(v ?? 0) },
           ]}
         />
         <SortableTable
@@ -371,9 +373,9 @@ export default function CostExplorer({ data, days }: { data: CostData; days: num
           defaultSort="cost_usd"
           columns={[
             { key: 'caller', label: 'Module' },
-            { key: 'calls', label: 'Calls', align: 'right', format: (v: number) => v.toLocaleString() },
-            { key: 'cost_usd', label: 'Cost', align: 'right', format: (v: number) => formatCost(v) },
-            { key: 'tokens', label: 'Tokens', align: 'right', format: (v: number) => formatTokens(v) },
+            { key: 'calls', label: 'Calls', align: 'right', format: (v: number) => (v ?? 0).toLocaleString() },
+            { key: 'cost_usd', label: 'Cost', align: 'right', format: (v: number) => formatCost(v ?? 0) },
+            { key: 'tokens', label: 'Tokens', align: 'right', format: (v: number) => formatTokens(v ?? 0) },
           ]}
         />
       </div>
@@ -385,9 +387,9 @@ export default function CostExplorer({ data, days }: { data: CostData; days: num
         defaultSort="date"
         columns={[
           { key: 'date', label: 'Date' },
-          { key: 'calls', label: 'Calls', align: 'right', format: (v: number) => v.toLocaleString() },
-          { key: 'cost_usd', label: 'Cost', align: 'right', format: (v: number) => formatCost(v) },
-          { key: 'tokens', label: 'Tokens', align: 'right', format: (v: number) => formatTokens(v) },
+          { key: 'calls', label: 'Calls', align: 'right', format: (v: number) => (v ?? 0).toLocaleString() },
+          { key: 'cost_usd', label: 'Cost', align: 'right', format: (v: number) => formatCost(v ?? 0) },
+          { key: 'tokens', label: 'Tokens', align: 'right', format: (v: number) => formatTokens(v ?? 0) },
         ]}
       />
 

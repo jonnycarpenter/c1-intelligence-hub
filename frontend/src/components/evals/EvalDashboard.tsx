@@ -697,7 +697,14 @@ export default function EvalDashboard() {
       ])
       setData(result)
       setEvalReports(reportsResult.reports || [])
-      setIngestionHealth(healthResult.sources || [])
+      setIngestionHealth((healthResult.sources || []).map((s: any) => ({
+        source: s.source || 'unknown',
+        status: s.status || 'red',
+        last_run: s.last_run || null,
+        articles_24h: s.articles_24h ?? s.successes ?? 0,
+        articles_7d: s.articles_7d ?? s.total_runs ?? 0,
+        avg_daily: s.avg_daily ?? (s.total_runs ? +(s.total_runs / 30).toFixed(1) : 0),
+      })))
     } catch (err: any) {
       setError(err.message || 'Failed to load dashboard')
     } finally {
@@ -754,15 +761,17 @@ export default function EvalDashboard() {
   }
 
   const formatTokens = (n: number) => {
-    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-    if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`
-    return String(n)
+    const v = n ?? 0
+    if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`
+    if (v >= 1_000) return `${(v / 1_000).toFixed(0)}K`
+    return String(v)
   }
 
   const formatCost = (n: number) => {
-    if (n >= 1) return `$${n.toFixed(2)}`
-    if (n >= 0.01) return `$${n.toFixed(3)}`
-    return `$${n.toFixed(4)}`
+    const v = n ?? 0
+    if (v >= 1) return `$${v.toFixed(2)}`
+    if (v >= 0.01) return `$${v.toFixed(3)}`
+    return `$${v.toFixed(4)}`
   }
 
   return (
@@ -1184,9 +1193,9 @@ export default function EvalDashboard() {
                       data={data.token_usage_and_cost.by_model || []}
                       columns={[
                         { key: 'model', label: 'Model' },
-                        { key: 'calls', label: 'Calls', format: (v: number) => v.toLocaleString() },
-                        { key: 'cost_usd', label: 'Cost', format: (v: number) => formatCost(v) },
-                        { key: 'tokens', label: 'Tokens', format: (v: number) => formatTokens(v) },
+                        { key: 'calls', label: 'Calls', format: (v: number) => (v ?? 0).toLocaleString() },
+                        { key: 'cost_usd', label: 'Cost', format: (v: number) => formatCost(v ?? 0) },
+                        { key: 'tokens', label: 'Tokens', format: (v: number) => formatTokens(v ?? 0) },
                       ]}
                     />
                     <CostTable
@@ -1194,9 +1203,9 @@ export default function EvalDashboard() {
                       data={data.token_usage_and_cost.by_caller || []}
                       columns={[
                         { key: 'caller', label: 'Module' },
-                        { key: 'calls', label: 'Calls', format: (v: number) => v.toLocaleString() },
-                        { key: 'cost_usd', label: 'Cost', format: (v: number) => formatCost(v) },
-                        { key: 'tokens', label: 'Tokens', format: (v: number) => formatTokens(v) },
+                        { key: 'calls', label: 'Calls', format: (v: number) => (v ?? 0).toLocaleString() },
+                        { key: 'cost_usd', label: 'Cost', format: (v: number) => formatCost(v ?? 0) },
+                        { key: 'tokens', label: 'Tokens', format: (v: number) => formatTokens(v ?? 0) },
                       ]}
                     />
                   </div>
@@ -1270,8 +1279,8 @@ export default function EvalDashboard() {
                           {src.source.replace(/_/g, ' ')}
                         </span>
                       </div>
-                      <p className="text-lg font-semibold text-slate-800">{src.articles_24h}</p>
-                      <p className="text-[10px] text-slate-400">last 24h · avg {src.avg_daily.toFixed(0)}/day</p>
+                      <p className="text-lg font-semibold text-slate-800">{src.articles_24h ?? 0}</p>
+                      <p className="text-[10px] text-slate-400">last 24h · avg {(src.avg_daily ?? 0).toFixed(0)}/day</p>
                     </div>
                   ))}
                 </div>
