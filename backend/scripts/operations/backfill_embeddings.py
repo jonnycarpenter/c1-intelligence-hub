@@ -133,10 +133,41 @@ async def show_stats():
 # Backfill functions
 # =========================================================================
 
+def _build_merge_sql(table_id: str, id_col: str, rows_with_embeddings: list[tuple[str, list[float]]]) -> str:
+    """Build a single MERGE DML statement to update many rows at once.
+    
+    This avoids BigQuery 'concurrent update' serialization errors that happen
+    when firing many individual UPDATE statements rapidly.
+    """
+    # Build UNNEST array for the merge source
+    struct_parts = []
+    for row_id, emb in rows_with_embeddings:
+        emb_str = "[" + ",".join(str(x) for x in emb) + "]"
+        # Escape single quotes in IDs just in case
+        safe_id = row_id.replace("'", "\\'")
+        struct_parts.append(f"STRUCT('{safe_id}' AS id, {emb_str} AS embedding)")
+
+    source = ",\n        ".join(struct_parts)
+    
+    return f"""
+        MERGE `{table_id}` T
+        USING (
+            SELECT id, embedding
+            FROM UNNEST([
+                {source}
+            ])
+        ) S
+        ON T.{id_col} = S.id
+        WHEN MATCHED THEN
+            UPDATE SET
+                T.embedding = S.embedding,
+                T.embedding_model = 'text-embedding-004'
+    """
+
+
 async def backfill_earnings_quotes(batch_size: int = 200, max_rows: int = 0):
     """Backfill embeddings for earnings_quotes rows missing them."""
     from google.cloud import bigquery
-    from google.cloud.bigquery import QueryJobConfig
 
     client = bigquery.Client(project=gcp_config.project_id)
     dataset = gcp_config.full_dataset_id
@@ -144,7 +175,7 @@ async def backfill_earnings_quotes(batch_size: int = 200, max_rows: int = 0):
 
     searcher = await get_semantic_searcher()
     if not searcher.is_available:
-        logger.error("❌ Embedding model not available. Cannot backfill.")
+        logger.error("Embedding model not available. Cannot backfill.")
         return
 
     # Get rows without embeddings
@@ -175,40 +206,33 @@ async def backfill_earnings_quotes(batch_size: int = 200, max_rows: int = 0):
             logger.error(f"[EARNINGS] Embedding batch {i}-{i+len(batch)} failed")
             continue
 
-        # Update rows via DML (BigQuery supports UPDATE)
-        for j, (row_dict, emb) in enumerate(zip(batch_dicts, embeddings)):
+        # Build list of (id, embedding) pairs
+        pairs = []
+        for row_dict, emb in zip(batch_dicts, embeddings):
             quote_id = row_dict.get("quote_id")
-            if not quote_id:
-                continue
+            if quote_id:
+                pairs.append((quote_id, emb))
 
-            emb_str = "[" + ",".join(str(x) for x in emb) + "]"
-            update_sql = f"""
-                UPDATE `{table_id}`
-                SET embedding = {emb_str},
-                    embedding_model = 'text-embedding-004'
-                WHERE quote_id = @quote_id
-            """
+        if pairs:
+            merge_sql = _build_merge_sql(table_id, "quote_id", pairs)
             try:
-                job_config = QueryJobConfig(
-                    query_parameters=[bigquery.ScalarQueryParameter("quote_id", "STRING", quote_id)]
-                )
-                client.query(update_sql, job_config=job_config).result()
+                client.query(merge_sql).result()
             except Exception as e:
-                logger.error(f"[EARNINGS] Update failed for {quote_id}: {e}")
+                logger.error(f"[EARNINGS] Batch MERGE failed at {i}: {e}")
+                continue
 
         processed += len(batch)
         logger.info(f"[EARNINGS] Processed {processed}/{total} rows")
         # Brief pause to avoid Vertex AI rate limits
         if i + batch_size < total:
-            await asyncio.sleep(1)
+            await asyncio.sleep(2)
 
-    logger.info(f"[EARNINGS] ✅ Backfill complete: {processed} rows processed")
+    logger.info(f"[EARNINGS] Backfill complete: {processed} rows processed")
 
 
 async def backfill_sec_nuggets(batch_size: int = 200, max_rows: int = 0):
     """Backfill embeddings for sec_filing_nuggets rows missing them."""
     from google.cloud import bigquery
-    from google.cloud.bigquery import QueryJobConfig
 
     client = bigquery.Client(project=gcp_config.project_id)
     dataset = gcp_config.full_dataset_id
@@ -216,7 +240,7 @@ async def backfill_sec_nuggets(batch_size: int = 200, max_rows: int = 0):
 
     searcher = await get_semantic_searcher()
     if not searcher.is_available:
-        logger.error("❌ Embedding model not available. Cannot backfill.")
+        logger.error("Embedding model not available. Cannot backfill.")
         return
 
     limit_clause = f"LIMIT {max_rows}" if max_rows > 0 else ""
@@ -246,38 +270,31 @@ async def backfill_sec_nuggets(batch_size: int = 200, max_rows: int = 0):
             logger.error(f"[SEC] Embedding batch {i}-{i+len(batch)} failed")
             continue
 
-        for j, (row_dict, emb) in enumerate(zip(batch_dicts, embeddings)):
+        pairs = []
+        for row_dict, emb in zip(batch_dicts, embeddings):
             nugget_id = row_dict.get("nugget_id")
-            if not nugget_id:
-                continue
+            if nugget_id:
+                pairs.append((nugget_id, emb))
 
-            emb_str = "[" + ",".join(str(x) for x in emb) + "]"
-            update_sql = f"""
-                UPDATE `{table_id}`
-                SET embedding = {emb_str},
-                    embedding_model = 'text-embedding-004'
-                WHERE nugget_id = @nugget_id
-            """
+        if pairs:
+            merge_sql = _build_merge_sql(table_id, "nugget_id", pairs)
             try:
-                job_config = QueryJobConfig(
-                    query_parameters=[bigquery.ScalarQueryParameter("nugget_id", "STRING", nugget_id)]
-                )
-                client.query(update_sql, job_config=job_config).result()
+                client.query(merge_sql).result()
             except Exception as e:
-                logger.error(f"[SEC] Update failed for {nugget_id}: {e}")
+                logger.error(f"[SEC] Batch MERGE failed at {i}: {e}")
+                continue
 
         processed += len(batch)
         logger.info(f"[SEC] Processed {processed}/{total} rows")
         if i + batch_size < total:
-            await asyncio.sleep(1)
+            await asyncio.sleep(2)
 
-    logger.info(f"[SEC] ✅ Backfill complete: {processed} rows processed")
+    logger.info(f"[SEC] Backfill complete: {processed} rows processed")
 
 
 async def backfill_podcast_quotes(batch_size: int = 200, max_rows: int = 0):
     """Backfill embeddings for podcast_quotes rows missing them."""
     from google.cloud import bigquery
-    from google.cloud.bigquery import QueryJobConfig
 
     client = bigquery.Client(project=gcp_config.project_id)
     dataset = gcp_config.full_dataset_id
@@ -285,7 +302,7 @@ async def backfill_podcast_quotes(batch_size: int = 200, max_rows: int = 0):
 
     searcher = await get_semantic_searcher()
     if not searcher.is_available:
-        logger.error("❌ Embedding model not available. Cannot backfill.")
+        logger.error("Embedding model not available. Cannot backfill.")
         return
 
     limit_clause = f"LIMIT {max_rows}" if max_rows > 0 else ""
@@ -315,32 +332,26 @@ async def backfill_podcast_quotes(batch_size: int = 200, max_rows: int = 0):
             logger.error(f"[PODCAST] Embedding batch {i}-{i+len(batch)} failed")
             continue
 
-        for j, (row_dict, emb) in enumerate(zip(batch_dicts, embeddings)):
+        pairs = []
+        for row_dict, emb in zip(batch_dicts, embeddings):
             row_id = row_dict.get("id")
-            if not row_id:
-                continue
+            if row_id:
+                pairs.append((row_id, emb))
 
-            emb_str = "[" + ",".join(str(x) for x in emb) + "]"
-            update_sql = f"""
-                UPDATE `{table_id}`
-                SET embedding = {emb_str},
-                    embedding_model = 'text-embedding-004'
-                WHERE id = @row_id
-            """
+        if pairs:
+            merge_sql = _build_merge_sql(table_id, "id", pairs)
             try:
-                job_config = QueryJobConfig(
-                    query_parameters=[bigquery.ScalarQueryParameter("row_id", "STRING", row_id)]
-                )
-                client.query(update_sql, job_config=job_config).result()
+                client.query(merge_sql).result()
             except Exception as e:
-                logger.error(f"[PODCAST] Update failed for {row_id}: {e}")
+                logger.error(f"[PODCAST] Batch MERGE failed at {i}: {e}")
+                continue
 
         processed += len(batch)
         logger.info(f"[PODCAST] Processed {processed}/{total} rows")
         if i + batch_size < total:
-            await asyncio.sleep(1)
+            await asyncio.sleep(2)
 
-    logger.info(f"[PODCAST] ✅ Backfill complete: {processed} rows processed")
+    logger.info(f"[PODCAST] Backfill complete: {processed} rows processed")
 
 
 # =========================================================================
