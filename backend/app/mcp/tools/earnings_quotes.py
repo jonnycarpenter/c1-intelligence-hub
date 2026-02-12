@@ -20,6 +20,7 @@ from typing import Optional
 from langchain_core.tools import tool
 
 from app.db.gcp_storage import get_storage
+from app.db.semantic_search import get_semantic_searcher
 
 logger = logging.getLogger(__name__)
 
@@ -96,19 +97,38 @@ async def search_earnings_quotes(
         if detected_themes:
             themes = detected_themes
 
-        results = await storage.get_earnings_quotes(
-            ticker=ticker,
-            search_query=query,
-            quote_type=quote_type,
-            themes=themes,
-            speaker_role=speaker_role,
-            section=section,
-            year=year,
-            quarter=quarter,
-            quotable_only=quotable_only,
-            min_relevance=0.3,
-            limit=limit,
-        )
+        # Use semantic (vector) search for natural-language queries
+        searcher = await get_semantic_searcher()
+        if searcher.is_available:
+            logger.info("[EARNINGS_QUOTES_TOOL] Using semantic vector search")
+            results = await searcher.search_earnings_quotes(
+                query=query,
+                ticker=ticker,
+                quote_type=quote_type,
+                speaker_role=speaker_role,
+                section=section,
+                year=year,
+                quarter=quarter,
+                themes=themes,
+                quotable_only=quotable_only,
+                min_relevance=0.3,
+                limit=limit,
+            )
+        else:
+            logger.info("[EARNINGS_QUOTES_TOOL] Semantic search unavailable, using LIKE search")
+            results = await storage.get_earnings_quotes(
+                ticker=ticker,
+                search_query=query,
+                quote_type=quote_type,
+                themes=themes,
+                speaker_role=speaker_role,
+                section=section,
+                year=year,
+                quarter=quarter,
+                quotable_only=quotable_only,
+                min_relevance=0.3,
+                limit=limit,
+            )
 
         if not results:
             return json.dumps({

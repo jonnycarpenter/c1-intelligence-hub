@@ -12,6 +12,7 @@ from typing import Optional, List
 from langchain_core.tools import tool
 
 from app.db.gcp_storage import get_storage
+from app.db.semantic_search import get_semantic_searcher
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -93,7 +94,65 @@ async def _search_quotes(
     days: int = 90,
     limit: int = 15,
 ) -> dict:
-    """Execute the quote search against BigQuery."""
+    """Execute the quote search against BigQuery using semantic search when available."""
+    # Try semantic (vector) search first for natural-language queries
+    if search_query:
+        try:
+            searcher = await get_semantic_searcher()
+            if searcher.is_available:
+                logger.info("[PODCAST_QUOTES] Using semantic vector search")
+                rows = await searcher.search_podcast_quotes(
+                    query=search_query,
+                    themes=themes,
+                    podcast_name=podcast_name,
+                    speaker_name=speaker_name,
+                    days=days,
+                    limit=limit,
+                )
+                if rows:
+                    # Build response from semantic results
+                    quotes = []
+                    for row in rows:
+                        themes_val = row.get("themes", "[]")
+                        if isinstance(themes_val, str):
+                            try:
+                                themes_val = json.loads(themes_val)
+                            except (json.JSONDecodeError, TypeError):
+                                themes_val = []
+                        quotes.append({
+                            "quote_text": row.get("quote_text", ""),
+                            "context": row.get("context_summary", ""),
+                            "speaker": {
+                                "name": row.get("speaker_name", "Unknown"),
+                                "role": row.get("speaker_role", "unknown"),
+                                "title": row.get("speaker_title"),
+                                "company": row.get("speaker_company"),
+                            },
+                            "themes": themes_val,
+                            "relevance_score": row.get("semantic_score", row.get("relevance_score", 0.0)),
+                            "source": {
+                                "podcast": row.get("podcast_name", ""),
+                                "episode": row.get("episode_title", ""),
+                                "url": row.get("episode_url", ""),
+                                "date": str(row.get("published_at", ""))[:10],
+                            },
+                        })
+                    return {
+                        "total_results": len(quotes),
+                        "search_params": {
+                            "query": search_query,
+                            "themes": themes,
+                            "podcast": podcast_name,
+                            "speaker": speaker_name,
+                            "days": days,
+                        },
+                        "quotes": quotes,
+                    }
+        except Exception as e:
+            logger.warning(f"[PODCAST_QUOTES] Semantic search failed, falling back to LIKE: {e}")
+
+    # Fallback: original LIKE-based search
+    logger.info("[PODCAST_QUOTES] Using LIKE-based search")
     storage = await get_storage()
 
     rows = await storage.get_podcast_quotes(

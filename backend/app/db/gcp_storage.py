@@ -3682,6 +3682,8 @@ class BigQueryDataStorage(DataStorageInterface):
             bigquery.SchemaField("relevance_score", "FLOAT64"),
             bigquery.SchemaField("extraction_model", "STRING"),
             bigquery.SchemaField("extracted_at", "TIMESTAMP", mode="REQUIRED"),
+            bigquery.SchemaField("embedding", "FLOAT64", mode="REPEATED"),
+            bigquery.SchemaField("embedding_model", "STRING"),
         ]
 
         table = bigquery.Table(table_id, schema=schema)
@@ -3717,11 +3719,28 @@ class BigQueryDataStorage(DataStorageInterface):
             return 0
 
     async def store_podcast_quotes(self, quotes: List[Dict[str, Any]]) -> int:
-        """Store podcast quote records in BigQuery."""
+        """Store podcast quote records in BigQuery with semantic embeddings."""
         if not quotes:
             return 0
         table_id = f"{self.config.full_dataset_id}.podcast_quotes"
         try:
+            # Generate embeddings for semantic search
+            try:
+                from app.db.semantic_search import get_semantic_searcher
+                searcher = await get_semantic_searcher()
+                if searcher.is_available:
+                    texts = [searcher.build_embed_text_for_podcast(q) for q in quotes]
+                    embeddings = await searcher.embed_texts(texts)
+                    if embeddings and len(embeddings) == len(quotes):
+                        for q, emb in zip(quotes, embeddings):
+                            q["embedding"] = emb
+                            q["embedding_model"] = "text-embedding-004"
+                        logger.info(f"[PODCAST_STORAGE] Generated {len(embeddings)} embeddings")
+                    else:
+                        logger.warning("[PODCAST_STORAGE] Embedding count mismatch, storing without embeddings")
+            except Exception as emb_err:
+                logger.warning(f"[PODCAST_STORAGE] Embedding generation failed (non-fatal): {emb_err}")
+
             errors = self.client.insert_rows_json(table_id, quotes)
             if errors:
                 logger.error(f"[PODCAST_STORAGE] Quote insert errors: {errors}")
@@ -3856,6 +3875,8 @@ class BigQueryDataStorage(DataStorageInterface):
             bigquery.SchemaField("extracted_at", "TIMESTAMP", mode="REQUIRED"),
             bigquery.SchemaField("extraction_model", "STRING"),
             bigquery.SchemaField("extraction_confidence", "FLOAT64"),
+            bigquery.SchemaField("embedding", "FLOAT64", mode="REPEATED"),
+            bigquery.SchemaField("embedding_model", "STRING"),
         ]
 
         table = bigquery.Table(table_id, schema=schema)
@@ -3875,7 +3896,7 @@ class BigQueryDataStorage(DataStorageInterface):
                 raise
 
     async def store_earnings_quotes(self, quotes: List[Dict[str, Any]]) -> int:
-        """Store earnings quote records in BigQuery.
+        """Store earnings quote records in BigQuery with semantic embeddings.
         
         Args:
             quotes: List of quote dicts (from ExtractedEarningsQuote.to_bq_row())
@@ -3887,6 +3908,23 @@ class BigQueryDataStorage(DataStorageInterface):
             return 0
         table_id = f"{self.config.full_dataset_id}.earnings_quotes"
         try:
+            # Generate embeddings for semantic search
+            try:
+                from app.db.semantic_search import get_semantic_searcher
+                searcher = await get_semantic_searcher()
+                if searcher.is_available:
+                    texts = [searcher.build_embed_text_for_earnings(q) for q in quotes]
+                    embeddings = await searcher.embed_texts(texts)
+                    if embeddings and len(embeddings) == len(quotes):
+                        for q, emb in zip(quotes, embeddings):
+                            q["embedding"] = emb
+                            q["embedding_model"] = "text-embedding-004"
+                        logger.info(f"[EARNINGS_QUOTES] Generated {len(embeddings)} embeddings")
+                    else:
+                        logger.warning("[EARNINGS_QUOTES] Embedding count mismatch, storing without embeddings")
+            except Exception as emb_err:
+                logger.warning(f"[EARNINGS_QUOTES] Embedding generation failed (non-fatal): {emb_err}")
+
             errors = self.client.insert_rows_json(table_id, quotes)
             if errors:
                 logger.error(f"[EARNINGS_QUOTES] Insert errors: {errors[:3]}")
@@ -4381,6 +4419,8 @@ class BigQueryDataStorage(DataStorageInterface):
             bigquery.SchemaField("filing_date", "STRING"),
             bigquery.SchemaField("extracted_at", "TIMESTAMP", mode="REQUIRED"),
             bigquery.SchemaField("extraction_model", "STRING"),
+            bigquery.SchemaField("embedding", "FLOAT64", mode="REPEATED"),
+            bigquery.SchemaField("embedding_model", "STRING"),
         ]
 
         table = bigquery.Table(table_id, schema=schema)
@@ -4506,7 +4546,7 @@ class BigQueryDataStorage(DataStorageInterface):
                 raise
 
     async def store_sec_filing_nuggets(self, nuggets: List[Dict[str, Any]]) -> int:
-        """Store SEC filing nugget records in BigQuery.
+        """Store SEC filing nugget records in BigQuery with semantic embeddings.
 
         Args:
             nuggets: List of nugget dicts (from ExtractedSecNugget.to_bq_row())
@@ -4518,6 +4558,23 @@ class BigQueryDataStorage(DataStorageInterface):
             return 0
         table_id = f"{self.config.full_dataset_id}.sec_filing_nuggets"
         try:
+            # Generate embeddings for semantic search
+            try:
+                from app.db.semantic_search import get_semantic_searcher
+                searcher = await get_semantic_searcher()
+                if searcher.is_available:
+                    texts = [searcher.build_embed_text_for_sec(n) for n in nuggets]
+                    embeddings = await searcher.embed_texts(texts)
+                    if embeddings and len(embeddings) == len(nuggets):
+                        for n, emb in zip(nuggets, embeddings):
+                            n["embedding"] = emb
+                            n["embedding_model"] = "text-embedding-004"
+                        logger.info(f"[SEC_NUGGETS] Generated {len(embeddings)} embeddings")
+                    else:
+                        logger.warning("[SEC_NUGGETS] Embedding count mismatch, storing without embeddings")
+            except Exception as emb_err:
+                logger.warning(f"[SEC_NUGGETS] Embedding generation failed (non-fatal): {emb_err}")
+
             errors = self.client.insert_rows_json(table_id, nuggets)
             if errors:
                 logger.error(f"[SEC_NUGGETS] Insert errors: {errors[:3]}")

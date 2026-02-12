@@ -21,6 +21,7 @@ from typing import Optional
 from langchain_core.tools import tool
 
 from app.db.gcp_storage import get_storage
+from app.db.semantic_search import get_semantic_searcher
 
 logger = logging.getLogger(__name__)
 
@@ -107,19 +108,38 @@ async def search_sec_nuggets(
         if detected_themes:
             themes = detected_themes
 
-        results = await storage.get_sec_filing_nuggets(
-            ticker=ticker,
-            search_query=query,
-            nugget_type=nugget_type,
-            themes=themes,
-            section=section,
-            signal_strength=signal_strength,
-            fiscal_year=fiscal_year,
-            actionable_only=actionable_only,
-            new_disclosures_only=new_disclosures_only,
-            min_relevance=0.3,
-            limit=limit,
-        )
+        # Use semantic (vector) search for natural-language queries
+        searcher = await get_semantic_searcher()
+        if searcher.is_available:
+            logger.info("[SEC_NUGGETS_TOOL] Using semantic vector search")
+            results = await searcher.search_sec_nuggets(
+                query=query,
+                ticker=ticker,
+                nugget_type=nugget_type,
+                section=section,
+                signal_strength=signal_strength,
+                fiscal_year=fiscal_year,
+                themes=themes,
+                actionable_only=actionable_only,
+                new_disclosures_only=new_disclosures_only,
+                min_relevance=0.3,
+                limit=limit,
+            )
+        else:
+            logger.info("[SEC_NUGGETS_TOOL] Semantic search unavailable, using LIKE search")
+            results = await storage.get_sec_filing_nuggets(
+                ticker=ticker,
+                search_query=query,
+                nugget_type=nugget_type,
+                themes=themes,
+                section=section,
+                signal_strength=signal_strength,
+                fiscal_year=fiscal_year,
+                actionable_only=actionable_only,
+                new_disclosures_only=new_disclosures_only,
+                min_relevance=0.3,
+                limit=limit,
+            )
 
         if not results:
             return json.dumps({
