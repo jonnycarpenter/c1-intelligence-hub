@@ -7,6 +7,7 @@ This agent validates the final research report to ensure:
 4. Confidence levels are adjusted based on citation quality
 """
 
+import asyncio
 import json
 import time
 from typing import Dict, Any, List, Optional
@@ -300,7 +301,14 @@ Respond ONLY with a valid JSON object matching the ValidatorOutput schema.
     ]
     
     try:
-        response = await llm.ainvoke(messages)
+        try:
+            response = await asyncio.wait_for(
+                llm.ainvoke(messages),
+                timeout=settings.deep_research_llm_timeout
+            )
+        except asyncio.TimeoutError:
+            logger.error(f"[VALIDATOR] LLM call timed out after {settings.deep_research_llm_timeout}s")
+            raise TimeoutError(f"Validator LLM call timed out after {settings.deep_research_llm_timeout}s")
         
         content = response.content
         # Extract JSON from response

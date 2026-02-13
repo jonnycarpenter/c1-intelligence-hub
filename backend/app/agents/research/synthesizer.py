@@ -5,7 +5,9 @@ from app.agents.research.memory import get_research_memory
 from app.config.settings import settings
 from app.utils.resilient_llm import create_resilient_llm_with_gemini_fallback, get_resilient_async_client
 from app.services.logo_service import logo_service, company_name_to_domain
+import asyncio
 import json
+import re
 import time
 import logging
 from datetime import datetime, timedelta
@@ -669,6 +671,83 @@ async def _get_prior_research_context(query: str, companies: List[str] = None, i
         return ""
 
 
+def _repair_truncated_json(raw: str) -> Optional[Dict]:
+    """
+    Attempt to repair truncated JSON from an LLM that hit max_tokens.
+    
+    Strategy:
+    1. Strip any trailing incomplete string/value
+    2. Close all open brackets/braces
+    3. Try to parse
+    
+    Returns parsed dict on success, None on failure.
+    """
+    if not raw or not raw.strip():
+        return None
+    
+    text = raw.strip()
+    
+    # Strategy 1: Truncate to last complete value and close brackets
+    # Find the last complete JSON value boundary (}, ], ", number, true/false/null)
+    # Walk backwards to find a safe truncation point
+    
+    attempts = []
+    
+    # Attempt A: Cut at last complete array element or object
+    # Find last occurrence of }, ] followed by optional comma
+    for pattern in [r'}\s*,?\s*$', r']\s*,?\s*$', r'"\s*,?\s*$']:
+        match = re.search(pattern, text)
+    
+    # Attempt B: Progressively truncate from the end and try closing brackets
+    # Find the last "good" position - a complete key-value or array element
+    last_good = len(text)
+    for i in range(len(text) - 1, max(0, len(text) - 500), -1):
+        ch = text[i]
+        if ch in ('}', ']', '"') or text[i:i+4] in ('true', 'null') or text[i:i+5] == 'false':
+            # Check if we're inside a string by counting unescaped quotes
+            # Simple heuristic: try truncating here and closing
+            candidate = text[:i+1]
+            # Remove trailing comma if present
+            candidate = candidate.rstrip().rstrip(',')
+            
+            # Count open/close brackets
+            open_braces = candidate.count('{') - candidate.count('}')
+            open_brackets = candidate.count('[') - candidate.count(']')
+            
+            # Check for unterminated strings (rough heuristic)
+            # Count unescaped quotes
+            quote_count = 0
+            j = 0
+            while j < len(candidate):
+                if candidate[j] == '"' and (j == 0 or candidate[j-1] != '\\'):
+                    quote_count += 1
+                j += 1
+            
+            in_string = quote_count % 2 == 1
+            
+            if in_string:
+                # Close the string first
+                candidate += '"'
+            
+            # Close all open brackets/braces
+            candidate += ']' * max(0, open_brackets)
+            candidate += '}' * max(0, open_braces)
+            
+            try:
+                result = json.loads(candidate)
+                # Validate it has the minimum required structure
+                if isinstance(result, dict) and 'executive_summary' in result:
+                    logger.info(f"[SYNTHESIZER] JSON repair SUCCEEDED at position {i}/{len(text)} "
+                                f"(closed {open_braces} braces, {open_brackets} brackets, in_string={in_string})")
+                    logger.info(f"[SYNTHESIZER] Repaired report has {len(result.get('sections', []))} sections")
+                    return result
+            except json.JSONDecodeError:
+                continue
+    
+    logger.warning("[SYNTHESIZER] JSON repair FAILED - could not find valid truncation point")
+    return None
+
+
 async def synthesis_node(state: DeepResearchState) -> DeepResearchState:
     """
     Synthesis node. Merges outputs into a dynamic BLOCK-BASED report.
@@ -693,7 +772,9 @@ async def synthesis_node(state: DeepResearchState) -> DeepResearchState:
             anthropic_api_key=settings.anthropic_api_key,
             gemini_api_key=settings.gemini_api_key,
             temperature=0,
+            max_tokens=20000,  # Synthesis JSON reports need 8-15k tokens; 4096 default was truncating output
         )
+        logger.info(f"[SYNTHESIZER] LLM initialized with max_tokens=20000 (non-thinking path)")
     
     financial = state.get("financial_output")
     industry = state.get("industry_output")
@@ -763,7 +844,9 @@ Available Visuals: {json.dumps(available_visuals, indent=2)}
 ## RESEARCH DATA
 {json.dumps(research_data, indent=2, default=str)}
 
-OUTPUT FORMAT (valid JSON). Produce 4-8 sections following this structure — each section should have 3-7 blocks mixing paragraph, metric_grid, quote, and visual_split types:
+IMPORTANT: Output ONLY valid JSON. Do NOT wrap in markdown code fences. Produce 4-8 sections, each with 3-7 blocks mixing paragraph, metric_grid, quote, and visual_split types.
+
+JSON SCHEMA (follow exactly):
 {{
   "report_id": "REP-{int(time.time())}",
   "generated_at": "{datetime.now().isoformat()}",
@@ -771,77 +854,31 @@ OUTPUT FORMAT (valid JSON). Produce 4-8 sections following this structure — ea
   "data_completeness": "complete|partial",
   "overall_confidence": "high|medium",
   "executive_summary": {{
-    "headline": "Carbon Fiber Demand Surges 18% as Aerospace Recovery Accelerates Into 2026",
-    "key_metrics": [
-      {{"label": "Market Growth", "value": "+18% YoY", "context": "Driven by narrowbody production ramp"}},
-      {{"label": "Hexcel Revenue", "value": "$1.9B", "context": "Record FY2025, +14% YoY"}},
-      {{"label": "Boeing MAX Rate", "value": "42/mo", "context": "Up from 31/mo in Jan 2025"}}
-    ],
-    "key_points": [
-      "Hexcel reported record Q4 revenue of $512M with aerospace composites up 22% as both OEMs ramp narrowbody production.",
-      "Chinese carbon fiber producers expanded capacity 40% since 2023, pressuring mid-tier commercial grades.",
-      "SEC filings reveal Toray investing $800M in South Carolina PAN precursor capacity, signaling bullish aerospace outlook.",
-      "Analyst consensus shifted bullish on HXL with 4 upgrades in Q4, citing aerospace cycle tailwinds."
-    ],
-    "key_point_citations": [
-      {{"source_type": "earnings_call", "source_title": "Hexcel Q4 2025 Earnings Call", "source_url": "https://...", "source_date": "2026-01-30"}},
-      {{"source_type": "trade_publication", "source_title": "CompositesWorld: China CF Report", "source_url": "https://...", "source_date": "2025-12-15"}},
-      {{"source_type": "sec_filing", "source_title": "Toray Industries 8-K Filing", "source_url": "https://...", "source_date": "2025-11-15"}},
-      {{"source_type": "financial_news", "source_title": "Analyst Ratings Summary", "source_url": "https://...", "source_date": "2026-01-15"}}
-    ]
+    "headline": "Insight-driven 8-15 word headline with specific data",
+    "key_metrics": [{{"label": "Name", "value": "$X.XB", "context": "Why it matters"}}],
+    "key_points": ["Specific claim with data point and source reference (15-30 words each). Include 5-8 points."],
+    "key_point_citations": [{{"source_type": "earnings_call|sec_filing|podcast|trade_publication|financial_news", "source_title": "Title", "source_url": "https://...", "source_date": "YYYY-MM-DD"}}]
   }},
   "sections": [
     {{
       "section_id": "sec_01",
-      "section_title": "Aerospace Production Ramp Driving Record Demand",
+      "section_title": "Insight-Driven Section Title",
       "content": null,
       "blocks": [
-        {{
-            "block_type": "paragraph",
-            "block_id": "blk_01",
-            "data": {{ "text": "Boeing 737 MAX production reached 42/mo in Jan 2026 (up from 31/mo), targeting 50/mo by year-end. Airbus A320neo rate 75 on track for 2027. This dual-OEM ramp creates sustained demand for carbon fiber prepreg and composite sub-assemblies across the supply chain." }},
-            "citations": [{{"source_type": "earnings_call", "source_title": "Boeing Q4 2025 Earnings", "source_url": "https://..."}}]
-        }},
-        {{
-            "block_type": "metric_grid",
-            "block_id": "blk_02",
-            "data": {{
-                "metrics": [
-                    {{"label": "MAX Production", "value": "42/mo", "context": "+35% vs Jan 2025"}},
-                    {{"label": "A320neo Target", "value": "Rate 75", "context": "On track for 2027"}},
-                    {{"label": "Hexcel Aero Rev", "value": "$1.14B", "context": "+22% YoY"}}
-                ]
-            }}
-        }},
-        {{
-            "block_type": "quote",
-            "block_id": "blk_03",
-            "data": {{
-                "text": "We're seeing the strongest demand environment in our company's history.",
-                "speaker": "Nick Stanage, CEO, Hexcel",
-                "context": "Q4 2025 Earnings Call",
-                "source_type": "earnings_call",
-                "sentiment": "positive"
-            }},
-            "citations": [{{"source_type": "earnings_call", "source_title": "Hexcel Q4 2025 Earnings", "source_url": "https://..."}}]
-        }},
-        {{
-            "block_type": "paragraph",
-            "block_id": "blk_04",
-            "data": {{ "text": "Hexcel reported record Q4 revenue of $512M and full-year $1.9B, with aerospace 60% of sales. Management raised 2026 guidance above consensus citing delivery schedule visibility through 2028." }},
-            "citations": [{{"source_type": "earnings_call", "source_title": "Hexcel Q4 2025 Earnings", "source_url": "https://..."}}]
-        }}
+        {{"block_type": "paragraph", "block_id": "blk_01", "data": {{"text": "3-6 sentence analysis..."}}, "citations": [{{"source_type": "...", "source_title": "...", "source_url": "https://..."}}]}},
+        {{"block_type": "metric_grid", "block_id": "blk_02", "data": {{"metrics": [{{"label": "...", "value": "...", "context": "..."}}]}}}},
+        {{"block_type": "quote", "block_id": "blk_03", "data": {{"text": "Direct quote from findings", "speaker": "Name, Title, Company", "context": "Q3 2025 Earnings Call", "source_type": "earnings_call", "sentiment": "positive"}}, "citations": [{{"source_type": "...", "source_title": "...", "source_url": "https://..."}}]}}
       ],
       "citations": [],
       "supporting_visuals": []
     }}
   ],
-  "sources_used": [{{"source_type": "earnings_call", "source_title": "Hexcel Q4 2025", "source_url": "https://...", "source_date": "2026-01-30"}}],
-  "data_gaps": ["No Airbus earnings data available for Q4 2025"],
+  "sources_used": [{{"source_type": "...", "source_title": "...", "source_url": "https://...", "source_date": "..."}}],
+  "data_gaps": ["What data was missing or unavailable"],
   "warnings": []
 }}
 
-NOTE: The above is ONE example section. Your report should have 4-8 sections, each with 3-7 blocks. Mix block types (paragraph, metric_grid, quote, visual_split, table) for a scannable layout.
+CRITICAL: Generate 4-8 full sections (the schema above shows ONE). Each section needs 3-7 blocks. Mix paragraph, metric_grid, quote, table, and visual_split blocks for a scannable layout. Every factual claim needs a citation with source_url.
 """
     
     # Variable to capture thinking content
@@ -888,7 +925,14 @@ NOTE: The above is ONE example section. Your report should have 4-8 sections, ea
             raise ValueError("Synthesizer LLM returned empty text content")
     else:
         messages = [SystemMessage(content=system_content), HumanMessage(content=synthesis_prompt)]
-        response = await llm.ainvoke(messages)
+        try:
+            response = await asyncio.wait_for(
+                llm.ainvoke(messages),
+                timeout=settings.deep_research_llm_timeout
+            )
+        except asyncio.TimeoutError:
+            logger.error(f"[SYNTHESIZER] LLM call timed out after {settings.deep_research_llm_timeout}s")
+            raise TimeoutError(f"Synthesizer LLM call timed out after {settings.deep_research_llm_timeout}s")
         content = response.content
         
     try:
@@ -896,8 +940,15 @@ NOTE: The above is ONE example section. Your report should have 4-8 sections, ea
             content = content.split("```json")[1].split("```")[0].strip()
         elif "```" in content:
             content = content.split("```")[1].split("```")[0].strip()
-            
-        output_data = json.loads(content)
+        
+        # First attempt: direct parse
+        try:
+            output_data = json.loads(content)
+        except json.JSONDecodeError as json_err:
+            logger.warning(f"[SYNTHESIZER] Direct JSON parse failed: {json_err}. Attempting repair...")
+            output_data = _repair_truncated_json(content)
+            if output_data is None:
+                raise json_err  # Re-raise original error if repair fails
         
         if thinking_content:
             output_data["thinking_content"] = thinking_content

@@ -8,14 +8,13 @@ from app.mcp.tools.exa_search import news_search, web_search, find_similar  # Ex
 from app.mcp.tools.corpus_query import query_corpus, get_market_signals
 from app.mcp.tools.google_trends import get_google_trends
 from app.mcp.tools.stocknews_api import (
-    get_company_news,
     search_news_keyword,
-    get_press_releases,
     get_trending_headlines,
 )
 from app.mcp.tools.timeseries_data import get_freight_rates
 from app.mcp.tools.podcast_quotes import search_podcast_quotes
 from app.utils.grounding import load_companies
+import asyncio
 import json
 import time
 import logging
@@ -525,25 +524,12 @@ async def industry_research_node(state: DeepResearchState) -> Dict[str, Any]:
             except Exception as e:
                 errors.append({"node": "industry_research", "query": q, "error": f"StockNews keyword: {str(e)}"})
     
-    # 6. STOCKNEWS COMPANY NEWS (batch for all resolved tickers)
-    # Run ONLY if: user mentions specific companies AND wants company news
+    # 6. STOCKNEWS COMPANY NEWS — REMOVED
+    # Company news + press releases are already fetched by the financial agent for the same tickers.
+    # Duplicating them here wastes API calls and inflates context for the LLM extraction step.
     all_tickers = list(all_resolved_tickers)
-    if all_tickers and query_type["needs_company_news"]:
-        emit_progress_sync(ToolProgress(tool_name="stocknews_company", message=f"Fetching company news for {', '.join(all_tickers[:3])}{'...' if len(all_tickers) > 3 else ''}"))
-        try:
-            company_news = get_company_news.invoke({"tickers": all_tickers[:10], "days": 30, "items": 20})
-            raw_results.append({"query": "resolved_tickers", "source": "stocknews_company", "content": company_news, "tickers": all_tickers[:10]})
-        except Exception as e:
-            errors.append({"node": "industry_research", "error": f"StockNews company news: {str(e)}"})
-        
-        emit_progress_sync(ToolProgress(tool_name="stocknews_press_releases", message="Fetching press releases"))
-        try:
-            pr_result = get_press_releases.invoke({"tickers": all_tickers[:10], "days": 60, "items": 15})
-            raw_results.append({"query": "resolved_tickers", "source": "stocknews_press_releases", "content": pr_result, "tickers": all_tickers[:10]})
-        except Exception as e:
-            errors.append({"node": "industry_research", "error": f"StockNews press releases: {str(e)}"})
-    elif all_tickers:
-        logger.info("Industry agent: Skipping company-specific news (not needed for query type)")
+    if all_tickers:
+        logger.info(f"Industry agent: Skipping company news/press releases (handled by financial agent) for {len(all_tickers)} tickers")
     
     # 7. GOOGLE TRENDS (demand signal validation)
     # Run ONLY if: user wants demand signals/trends validation
@@ -675,7 +661,14 @@ IMPORTANT:
         HumanMessage(content=extraction_prompt)
     ]
     
-    response = await llm.ainvoke(messages)
+    try:
+        response = await asyncio.wait_for(
+            llm.ainvoke(messages),
+            timeout=settings.deep_research_llm_timeout
+        )
+    except asyncio.TimeoutError:
+        logger.error(f"[INDUSTRY_RESEARCH] LLM call timed out after {settings.deep_research_llm_timeout}s")
+        raise TimeoutError(f"Industry LLM extraction timed out after {settings.deep_research_llm_timeout}s")
     
     try:
         content = response.content

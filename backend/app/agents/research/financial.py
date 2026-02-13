@@ -14,6 +14,7 @@ from app.mcp.tools.stocknews_api import (
     get_sentiment_summary,
 )
 from app.utils.grounding import load_companies
+import asyncio
 import json
 import time
 import logging
@@ -695,7 +696,14 @@ IMPORTANT:
         HumanMessage(content=extraction_prompt)
     ]
     
-    response = await llm.ainvoke(messages)
+    try:
+        response = await asyncio.wait_for(
+            llm.ainvoke(messages),
+            timeout=settings.deep_research_llm_timeout
+        )
+    except asyncio.TimeoutError:
+        logger.error(f"[FINANCIAL_RESEARCH] LLM call timed out after {settings.deep_research_llm_timeout}s")
+        raise TimeoutError(f"Financial LLM extraction timed out after {settings.deep_research_llm_timeout}s")
     
     try:
         content = response.content

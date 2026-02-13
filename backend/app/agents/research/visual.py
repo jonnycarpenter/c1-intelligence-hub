@@ -15,6 +15,7 @@ If the table doesn't exist or is empty, the agent gracefully returns an empty
 visual list without failing the workflow.
 """
 
+import asyncio
 from typing import Dict, Any, List, Optional
 from langchain_core.messages import SystemMessage, HumanMessage
 from app.agents.research.state import DeepResearchState, VisualAgentOutput, SupportingVisual
@@ -113,7 +114,7 @@ async def visual_research_node(state: DeepResearchState) -> Dict[str, Any]:
     
     # Initialize LLM for intelligent visual selection
     llm = create_resilient_llm_with_gemini_fallback(
-        primary_model=settings.deep_research_financial_model,  # Use same model as financial agent
+        primary_model=settings.deep_research_visual_model,  # Haiku — visual selection is lightweight
         anthropic_api_key=settings.anthropic_api_key,
         gemini_api_key=settings.gemini_api_key,
         temperature=0,
@@ -338,10 +339,17 @@ Respond with valid JSON in this exact format:
 """
 
     try:
-        response = await llm.ainvoke([
-            SystemMessage(content=VISUAL_AGENT_SYSTEM_PROMPT),
-            HumanMessage(content=llm_prompt)
-        ])
+        try:
+            response = await asyncio.wait_for(
+                llm.ainvoke([
+                    SystemMessage(content=VISUAL_AGENT_SYSTEM_PROMPT),
+                    HumanMessage(content=llm_prompt)
+                ]),
+                timeout=settings.deep_research_llm_timeout
+            )
+        except asyncio.TimeoutError:
+            logger.error(f"[VISUAL_RESEARCH] LLM call timed out after {settings.deep_research_llm_timeout}s")
+            raise TimeoutError(f"Visual LLM selection timed out after {settings.deep_research_llm_timeout}s")
         
         # Parse LLM response
         response_text = response.content.strip()
