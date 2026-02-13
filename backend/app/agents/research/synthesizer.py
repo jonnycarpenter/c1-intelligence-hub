@@ -393,8 +393,13 @@ def _generate_planning_scratchpad(
     return notes
 
 
-def _condense_findings(output) -> Dict[str, Any]:
-    """Strip verbose fields from agent output to reduce token count."""
+def _condense_findings(output, max_findings: int = 15) -> Dict[str, Any]:
+    """Strip verbose fields from agent output to reduce token count.
+    
+    Args:
+        output: Agent output (Pydantic model or dict)
+        max_findings: Max findings to include (default 15, was 20 — reduced to cut prompt size)
+    """
     if not output:
         return None
     
@@ -404,17 +409,23 @@ def _condense_findings(output) -> Dict[str, Any]:
     condensed = {
         "findings": [],
         "key_metrics": data.get("key_metrics_summary"),
-        "data_gaps": data.get("data_gaps", [])[:5],
+        "data_gaps": data.get("data_gaps", [])[:3],
     }
     
     # Condense findings to just the core content
-    for f in data.get("findings", [])[:20]:  # Widened from 10 to surface more findings
+    for f in data.get("findings", [])[:max_findings]:
         citation = f.get("citation", {}) or {}
+        
+        # Truncate long finding text to save tokens
+        finding_text = f.get("finding") or ""
+        if len(finding_text) > 500:
+            finding_text = finding_text[:500] + "..."
+        
         entry = {
-            "finding": f.get("finding"),
+            "finding": finding_text,
             "type": f.get("finding_type") or f.get("event_type"),
             "confidence": f.get("confidence"),
-            "entities": f.get("entities_mentioned", [])[:6],
+            "entities": f.get("entities_mentioned", [])[:4],
             "source": citation.get("source_title"),
             "source_url": citation.get("source_url"),
             "source_date": citation.get("source_date"),
@@ -422,21 +433,23 @@ def _condense_findings(output) -> Dict[str, Any]:
 
         # Preserve fields critical for quote blocks and rich synthesis
         if citation.get("direct_quote"):
-            entry["direct_quote"] = citation["direct_quote"]
+            quote = citation["direct_quote"]
+            # Truncate very long quotes to save tokens
+            if len(quote) > 300:
+                quote = quote[:300] + "..."
+            entry["direct_quote"] = quote
         if citation.get("source_type"):
             entry["source_type"] = str(citation["source_type"])
-        if citation.get("page_or_section"):
-            entry["page_or_section"] = citation["page_or_section"]
 
         # Preserve sentiment for quote block styling
         sentiment = f.get("sentiment")
         if sentiment:
             entry["sentiment"] = str(sentiment)
 
-        # Preserve metrics for metric_grid blocks
+        # Preserve metrics for metric_grid blocks (limit to 5)
         metrics = f.get("metrics")
         if metrics:
-            entry["metrics"] = metrics
+            entry["metrics"] = metrics[:5] if isinstance(metrics, list) else metrics
 
         condensed["findings"].append(entry)
 
@@ -498,27 +511,21 @@ def _build_quotes_section(quotable: Dict[str, List[Dict]]) -> str:
 
     if quotable["executive_quotes"]:
         parts.append(f"### Executive Quotes ({len(quotable['executive_quotes'])} available)")
-        for i, q in enumerate(quotable["executive_quotes"][:8]):
-            parts.append(f'{i+1}. "{q["quote"]}"')
-            parts.append(f'   Source: {q.get("source", "Unknown")} | {q.get("source_date", "")}')
-            parts.append(f'   Sentiment: {q.get("sentiment", "neutral")} | source_type: earnings_call')
-            parts.append("")
+        for i, q in enumerate(quotable["executive_quotes"][:5]):
+            quote_text = q["quote"][:200] + "..." if len(q["quote"]) > 200 else q["quote"]
+            parts.append(f'{i+1}. "{quote_text}" — {q.get("source", "Unknown")} ({q.get("source_date", "")})')
 
     if quotable["sec_nuggets"]:
         parts.append(f"### SEC Filing Nuggets ({len(quotable['sec_nuggets'])} available)")
-        for i, q in enumerate(quotable["sec_nuggets"][:8]):
-            parts.append(f'{i+1}. "{q["quote"]}"')
-            parts.append(f'   Source: {q.get("source", "Unknown")} | {q.get("source_date", "")}')
-            parts.append(f'   source_type: sec_filing')
-            parts.append("")
+        for i, q in enumerate(quotable["sec_nuggets"][:5]):
+            quote_text = q["quote"][:200] + "..." if len(q["quote"]) > 200 else q["quote"]
+            parts.append(f'{i+1}. "{quote_text}" — {q.get("source", "Unknown")} ({q.get("source_date", "")})')
 
     if quotable["podcast_quotes"]:
         parts.append(f"### Podcast Expert Insights ({len(quotable['podcast_quotes'])} available)")
-        for i, q in enumerate(quotable["podcast_quotes"][:8]):
-            parts.append(f'{i+1}. "{q["quote"]}"')
-            parts.append(f'   Source: {q.get("source", "Unknown")} | {q.get("source_date", "")}')
-            parts.append(f'   source_type: podcast')
-            parts.append("")
+        for i, q in enumerate(quotable["podcast_quotes"][:5]):
+            quote_text = q["quote"][:200] + "..." if len(q["quote"]) > 200 else q["quote"]
+            parts.append(f'{i+1}. "{quote_text}" — {q.get("source", "Unknown")} ({q.get("source_date", "")})')
 
     return "\n".join(parts)
 
@@ -806,8 +813,8 @@ async def synthesis_node(state: DeepResearchState) -> DeepResearchState:
             })
     
     # Condense findings (preserves direct_quote, source_type, sentiment, metrics)
-    financial_condensed = _condense_findings(financial) if financial else None
-    industry_condensed = _condense_findings(industry) if industry else None
+    financial_condensed = _condense_findings(financial, max_findings=15) if financial else None
+    industry_condensed = _condense_findings(industry, max_findings=15) if industry else None
 
     # Extract quotable material for explicit presentation to the LLM
     quotable = _extract_quotable_findings(financial_condensed, industry_condensed)
@@ -834,15 +841,26 @@ async def synthesis_node(state: DeepResearchState) -> DeepResearchState:
 
     system_content = SYNTHESIZER_SYSTEM_PROMPT
 
+    # Use compact JSON for prompt (indent=2 wastes tokens on whitespace)
+    research_data_compact = json.dumps(research_data, separators=(',', ':'), default=str)
+    visuals_compact = json.dumps(available_visuals, separators=(',', ':'))
+
+    # Log prompt payload size for debugging
+    prompt_size_chars = len(system_content) + len(research_data_compact) + len(planning_scratchpad) + len(quotes_section)
+    prompt_size_est_tokens = prompt_size_chars // 4  # rough estimate: 1 token ≈ 4 chars
+    logger.info(f"[SYNTHESIZER] Prompt size: ~{prompt_size_est_tokens:,} tokens (~{prompt_size_chars:,} chars) "
+                f"[system={len(system_content)//4}, data={len(research_data_compact)//4}, "
+                f"planning={len(planning_scratchpad)//4}, quotes={len(quotes_section)//4}]")
+
     synthesis_prompt = f"""Synthesize a dynamic block-based report for: "{user_query}"
 
 ## PLANNING & VISUALS
 {planning_scratchpad}
-Available Visuals: {json.dumps(available_visuals, indent=2)}
+Available Visuals: {visuals_compact}
 {quotes_section}
 
 ## RESEARCH DATA
-{json.dumps(research_data, indent=2, default=str)}
+{research_data_compact}
 
 IMPORTANT: Output ONLY valid JSON. Do NOT wrap in markdown code fences. Produce 4-8 sections, each with 3-7 blocks mixing paragraph, metric_grid, quote, and visual_split types.
 
@@ -925,14 +943,16 @@ CRITICAL: Generate 4-8 full sections (the schema above shows ONE). Each section 
             raise ValueError("Synthesizer LLM returned empty text content")
     else:
         messages = [SystemMessage(content=system_content), HumanMessage(content=synthesis_prompt)]
+        synth_timeout = settings.deep_research_synthesizer_timeout
+        logger.info(f"[SYNTHESIZER] Calling Opus with timeout={synth_timeout}s, max_tokens=20000")
         try:
             response = await asyncio.wait_for(
                 llm.ainvoke(messages),
-                timeout=settings.deep_research_llm_timeout
+                timeout=synth_timeout
             )
         except asyncio.TimeoutError:
-            logger.error(f"[SYNTHESIZER] LLM call timed out after {settings.deep_research_llm_timeout}s")
-            raise TimeoutError(f"Synthesizer LLM call timed out after {settings.deep_research_llm_timeout}s")
+            logger.error(f"[SYNTHESIZER] LLM call timed out after {synth_timeout}s")
+            raise TimeoutError(f"Synthesizer LLM call timed out after {synth_timeout}s")
         content = response.content
         
     try:

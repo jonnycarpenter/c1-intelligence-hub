@@ -130,6 +130,7 @@ class Settings(BaseSettings):
     deep_research_workflow_timeout: int = 600  # 10 minutes - Opus + extended thinking synthesis needs generous time
     deep_research_tool_timeout: int = 60  # 60 seconds per external tool call
     deep_research_llm_timeout: int = 240  # 240 seconds for LLM extraction calls (larger input/output)
+    deep_research_synthesizer_timeout: int = 360  # 360 seconds — Opus synthesis needs more time than extraction agents
     
     # Groq model for X/Twitter analysis (fast inference)
     model_groq_x_analyzer: str = "llama-3.3-70b-versatile"
