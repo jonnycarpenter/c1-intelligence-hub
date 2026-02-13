@@ -138,6 +138,18 @@ def _normalize_section(section: dict) -> dict:
         if normalized:
             normalized_blocks.append(normalized)
     
+    # Normalize supporting_visuals: LLM sometimes emits bare visual_id strings
+    # instead of SupportingVisual dicts. Filter out non-dict entries.
+    raw_visuals = section.get("supporting_visuals") or []
+    normalized_visuals = []
+    for v in raw_visuals:
+        if isinstance(v, dict):
+            normalized_visuals.append(v)
+        elif isinstance(v, str):
+            # Bare visual ID string — skip it (visuals are hydrated into blocks instead)
+            logger.debug(f"[SYNTHESIZER] Dropping bare visual ID string from supporting_visuals: {v[:40]}")
+        # else: skip unknown types
+
     return {
         "section_id": section.get("section_id") or f"sec_{id(section)}",
         "section_title": section.get("section_title") or "Untitled Section",
@@ -145,7 +157,7 @@ def _normalize_section(section: dict) -> dict:
         "blocks": normalized_blocks,
         "citations": [_normalize_citation(c) for c in (section.get("citations") or [])],
         "confidence": _normalize_confidence(section.get("confidence", "medium")),
-        "supporting_visuals": section.get("supporting_visuals") or [],
+        "supporting_visuals": normalized_visuals,
         "tables": section.get("tables") or [],
     }
 
