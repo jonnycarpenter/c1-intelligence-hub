@@ -136,7 +136,7 @@ export function PasswordGate({ children }: PasswordGateProps) {
               type="text"
               value={userName}
               onChange={(e) => setUserName(e.target.value)}
-              placeholder="Your name or Roger Rabbit"
+              placeholder="Your name or any name"
               className="w-full p-3 rounded-lg bg-slate-700 text-white border border-slate-600
                          focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none
                          placeholder-slate-400"
