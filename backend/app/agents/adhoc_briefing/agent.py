@@ -536,22 +536,66 @@ If data is insufficient, recommend the **Deep Research** feature."""
         if results.get("earnings_quotes"):
             section = "## Earnings Call Quotes\n"
             for q in results["earnings_quotes"][:12]:
-                section += f"### {q.get('speaker_name', 'Unknown')} — {q.get('speaker_role', '')} ({q.get('ticker', '?')}, Q{q.get('quarter', '?')} {q.get('year', '')})\n"
-                section += f"**Type:** {q.get('quote_type', 'unknown')} | **Section:** {q.get('section', 'unknown')}\n"
+                # MCP tool returns nested dicts: speaker.{name,role,title,company}, source.{ticker,company,quarter,section}
+                speaker = q.get('speaker', {}) if isinstance(q.get('speaker'), dict) else {}
+                source = q.get('source', {}) if isinstance(q.get('source'), dict) else {}
+                classification = q.get('classification', {}) if isinstance(q.get('classification'), dict) else {}
+
+                name = speaker.get('name') or q.get('speaker_name', 'Unknown')
+                role = speaker.get('role') or q.get('speaker_role', '')
+                title = speaker.get('title') or q.get('speaker_title', '')
+                company = speaker.get('company') or q.get('speaker_company', '')
+                ticker = source.get('ticker') or q.get('ticker', '?')
+                src_company = source.get('company') or q.get('company_name', '')
+                quarter_str = source.get('quarter') or f"Q{q.get('quarter', '?')} {q.get('year', '')}"
+                call_section = source.get('section') or q.get('section', 'unknown')
+                quote_type = classification.get('type') or q.get('quote_type', 'unknown')
+
+                # Build attribution line: Name, Title at Company (TICKER, Q1 2025)
+                attr_parts = [f"**{name}**"]
+                if title:
+                    attr_parts.append(title)
+                if company:
+                    attr_parts.append(f"at {company}")
+                elif src_company:
+                    attr_parts.append(f"at {src_company}")
+                attribution = ", ".join(attr_parts)
+
+                section += f"### {attribution} ({ticker}, {quarter_str})\n"
+                section += f"**Type:** {quote_type} | **Section:** {call_section}\n"
                 section += f"> {q.get('quote_text', '')}\n"
-                if q.get('context'):
-                    section += f"*Context: {q['context']}*\n"
+                context = q.get('context') or q.get('context_summary', '')
+                if context:
+                    section += f"*Context: {context}*\n"
                 section += "\n"
             sections.append(section)
 
         if results.get("sec_nuggets"):
             section = "## SEC Filing Nuggets\n"
             for n in results["sec_nuggets"][:12]:
-                section += f"### {n.get('ticker', '?')} — {n.get('filing_type', 'Filing')} ({n.get('fiscal_year', '')})\n"
-                section += f"**Type:** {n.get('nugget_type', 'unknown')} | **Signal:** {n.get('signal_strength', 'standard')} | **Section:** {n.get('section', 'unknown')}\n"
+                # MCP tool returns nested dicts: source.{ticker,company,filing_type,...}, classification.{type,...}
+                source = n.get('source', {}) if isinstance(n.get('source'), dict) else {}
+                classification = n.get('classification', {}) if isinstance(n.get('classification'), dict) else {}
+
+                ticker = source.get('ticker') or n.get('ticker', '?')
+                company = source.get('company') or n.get('company_name', '')
+                filing_type = source.get('filing_type') or n.get('filing_type', 'Filing')
+                fiscal_year = source.get('fiscal_year') or n.get('fiscal_year', '')
+                filing_section = source.get('section') or n.get('section', 'unknown')
+                nugget_type = classification.get('type') or n.get('nugget_type', 'unknown')
+                signal = classification.get('signal_strength') or n.get('signal_strength', 'standard')
+
+                # Include company name in the header
+                header = f"{ticker}"
+                if company:
+                    header = f"{company} ({ticker})"
+                section += f"### {header} — {filing_type} ({fiscal_year})\n"
+                section += f"**Type:** {nugget_type} | **Signal:** {signal} | **Section:** {filing_section}\n"
                 section += f"{n.get('nugget_text', '')}\n"
                 if n.get('companies_mentioned'):
                     section += f"*Companies: {', '.join(n['companies_mentioned'])}*\n"
+                if n.get('competitors_named'):
+                    section += f"*Competitors: {', '.join(n['competitors_named'])}*\n"
                 section += "\n"
             sections.append(section)
 
@@ -600,13 +644,37 @@ If data is insufficient, recommend the **Deep Research** feature."""
 
         section = "## Podcast Expert Quotes\n"
         for q in results["podcast_quotes"][:12]:
-            section += f"### {q.get('speaker_name', 'Unknown')} — *{q.get('podcast_name', 'Podcast')}*\n"
+            # MCP tool returns nested dicts: speaker.{name,role,title,company}, source.{podcast,episode,date}
+            speaker = q.get('speaker', {}) if isinstance(q.get('speaker'), dict) else {}
+            source = q.get('source', {}) if isinstance(q.get('source'), dict) else {}
+
+            name = speaker.get('name') or q.get('speaker_name', 'Unknown')
+            role = speaker.get('role') or q.get('speaker_role', '')
+            title = speaker.get('title') or q.get('speaker_title', '')
+            company = speaker.get('company') or q.get('speaker_company', '')
+            podcast = source.get('podcast') or q.get('podcast_name', 'Podcast')
+            episode = source.get('episode') or q.get('episode_title', '')
+            date = source.get('date') or ''
+
+            # Build attribution: Name, Title at Company
+            attr_parts = [f"**{name}**"]
+            if title:
+                attr_parts.append(title)
+            if company:
+                attr_parts.append(f"at {company}")
+            attribution = ", ".join(attr_parts)
+
+            date_str = f" ({date})" if date else ""
+            section += f"### {attribution} — *{podcast}*{date_str}\n"
+            if episode:
+                section += f"**Episode:** {episode}\n"
             if q.get('themes'):
                 themes = q['themes'] if isinstance(q['themes'], list) else [q['themes']]
                 section += f"**Themes:** {', '.join(themes)}\n"
             section += f"> {q.get('quote_text', '')}\n"
-            if q.get('context'):
-                section += f"*Context: {q['context']}*\n"
+            context = q.get('context') or q.get('context_summary', '')
+            if context:
+                section += f"*Context: {context}*\n"
             section += "\n"
 
         return section
