@@ -361,26 +361,8 @@ async def query_grooming_node(state: DeepResearchState) -> DeepResearchState:
             "errors": state.get("errors", []) + [{"node": "groomer", "error": "Empty user query"}],
         }
     
-    # =========================================================================
-    # Context Injection: Fetch related prior research (DISABLED for debugging)
-    # This was causing workflow hangs - disabled until root cause identified
-    # Re-enabled: Prior research context injection (10s timeout + error handling built in)
-    emit_progress_sync(ToolProgress(
-        tool_name="prior_research",
-        message="Checking for related prior research...",
-        status="running"
-    ))
-    prior_context = await _get_prior_research_context(user_query)
-    if prior_context:
-        logger.info(f"[GROOMER] Prior research context injected: {len(prior_context)} chars")
-    else:
-        logger.info("[GROOMER] No prior research context found")
-    
-    # Build system prompt with optional prior context
+    # Build system prompt (prior research context lookup removed to reduce latency)
     system_content = GROOMER_SYSTEM_PROMPT
-    if prior_context:
-        system_content = f"{GROOMER_SYSTEM_PROMPT}\n\n{prior_context}"
-        logger.info("Injected prior research context into groomer prompt")
     
     # Add context hint when user has answered a clarifying question
     # This helps the LLM understand it should now proceed with the clarified info

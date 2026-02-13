@@ -711,7 +711,7 @@ async def synthesis_node(state: DeepResearchState) -> DeepResearchState:
     if research_brief and research_brief.domain_context:
         industries = [research_brief.domain_context]
     
-    prior_context = await _get_prior_research_context(user_query, companies, industries)
+    # Prior research context lookup removed to reduce latency
     
     # Prepare visuals for placement
     available_visuals = []
@@ -752,8 +752,6 @@ async def synthesis_node(state: DeepResearchState) -> DeepResearchState:
     planning_scratchpad = "\n".join(planning_notes)
 
     system_content = SYNTHESIZER_SYSTEM_PROMPT
-    if prior_context:
-        system_content += f"\n\n{prior_context}"
 
     synthesis_prompt = f"""Synthesize a dynamic block-based report for: "{user_query}"
 

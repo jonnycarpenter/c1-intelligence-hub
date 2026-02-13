@@ -121,8 +121,10 @@ class Settings(BaseSettings):
     
     # Extended Thinking Configuration
     # See: https://platform.claude.com/docs/en/build-with-claude/extended-thinking
-    deep_research_thinking_enabled: bool = True  # Enable Claude's extended thinking for synthesis
-    deep_research_thinking_budget_tokens: int = 16000  # Token budget for thinking (16k balances quality vs latency)
+    # DISABLED: Opus + 16k thinking budget was taking 6+ min for synthesis alone, blowing the 600s workflow timeout.
+    # Re-enable with Sonnet 4.5 or smaller budget once core workflow is stable.
+    deep_research_thinking_enabled: bool = False
+    deep_research_thinking_budget_tokens: int = 10000  # Token budget for thinking (unused while disabled)
 
     # Deep Research Timeout Configuration (in seconds)
     deep_research_workflow_timeout: int = 600  # 10 minutes - Opus + extended thinking synthesis needs generous time
