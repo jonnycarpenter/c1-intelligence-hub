@@ -120,6 +120,7 @@ NODE_DESCRIPTIONS = {
 class DeepResearchRequest(BaseModel):
     query: str
     history: List[Dict[str, Any]] = []
+    force_refresh: bool = False  # Skip both in-memory and BigQuery caches
 
 
 def _emit_event(event_type: str, content: Any) -> str:
@@ -195,7 +196,9 @@ async def run_deep_research(request: DeepResearchRequest):
     - type: "error" - Error details
     """
     # Tier 1: Check in-memory cache first (fastest)
-    cached_state = _report_cache.get(request.query)
+    if request.force_refresh:
+        logger.info(f"[DEEP_RESEARCH] force_refresh=True — skipping all caches")
+    cached_state = _report_cache.get(request.query) if not request.force_refresh else None
     if cached_state:
         # Return cached report via streaming (for UI consistency)
         async def cached_generator():
@@ -231,7 +234,7 @@ async def run_deep_research(request: DeepResearchRequest):
     
     # Tier 2: Check BigQuery persistent cache (24h TTL)
     memory = await get_research_memory()
-    bq_cached = await memory.get_cached_report(request.query)
+    bq_cached = await memory.get_cached_report(request.query) if not request.force_refresh else None
     if bq_cached:
         async def bq_cached_generator():
             yield _emit_event("status", "Loading saved report...")

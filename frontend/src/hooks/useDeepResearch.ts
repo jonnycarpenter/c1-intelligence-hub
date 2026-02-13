@@ -83,7 +83,7 @@ export function useDeepResearch() {
     const [state, setState] = useState<DeepResearchState>(initialState)
     const abortControllerRef = useRef<AbortController | null>(null)
 
-    const startDeepResearch = useCallback(async (query: string, history: any[] = []) => {
+    const startDeepResearch = useCallback(async (query: string, history: any[] = [], forceRefresh: boolean = false) => {
         // Cancel any existing request
         if (abortControllerRef.current) {
             abortControllerRef.current.abort()
@@ -100,7 +100,7 @@ export function useDeepResearch() {
             const response = await fetch('/api/research/deep/run', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ query, history }),
+                body: JSON.stringify({ query, history, force_refresh: forceRefresh }),
                 signal: abortControllerRef.current.signal,
             })
 

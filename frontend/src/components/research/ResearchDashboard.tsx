@@ -54,6 +54,7 @@ interface ResearchDashboardProps {
   onCancelResearch?: () => void
   onDismissClarification?: () => void  // Dismiss clarification modal without answering
   onResetAll?: () => void              // Full reset (clear everything)
+  onForceRefresh?: () => void          // Re-run current query skipping cache
 
   // Deep research props
   isResearching?: boolean
@@ -98,6 +99,7 @@ export default function ResearchDashboard({
   onCancelResearch,
   onDismissClarification,
   onResetAll,
+  onForceRefresh,
   isResearching,
   researchStatus,
   clarification,
@@ -509,6 +511,20 @@ export default function ResearchDashboard({
               {/* Deep Research Report */}
               {deepResearchReport && (
                 <div className="space-y-6">
+                  {/* Re-run button (especially useful after cache hits) */}
+                  {onForceRefresh && !isResearching && (
+                    <div className="flex justify-end">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={onForceRefresh}
+                        className="gap-1.5 text-slate-500 hover:text-emerald-600"
+                      >
+                        <RefreshCw size={14} />
+                        Re-run Research
+                      </Button>
+                    </div>
+                  )}
                   <ResearchReport report={deepResearchReport} agentReasoning={agentReasoning} />
 
                   {/* Validation Badge */}

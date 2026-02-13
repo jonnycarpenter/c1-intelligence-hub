@@ -253,6 +253,14 @@ export default function Home() {
     await refreshDigest()
   }, [refreshDigest])
 
+  // Force re-run current deep research query (skips cache)
+  const handleForceRefreshResearch = useCallback(async () => {
+    if (deepResearchOriginalQuery) {
+      resetResearch()
+      await startDeepResearch(deepResearchOriginalQuery, [], true)
+    }
+  }, [deepResearchOriginalQuery, resetResearch, startDeepResearch])
+
   // Generate title from query
   const generateSectionTitle = (query: string): string => {
     // Extract key terms or use first ~50 chars
@@ -504,6 +512,7 @@ export default function Home() {
                 onCancelResearch={cancelResearch}
                 onDismissClarification={handleDismissClarification}
                 onResetAll={handleResetAllResearch}
+                onForceRefresh={handleForceRefreshResearch}
                 // Deep research state
                 isResearching={isResearching}
                 researchStatus={researchStatus}
