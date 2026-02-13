@@ -195,76 +195,15 @@ async def run_deep_research(request: DeepResearchRequest):
     - type: "related_research" - Prior related reports found (memory integration)
     - type: "error" - Error details
     """
-    # Tier 1: Check in-memory cache first (fastest)
-    if request.force_refresh:
-        logger.info(f"[DEEP_RESEARCH] force_refresh=True — skipping all caches")
-    cached_state = _report_cache.get(request.query) if not request.force_refresh else None
-    if cached_state:
-        # Return cached report via streaming (for UI consistency)
-        async def cached_generator():
-            yield _emit_event("status", "Loading cached report...")
-            yield _emit_event("cache_hit", {
-                "query_hash": ReportCache.compute_hash(request.query),
-                "source": "memory",
-                "message": "Report loaded from in-memory cache"
-            })
-            
-            # Re-emit the cached results
-            if cached_state.get("final_report"):
-                yield _emit_event("report", cached_state["final_report"].model_dump())
-            if cached_state.get("category_output"):
-                yield _emit_event("category", cached_state["category_output"].model_dump())
-            if cached_state.get("validator_output"):
-                yield _emit_event("validation", cached_state["validator_output"].model_dump())
-            if cached_state.get("errors"):
-                yield _emit_event("warnings", cached_state["errors"])
-            
-            yield _emit_event("status", "Research complete (cached).")
-            yield "data: [DONE]\n\n"
-        
-        return StreamingResponse(
-            cached_generator(),
-            media_type="text/event-stream",
-            headers={
-                "Cache-Control": "no-cache",
-                "Connection": "keep-alive",
-                "X-Accel-Buffering": "no",
-            }
-        )
-    
-    # Tier 2: Check BigQuery persistent cache (24h TTL)
-    memory = await get_research_memory()
-    bq_cached = await memory.get_cached_report(request.query) if not request.force_refresh else None
-    if bq_cached:
-        async def bq_cached_generator():
-            yield _emit_event("status", "Loading saved report...")
-            yield _emit_event("cache_hit", {
-                "query_hash": bq_cached.get("query_hash"),
-                "report_id": bq_cached.get("id"),
-                "source": "bigquery",
-                "message": "Report loaded from saved reports"
-            })
-            
-            # Re-emit from stored JSON
-            if bq_cached.get("final_report"):
-                yield _emit_event("report", bq_cached["final_report"])
-            if bq_cached.get("category_output"):
-                yield _emit_event("category", bq_cached["category_output"])
-            if bq_cached.get("validator_output"):
-                yield _emit_event("validation", bq_cached["validator_output"])
-            
-            yield _emit_event("status", "Research complete (saved report).")
-            yield "data: [DONE]\n\n"
-        
-        return StreamingResponse(
-            bq_cached_generator(),
-            media_type="text/event-stream",
-            headers={
-                "Cache-Control": "no-cache",
-                "Connection": "keep-alive",
-                "X-Accel-Buffering": "no",
-            }
-        )
+    # =========================================================================
+    # CACHING DISABLED — always run fresh workflow while debugging synthesis
+    # Re-enable by uncommenting the cache lookup blocks below.
+    # =========================================================================
+    # Tier 1: In-memory cache (DISABLED)
+    # cached_state = _report_cache.get(request.query) if not request.force_refresh else None
+    # Tier 2: BigQuery cache (DISABLED)
+    # bq_cached = await memory.get_cached_report(request.query) if not request.force_refresh else None
+    logger.info(f"[DEEP_RESEARCH] Caching DISABLED — running fresh workflow")
     
     # Not cached - run the full workflow
     request_start = datetime.now()
@@ -602,28 +541,16 @@ async def run_deep_research(request: DeepResearchRequest):
                 if errors:
                     yield _emit_event("warnings", errors)
                 
-                # Cache the successful result for future queries
-                if final_state.get("final_report"):
-                    # Tier 1: In-memory cache (fast, 1 hour TTL)
-                    query_hash = _report_cache.set(request.query, final_state)
-                    logger.info(f"Cached research report (memory): hash={query_hash}, query='{request.query[:50]}...'")
-                    
-                    # Tier 2: BigQuery persistence (durable, 24 hour TTL)
-                    try:
-                        report_id = str(uuid.uuid4())
-                        await memory.store_report(
-                            report_id=report_id,
-                            query=request.query,
-                            state=final_state,
-                        )
-                        logger.info(f"Persisted research report (BigQuery): id={report_id}")
-                        yield _emit_event("report_saved", {
-                            "report_id": report_id,
-                            "query_hash": query_hash,
-                        })
-                    except Exception as persist_error:
-                        logger.warning(f"Failed to persist report to BigQuery: {persist_error}")
-                        # Non-fatal - in-memory cache still works
+                # CACHING DISABLED — skip storing while debugging synthesis
+                # Re-enable once workflow is stable.
+                # if final_state.get("final_report"):
+                #     query_hash = _report_cache.set(request.query, final_state)
+                #     try:
+                #         report_id = str(uuid.uuid4())
+                #         await memory.store_report(report_id=report_id, query=request.query, state=final_state)
+                #     except Exception as persist_error:
+                #         logger.warning(f"Failed to persist report: {persist_error}")
+                logger.info(f"[DEEP_RESEARCH] Report generated but caching DISABLED — not storing")
             
             yield _emit_event("status", "Research complete.")
             yield "data: [DONE]\n\n"
