@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Activity, Search, Package, Building2, Factory, Database, User, Mic, GitBranch, Ship, LogOut, Compass, Cpu } from 'lucide-react'
+import { Activity, Search, Package, Building2, Factory, Database, User, Mic, GitBranch, Ship, LogOut, Compass, Cpu, PlayCircle, BarChart3 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import TypewriterEffect from '@/components/ui/typewriter'
 import type { Mode } from '@/types'
@@ -104,11 +104,11 @@ const modeConfig: Record<Mode, { icon: typeof Activity; title: string; subtitle:
     color: 'text-emerald-500',
     bg: 'bg-emerald-100',
   },
-  'evals': {
-    icon: Activity,
+  evals: {
+    icon: BarChart3,
     title: 'AI Quality',
-    subtitle: 'Eval & cost metrics',
-    description: 'Monitor AI quality scores, LLM cost tracking, token usage, and user satisfaction. The evaluation layer that measures system performance.',
+    subtitle: 'Eval & cost tracking',
+    description: 'Track AI evaluation metrics, token costs, and user feedback across all generated content. Monitor quality scores and spending over time.',
     color: 'text-amber-500',
     bg: 'bg-amber-100',
   },
@@ -120,9 +120,10 @@ interface AppHeaderProps {
   isRefreshing?: boolean
   onOpenGuide?: () => void
   shouldAnimateGuide?: boolean
+  onOpenWalkthrough?: () => void
 }
 
-export default function AppHeader({ activeMode, onOpenGuide, shouldAnimateGuide = false }: AppHeaderProps) {
+export default function AppHeader({ activeMode, onOpenGuide, shouldAnimateGuide = false, onOpenWalkthrough }: AppHeaderProps) {
   const config = modeConfig[activeMode]
   const Icon = config.icon
 
@@ -173,6 +174,17 @@ export default function AppHeader({ activeMode, onOpenGuide, shouldAnimateGuide 
       </div>
 
       <div className="flex items-center gap-2 shrink-0 ml-4">
+        {/* Walkthrough button */}
+        {onOpenWalkthrough && (
+          <button
+            onClick={onOpenWalkthrough}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors border border-emerald-200 hover:border-emerald-300"
+          >
+            <PlayCircle size={18} />
+            <span className="text-sm font-medium">Walkthrough</span>
+          </button>
+        )}
+
         {/* Guide button */}
         {onOpenGuide && (
           <button

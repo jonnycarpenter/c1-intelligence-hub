@@ -4,6 +4,7 @@ import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import Sidebar from '@/components/layout/Sidebar'
 import AppHeader from '@/components/layout/AppHeader'
+import WalkthroughModal from '@/components/layout/WalkthroughModal'
 import { PulseDashboard } from '@/components/dashboard'
 import { ChatInterface } from '@/components/chat'
 import { ReportDrawer } from '@/components/report'
@@ -73,6 +74,7 @@ export default function Home() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [isReportOpen, setIsReportOpen] = useState(false)
   const [isGuideOpen, setIsGuideOpen] = useState(false)
+  const [isWalkthroughOpen, setIsWalkthroughOpen] = useState(false)
   const [shouldAnimateGuide, setShouldAnimateGuide] = useState(false)
 
   // Check if first visit and animate Guide button to draw attention
@@ -467,6 +469,7 @@ export default function Home() {
           onRefresh={handleRefresh}
           onOpenGuide={handleOpenGuide}
           shouldAnimateGuide={shouldAnimateGuide}
+          onOpenWalkthrough={() => setIsWalkthroughOpen(true)}
         />
 
         {/* Main split view */}
@@ -625,6 +628,12 @@ export default function Home() {
       <GuidePanel
         isOpen={isGuideOpen}
         onClose={() => setIsGuideOpen(false)}
+      />
+
+      {/* Walkthrough Modal */}
+      <WalkthroughModal
+        isOpen={isWalkthroughOpen}
+        onClose={() => setIsWalkthroughOpen(false)}
       />
     </div>
   )
