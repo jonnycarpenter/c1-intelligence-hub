@@ -808,6 +808,96 @@ FINAL BRIEFING JSON FORMAT:
             return "\n\n".join(enrichment_parts)
         return "No matching voice enrichment data found for this week's themes. Proceed without voice grounding."
 
+    def _repair_truncated_json(self, raw_text: str) -> str:
+        """
+        Attempt to repair JSON that was truncated due to max_tokens limit.
+        
+        Strategy:
+        1. Extract JSON start (find the opening '{')
+        2. Close any open strings, arrays, and objects
+        3. Return something json.loads can parse (even if incomplete)
+        """
+        # Find the JSON start
+        json_text = raw_text
+        if "```json" in json_text:
+            json_text = json_text.split("```json")[1].split("```")[0].strip()
+        elif not json_text.startswith("{"):
+            start_idx = json_text.find("{")
+            if start_idx != -1:
+                json_text = json_text[start_idx:]
+            else:
+                return raw_text  # No JSON found, return as-is
+        
+        # Try parsing as-is first (maybe it's fine)
+        try:
+            json.loads(json_text)
+            return json_text
+        except json.JSONDecodeError:
+            pass
+        
+        # Attempt repair: close open strings, arrays, objects
+        repaired = json_text
+        
+        # If truncated mid-string, close the string
+        # Count unescaped quotes to see if we're inside a string
+        in_string = False
+        i = 0
+        while i < len(repaired):
+            ch = repaired[i]
+            if ch == '\\' and in_string:
+                i += 2  # Skip escaped character
+                continue
+            if ch == '"':
+                in_string = not in_string
+            i += 1
+        
+        if in_string:
+            # We're inside an unclosed string - close it
+            # Trim trailing incomplete escape sequences
+            repaired = repaired.rstrip('\\')
+            repaired += '"'
+        
+        # Count open brackets/braces and close them
+        open_braces = 0
+        open_brackets = 0
+        in_str = False
+        i = 0
+        while i < len(repaired):
+            ch = repaired[i]
+            if ch == '\\' and in_str:
+                i += 2
+                continue
+            if ch == '"':
+                in_str = not in_str
+            if not in_str:
+                if ch == '{':
+                    open_braces += 1
+                elif ch == '}':
+                    open_braces -= 1
+                elif ch == '[':
+                    open_brackets += 1
+                elif ch == ']':
+                    open_brackets -= 1
+            i += 1
+        
+        # Remove trailing comma before closing
+        repaired = repaired.rstrip()
+        if repaired.endswith(','):
+            repaired = repaired[:-1]
+        
+        # Close open brackets then braces
+        repaired += ']' * max(0, open_brackets)
+        repaired += '}' * max(0, open_braces)
+        
+        # Validate the repair worked
+        try:
+            json.loads(repaired)
+            logger.info(f"Agent 2: JSON repair successful ({len(repaired)} chars, closed {open_brackets} brackets + {open_braces} braces)")
+            return repaired
+        except json.JSONDecodeError as e:
+            logger.warning(f"Agent 2: JSON repair failed: {e}. Will fall through to error handler.")
+            return raw_text  # Return original, let the caller handle the error
+
     async def _search_peripheral_intelligence(
         self,
         query: str,
@@ -1473,10 +1563,11 @@ Your response MUST be the final JSON briefing format, NOT a tool_calls request.
             )
             
             try:
-                logger.info(f"Agent 2: Calling LLM model={self.model}, max_tokens=4000")
+                synthesis_max_tokens = 8192
+                logger.info(f"Agent 2: Calling LLM model={self.model}, max_tokens={synthesis_max_tokens}")
                 response = await self.client.messages.create(
                     model=self.model,
-                    max_tokens=4000,
+                    max_tokens=synthesis_max_tokens,
                     messages=[{"role": "user", "content": prompt}]
                 )
                 
@@ -1492,6 +1583,11 @@ Your response MUST be the final JSON briefing format, NOT a tool_calls request.
                 
                 result_json = response.content[0].text.strip()
                 logger.info(f"Agent 2: Raw response length={len(result_json)} chars")
+                
+                # Handle max_tokens truncation - try to repair JSON before giving up
+                if stop_reason == "max_tokens":
+                    logger.warning(f"Agent 2: Response truncated (stop_reason=max_tokens, {len(result_json)} chars). Attempting JSON repair...")
+                    result_json = self._repair_truncated_json(result_json)
                 
                 # Log first/last bits for debugging (avoid logging full response)
                 if len(result_json) < 100:
@@ -1565,6 +1661,11 @@ Your response MUST be the final JSON briefing format, NOT a tool_calls request.
                 # Log at ERROR level so it's visible in production
                 raw_preview = result_json[:1000] if result_json else 'EMPTY/NONE'
                 logger.error(f"Agent 2: Raw response that failed to parse: {raw_preview}")
+                
+                # If this was a truncation issue and we haven't exhausted iterations, retry
+                if stop_reason == "max_tokens" and iteration < max_iterations:
+                    logger.warning(f"Agent 2: JSON parse failed due to truncation - retrying iteration {iteration} as continuation")
+                    continue
                 return None
             except Exception as e:
                 logger.error(f"Error in Agent 2 synthesis iteration: {e}", exc_info=True)
