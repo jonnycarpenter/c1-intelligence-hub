@@ -276,9 +276,11 @@ class PodcastPipeline:
                     f"[PODCAST_PIPELINE] Extracted {len(quotes)} quotes from {episode.title[:40]}"
                 )
             else:
-                ep_record.error_message = extraction_result.get("error_message", "Unknown extraction error")
+                error_msg = extraction_result.get("error_message") or "Unknown extraction error"
+                ep_record.error_message = error_msg
+                ep_record.processing_status = ProcessingStatus.FAILED.value
                 logger.warning(
-                    f"[PODCAST_PIPELINE] Quote extraction failed: {ep_record.error_message}"
+                    f"[PODCAST_PIPELINE] Quote extraction failed for {episode.title[:40]}: {error_msg}"
                 )
 
             # 5. Store episode record

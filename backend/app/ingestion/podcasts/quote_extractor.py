@@ -278,14 +278,27 @@ class QuoteExtractor:
             deduped.sort(key=lambda q: q.relevance_score, reverse=True)
 
             result["quotes"] = deduped
-            result["success"] = True
             result["extraction_duration_seconds"] = time.time() - start_time
 
-            logger.info(
-                f"[QUOTE_EXTRACT] {podcast_name} - {episode_title[:40]}... "
-                f"quotes={len(deduped)} (deduped from {len(all_quotes)}), "
-                f"duration={result['extraction_duration_seconds']:.1f}s"
-            )
+            if deduped:
+                result["success"] = True
+                logger.info(
+                    f"[QUOTE_EXTRACT] {podcast_name} - {episode_title[:40]}... "
+                    f"quotes={len(deduped)} (deduped from {len(all_quotes)}), "
+                    f"duration={result['extraction_duration_seconds']:.1f}s"
+                )
+            else:
+                result["success"] = False
+                result["error_message"] = (
+                    f"LLM returned 0 quotes from {len(chunks)} chunk(s) "
+                    f"({len(transcript_text)} chars). Possible LLM timeout, "
+                    f"JSON parse failure, or no relevant content."
+                )
+                logger.warning(
+                    f"[QUOTE_EXTRACT] {podcast_name} - {episode_title[:40]}... "
+                    f"0 quotes from {len(chunks)} chunk(s), "
+                    f"duration={result['extraction_duration_seconds']:.1f}s"
+                )
 
         except Exception as e:
             result["error_message"] = str(e)
