@@ -186,7 +186,11 @@ FINAL BRIEFING JSON FORMAT:
         self.config = config or settings
         # Use Anthropic Opus 4.5 for highest quality executive synthesis
         api_key = self.config.anthropic_api_key or os.getenv('ANTHROPIC_API_KEY')
-        self.client = AsyncAnthropic(api_key=api_key)
+        gemini_api_key = getattr(self.config, 'gemini_api_key', None)
+        self.client = get_resilient_async_client(
+            anthropic_api_key=api_key, 
+            gemini_api_key=gemini_api_key
+        )
         self.model = "claude-opus-4-6"  # Best quality for executive briefings
         self._bq_storage = None
         self._vector_store = None
@@ -1226,12 +1230,13 @@ The script may contain executive quotes, SEC filing references, or expert podcas
                 logger.info(f"[PODCAST] Naturalizing dialogue (attempt {attempt + 1}/{max_retries}, {len(dialogue)} turns)")
                 start_time = time.time()
                 
-                response = await self.client.messages.create(
+                response = await self.client.messages_create(
                     model="claude-sonnet-4-5",
                     max_tokens=8000,
                     messages=[
                         {"role": "user", "content": prompt}
-                    ]
+                    ],
+                    _caller="weekly_briefing_podcast_naturalizer"
                 )
                 
                 elapsed = time.time() - start_time
@@ -1565,10 +1570,11 @@ Your response MUST be the final JSON briefing format, NOT a tool_calls request.
             try:
                 synthesis_max_tokens = 8192
                 logger.info(f"Agent 2: Calling LLM model={self.model}, max_tokens={synthesis_max_tokens}")
-                response = await self.client.messages.create(
+                response = await self.client.messages_create(
                     model=self.model,
                     max_tokens=synthesis_max_tokens,
-                    messages=[{"role": "user", "content": prompt}]
+                    messages=[{"role": "user", "content": prompt}],
+                    _caller="weekly_briefing_agent"
                 )
                 
                 # Log response metadata for debugging
