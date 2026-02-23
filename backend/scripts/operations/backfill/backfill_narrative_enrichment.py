@@ -72,7 +72,7 @@ SLEEP_BETWEEN_BATCHES = 1.0  # seconds
 API_TIMEOUT = 60  # seconds per API call before giving up
 
 # Model to use for enrichment (Haiku is fast + cheap)
-ENRICHMENT_MODEL = "claude-3-5-haiku-20241022"
+ENRICHMENT_MODEL = "claude-haiku-4-5"
 
 # ============================================================================
 # Enrichment Prompt

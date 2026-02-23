@@ -85,11 +85,11 @@ export const briefingNodes: Node<ArchNodeData>[] = [
       nodeType: 'agent',
       icon: 'brain',
       badge: 'Claude Sonnet',
-      description: 'Claude Sonnet 4.5. Analyzes batches of recent articles. Produces structured observations: category, signal_type (net_new / evolution / stalled), confidence_score, supporting_articles. Categories: Suppliers & Competitors, End Customers & OEMs, Materials & Products, Supply Chain. Merge prompt deduplicates across batches.',
+      description: 'Claude Sonnet 4.6. Analyzes batches of recent articles. Produces structured observations: category, signal_type (net_new / evolution / stalled), confidence_score, supporting_articles. Categories: Suppliers & Competitors, End Customers & OEMs, Materials & Products, Supply Chain. Merge prompt deduplicates across batches.',
       prompt: BATCH_ANALYSIS_PROMPT + '\n\n--- MERGE PROMPT ---\n\n' + MERGE_PROMPT,
       technicalDetails: {
         sourceFiles: ['ingestion/generators/pre_briefing.py'],
-        model: 'claude-sonnet-4-5',
+        model: 'claude-sonnet-4-6',
         functions: ['generate_pre_briefing()', '_analyze_batch()', '_merge_observations()'],
         lineCount: 480,
         tables: ['pre_briefings'],
@@ -190,7 +190,7 @@ export const briefingNodes: Node<ArchNodeData>[] = [
       description: '3-step audio pipeline: (1) Scaffold — deterministic conversation structure from briefing JSON. (2) Naturalize — Claude Sonnet rewrites into natural dialogue: "$2.4B" → "2.4 billion dollars", abbreviations expanded, "net new" vs "continuing" phrasing. (3) ElevenLabs TTS — Text-to-Dialogue API with Host (Rachel) + Analyst (Josh) voices. Output: 4-6 minute MP3 uploaded to GCS.',
       technicalDetails: {
         sourceFiles: ['ingestion/generators/weekly_briefing.py'],
-        model: 'claude-sonnet-4-5 (naturalization)',
+        model: 'claude-sonnet-4-6 (naturalization)',
         functions: ['_generate_podcast()', '_build_podcast_script()', '_format_text_for_speech()'],
         apis: ['ElevenLabs Text-to-Dialogue API'],
       },

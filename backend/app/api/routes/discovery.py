@@ -377,7 +377,7 @@ async def discovery_chat_stream(request: DiscoveryChatRequest):
                     # Call Claude with tools
                     response = await asyncio.wait_for(
                         client.messages.create(
-                            model="claude-3-5-haiku-20241022",  # Fast model for Discovery
+                            model="claude-haiku-4-5",  # Fast model for Discovery
                             max_tokens=1500,
                             system=DISCOVERY_SYSTEM_PROMPT,
                             tools=DISCOVERY_TOOLS,
@@ -516,7 +516,7 @@ async def discovery_chat(request: DiscoveryChatRequest) -> Dict[str, Any]:
         for iteration in range(5):
             response = await asyncio.wait_for(
                 client.messages.create(
-                    model="claude-3-5-haiku-20241022",
+                    model="claude-haiku-4-5",
                     max_tokens=1500,
                     system=DISCOVERY_SYSTEM_PROMPT,
                     tools=DISCOVERY_TOOLS,

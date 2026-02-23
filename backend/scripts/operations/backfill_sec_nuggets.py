@@ -3,7 +3,7 @@ Backfill SEC Filing Nugget Extraction
 ======================================
 
 Processes SEC filings from the dedicated sec_filings BigQuery table and extracts
-strategic intelligence nuggets using Claude Sonnet 4.5.
+strategic intelligence nuggets using Claude Sonnet 4.6.
 
 Reads from: sec_filings table (with proper ticker, CIK, form_type, sections)
 Writes to:  sec_filing_nuggets table
@@ -77,7 +77,7 @@ async def run_backfill(args):
     print(f"\n=== Nugget Extraction Backfill ===")
     print(f"Filings to process: {len(filings)}")
     print(f"Mode: {'re-extract ALL' if args.reextract else 'new filings only'}")
-    print(f"Model: claude-sonnet-4-5")
+    print(f"Model: claude-sonnet-4-6")
     print(f"Dry run: {args.dry_run}")
     print()
 

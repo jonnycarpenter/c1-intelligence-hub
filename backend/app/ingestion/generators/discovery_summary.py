@@ -61,7 +61,7 @@ RULES:
 - Ensure the one_off_summary includes the count of articles it covers.
 """
 
-    def __init__(self, model: str = "claude-3-5-haiku-20241022"):
+    def __init__(self, model: str = "claude-haiku-4-5"):
         """Initialize with model selection."""
         self.model = model
         self._client = None

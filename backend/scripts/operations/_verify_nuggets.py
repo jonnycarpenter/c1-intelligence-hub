@@ -52,11 +52,11 @@ for row in c.query(q3).result():
 q4 = f"""
 SELECT nugget_type, COUNT(*) as cnt
 FROM `{table}`
-WHERE extraction_model = 'claude-sonnet-4-5'
+WHERE extraction_model = 'claude-sonnet-4-6'
 GROUP BY nugget_type
 ORDER BY cnt DESC
 """
-print("\n=== Nugget Types (Sonnet 4.5 only) ===")
+print("\n=== Nugget Types (Sonnet 4.6 only) ===")
 for row in c.query(q4).result():
     print(f"  {row.nugget_type}: {row.cnt}")
 

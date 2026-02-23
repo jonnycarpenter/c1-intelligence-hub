@@ -21,7 +21,7 @@ async def test_anthropic_api():
         # Simple ping with fast model
         start = time.time()
         response = await client.messages.create(
-            model="claude-3-5-haiku-20241022",  # Fast, cheap model
+            model="claude-haiku-4-5",  # Fast, cheap model
             max_tokens=10,
             messages=[{"role": "user", "content": "Hi"}]
         )

@@ -12,7 +12,7 @@ from app.evals import token_tracker
 
 # Automatic — instrumented in resilient_llm.py
 # Manual usage:
-token_tracker.record(model="claude-sonnet-4-5", input_tokens=1200, output_tokens=800, caller="my_module")
+token_tracker.record(model="claude-sonnet-4-6", input_tokens=1200, output_tokens=800, caller="my_module")
 summary = token_tracker.get_session_summary()
 await token_tracker.flush_to_bigquery()
 ```

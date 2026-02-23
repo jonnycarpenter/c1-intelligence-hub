@@ -163,7 +163,7 @@ app/mcp/tools/
 **Implementation**:
 - `app/utils/resilient_llm.py` - Cross-provider wrapper with automatic fallback
 - `ResilientChatAnthropic` for LangChain code, `ResilientAsyncClient` for raw SDK
-- Model mapping: claude-sonnet-4-5 → gpt-4o, claude-opus-4-5 → gpt-4o, haiku → gpt-4o-mini
+- Model mapping: claude-sonnet-4-6 → gpt-4o, claude-opus-4-5 → gpt-4o, haiku → gpt-4o-mini
 - OpenAI is ONLY used as fallback - never primary
 **Impact**: Added `langchain-openai>=0.2.0` and `openai>=1.54.0` to requirements  
 **Env Var**: `OPENAI_API_KEY` (optional, enables fallback)

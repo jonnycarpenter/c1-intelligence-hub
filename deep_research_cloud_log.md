@@ -14,7 +14,7 @@ DEFAULT 2026-02-13T16:37:50.803358Z 2026-02-13 16:37:50,802 - app.agents.researc
 DEFAULT 2026-02-13T16:37:50.803372Z 2026-02-13 16:37:50,802 - app.agents.research.financial - INFO - Financial agent: Skipping press releases (not needed for query type)
 DEFAULT 2026-02-13T16:37:50.803375Z 2026-02-13 16:37:50,802 - app.agents.research.financial - INFO - Financial agent: Skipping analyst ratings (not explicitly requested)
 DEFAULT 2026-02-13T16:37:50.803379Z 2026-02-13 16:37:50,802 - app.agents.research.financial - INFO - Financial agent: Skipping sentiment analysis (not explicitly requested)
-DEFAULT 2026-02-13T16:37:50.805508Z 2026-02-13 16:37:50,804 - app.utils.resilient_llm - INFO - Async invoking primary model: claude-sonnet-4-5 (message count: 2)
+DEFAULT 2026-02-13T16:37:50.805508Z 2026-02-13 16:37:50,804 - app.utils.resilient_llm - INFO - Async invoking primary model: claude-sonnet-4-6 (message count: 2)
 INFO 2026-02-13T16:37:50.915204Z [httpRequest.requestMethod: GET] [httpRequest.status: 200] [httpRequest.responseSize: 2.05 KiB] [httpRequest.latency: 8.727 s] [httpRequest.userAgent: Chrome 144.0.0.0] https://compositesdemo.ketzerointelligence.ai/api/evals/ingestion-health?days=30
 INFO 2026-02-13T16:37:50.915500Z [httpRequest.requestMethod: GET] [httpRequest.status: 200] [httpRequest.responseSize: 124 B] [httpRequest.latency: 8.716 s] [httpRequest.userAgent: Chrome 144.0.0.0] https://compositesdemo.ketzerointelligence.ai/api/evals/reports?days=30&limit=20
 INFO 2026-02-13T16:37:50.916152Z [httpRequest.requestMethod: GET] [httpRequest.status: 200] [httpRequest.responseSize: 1.32 KiB] [httpRequest.latency: 8.726 s] [httpRequest.userAgent: Chrome 144.0.0.0] https://compositesdemo.ketzerointelligence.ai/api/evals/dashboard?days=30
@@ -32,13 +32,13 @@ DEFAULT 2026-02-13T16:38:16.971040Z 2026-02-13 16:38:16,969 - app.utils.resilien
 DEFAULT 2026-02-13T16:38:16.971223Z 2026-02-13 16:38:16,969 - app.agents.research.visual - INFO - LLM selected 8 visuals from 29 candidates
 DEFAULT 2026-02-13T16:38:16.971233Z 2026-02-13 16:38:16,969 - app.agents.research.visual - INFO - Visual research complete: 8 visuals selected in 31.2s
 DEFAULT 2026-02-13T16:38:17.587972Z 2026-02-13 16:38:17,586 - app.api.routes.deep_research - INFO - [DEEP_RESEARCH] Heartbeat: 99s elapsed, loop iterations: 2147, active nodes: {'financial_research', 'industry_research'}, completed: {'groom', 'visual_research'}
-DEFAULT 2026-02-13T16:38:43.310230Z 2026-02-13 16:38:43,307 - app.utils.resilient_llm - INFO - Primary model (claude-sonnet-4-5) succeeded in 52.50s
+DEFAULT 2026-02-13T16:38:43.310230Z 2026-02-13 16:38:43,307 - app.utils.resilient_llm - INFO - Primary model (claude-sonnet-4-6) succeeded in 52.50s
 DEFAULT 2026-02-13T16:38:43.310527Z 2026-02-13 16:38:43,308 - app.agents.research.financial - INFO - [FINANCIAL_RESEARCH] COMPLETE in 116.5s - findings: 10
 DEFAULT 2026-02-13T16:38:47.650729Z 2026-02-13 16:38:47,649 - app.api.routes.deep_research - INFO - [DEEP_RESEARCH] Heartbeat: 129s elapsed, loop iterations: 3096, active nodes: {'industry_research'}, completed: {'groom', 'financial_research', 'visual_research'}
 DEFAULT 2026-02-13T16:38:58.545511Z INFO: 169.254.169.126:62325 - "GET /health HTTP/1.1" 200 OK
 DEFAULT 2026-02-13T16:39:17.704293Z 2026-02-13 16:39:17,702 - app.api.routes.deep_research - INFO - [DEEP_RESEARCH] Heartbeat: 159s elapsed, loop iterations: 3607, active nodes: {'industry_research'}, completed: {'groom', 'financial_research', 'visual_research'}
 DEFAULT 2026-02-13T16:39:47.708360Z 2026-02-13 16:39:47,706 - app.api.routes.deep_research - INFO - [DEEP_RESEARCH] Heartbeat: 189s elapsed, loop iterations: 4115, active nodes: {'industry_research'}, completed: {'groom', 'financial_research', 'visual_research'}
-DEFAULT 2026-02-13T16:39:54.092213Z 2026-02-13 16:39:54,090 - app.utils.resilient_llm - INFO - Primary model (claude-sonnet-4-5) succeeded in 126.56s
+DEFAULT 2026-02-13T16:39:54.092213Z 2026-02-13 16:39:54,090 - app.utils.resilient_llm - INFO - Primary model (claude-sonnet-4-6) succeeded in 126.56s
 DEFAULT 2026-02-13T16:39:54.092223Z 2026-02-13 16:39:54,091 - app.agents.research.industry - INFO - [INDUSTRY_RESEARCH] COMPLETE in 157.4s - findings: 25
 DEFAULT 2026-02-13T16:39:54.098762Z 2026-02-13 16:39:54,097 - app.agents.research.synthesizer - INFO - [SYNTHESIZER] START - query: what is the outlook for the wind and wind energy c...
 DEFAULT 2026-02-13T16:39:54.135287Z 2026-02-13 16:39:54,133 - app.utils.resilient_llm - INFO - Initialized resilient LLM: claude-opus-4-6 (Anthropic) -> gemini-2.5-pro (Gemini, max_tokens=20000)

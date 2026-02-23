@@ -8,7 +8,7 @@ Usage:
     cd backend
     python scripts/testing/eval_llm_judge.py              # Evaluate 5 most recent
     python scripts/testing/eval_llm_judge.py --count 10    # Evaluate 10 reports
-    python scripts/testing/eval_llm_judge.py --model claude-sonnet-4-5  # Use different judge
+    python scripts/testing/eval_llm_judge.py --model claude-sonnet-4-6  # Use different judge
 """
 
 import argparse

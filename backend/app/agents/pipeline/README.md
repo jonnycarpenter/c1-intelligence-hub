@@ -12,7 +12,7 @@ The Pipeline tab is an AI-powered sales prospecting engine that combines neural 
 - **Results Display**: `frontend/src/components/pipeline/SearchBlockCard.tsx` - Prospect/contact cards
 
 ### Backend
-- **Agent**: `backend/app/agents/pipeline/agent.py` - Claude Sonnet 4.5 orchestrator
+- **Agent**: `backend/app/agents/pipeline/agent.py` - Claude Sonnet 4.6 orchestrator
 - **MCP Tools**: `backend/app/mcp/tools/pipeline_search.py` - Tool definitions
 - **Services**:
   - `backend/app/services/exa_service.py` - Exa.ai integration

@@ -169,7 +169,7 @@ The weekly "Need to Know" executive briefing uses a 2-agent pipeline with podcas
 
 ```
 Agent 1 (Pre-Brief)              Agent 2 (Synthesis)           Podcast Generation
-claude-sonnet-4-5                 claude-opus-4-5              ElevenLabs TTS
+claude-sonnet-4-6                 claude-opus-4-5              ElevenLabs TTS
         │                               │                            │
         ▼                               ▼                            ▼
 ┌─────────────────┐            ┌─────────────────┐         ┌─────────────────┐
@@ -240,10 +240,10 @@ These files have critical bug fixes - be careful editing:
 | Deep Research agents | `claude-opus-4-5` | `app/agents/research/*.py` (groomer stays on haiku) |
 | Weekly Briefing synthesis | `claude-opus-4-6` | `app/ingestion/generators/weekly_briefing.py` |
 | Deep Research groomer | `claude-haiku-4-5` | `app/agents/research/groomer.py` |
-| Vision/Image extraction | `claude-sonnet-4-5` | `app/mcp/tools/image_extraction.py` |
-| Pre-briefing generation | `claude-sonnet-4-5` | `app/ingestion/generators/pre_briefing.py` |
-| Digest generation | `claude-sonnet-4-5` | `app/ingestion/generators/digest.py` |
-| Classification | `claude-sonnet-4-5` | `app/ingestion/classifier.py` |
+| Vision/Image extraction | `claude-sonnet-4-6` | `app/mcp/tools/image_extraction.py` |
+| Pre-briefing generation | `claude-sonnet-4-6` | `app/ingestion/generators/pre_briefing.py` |
+| Digest generation | `claude-sonnet-4-6` | `app/ingestion/generators/digest.py` |
+| Classification | `claude-sonnet-4-6` | `app/ingestion/classifier.py` |
 
 ### Fallback Models (Google Gemini) - Resilience Safety Net
 Google Gemini is ONLY used as a fallback when Anthropic fails (e.g., API outage, credit exhaustion):
@@ -251,9 +251,8 @@ Google Gemini is ONLY used as a fallback when Anthropic fails (e.g., API outage,
 | Anthropic Model | Gemini Fallback | Max Output Tokens |
 |-----------------|-----------------|-------------------|
 | `claude-opus-4-6` | `gemini-2.5-pro` | 65,536 |
-| `claude-sonnet-4-5` | `gemini-2.5-pro` | 65,536 |
+| `claude-sonnet-4-6` | `gemini-2.5-pro` | 65,536 |
 | `claude-haiku-4-5` | `gemini-2.5-flash` | 65,536 |
-| `claude-3-5-haiku-20241022` (legacy) | `gemini-2.5-flash` | 65,536 |
 
 The fallback layer automatically clamps `max_tokens` to the Gemini model's limit and drops unsupported params (e.g., extended thinking).
 
@@ -265,7 +264,7 @@ from app.utils.resilient_llm import create_resilient_llm_with_gemini_fallback
 from app.config.settings import settings
 
 llm = create_resilient_llm_with_gemini_fallback(
-    primary_model="claude-sonnet-4-5",
+    primary_model="claude-sonnet-4-6",
     anthropic_api_key=settings.anthropic_api_key,
     gemini_api_key=settings.gemini_api_key,
 )
@@ -279,7 +278,7 @@ client = get_resilient_async_client(
     anthropic_api_key=settings.anthropic_api_key,
     gemini_api_key=settings.gemini_api_key,
 )
-response = await client.messages_create(model="claude-sonnet-4-5", ...)
+response = await client.messages_create(model="claude-sonnet-4-6", ...)
 ```
 
 > **Note**: The `GEMINI_API_KEY` environment variable must be set for fallback to work.

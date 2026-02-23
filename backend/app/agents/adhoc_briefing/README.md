@@ -1,6 +1,6 @@
 # Ad-Hoc Briefing Agent (Enhanced)
 
-On-demand AI briefings using **Claude Sonnet 4.5** with multi-source intelligence search.
+On-demand AI briefings using **Claude Sonnet 4.6** with multi-source intelligence search.
 
 ## Files
 
@@ -13,7 +13,7 @@ On-demand AI briefings using **Claude Sonnet 4.5** with multi-source intelligenc
 
 | Feature | Before (v1) | After (v2) |
 |---------|-------------|------------|
-| Model | Claude Haiku | **Claude Sonnet 4.5** |
+| Model | Claude Haiku | **Claude Sonnet 4.6** |
 | Max tokens | 1500 | **3000** |
 | Context | Truncated (500 chars) | Full content |
 | Tools | Corpus only | **Corpus + Exa + StockNews + FMP** |

@@ -48,12 +48,12 @@ User Query → [Groomer] → [Financial + Industry + Visual (parallel)] → [Syn
 | Node | Purpose | Model | Avg Time |
 |------|---------|-------|----------|
 | **Groomer** | Query analysis, sub-query generation | Haiku 4.5 | 8-12s |
-| **Financial** | Earnings, SEC filings, market data | Sonnet 4.5 | 25-35s |
-| **Industry** | News, trends, competitive intel | Sonnet 4.5 | 25-35s |
-| **Visual** | Charts, graphs from corpus | Sonnet 4.5 | 10-15s |
-| **Synthesizer** | Report generation, deduplication | Sonnet 4.5 | 15-25s |
-| **Category** *(Phase 2)* | Sales intelligence by territory | Sonnet 4.5 | 10-15s |
-| **Validator** *(Phase 2)* | Citation verification | Sonnet 4.5 | 8-12s |
+| **Financial** | Earnings, SEC filings, market data | Sonnet 4.6 | 25-35s |
+| **Industry** | News, trends, competitive intel | Sonnet 4.6 | 25-35s |
+| **Visual** | Charts, graphs from corpus | Sonnet 4.6 | 10-15s |
+| **Synthesizer** | Report generation, deduplication | Sonnet 4.6 | 15-25s |
+| **Category** *(Phase 2)* | Sales intelligence by territory | Sonnet 4.6 | 10-15s |
+| **Validator** *(Phase 2)* | Citation verification | Sonnet 4.6 | 8-12s |
 
 **Total Time**: ~90-120 seconds for basic research (Groomer → Research → Synthesizer)
 
@@ -225,7 +225,7 @@ Agent: Financial Research
 
 Purpose: Gather financial data (earnings, SEC filings, market metrics)
 Tools: get_earnings_transcript, query_corpus, get_sec_filings
-Model: claude-sonnet-4-5
+Model: claude-sonnet-4-6
 """
 
 import asyncio

@@ -187,7 +187,7 @@ class PodcastQuoteRecord(BaseModel):
     speaker_company: Optional[str] = None
     themes: List[str] = Field(default_factory=list)
     relevance_score: float = 0.5
-    extraction_model: str = "claude-sonnet-4-5"
+    extraction_model: str = "claude-sonnet-4-6"
     extracted_at: datetime = Field(default_factory=datetime.utcnow)
 
     def to_bq_dict(self) -> Dict[str, Any]:

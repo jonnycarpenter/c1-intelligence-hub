@@ -356,7 +356,7 @@ class DigestService:
         
         try:
             response = await self._anthropic.messages_create(
-                model="claude-sonnet-4-5",
+                model="claude-sonnet-4-6",
                 max_tokens=500,
                 temperature=0.3,
                 messages=[{"role": "user", "content": prompt}],

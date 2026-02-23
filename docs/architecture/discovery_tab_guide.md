@@ -381,7 +381,7 @@ async def generate():
     
     for iteration in range(5):  # Max 5 tool loops
         response = await client.messages_create(
-            model="claude-3-5-haiku-20241022",
+            model="claude-haiku-4-5",
             tools=TOOLS,
             messages=messages,
         )

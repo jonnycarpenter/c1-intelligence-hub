@@ -20,7 +20,7 @@ async def test():
     print('Testing LLM call with simple prompt...')
     try:
         response = await client.messages_create(
-            model='claude-sonnet-4-5',
+            model='claude-sonnet-4-6',
             max_tokens=100,
             messages=[{'role': 'user', 'content': 'Say hello'}],
         )

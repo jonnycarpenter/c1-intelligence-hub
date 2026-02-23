@@ -77,10 +77,10 @@ export const podcastNodes: Node<ArchNodeData>[] = [
       nodeType: 'agent',
       icon: 'brain',
       badge: 'Claude Sonnet',
-      description: 'Claude Sonnet 4.5. Chunked processing (30K char chunks + 3K overlap for context continuity). Composites industry theme taxonomy. Speaker diarization healing (fixes ASR speaker label drift). Deduplication via SequenceMatcher. Extracts: speaker, role, verbatim quote, theme, strategic_relevance, companies_mentioned.',
+      description: 'Claude Sonnet 4.6. Chunked processing (30K char chunks + 3K overlap for context continuity). Composites industry theme taxonomy. Speaker diarization healing (fixes ASR speaker label drift). Deduplication via SequenceMatcher. Extracts: speaker, role, verbatim quote, theme, strategic_relevance, companies_mentioned.',
       technicalDetails: {
         sourceFiles: ['ingestion/podcasts/quote_extractor.py'],
-        model: 'claude-sonnet-4-5',
+        model: 'claude-sonnet-4-6',
         functions: ['extract_quotes()', '_chunk_transcript()', '_heal_speaker_labels()'],
         lineCount: 508,
         cost: '$0.05–0.15/episode (Claude Sonnet)',

@@ -15,7 +15,7 @@ The Industry Narratives tab provides a 90-day timeline view of how news narrativ
 - **Routes**: `backend/app/api/routes/industry_narratives.py` — 4 endpoints (3 GET + 1 POST)
 - **Data Source**: BigQuery `digest_items` table — classified articles with JSON array columns (`industries`, `companies`, `themes`, `geography`)
 - **Enrichment**: BigQuery `earnings_quotes` and `sec_filing_nuggets` tables via `BigQueryDataStorage`
-- **LLM**: Claude Sonnet 4.5 via `get_resilient_async_client()` with OpenAI fallback
+- **LLM**: Claude Sonnet 4.6 via `get_resilient_async_client()` with OpenAI fallback
 
 ---
 
@@ -97,7 +97,7 @@ User clicks "Generate Narrative" for Aerospace
    └─ Enrichment context (formatted earnings quotes + SEC nuggets)
         │
         ▼
-4. Claude Sonnet 4.5 call (~8-15s)
+4. Claude Sonnet 4.6 call (~8-15s)
    → industry_narrative (3-5 sentences)
    → monthly_narratives[] (2-3 sentences each)
    → key_insight (1 sentence)

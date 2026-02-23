@@ -38,10 +38,10 @@ Provides automatic fallback from Anthropic (Claude) to OpenAI (GPT) when the pri
 
 | Anthropic Model | OpenAI Fallback |
 |-----------------|-----------------|
-| `claude-sonnet-4-5` | `gpt-4o` |
+| `claude-sonnet-4-6` | `gpt-4o` |
 | `claude-opus-4-5` | `gpt-4o` |
 | `claude-haiku-4-5` | `gpt-4o-mini` |
-| `claude-3-5-haiku-20241022` (legacy) | `gpt-4o-mini` |
+| `claude-haiku-4-5` (legacy) | `gpt-4o-mini` |
 
 ### Quick Start
 
@@ -51,7 +51,7 @@ from app.utils.resilient_llm import create_resilient_llm_with_openai_fallback
 from app.config.settings import settings
 
 llm = create_resilient_llm_with_openai_fallback(
-    primary_model="claude-sonnet-4-5",
+    primary_model="claude-sonnet-4-6",
     anthropic_api_key=settings.anthropic_api_key,
     openai_api_key=settings.openai_api_key,
     temperature=0.3,
@@ -69,7 +69,7 @@ client = get_resilient_async_client(
     openai_api_key=settings.openai_api_key,
 )
 response = await client.messages_create(
-    model="claude-sonnet-4-5",
+    model="claude-sonnet-4-6",
     max_tokens=4096,
     messages=[{"role": "user", "content": "Hello"}],
 )

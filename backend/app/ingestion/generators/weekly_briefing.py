@@ -1231,7 +1231,7 @@ The script may contain executive quotes, SEC filing references, or expert podcas
                 start_time = time.time()
                 
                 response = await self.client.messages_create(
-                    model="claude-sonnet-4-5",
+                    model="claude-sonnet-4-6",
                     max_tokens=8000,
                     messages=[
                         {"role": "user", "content": prompt}

@@ -293,10 +293,10 @@ export const ingestionSectionANodes: Node<ArchNodeData>[] = [
       nodeType: 'processing',
       icon: 'classify',
       badge: 'Claude Sonnet',
-      description: 'Claude Sonnet 4.5 with composites industry taxonomy. 10 concurrent classifications, 0.2s spacing. Outputs: category, industries[], priority (Critical/High/Medium/Low), relevance_score (0-1), summary, companies[], materials[], sentiment, is_hero flag for breaking news.',
+      description: 'Claude Sonnet 4.6 with composites industry taxonomy. 10 concurrent classifications, 0.2s spacing. Outputs: category, industries[], priority (Critical/High/Medium/Low), relevance_score (0-1), summary, companies[], materials[], sentiment, is_hero flag for breaking news.',
       technicalDetails: {
         sourceFiles: ['ingestion/processing/classifier.py'],
-        model: 'claude-sonnet-4-5',
+        model: 'claude-sonnet-4-6',
         functions: ['classify_article()', '_build_classification_prompt()'],
         cost: '~$0.002/article (GPT-4o-mini)',
         dataVolume: '~500 articles/day',
@@ -339,7 +339,7 @@ export const ingestionSectionANodes: Node<ArchNodeData>[] = [
       description: 'Tavily image search for high-priority articles. Claude Vision classifies images: chart_type, image_type, topics, companies, industries, relevance_score. Stored in article_images table. Used by Visual Research agent in Deep Research.',
       technicalDetails: {
         sourceFiles: ['ingestion/processing/image_enrichment.py'],
-        model: 'claude-sonnet-4-5 (Vision)',
+        model: 'claude-sonnet-4-6 (Vision)',
         tables: ['article_images'],
       },
       connections: {
@@ -482,7 +482,7 @@ export const ingestionSectionANodes: Node<ArchNodeData>[] = [
       description: 'Runs after article storage. Generates concise digest summaries for articles that passed classification threshold.',
       technicalDetails: {
         sourceFiles: ['ingestion/generators/digest.py'],
-        model: 'claude-sonnet-4-5',
+        model: 'claude-sonnet-4-6',
       },
       connections: {
         incoming: ['articles table'],
@@ -501,7 +501,7 @@ export const ingestionSectionANodes: Node<ArchNodeData>[] = [
       description: 'For SEC filings: Claude extracts 15-30 strategic nuggets per filing (competitive disclosures, risk admissions, forward guidance). Stored in sec_filing_nuggets. Cost: ~$0.20-0.60/filing.',
       technicalDetails: {
         sourceFiles: ['ingestion/sec_filings/nugget_extractor.py'],
-        model: 'claude-sonnet-4-5',
+        model: 'claude-sonnet-4-6',
         functions: ['extract_nuggets()'],
         tables: ['sec_filing_nuggets'],
         lineCount: 487,
@@ -526,7 +526,7 @@ export const ingestionSectionANodes: Node<ArchNodeData>[] = [
       description: 'For earnings transcripts: Claude extracts 8-15 executive quotes per transcript (competitive intel, production rates, pricing signals). Stored in earnings_quotes. Cost: ~$0.02-0.05/transcript.',
       technicalDetails: {
         sourceFiles: ['ingestion/earnings/quote_extractor.py'],
-        model: 'claude-haiku-3-5',
+        model: 'claude-haiku-4-5',
         functions: ['extract_quotes()'],
         tables: ['earnings_quotes'],
         lineCount: 484,

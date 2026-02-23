@@ -113,8 +113,8 @@ class Settings(BaseSettings):
     
     # Deep Research Workflow models
     deep_research_groomer_model: str = "claude-haiku-4-5"  # Haiku for faster query analysis
-    deep_research_financial_model: str = "claude-sonnet-4-5"  # Sonnet — sufficient for extraction, saves cost vs Opus
-    deep_research_industry_model: str = "claude-sonnet-4-5"  # Sonnet — sufficient for extraction, saves cost vs Opus
+    deep_research_financial_model: str = "claude-sonnet-4-6"  # Sonnet — sufficient for extraction, saves cost vs Opus
+    deep_research_industry_model: str = "claude-sonnet-4-6"  # Sonnet — sufficient for extraction, saves cost vs Opus
     deep_research_visual_model: str = "claude-haiku-4-5"  # Haiku — visual selection is lightweight
     deep_research_synthesizer_model: str = "claude-opus-4-6"  # Opus — synthesis needs highest quality
     deep_research_validator_model: str = "claude-haiku-4-5"  # Citation checking — Haiku is fast + sufficient
@@ -122,7 +122,7 @@ class Settings(BaseSettings):
     # Extended Thinking Configuration
     # See: https://platform.claude.com/docs/en/build-with-claude/extended-thinking
     # DISABLED: Opus + 16k thinking budget was taking 6+ min for synthesis alone, blowing the 600s workflow timeout.
-    # Re-enable with Sonnet 4.5 or smaller budget once core workflow is stable.
+    # Re-enable with Sonnet 4.6 or smaller budget once core workflow is stable.
     deep_research_thinking_enabled: bool = False
     deep_research_thinking_budget_tokens: int = 10000  # Token budget for thinking (unused while disabled)
 

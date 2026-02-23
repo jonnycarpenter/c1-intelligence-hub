@@ -181,7 +181,7 @@ class DigestClassifier:
     
     def __init__(
         self,
-        model: str = "claude-sonnet-4-5",
+        model: str = "claude-sonnet-4-6",
         temperature: float = 0.1,
         max_concurrent: int = 3,
     ):

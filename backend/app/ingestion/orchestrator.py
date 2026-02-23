@@ -60,13 +60,13 @@ class IngestionConfig:
     max_article_age_days: int = 7
     
     # Classification
-    classifier_model: str = "claude-sonnet-4-5"
+    classifier_model: str = "claude-sonnet-4-6"
     classifier_temperature: float = 0.1
     
     # Digest
     digest_hours: int = 72
     digest_max_items: int = 50
-    digest_model: str = "claude-sonnet-4-5"
+    digest_model: str = "claude-sonnet-4-6"
     
     # Image Enrichment
     enable_image_enrichment: bool = True

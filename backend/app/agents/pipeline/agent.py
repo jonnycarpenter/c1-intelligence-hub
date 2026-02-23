@@ -351,7 +351,7 @@ class PipelineAgent:
         """
         self.mode = mode
         self.llm = create_resilient_llm_with_gemini_fallback(
-            primary_model="claude-sonnet-4-5",
+            primary_model="claude-sonnet-4-6",
             anthropic_api_key=settings.anthropic_api_key,
             gemini_api_key=settings.gemini_api_key,
             temperature=0,

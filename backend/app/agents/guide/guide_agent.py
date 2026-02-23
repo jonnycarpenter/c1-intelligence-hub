@@ -83,7 +83,7 @@ class GuideAgent:
     
     def __init__(self):
         self.client = AsyncAnthropic(api_key=settings.anthropic_api_key)
-        self.model = "claude-sonnet-4-5"
+        self.model = "claude-sonnet-4-6"
         self.knowledge_base = get_full_knowledge_base()
         self.system_prompt = GUIDE_SYSTEM_PROMPT.format(knowledge_base=self.knowledge_base)
     

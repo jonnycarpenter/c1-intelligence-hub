@@ -139,7 +139,7 @@ class QuoteExtractor:
 
     def __init__(
         self,
-        model: str = "claude-sonnet-4-5",
+        model: str = "claude-sonnet-4-6",
         max_tokens: int = 4000,
         temperature: float = 0.3,
         chunk_size: int = DEFAULT_CHUNK_SIZE,

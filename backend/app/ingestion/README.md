@@ -177,7 +177,7 @@ gcloud scheduler jobs run ingest-exa --location=us-central1 --project=<GCP_PROJE
    - Limits: 50 articles/run (200 for backfill)
 
 3. **Classification** (`processing/classifier.py`)
-   - Claude claude-sonnet-4-5 for high accuracy
+   - Claude claude-sonnet-4-6 for high accuracy
    - 10 concurrent calls, 0.2s throttle
    - Outputs: category, priority, relevance, summary, **is_hero**
    - **Uses `resilient_llm.py`** for Anthropic + OpenAI fallback

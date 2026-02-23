@@ -115,7 +115,7 @@ RULES:
 - Ensure the one_off_summary includes the count of articles it covers.
 """
 
-    def __init__(self, api_key: str, model: str = "claude-3-5-haiku-20241022"):
+    def __init__(self, api_key: str, model: str = "claude-haiku-4-5"):
         """Initialize with API key and model selection."""
         self.api_key = api_key
         self.model = model

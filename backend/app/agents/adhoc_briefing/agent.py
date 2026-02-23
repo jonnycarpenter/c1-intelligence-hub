@@ -5,7 +5,7 @@ Ad Hoc Briefing Agent (Enhanced)
 Handles user-generated briefing requests on the Pulse page.
 
 Key Features (v2 - January 2026):
-- Thorough responses using Claude Sonnet 4.5
+- Thorough responses using Claude Sonnet 4.6
 - Access to external tools: Exa news, StockNewsAPI, FMP premium news
 - Structured context from current brief + recent digest
 - SSE progress events for tool execution
@@ -118,7 +118,7 @@ class AdHocBriefingAgent:
     Agent for generating thorough ad hoc briefings based on user questions.
     
     Uses:
-    - Claude Sonnet 4.5 for quality responses
+    - Claude Sonnet 4.6 for quality responses
     - Corpus search FIRST (BigQuery vector store)
     - External tools: Exa news, StockNewsAPI, FMP premium news
     - Structured context from current brief + digest
