@@ -36,8 +36,8 @@ router = APIRouter(prefix="/v1/scheduler", tags=["scheduler"])
 class IngestRequest(BaseModel):
     """Request body for ingestion trigger."""
     sources: list[str] = Field(
-        default=["exa_queries", "tavily_queries", "rss", "sec"],
-        description="Sources to collect: exa_queries, tavily_queries, rss, sec, press_releases, earnings, stocknews, fmp_news, freight. Note: 'industry_queries' runs both exa+tavily (legacy)."
+        default=["rss", "earnings", "fmp_news", "freight"],
+        description="Active sources: rss, earnings, fmp_news, freight. DISABLED (Feb 2026 cost reduction): exa_queries, tavily_queries, sec, stocknews, press_releases. To re-enable, add them back."
     )
     backfill_days: Optional[int] = Field(
         default=None,
@@ -470,5 +470,5 @@ async def get_scheduler_status():
     return SchedulerStatusResponse(
         environment=environment,
         storage_backend=storage_backend,
-        sources_available=["tavily_search", "tavily_press", "rss", "sec_io", "api_ninja_earnings"],
+        sources_available=["rss", "earnings", "fmp_news", "freight"],
     )

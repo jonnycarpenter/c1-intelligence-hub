@@ -60,13 +60,13 @@ class IngestionConfig:
     max_article_age_days: int = 7
     
     # Classification
-    classifier_model: str = "claude-sonnet-4-6"
+    classifier_model: str = "claude-sonnet-4-5"
     classifier_temperature: float = 0.1
     
     # Digest
     digest_hours: int = 72
     digest_max_items: int = 50
-    digest_model: str = "claude-sonnet-4-6"
+    digest_model: str = "claude-sonnet-4-5"
     
     # Image Enrichment
     enable_image_enrichment: bool = True
@@ -163,9 +163,11 @@ class IngestionOrchestrator:
         if not self._initialized:
             await self.initialize()
         
-        # Default to ALL sources if none provided
+        # Default to ACTIVE sources if none provided
+        # DISABLED (Feb 2026 cost reduction): exa_queries, tavily_queries, sec, stocknews, press_releases
+        # To re-enable, add them back to this list
         if not sources:
-            sources = ["rss", "exa_queries", "tavily_queries", "sec", "earnings", "stocknews", "fmp_news", "freight", "press_releases"]
+            sources = ["rss", "earnings", "fmp_news", "freight"]
             
         logger.info(f"Starting ingestion run with sources: {sources}")
         

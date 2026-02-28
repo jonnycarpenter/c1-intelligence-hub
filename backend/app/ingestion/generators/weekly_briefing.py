@@ -195,10 +195,12 @@ FINAL BRIEFING JSON FORMAT:
         self._bq_storage = None
         self._vector_store = None
         # Initialize Exa client for peripheral intelligence search
-        exa_api_key = getattr(self.config, 'exa_api_key', None)
-        self.exa_client = Exa(exa_api_key) if exa_api_key else None
-        if not self.exa_client:
-            logger.warning("Exa API key not configured - peripheral search disabled")
+        # DISABLED (Feb 2026 cost reduction) - Exa API is a paid service
+        # To re-enable, uncomment the lines below and remove the forced None
+        # exa_api_key = getattr(self.config, 'exa_api_key', None)
+        # self.exa_client = Exa(exa_api_key) if exa_api_key else None
+        self.exa_client = None
+        logger.info("Exa peripheral search DISABLED (Feb 2026 cost reduction)")
         
         # ElevenLabs config for podcast generation (uses Text-to-Dialogue API)
         # Voice IDs: Host=Rachel (warm, engaging), Analyst=Josh (professional, clear)

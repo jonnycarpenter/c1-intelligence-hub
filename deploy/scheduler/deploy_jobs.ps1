@@ -28,11 +28,11 @@ if (-not $ServiceUrl) {
 # NOTE: Body must use escaped quotes for PowerShell → gcloud compatibility
 # Cloud Scheduler max timeout is 1800s (30 min) - DO NOT EXCEED
 #
-# DAILY INGESTION STRATEGY (split by search engine to avoid timeout):
-#   2:00 AM CST (8:00 UTC) - Exa queries (91 queries + press releases) ~15 min
-#   2:20 AM CST (8:20 UTC) - Tavily queries (145 queries) ~18 min
-#   2:45 AM CST (8:45 UTC) - Financial data (SEC, earnings, FMP, StockNews) ~25 min
-#   Flash updates every 4 hours for fast-moving sources (RSS, freight)
+# DAILY INGESTION STRATEGY (Feb 2026 - cost reduction mode):
+#   Disabled: Exa, Tavily, StockNews, SEC (paid APIs)
+#   Active: RSS (free), freight (free scraper), earnings (pre-paid), FMP news (pre-paid)
+#   Flash updates every 4 hours for RSS + freight
+#   Financial data daily at 2:45 AM CST for earnings + FMP
 #
 $Jobs = @(
     @{
@@ -45,31 +45,14 @@ $Jobs = @(
         Description = "Flash Loop: RSS feeds + freight rates every 4 hours"
     },
     @{
-        Name        = "ingest-exa"
-        Schedule    = "0 8 * * *" # 8:00 AM UTC = 2:00 AM CST
-        Uri         = "$ServiceUrl/api/v1/scheduler/ingest"
-        # Exa search: 91 industry queries + press releases + per-company news
-        Body        = '{\"sources\": [\"exa_queries\", \"press_releases\"]}'
-        Timeout     = "1200s"  # 20 min - Exa is faster
-        Description = "Exa Search: 91 industry queries + press releases at 2:00 AM CST"
-    },
-    @{
-        Name        = "ingest-tavily"
-        Schedule    = "20 8 * * *" # 8:20 AM UTC = 2:20 AM CST (20 min after Exa)
-        Uri         = "$ServiceUrl/api/v1/scheduler/ingest"
-        # Tavily search: 145 broadening queries
-        Body        = '{\"sources\": [\"tavily_queries\"]}'
-        Timeout     = "1500s"  # 25 min - Tavily has more queries
-        Description = "Tavily Search: 145 monitoring queries at 2:20 AM CST"
-    },
-    @{
         Name        = "ingest-financial"
-        Schedule    = "45 8 * * *" # 8:45 AM UTC = 2:45 AM CST (45 min after start)
+        Schedule    = "45 8 * * *" # 8:45 AM UTC = 2:45 AM CST
         Uri         = "$ServiceUrl/api/v1/scheduler/ingest"
-        # Financial/news sources: SEC filings, earnings, FMP premium, StockNews
-        Body        = '{\"sources\": [\"sec\", \"earnings\", \"fmp_news\", \"stocknews\"]}'
-        Timeout     = "1800s"  # 30 min MAX - StockNews can be slow (48 API calls)
-        Description = "Financial Data: SEC, earnings, FMP news, StockNews at 2:45 AM CST"
+        # Pre-paid sources only: earnings (API Ninjas) + FMP Premium
+        # DISABLED (Feb 2026): sec, stocknews - to re-enable, add them back
+        Body        = '{\"sources\": [\"earnings\", \"fmp_news\"]}'
+        Timeout     = "1200s"  # 20 min - much faster without SEC + StockNews
+        Description = "Financial Data: earnings + FMP news at 2:45 AM CST (pre-paid APIs only)"
     },
     @{
         Name        = "weekly-executive-briefing"
@@ -84,11 +67,13 @@ $Jobs = @(
 # Legacy Jobs to DELETE (will be removed if they exist)
 $LegacyJobs = @(
     "daily-morning-ingest",
-    "orchestrator-ingestion-morning", 
+    "orchestrator-ingestion-morning",
     "orchestrator-ingestion-evening",
     "daily-evening-ingest",        # Removed: redundant - sources now split across jobs
     "ingest-deep-dive",            # Removed: replaced by split jobs (Jan 2026)
     "ingest-web-search",           # Removed: replaced by ingest-exa + ingest-tavily (Jan 6, 2026)
+    "ingest-exa",                  # Disabled: Feb 2026 cost reduction (Exa paid API)
+    "ingest-tavily",               # Disabled: Feb 2026 cost reduction (Tavily paid API)
     "weekly-corpus-refresh",       # Removed: stub implementation (did nothing)
     "weekly-data-cleanup"          # Removed: stub implementation (did nothing)
 )

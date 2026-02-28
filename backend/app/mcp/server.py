@@ -20,14 +20,15 @@ from app.mcp.tools.api_ninja_earnings import (
     search_earnings_keywords,
 )
 
-# Exa.ai search tools - provides clean publishedDate for digest/pulse features
-from app.mcp.tools.exa_search import (
-    news_search,
-    web_search,
-    extract_content,
-    crawl_website,
-    find_similar,
-)
+# Exa.ai search tools - DISABLED (Feb 2026 cost reduction)
+# To re-enable, uncomment imports and add exa_tools back to all_tools list
+# from app.mcp.tools.exa_search import (
+#     news_search,
+#     web_search,
+#     extract_content,
+#     crawl_website,
+#     find_similar,
+# )
 
 # Visualization tools
 from app.mcp.tools.visualization import create_chart
@@ -76,15 +77,16 @@ from app.mcp.tools.google_trends import (
     compare_composites_interest,
 )
 
-# StockNewsAPI tools - on-demand news retrieval for research workflow
-from app.mcp.tools.stocknews_api import (
-    get_company_news,
-    search_news_keyword,
-    get_press_releases,
-    get_analyst_ratings,
-    get_sentiment_summary,
-    get_trending_headlines,
-)
+# StockNewsAPI tools - DISABLED (Feb 2026 cost reduction)
+# To re-enable, uncomment imports and add stocknews_tools back to all_tools list
+# from app.mcp.tools.stocknews_api import (
+#     get_company_news,
+#     search_news_keyword,
+#     get_press_releases,
+#     get_analyst_ratings,
+#     get_sentiment_summary,
+#     get_trending_headlines,
+# )
 
 # Data management tools - company/material/industry tracker CRUD
 from app.mcp.tools.data_management import (
@@ -153,8 +155,8 @@ def get_all_mcp_tools() -> List[BaseTool]:
     Categories:
         - Data Management (11): Company/material/industry tracker CRUD
         - Corpus Query (9): Query pre-ingested articles, visuals, and podcast quotes from BigQuery
-        - External Search (6): Exa.ai web/news search
-        - StockNews API (6): On-demand news retrieval
+        - DISABLED: External Search (Exa.ai) - Feb 2026 cost reduction
+        - DISABLED: StockNews API - Feb 2026 cost reduction
         - Time-series (3): Historical data from ingestion pipeline
         - Google Trends (3): Search interest analysis
         - Product Intelligence (6): Catalog and competitive analysis
@@ -196,24 +198,13 @@ def get_all_mcp_tools() -> List[BaseTool]:
         search_podcast_quotes,
     ]
     
-    # External search - Exa.ai (5)
-    exa_tools = [
-        web_search,
-        news_search,
-        extract_content,
-        crawl_website,
-        find_similar,
-    ]
-    
-    # StockNews API tools (6)
-    stocknews_tools = [
-        get_company_news,
-        search_news_keyword,
-        get_press_releases,
-        get_analyst_ratings,
-        get_sentiment_summary,
-        get_trending_headlines,
-    ]
+    # External search - Exa.ai - DISABLED (Feb 2026 cost reduction)
+    # To re-enable: uncomment imports at top and add exa_tools back to all_tools
+    exa_tools = []
+
+    # StockNews API tools - DISABLED (Feb 2026 cost reduction)
+    # To re-enable: uncomment imports at top and add stocknews_tools back to all_tools
+    stocknews_tools = []
     
     # Time-series data tools (3)
     timeseries_tools = [
