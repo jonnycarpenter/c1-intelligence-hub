@@ -27,8 +27,14 @@ from dataclasses import dataclass, field, asdict
 from enum import Enum
 
 from app.utils.logger import get_logger
+from app.config.settings import settings
 
 logger = get_logger(__name__)
+
+# Demo mode: when active, time-based queries use a 5-year lookback
+# so all historical data is returned and the platform doesn't look empty.
+_DEMO_LOOKBACK_HOURS = 43800  # ~5 years
+_DEMO_LOOKBACK_DAYS = 1825    # ~5 years
 
 
 def _safe_parse_list(value: Any) -> List[str]:
@@ -1132,6 +1138,9 @@ class BigQueryDataStorage(DataStorageInterface):
             source_type: Filter by article source (rss, tavily, sec)
             limit: Max results to return
         """
+        # Demo mode: bypass time filter to show all historical data
+        if settings.demo_mode:
+            days = _DEMO_LOOKBACK_DAYS
         cache_key = f'trending_tags_{tag_type}_{days}_{source_type}_{limit}'
         cached = self._get_cached(cache_key)
         if cached is not None:
@@ -1179,6 +1188,9 @@ class BigQueryDataStorage(DataStorageInterface):
         
         Useful for charting tag frequency over time.
         """
+        # Demo mode: bypass time filter to show all historical data
+        if settings.demo_mode:
+            days = _DEMO_LOOKBACK_DAYS
         date_trunc = "DATE" if granularity == "day" else "DATE_TRUNC(classified_at, WEEK)"
         
         query = f"""
@@ -1211,6 +1223,9 @@ class BigQueryDataStorage(DataStorageInterface):
         
         Useful for discovering related entities/themes.
         """
+        # Demo mode: bypass time filter to show all historical data
+        if settings.demo_mode:
+            days = _DEMO_LOOKBACK_DAYS
         query = f"""
             SELECT 
                 t2.tag as related_tag,
@@ -1248,6 +1263,9 @@ class BigQueryDataStorage(DataStorageInterface):
         
         Returns counts by tag_type, total unique tags, etc.
         """
+        # Demo mode: bypass time filter to show all historical data
+        if settings.demo_mode:
+            days = _DEMO_LOOKBACK_DAYS
         query = f"""
             SELECT 
                 tag_type,
@@ -2962,6 +2980,9 @@ class BigQueryDataStorage(DataStorageInterface):
         Returns:
             List of image records
         """
+        # Demo mode: bypass time filter to show all historical data
+        if settings.demo_mode:
+            days = _DEMO_LOOKBACK_DAYS
         query = f"""
             SELECT * FROM `{self.config.full_dataset_id}.article_images`
             WHERE extracted_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {days} DAY)
@@ -3054,6 +3075,9 @@ class BigQueryDataStorage(DataStorageInterface):
             days: Look back period
             limit: Max results
         """
+        # Demo mode: bypass time filter to show all historical data
+        if settings.demo_mode:
+            days = _DEMO_LOOKBACK_DAYS
         query = f"""
             SELECT * FROM `{self.config.full_dataset_id}.article_images`
             WHERE extracted_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {days} DAY)
@@ -3310,6 +3334,9 @@ class BigQueryDataStorage(DataStorageInterface):
         
         # Convert hours to a lookback window (e.g., 168 hours = 7 days for Pulse tab)
         lookback_hours = hours or 72  # Default to 72 hours (3 days)
+        # Demo mode: bypass time filter to show all historical data
+        if settings.demo_mode:
+            lookback_hours = _DEMO_LOOKBACK_HOURS
         cutoff_time = (datetime.utcnow() - timedelta(hours=lookback_hours)).isoformat()
         now_iso = datetime.utcnow().isoformat()
         
@@ -3488,6 +3515,9 @@ class BigQueryDataStorage(DataStorageInterface):
 
     async def get_digest_stats(self, hours: int = 72) -> Dict[str, Any]:
         """Get statistics for digest items (10-min cache)."""
+        # Demo mode: bypass time filter to show all historical data
+        if settings.demo_mode:
+            hours = _DEMO_LOOKBACK_HOURS
         cache_key = f'digest_stats_{hours}'
         cached = self._get_cached(cache_key)
         if cached is not None:
@@ -3781,6 +3811,9 @@ class BigQueryDataStorage(DataStorageInterface):
         limit: int = 20,
     ) -> List[Dict[str, Any]]:
         """Query podcast quotes with filters."""
+        # Demo mode: bypass time filter to show all historical data
+        if settings.demo_mode:
+            days = _DEMO_LOOKBACK_DAYS
         try:
             conditions = [
                 f"published_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {days} DAY)"

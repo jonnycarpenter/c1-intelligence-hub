@@ -37,7 +37,7 @@ results = await check_api_partners()
 
 **Key Features**:
 - Queries classified articles from BigQuery
-- LLM-generated executive summaries (Claude Sonnet 4.6)
+- LLM-generated executive summaries (Claude Sonnet 4.5)
 - 15-minute cache TTL
 - Filtering by category, priority, time range
 - **Configurable limit** (default 100, max 1000) - Added Jan 17, 2026

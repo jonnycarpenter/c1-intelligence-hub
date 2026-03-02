@@ -23,6 +23,7 @@ from pydantic import BaseModel, Field
 from app.db.gcp_storage import get_storage
 from app.services.api_partner_health import DEFAULT_PARTNERS, check_api_partners
 from app.utils.logger import get_logger
+from app.config.settings import settings
 
 logger = get_logger(__name__)
 
@@ -169,6 +170,16 @@ async def trigger_ingestion(
     if not verify_scheduler_auth(authorization):
         raise HTTPException(status_code=401, detail="Unauthorized")
     
+    # Demo mode: reject all automated ingestion to save costs
+    if settings.demo_mode:
+        logger.info("[DEMO_MODE] Ingestion blocked - platform is frozen for demo use")
+        return IngestResponse(
+            status="success",
+            records_collected=0,
+            message="Demo mode active - ingestion disabled. Data is frozen in time.",
+            execution_time_seconds=0.0,
+        )
+    
     logger.info(f"Ingestion triggered: sources={request.sources}, backfill_days={request.backfill_days}")
     
     try:
@@ -269,6 +280,15 @@ async def trigger_briefing_generation(
     
     if not verify_scheduler_auth(authorization):
         raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    # Demo mode: reject briefing generation to save LLM costs
+    if settings.demo_mode:
+        logger.info("[DEMO_MODE] Briefing generation blocked - platform is frozen for demo use")
+        return BriefingResponse(
+            status="success",
+            message="Demo mode active - briefing generation disabled. Existing briefings are preserved.",
+            execution_time_seconds=0.0,
+        )
     
     logger.info(f"Briefing generation triggered: type={request.briefing_type}, lookback={request.lookback_days} days")
     
@@ -417,6 +437,15 @@ async def trigger_podcast_ingestion(
         f"[PODCAST_PIPELINE] Scheduler trigger received: "
         f"podcast_ids={request.podcast_ids}, days={request.days}"
     )
+
+    # Demo mode: reject podcast ingestion to save costs
+    if settings.demo_mode:
+        logger.info("[DEMO_MODE] Podcast ingestion blocked - platform is frozen for demo use")
+        return PodcastIngestResponse(
+            status="success",
+            message="Demo mode active - podcast ingestion disabled.",
+            execution_time_seconds=0.0,
+        )
 
     try:
         from app.ingestion.podcasts.pipeline import PodcastPipeline

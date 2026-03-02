@@ -209,7 +209,7 @@ class SupplyChainAgent:
 
                 response = await asyncio.wait_for(
                     self.client.messages_create(
-                        model="claude-sonnet-4-6",
+                        model="claude-sonnet-4-5",
                         max_tokens=4096,
                         system=SYSTEM_PROMPT,
                         tools=TOOLS,

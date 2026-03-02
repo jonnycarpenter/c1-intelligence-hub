@@ -105,10 +105,10 @@ export default function Home() {
   const [deepResearchHistory, setDeepResearchHistory] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([])
 
   // Fetch digest data from API
-  // Pulse = 7 days (168 hrs), Discovery = 30 days (720 hrs), others = 24 hrs
-  // Discovery needs more items (500) for richer category groupings, Pulse can stay at 100
-  const digestHours = activeMode === 'pulse' ? 168 : activeMode === 'discovery' ? 720 : 24
-  const digestLimit = activeMode === 'discovery' ? 500 : 100
+  // Demo mode: request all historical data (43800 hrs ≈ 5 years)
+  // Discovery needs more items (500) for richer category groupings
+  const digestHours = 43800  // All historical data (platform frozen for demo)
+  const digestLimit = activeMode === 'discovery' ? 500 : 200
   const {
     items: digestItems,
     stats: digestStats,

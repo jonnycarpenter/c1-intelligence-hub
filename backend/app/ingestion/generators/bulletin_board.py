@@ -164,7 +164,7 @@ Max 20 words."""
 
         # Synchronous call (Anthropic SDK)
         response = self.client.messages.create(
-            model="claude-haiku-4-5",
+            model="claude-3-5-haiku-latest",
             max_tokens=100,
             system=system_prompt,
             messages=[

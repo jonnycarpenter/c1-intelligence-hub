@@ -31,14 +31,14 @@ class IngestionConfig:
     scraper_max_articles: int = 50  # Only enrich top N articles
     
     # Classification
-    classifier_model: str = "claude-sonnet-4-6"
+    classifier_model: str = "claude-sonnet-4-5"
     classifier_temperature: float = 0.1
     classifier_max_concurrent: int = 3
     
     # Digest
     digest_hours: int = 72
     digest_max_items: int = 50
-    digest_model: str = "claude-sonnet-4-6"
+    digest_model: str = "claude-sonnet-4-5"
     
     # Briefings (Pulse tab summaries - uses Opus for higher quality)
     briefing_model: str = "claude-opus-4-6"

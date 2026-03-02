@@ -142,16 +142,16 @@ class SecNuggetExtractor:
     """
     LLM-based nugget extraction from SEC filings.
 
-    Uses Claude Sonnet 4.6 via resilient LLM wrapper for high-quality extraction
+    Uses Claude Sonnet 4.5 via resilient LLM wrapper for high-quality extraction
     with RPM-specific themes and classification.
 
-    Upgraded from Haiku to Sonnet 4.6 for richer metadata extraction.
-    Target cost: ~$0.20-0.60 per filing (using Sonnet 4.6)
+    Upgraded from Haiku to Sonnet 4.5 for richer metadata extraction.
+    Target cost: ~$0.20-0.60 per filing (using Sonnet 4.5)
     """
 
     def __init__(
         self,
-        model: str = "claude-sonnet-4-6",
+        model: str = "claude-sonnet-4-5",
         max_tokens: int = 16000,
         temperature: float = 0.2,
         max_content_chars: int = 150000,

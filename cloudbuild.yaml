@@ -42,21 +42,20 @@ steps:
       - 'managed'
       - '--allow-unauthenticated'
       - '--memory'
-      - '2Gi'
+      - '1Gi'
       - '--cpu'
-      - '2'
-      - '--min-instances'
       - '1'
+      - '--min-instances'
+      - '0'
       - '--max-instances'
-      - '10'
+      - '2'
       - '--timeout'
       - '3600'
       - '--concurrency'
       - '80'
       - '--execution-environment'
       - 'gen2'
-      - '--cpu-boost'
-      - '--no-cpu-throttling'
+      - '--cpu-throttling'
       - '--startup-probe'
       - 'httpGet.path=/api/health,httpGet.port=8080,initialDelaySeconds=10,periodSeconds=5,timeoutSeconds=5,failureThreshold=36'
       - '--add-volume'
@@ -66,7 +65,7 @@ steps:
       - '--set-secrets'
       - 'ANTHROPIC_API_KEY=anthropic-api-key:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,OPENAI_API_KEY=OPENAI_API_KEY:latest,API_NINJA_KEY=api-ninja-key:latest,TAVILY_API_KEY=tavily-api-key:latest,FMP_API_KEY=FMP_API_KEY:latest,SEC_IO_KEY=SEC_IO_KEY:latest,IMPORTYETI_API_KEY=importyeti-api-key:latest,APOLLO_API_KEY=APOLLO_API_KEY:latest,EXA_API_KEY=EXA_API_KEY:latest,LOGO_DEV_TOKEN=LOGO_DEV_TOKEN:latest,STOCKNEWS_API_KEY=STOCKNEWS_API_KEY:latest,ELEVENLABS_API_KEY=ELEVENLABS_API_KEY:latest,ASSEMBLYAI_API_KEY=ASSEMBLYAI_API_KEY:latest'
       - '--set-env-vars'
-      - 'ENVIRONMENT=production,GCP_PROJECT_ID=${PROJECT_ID},GCP_DATASET_ID=c1_intelligence,GCS_BUCKET_NAME=${_DATA_BUCKET},KNOWLEDGE_PERSIST_DIR=/app/data/knowledge_db,SITE_ACCESS_PASSWORD=${_SITE_PASSWORD}'
+      - 'ENVIRONMENT=production,GCP_PROJECT_ID=${PROJECT_ID},GCP_DATASET_ID=c1_intelligence,GCS_BUCKET_NAME=${_DATA_BUCKET},KNOWLEDGE_PERSIST_DIR=/app/data/knowledge_db,SITE_ACCESS_PASSWORD=${_SITE_PASSWORD},DEMO_MODE=true'
 
 # Substitution variables (can be overridden via --substitutions flag)
 substitutions:
@@ -80,7 +79,7 @@ substitutions:
 # Build options
 options:
   logging: CLOUD_LOGGING_ONLY
-  machineType: 'E2_HIGHCPU_8'
+  machineType: 'E2_MEDIUM'
 
 # Store images in Artifact Registry
 images:

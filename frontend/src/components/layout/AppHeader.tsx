@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Activity, Search, Package, Building2, Factory, Database, User, Mic, GitBranch, Ship, LogOut, Compass, Cpu, PlayCircle, BarChart3 } from 'lucide-react'
+import { Activity, Search, Package, Building2, Factory, Database, User, Mic, GitBranch, Ship, LogOut, Compass, Cpu, PlayCircle, BarChart3, Clock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import TypewriterEffect from '@/components/ui/typewriter'
+import { getApiBaseUrl } from '@/lib/config'
 import type { Mode } from '@/types'
 
 // Team color mapping
@@ -131,10 +132,29 @@ export default function AppHeader({ activeMode, onOpenGuide, shouldAnimateGuide 
   const [userName, setUserName] = useState<string>('')
   const [userTeam, setUserTeam] = useState<string>('')
   const [showUserMenu, setShowUserMenu] = useState(false)
+  const [dataThrough, setDataThrough] = useState<string | null>(null)
 
   useEffect(() => {
     setUserName(localStorage.getItem('userName') || '')
     setUserTeam(localStorage.getItem('userTeam') || '')
+  }, [])
+
+  // Fetch data freshness date once on mount
+  useEffect(() => {
+    const fetchFreshness = async () => {
+      try {
+        const res = await fetch(`${getApiBaseUrl()}/api/digest/data-freshness`)
+        if (res.ok) {
+          const data = await res.json()
+          if (data.formatted) {
+            setDataThrough(data.formatted)
+          }
+        }
+      } catch {
+        // Silently fail — non-critical display element
+      }
+    }
+    fetchFreshness()
   }, [])
 
   const handleLogout = () => {
@@ -174,6 +194,14 @@ export default function AppHeader({ activeMode, onOpenGuide, shouldAnimateGuide 
       </div>
 
       <div className="flex items-center gap-2 shrink-0 ml-4">
+        {/* Data freshness indicator */}
+        {dataThrough && (
+          <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200">
+            <Clock size={13} className="text-slate-400" />
+            <span className="text-xs text-slate-500 font-medium">Data through <span className="text-slate-700">{dataThrough}</span></span>
+          </div>
+        )}
+
         {/* Walkthrough button */}
         {onOpenWalkthrough && (
           <button

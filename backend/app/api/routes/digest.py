@@ -156,3 +156,36 @@ async def get_digest_stats(
     except Exception as e:
         logger.error(f"Error getting digest stats: {e}")
         raise HTTPException(status_code=500, detail="Failed to retrieve stats")
+
+
+@router.get("/data-freshness")
+async def get_data_freshness():
+    """
+    Get the date of the most recent article in the corpus.
+    
+    Used by the frontend header to show "Data through [date]".
+    Very lightweight query (single row aggregate, cached).
+    """
+    try:
+        from app.db.gcp_storage import get_storage
+        storage = await get_storage()
+        
+        # Check if storage has the method, otherwise fall back
+        if hasattr(storage, 'client') and hasattr(storage, 'config'):
+            # BigQuery path
+            query = f"""
+                SELECT MAX(published_at) as latest_date
+                FROM `{storage.config.full_dataset_id}.digest_items`
+            """
+            rows = list(storage.client.query(query))
+            if rows and rows[0].latest_date:
+                return {
+                    "latest_date": rows[0].latest_date.isoformat(),
+                    "formatted": rows[0].latest_date.strftime("%B %d, %Y"),
+                }
+        
+        return {"latest_date": None, "formatted": None}
+        
+    except Exception as e:
+        logger.error(f"Error getting data freshness: {e}")
+        return {"latest_date": None, "formatted": None}

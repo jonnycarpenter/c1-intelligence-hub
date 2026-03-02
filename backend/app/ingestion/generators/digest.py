@@ -44,7 +44,7 @@ Do not use bullet points - write in flowing paragraphs."""
             gemini_api_key=getattr(config, 'gemini_api_key', None),
         )
         self.max_items = getattr(config, 'digest_max_items', 50)
-        self.model = getattr(config, 'digest_model', "claude-sonnet-4-6")
+        self.model = getattr(config, 'digest_model', "claude-sonnet-4-5")
     
     async def generate(self, hours: int = 72) -> Digest:
         """Generate a digest for the specified time period"""

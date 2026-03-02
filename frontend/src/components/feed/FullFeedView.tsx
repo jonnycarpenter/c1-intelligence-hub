@@ -48,7 +48,7 @@ export default function FullFeedView({
     const [selectedPriority, setSelectedPriority] = useState<string>('all')
     const [selectedSource, setSelectedSource] = useState<string>('all')
     const [selectedIndustry, setSelectedIndustry] = useState<string>('all')
-    const [timeRange, setTimeRange] = useState<string>('month') // Default: 30 days
+    const [timeRange, setTimeRange] = useState<string>('all') // Default: All time (demo mode)
     const [sortBy, setSortBy] = useState<'priority' | 'newest' | 'oldest' | 'relevance'>('priority')
 
     // Shuffle state
@@ -309,7 +309,7 @@ export default function FullFeedView({
         setSelectedPriority('all')
         setSelectedSource('all')
         setSelectedIndustry('all')
-        setTimeRange('month')
+        setTimeRange('all')
         setIsShuffled(false)
         setShuffledOrder([])
         setSortBy('priority')
@@ -320,7 +320,7 @@ export default function FullFeedView({
         selectedPriority !== 'all' ||
         selectedSource !== 'all' ||
         selectedIndustry !== 'all' ||
-        timeRange !== 'month' ||
+        timeRange !== 'all' ||
         isShuffled
 
     // =============================================================================
@@ -469,10 +469,11 @@ export default function FullFeedView({
                             onChange={(e) => setTimeRange(e.target.value)}
                             className="bg-transparent text-sm font-medium focus:outline-none cursor-pointer"
                         >
-                            <option value="today">Today</option>
-                            <option value="week">Last 7 Days</option>
-                            <option value="twoWeeks">Last 14 Days</option>
+                            <option value="all">All Time</option>
                             <option value="month">Last 30 Days</option>
+                            <option value="twoWeeks">Last 14 Days</option>
+                            <option value="week">Last 7 Days</option>
+                            <option value="today">Today</option>
                         </select>
                     </div>
 
@@ -517,7 +518,7 @@ export default function FullFeedView({
                         <div className="flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-teal-50 to-emerald-50 border border-teal-200/50 rounded-full">
                             <Clock size={12} className="text-teal-600" />
                             <span className="text-xs font-semibold text-teal-700">
-                                {timeRange === 'today' ? 'Today' : timeRange === 'week' ? 'Last 7 days' : timeRange === 'twoWeeks' ? 'Last 14 days' : 'Last 30 days'}
+                                {timeRange === 'all' ? 'All Time' : timeRange === 'today' ? 'Today' : timeRange === 'week' ? 'Last 7 days' : timeRange === 'twoWeeks' ? 'Last 14 days' : 'Last 30 days'}
                             </span>
                         </div>
                         {/* Signal Count */}
@@ -558,9 +559,9 @@ export default function FullFeedView({
                                 {selectedIndustry}
                             </span>
                         )}
-                        {timeRange !== 'month' && (
+                        {timeRange !== 'all' && (
                             <span className="px-2 py-0.5 bg-amber-500/10 text-amber-600 rounded-md text-[10px] font-bold uppercase">
-                                {timeRange === 'today' ? 'Today' : timeRange === 'week' ? '7 Days' : timeRange === 'twoWeeks' ? '14 Days' : '30 Days'}
+                                {timeRange === 'today' ? 'Today' : timeRange === 'week' ? '7 Days' : timeRange === 'twoWeeks' ? '14 Days' : timeRange === 'month' ? '30 Days' : 'All'}
                             </span>
                         )}
                     </div>

@@ -13,7 +13,7 @@ Key Design:
 - Fetches ALL Medium/High/Critical priority digest items (no article cap)
 - Processes in batches of ~40 to prevent context rot
 - Merges batch results into a single compressed pre-brief
-- Model: claude-sonnet-4-6
+- Model: claude-sonnet-4-5
 - Window: 14 days
 """
 
@@ -114,7 +114,7 @@ You must respond with a single, valid JSON object. Do not include any text befor
             anthropic_api_key=self.config.anthropic_api_key,
             gemini_api_key=getattr(self.config, 'gemini_api_key', None),
         )
-        self.model = "claude-sonnet-4-6"
+        self.model = "claude-sonnet-4-5"
         self._bq_storage = None
 
     async def _get_bq_storage(self):

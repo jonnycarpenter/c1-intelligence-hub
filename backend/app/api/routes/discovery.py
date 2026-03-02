@@ -705,8 +705,8 @@ async def get_bulletin_board():
         
         storage = await get_storage()
         
-        # 1. Try 72 hours first
-        hours = 72
+        # 1. Try 72 hours first (or all data in demo mode)
+        hours = 43800 if settings.demo_mode else 72
         priority_items = []
         
         # Get HIGH/CRITICAL priority articles

@@ -34,6 +34,7 @@ from dataclasses import dataclass
 
 from app.utils.logger import get_logger
 from app.db.gcp_storage import gcp_config, GCPConfig
+from app.config.settings import settings
 from app.utils.chunking import (
     DocumentChunk,
     chunk_earnings_transcript,
@@ -911,6 +912,9 @@ class BigQueryVectorStore:
         limit: int = 10,
     ) -> List[Dict[str, Any]]:
         """Search recent items."""
+        # Demo mode: bypass time filter to include all historical data
+        if settings.demo_mode:
+            return await self.search(query, limit)
         return await self.search(query, limit, hours=hours)
     
     async def get_count(self) -> int:

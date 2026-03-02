@@ -81,11 +81,12 @@ def _track_tokens(model: str, result: Any, provider: str = "anthropic", caller: 
 # =============================================================================
 
 ANTHROPIC_TO_GEMINI_MODEL_MAP = {
-    "claude-sonnet-4-6": "gemini-2.5-pro",
+    "claude-sonnet-4-5": "gemini-2.5-pro",
     "claude-3-5-sonnet-20241022": "gemini-2.5-pro",
     "claude-opus-4-6": "gemini-2.5-pro",
     "claude-opus-4-5": "gemini-2.5-pro",  # Legacy alias
     "claude-haiku-4-5": "gemini-2.5-flash",  # Haiku -> Flash (fast + cheap)
+    "claude-3-5-haiku-20241022": "gemini-2.5-flash",
 }
 
 # Gemini model output token limits (for clamping)
@@ -133,7 +134,7 @@ class ResilientChatAnthropic(BaseChatModel):
     Usage:
         # Anthropic primary -> Gemini fallback (recommended for credit safety)
         llm = ResilientChatAnthropic(
-            primary_model="claude-sonnet-4-6",
+            primary_model="claude-sonnet-4-5",
             fallback_model="gemini-2.5-pro",
             fallback_provider="gemini",
             api_key=settings.anthropic_api_key,
@@ -142,8 +143,8 @@ class ResilientChatAnthropic(BaseChatModel):
         
         # Anthropic primary -> Anthropic fallback (same provider)
         llm = ResilientChatAnthropic(
-            primary_model="claude-sonnet-4-6",
-            fallback_model="claude-haiku-4-5",
+            primary_model="claude-sonnet-4-5",
+            fallback_model="claude-3-5-haiku-20241022",
             api_key=settings.anthropic_api_key,
         )
     """
@@ -410,7 +411,7 @@ def create_resilient_llm_with_gemini_fallback(
     max_tokens is automatically clamped to the Gemini model's limit.
     
     Args:
-        primary_model: Anthropic model name (e.g., "claude-sonnet-4-6")
+        primary_model: Anthropic model name (e.g., "claude-sonnet-4-5")
         anthropic_api_key: Your Anthropic API key
         gemini_api_key: Your Google Gemini API key (fallback)
         fallback_model: Gemini model to use as fallback (auto-mapped if None)
@@ -423,7 +424,7 @@ def create_resilient_llm_with_gemini_fallback(
         from app.config.settings import settings
         
         llm = create_resilient_llm_with_gemini_fallback(
-            primary_model="claude-sonnet-4-6",
+            primary_model="claude-sonnet-4-5",
             anthropic_api_key=settings.anthropic_api_key,
             gemini_api_key=settings.gemini_api_key,
             temperature=0.3,
@@ -488,7 +489,7 @@ class ResilientAsyncClient:
         )
         
         response = await client.messages_create(
-            model="claude-sonnet-4-6",
+            model="claude-sonnet-4-5",
             max_tokens=4096,
             messages=[{"role": "user", "content": "Hello"}],
         )
@@ -568,7 +569,7 @@ class ResilientAsyncClient:
         Create a message with automatic Gemini fallback.
         
         Args:
-            model: The model to use (e.g., "claude-sonnet-4-6")
+            model: The model to use (e.g., "claude-sonnet-4-5")
             max_tokens: Maximum tokens in response
             messages: List of message dictionaries
             system: Optional system prompt
@@ -756,7 +757,7 @@ def get_resilient_async_client(
         )
 
         response = await client.messages_create(
-            model="claude-sonnet-4-6",
+            model="claude-sonnet-4-5",
             max_tokens=4096,
             messages=[{"role": "user", "content": "Hello"}],
         )

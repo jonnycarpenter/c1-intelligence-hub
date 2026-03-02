@@ -1,0 +1,1249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-H25FGLZF9M"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      gtag('config', 'G-H25FGLZF9M');
+    </script>
+    
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Hub | Ket Zero Intelligence</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/png" href="ketzero_logo_signal_teal.png">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            /* Brand Palette */
+            --signal-teal: #2BB0A6;
+            --signal-teal-hover: #239E95;
+            --charcoal: #0F1115;
+            --slate-dark: #1A1F2B;
+            --off-white: #F5F7FA;
+            --white: #FFFFFF;
+
+            /* Supporting */
+            --text-secondary: #4A5568;
+            --text-muted: #718096;
+            --border: #E2E8F0;
+            --card-shadow: rgba(0, 0, 0, 0.06);
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--white);
+            color: var(--charcoal);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* ==================== ANIMATION CLASSES ==================== */
+        .reveal {
+            opacity: 0;
+            transform: translateY(40px);
+            transition: all 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+
+        .reveal.active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .reveal-left {
+            opacity: 0;
+            transform: translateX(-40px);
+            transition: all 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+
+        .reveal-left.active {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .reveal-right {
+            opacity: 0;
+            transform: translateX(40px);
+            transition: all 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+
+        .reveal-right.active {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .reveal-scale {
+            opacity: 0;
+            transform: scale(0.95);
+            transition: all 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+
+        .reveal-scale.active {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        /* ==================== NAV ==================== */
+        .nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border);
+            z-index: 1000;
+            padding: 16px 48px;
+            transition: all 0.3s ease;
+        }
+
+        .nav.scrolled {
+            padding: 12px 48px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        }
+
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .nav-logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+        }
+
+        .nav-logo img {
+            height: 32px;
+            width: auto;
+        }
+
+        .nav-logo-text {
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .nav-logo-ket {
+            color: var(--charcoal);
+        }
+
+        .nav-logo-intel {
+            color: var(--signal-teal);
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 40px;
+            align-items: center;
+        }
+
+        .nav-link {
+            text-decoration: none;
+            color: var(--text-secondary);
+            font-size: 14px;
+            font-weight: 500;
+            transition: color 0.2s ease;
+        }
+
+        .nav-link:hover {
+            color: var(--signal-teal);
+        }
+
+        .nav-link.active {
+            color: var(--charcoal);
+        }
+
+        .nav-cta {
+            background: var(--signal-teal);
+            color: var(--white);
+            padding: 10px 20px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .nav-cta:hover {
+            background: var(--signal-teal-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(43, 176, 166, 0.3);
+        }
+
+        /* ==================== PAGE HERO ==================== */
+        .page-hero {
+            padding: 140px 48px 80px;
+            background: linear-gradient(180deg, var(--white) 0%, var(--off-white) 100%);
+            text-align: center;
+        }
+
+        .page-hero-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .page-hero-label {
+            display: inline-block;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            color: var(--signal-teal);
+            text-transform: uppercase;
+            margin-bottom: 20px;
+        }
+
+        .page-hero-title {
+            font-size: 48px;
+            font-weight: 800;
+            color: var(--charcoal);
+            line-height: 1.15;
+            margin-bottom: 20px;
+            letter-spacing: -1px;
+        }
+
+        .page-hero-subtitle {
+            font-size: 20px;
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin: 0 auto;
+            line-height: 1.7;
+        }
+
+        /* ==================== LIVE DEMO BANNER ==================== */
+        .demo-banner {
+            max-width: 720px;
+            margin: 48px auto 0;
+            background: linear-gradient(135deg, var(--charcoal) 0%, var(--slate-dark) 100%);
+            border-radius: 16px;
+            padding: 36px 40px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid rgba(43, 176, 166, 0.2);
+        }
+
+        .demo-banner::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--signal-teal), #3DD6C9, var(--signal-teal));
+        }
+
+        .demo-banner-live {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            color: var(--signal-teal);
+            text-transform: uppercase;
+            margin-bottom: 14px;
+        }
+
+        .demo-banner-live-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--signal-teal);
+            border-radius: 50%;
+            animation: pulse-dot 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(43, 176, 166, 0.4); }
+            50% { opacity: 0.8; box-shadow: 0 0 0 6px rgba(43, 176, 166, 0); }
+        }
+
+        .demo-banner-title {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--white);
+            margin-bottom: 8px;
+            letter-spacing: -0.3px;
+        }
+
+        .demo-banner-subtitle {
+            font-size: 15px;
+            color: var(--text-muted);
+            margin-bottom: 24px;
+            line-height: 1.6;
+        }
+
+        .demo-banner-cta {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--signal-teal);
+            color: var(--white);
+            padding: 14px 32px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            border: 2px solid var(--signal-teal);
+        }
+
+        .demo-banner-cta:hover {
+            background: var(--signal-teal-hover);
+            border-color: var(--signal-teal-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(43, 176, 166, 0.35);
+        }
+
+        .demo-banner-nudge {
+            margin-top: 16px;
+            font-size: 13px;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        .demo-banner-nudge strong {
+            color: var(--signal-teal);
+            font-weight: 600;
+        }
+
+        @media (max-width: 768px) {
+            .demo-banner {
+                margin: 32px 0 0;
+                padding: 28px 24px;
+                border-radius: 12px;
+            }
+
+            .demo-banner-title {
+                font-size: 19px;
+            }
+
+            .demo-banner-subtitle {
+                font-size: 14px;
+            }
+
+            .demo-banner-cta {
+                padding: 12px 24px;
+                font-size: 15px;
+            }
+        }
+
+        /* ==================== FEATURE SECTIONS ==================== */
+        .feature-section {
+            padding: 100px 48px;
+        }
+
+        .feature-section:nth-child(odd) {
+            background: var(--white);
+        }
+
+        .feature-section:nth-child(even) {
+            background: var(--off-white);
+        }
+
+        .feature-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 80px;
+            align-items: center;
+        }
+
+        .feature-container.reverse {
+            direction: rtl;
+        }
+
+        .feature-container.reverse > * {
+            direction: ltr;
+        }
+
+        .feature-content {
+            max-width: 480px;
+        }
+
+        .feature-label {
+            display: inline-block;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            color: var(--signal-teal);
+            text-transform: uppercase;
+            margin-bottom: 16px;
+        }
+
+        .feature-title {
+            font-size: 36px;
+            font-weight: 700;
+            color: var(--charcoal);
+            line-height: 1.2;
+            margin-bottom: 20px;
+            letter-spacing: -0.5px;
+        }
+
+        .feature-description {
+            font-size: 17px;
+            color: var(--text-secondary);
+            line-height: 1.8;
+            margin-bottom: 28px;
+        }
+
+        .feature-highlights {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .feature-highlight {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .feature-highlight-icon {
+            width: 24px;
+            height: 24px;
+            background: rgba(43, 176, 166, 0.12);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+
+        .feature-highlight-icon svg {
+            width: 14px;
+            height: 14px;
+            fill: var(--signal-teal);
+        }
+
+        .feature-highlight-text {
+            font-size: 15px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        .feature-highlight-text strong {
+            color: var(--charcoal);
+            font-weight: 600;
+        }
+
+        .feature-image {
+            position: relative;
+        }
+
+        .feature-image img {
+            width: 100%;
+            max-width: 620px;
+            height: auto;
+            display: block;
+        }
+
+        /* ==================== DATA SOURCES ==================== */
+        .data-sources-section {
+            padding: 100px 48px;
+            background: var(--off-white);
+        }
+
+        .data-sources-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .data-sources-header {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+
+        .data-sources-header .feature-title {
+            max-width: 700px;
+            margin: 0 auto 20px;
+        }
+
+        .data-sources-header .feature-description {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .data-sources-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 24px;
+        }
+
+        .data-source-card {
+            background: var(--white);
+            border-radius: 12px;
+            padding: 28px 24px;
+            border: 1px solid var(--border);
+            transition: all 0.3s ease;
+        }
+
+        .data-source-card:hover {
+            border-color: var(--signal-teal);
+            box-shadow: 0 8px 24px var(--card-shadow);
+            transform: translateY(-4px);
+        }
+
+        .data-source-icon {
+            width: 44px;
+            height: 44px;
+            background: rgba(43, 176, 166, 0.1);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 16px;
+        }
+
+        .data-source-icon svg {
+            width: 22px;
+            height: 22px;
+            color: var(--signal-teal);
+        }
+
+        .data-source-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--charcoal);
+            margin-bottom: 8px;
+            letter-spacing: -0.2px;
+        }
+
+        .data-source-text {
+            font-size: 13px;
+            color: var(--text-muted);
+            line-height: 1.6;
+        }
+
+        @media (max-width: 1024px) {
+            .data-sources-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .data-sources-section {
+                padding: 60px 24px;
+            }
+
+            .data-sources-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 16px;
+            }
+
+            .data-source-card {
+                padding: 20px 18px;
+            }
+
+            .data-sources-header .feature-title {
+                font-size: 28px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .data-sources-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* ==================== DEEP RESEARCH SHOWCASE ==================== */
+        .deep-research-section {
+            padding: 100px 48px;
+            background: var(--charcoal);
+        }
+
+        .deep-research-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .deep-research-header {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+
+        .deep-research-header .feature-label {
+            color: var(--signal-teal);
+        }
+
+        .deep-research-header .feature-title {
+            color: var(--white);
+            font-size: 40px;
+            max-width: 800px;
+            margin: 0 auto 20px;
+        }
+
+        .deep-research-header .feature-description {
+            color: var(--text-muted);
+            max-width: 700px;
+            margin: 0 auto;
+        }
+
+        .deep-research-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 48px;
+            align-items: start;
+        }
+
+        .deep-research-card {
+            background: var(--slate-dark);
+            border-radius: 16px;
+            padding: 32px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .deep-research-card-label {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            color: var(--signal-teal);
+            text-transform: uppercase;
+            margin-bottom: 12px;
+        }
+
+        .deep-research-card-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--white);
+            margin-bottom: 16px;
+        }
+
+        .deep-research-card-text {
+            font-size: 14px;
+            color: var(--text-muted);
+            line-height: 1.7;
+            margin-bottom: 24px;
+        }
+
+        .deep-research-image {
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .deep-research-image img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .deep-research-video {
+            border-radius: 8px;
+            overflow: hidden;
+            position: relative;
+            background: var(--charcoal);
+        }
+
+        .deep-research-video video {
+            width: 100%;
+            height: auto;
+            display: block;
+            border-radius: 8px;
+        }
+
+        .video-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(15, 17, 21, 0.4);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-radius: 8px;
+        }
+
+        .video-overlay:hover {
+            background: rgba(15, 17, 21, 0.2);
+        }
+
+        .video-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .play-button {
+            width: 72px;
+            height: 72px;
+            background: var(--signal-teal);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 32px rgba(43, 176, 166, 0.4);
+        }
+
+        .video-overlay:hover .play-button {
+            transform: scale(1.1);
+        }
+
+        .play-button svg {
+            width: 28px;
+            height: 28px;
+            fill: var(--white);
+            margin-left: 4px;
+        }
+
+        /* ==================== FINAL CTA ==================== */
+        .final-cta {
+            padding: 100px 48px;
+            background: linear-gradient(135deg, var(--charcoal) 0%, var(--slate-dark) 100%);
+            text-align: center;
+        }
+
+        .final-cta-container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .final-cta-title {
+            font-size: 40px;
+            font-weight: 700;
+            color: var(--white);
+            margin-bottom: 16px;
+        }
+
+        .final-cta-subtitle {
+            font-size: 18px;
+            color: var(--text-muted);
+            margin-bottom: 40px;
+        }
+
+        .btn-primary {
+            background: var(--signal-teal);
+            color: var(--white);
+            padding: 18px 40px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: 18px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            border: 2px solid var(--signal-teal);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary:hover {
+            background: var(--signal-teal-hover);
+            border-color: var(--signal-teal-hover);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(43, 176, 166, 0.35);
+        }
+
+        /* ==================== FOOTER ==================== */
+        .footer {
+            padding: 48px;
+            background: var(--charcoal);
+            border-top: 1px solid var(--slate-dark);
+        }
+
+        .footer-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 24px;
+        }
+
+        .footer-logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .footer-logo img {
+            height: 28px;
+        }
+
+        .footer-logo-text {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--white);
+        }
+
+        .footer-links {
+            display: flex;
+            gap: 32px;
+        }
+
+        .footer-link {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 14px;
+            transition: color 0.2s ease;
+        }
+
+        .footer-link:hover {
+            color: var(--signal-teal);
+        }
+
+        .footer-copyright {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        /* ==================== RESPONSIVE ==================== */
+        @media (max-width: 1024px) {
+            .feature-container {
+                gap: 48px;
+            }
+
+            .deep-research-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .nav {
+                padding: 16px 24px;
+            }
+
+            .nav.scrolled {
+                padding: 12px 24px;
+            }
+
+            .nav-links {
+                display: none;
+            }
+
+            .page-hero {
+                padding: 120px 24px 60px;
+            }
+
+            .page-hero-title {
+                font-size: 32px;
+            }
+
+            .page-hero-subtitle {
+                font-size: 16px;
+            }
+
+            .feature-section {
+                padding: 60px 24px;
+            }
+
+            .feature-container {
+                grid-template-columns: 1fr;
+                gap: 40px;
+            }
+
+            .feature-container.reverse {
+                direction: ltr;
+            }
+
+            .feature-content {
+                max-width: 100%;
+                order: 1;
+            }
+
+            .feature-image {
+                order: 2;
+            }
+
+            .feature-title {
+                font-size: 28px;
+            }
+
+            .deep-research-section {
+                padding: 60px 24px;
+            }
+
+            .deep-research-header .feature-title {
+                font-size: 28px;
+            }
+
+            .final-cta {
+                padding: 60px 24px;
+            }
+
+            .final-cta-title {
+                font-size: 28px;
+            }
+
+            .footer {
+                padding: 32px 24px;
+            }
+
+            .footer-container {
+                flex-direction: column;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- NAV -->
+    <nav class="nav" id="navbar">
+        <div class="nav-container">
+            <a href="index.html" class="nav-logo">
+                <img src="ketzero_logo_teal_transparent.png" alt="Ket Zero Logo">
+                <span class="nav-logo-text">
+                    <span class="nav-logo-ket">Ket Zero</span>
+                    <span class="nav-logo-intel">Intelligence</span>
+                </span>
+            </a>
+            <div class="nav-links">
+                <a href="index.html" class="nav-link">Home</a>
+                <a href="hub.html" class="nav-link active">The Hub</a>
+                <a href="vblog.html" class="nav-link">vBlog</a>
+                <a href="about.html" class="nav-link">About</a>
+                <a href="https://calendly.com/jonny-ketzeroconsulting/new-meeting" class="nav-cta">Book a Call</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- PAGE HERO -->
+    <section class="page-hero">
+        <div class="page-hero-container">
+            <span class="page-hero-label reveal">Intelligence Hub Platform</span>
+            <h1 class="page-hero-title reveal" style="transition-delay: 0.1s;">Your Command Center for Strategic Intelligence</h1>
+            <p class="page-hero-subtitle reveal" style="transition-delay: 0.2s;">Three powerful modules working together to keep you informed, alert, and ready to act.</p>
+            
+            <!-- LIVE DEMO BANNER -->
+            <div class="demo-banner reveal-scale" style="transition-delay: 0.4s;">
+                <div class="demo-banner-live">
+                    <span class="demo-banner-live-dot"></span>
+                    Live Demo
+                </div>
+                <h3 class="demo-banner-title">See it live for the Composites Industry</h3>
+                <p class="demo-banner-subtitle">Explore a fully operational Intelligence Hub — real data sources, real AI analysis, real strategic output.</p>
+                <a href="https://compositesdemo.ketzerointelligence.ai/" target="_blank" rel="noopener noreferrer" class="demo-banner-cta">
+                    Explore the Live Demo →
+                </a>
+                <p class="demo-banner-nudge">Navigate to the <strong>Architecture</strong> tab to see how it all works under the hood</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- FEATURE 1: THE BRIEF -->
+    <section class="feature-section">
+        <div class="feature-container">
+            <div class="feature-content reveal-left">
+                <span class="feature-label">The Brief</span>
+                <h2 class="feature-title">Keeping a pulse on your strategic priorities</h2>
+                <p class="feature-description">
+                    Your weekly executive briefing that cuts through the noise. The Brief analyzes trending story arcs from previous weeks, detects velocity changes in developing narratives, and surfaces the updates that matter most to your strategic priorities.
+                </p>
+                <div class="feature-highlights">
+                    <div class="feature-highlight">
+                        <div class="feature-highlight-icon">
+                            <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                        </div>
+                        <span class="feature-highlight-text"><strong>Story arc tracking</strong> — monitors velocity of developing narratives across your priority areas</span>
+                    </div>
+                    <div class="feature-highlight">
+                        <div class="feature-highlight-icon">
+                            <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                        </div>
+                        <span class="feature-highlight-text"><strong>Priority-anchored</strong> — every insight tied back to your stated strategic focus areas</span>
+                    </div>
+                    <div class="feature-highlight">
+                        <div class="feature-highlight-icon">
+                            <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                        </div>
+                        <span class="feature-highlight-text"><strong>Audio option</strong> — listen to your briefing as a podcast during your commute</span>
+                    </div>
+                </div>
+            </div>
+            <div class="feature-image reveal-right">
+                <img src="brief.png" alt="The Brief - Executive Briefing Interface">
+            </div>
+        </div>
+    </section>
+
+    <!-- FEATURE 2: MARKET INTELLIGENCE -->
+    <section class="feature-section">
+        <div class="feature-container reverse">
+            <div class="feature-content reveal-right">
+                <span class="feature-label">Market Intelligence</span>
+                <h2 class="feature-title">Keeping track of your entire industry ecosystem</h2>
+                <p class="feature-description">
+                    Comprehensive monitoring that goes beyond your stated priorities to cover every pillar of your competitive landscape. Get alerted to need-to-know items the moment they surface, categorized and prioritized for immediate action.
+                </p>
+                <div class="feature-highlights">
+                    <div class="feature-highlight">
+                        <div class="feature-highlight-icon">
+                            <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                        </div>
+                        <span class="feature-highlight-text"><strong>10 intelligence categories</strong> — earnings, regulatory, supply chain, competitor moves, and more</span>
+                    </div>
+                    <div class="feature-highlight">
+                        <div class="feature-highlight-icon">
+                            <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                        </div>
+                        <span class="feature-highlight-text"><strong>Priority signals</strong> — AI-scored relevance so you focus on what matters most</span>
+                    </div>
+                    <div class="feature-highlight">
+                        <div class="feature-highlight-icon">
+                            <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                        </div>
+                        <span class="feature-highlight-text"><strong>AI summaries on demand</strong> — instant synthesis of any category with one click</span>
+                    </div>
+                </div>
+            </div>
+            <div class="feature-image reveal-left">
+                <img src="market-intelligence.png" alt="Market Intelligence - Category Themes Dashboard">
+            </div>
+        </div>
+    </section>
+
+    <!-- DATA SOURCES SECTION -->
+    <section class="data-sources-section">
+        <div class="data-sources-container">
+            <div class="data-sources-header">
+                <span class="feature-label reveal">Data Sources</span>
+                <h2 class="feature-title reveal" style="transition-delay: 0.1s;">Comprehensive coverage across every signal that matters</h2>
+                <p class="feature-description reveal" style="transition-delay: 0.2s;">
+                    The Hub continuously ingests, classifies, and cross-references intelligence from diverse source types—so nothing falls through the cracks.
+                </p>
+            </div>
+            <div class="data-sources-grid">
+                <!-- Row 1 -->
+                <div class="data-source-card reveal" style="transition-delay: 0.1s;">
+                    <div class="data-source-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/></svg>
+                    </div>
+                    <h3 class="data-source-title">Industry Trade Publications</h3>
+                    <p class="data-source-text">Continuous monitoring of trade media across your industry verticals, end-markets, and adjacent sectors.</p>
+                </div>
+                <div class="data-source-card reveal" style="transition-delay: 0.15s;">
+                    <div class="data-source-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
+                    </div>
+                    <h3 class="data-source-title">Financial News</h3>
+                    <p class="data-source-text">Premium financial news and analyst coverage from major wire services and financial publishers.</p>
+                </div>
+                <div class="data-source-card reveal" style="transition-delay: 0.2s;">
+                    <div class="data-source-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+                    </div>
+                    <h3 class="data-source-title">Earnings Call Transcripts</h3>
+                    <p class="data-source-text">Full speaker-attributed transcripts from quarterly earnings calls for your tracked companies and competitors.</p>
+                </div>
+                <div class="data-source-card reveal" style="transition-delay: 0.25s;">
+                    <div class="data-source-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><line x1="10" x2="8" y1="9" y2="9"/></svg>
+                    </div>
+                    <h3 class="data-source-title">SEC Filings</h3>
+                    <p class="data-source-text">10-K, 10-Q, and 8-K filings with AI-extracted insights—risk factors, competitive disclosures, forward guidance.</p>
+                </div>
+                <!-- Row 2 -->
+                <div class="data-source-card reveal" style="transition-delay: 0.3s;">
+                    <div class="data-source-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/></svg>
+                    </div>
+                    <h3 class="data-source-title">Press Releases</h3>
+                    <p class="data-source-text">Company announcements from major PR wire services—M&A, product launches, partnerships, leadership changes.</p>
+                </div>
+                <div class="data-source-card reveal" style="transition-delay: 0.35s;">
+                    <div class="data-source-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
+                    </div>
+                    <h3 class="data-source-title">Industry Podcasts</h3>
+                    <p class="data-source-text">Transcribed episodes from key industry podcasts with speaker-attributed quote extraction and topic classification.</p>
+                </div>
+                <div class="data-source-card reveal" style="transition-delay: 0.4s;">
+                    <div class="data-source-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                    </div>
+                    <h3 class="data-source-title">Web Search</h3>
+                    <p class="data-source-text">Real-time semantic web search for breaking developments, peripheral context, and emerging narratives.</p>
+                </div>
+                <div class="data-source-card reveal" style="transition-delay: 0.45s;">
+                    <div class="data-source-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+                    </div>
+                    <h3 class="data-source-title">Supply Chain Intelligence</h3>
+                    <p class="data-source-text">Import/export trade data—supplier networks, shipment volumes, buyer relationships, and concentration risk.</p>
+                </div>
+                <!-- Row 3 -->
+                <div class="data-source-card reveal" style="transition-delay: 0.5s;">
+                    <div class="data-source-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="8" x="2" y="14" rx="2"/><path d="M6 14V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8"/><path d="M2 18h20"/></svg>
+                    </div>
+                    <h3 class="data-source-title">Freight & Logistics</h3>
+                    <p class="data-source-text">Container shipping rates across major global trade lanes—tracking cost pressures and supply chain disruptions.</p>
+                </div>
+                <div class="data-source-card reveal" style="transition-delay: 0.55s;">
+                    <div class="data-source-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                    </div>
+                    <h3 class="data-source-title">Search Trends</h3>
+                    <p class="data-source-text">Search interest data tracking demand signals for materials, companies, technologies, and industry terms.</p>
+                </div>
+                <div class="data-source-card reveal" style="transition-delay: 0.6s;">
+                    <div class="data-source-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+                    </div>
+                    <h3 class="data-source-title">Visual Intelligence</h3>
+                    <p class="data-source-text">AI-powered extraction and classification of charts, diagrams, and infographics from across ingested sources.</p>
+                </div>
+                <div class="data-source-card reveal" style="transition-delay: 0.65s;">
+                    <div class="data-source-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" x2="12" y1="22.08" y2="12"/></svg>
+                    </div>
+                    <h3 class="data-source-title">Product Intelligence</h3>
+                    <p class="data-source-text">Internal product catalog with technical specifications for competitive benchmarking and positioning analysis.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- FEATURE 3: DEEP RESEARCH (HERO + SHOWCASE) -->
+    <section class="deep-research-section">
+        <div class="deep-research-container">
+            <div class="deep-research-header">
+                <span class="feature-label reveal">Deep Research</span>
+                <h2 class="feature-title reveal" style="transition-delay: 0.1s;">Harness the full suite of capabilities for your foundational business questions</h2>
+                <p class="feature-description reveal" style="transition-delay: 0.2s;">
+                    When you need to go deep, the Research Agent orchestrates multiple specialized agents—financial research, industry analysis, visual discovery, and more—to deliver comprehensive intelligence reports.
+                </p>
+            </div>
+            <div class="deep-research-grid">
+                <div class="deep-research-card reveal-left" style="transition-delay: 0.3s;">
+                    <span class="deep-research-card-label">Parallel Execution</span>
+                    <h3 class="deep-research-card-title">Watch the agents work in real-time</h3>
+                    <p class="deep-research-card-text">
+                        See exactly what's happening as multiple research agents work simultaneously—querying data sources, analyzing market signals, searching your internal corpus, and more.
+                    </p>
+                    <div class="deep-research-image">
+                        <img src="deep-research.png" alt="Deep Research Agent in Progress">
+                    </div>
+                </div>
+                <div class="deep-research-card reveal-right" style="transition-delay: 0.4s;">
+                    <span class="deep-research-card-label">Comprehensive Output</span>
+                    <h3 class="deep-research-card-title">Full research reports, ready to share</h3>
+                    <p class="deep-research-card-text">
+                        The result is a complete intelligence report synthesizing findings from across all sources—structured, cited, and actionable.
+                    </p>
+                    <div class="deep-research-video" id="video-container">
+                        <video id="research-video" muted loop playsinline>
+                            <source src="deep-research-video.webm" type="video/webm">
+                            Your browser does not support the video tag.
+                        </video>
+                        <div class="video-overlay" id="video-overlay">
+                            <div class="play-button">
+                                <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- FINAL CTA -->
+    <section class="final-cta">
+        <div class="final-cta-container">
+            <h2 class="final-cta-title reveal">Ready to see it in action?</h2>
+            <p class="final-cta-subtitle reveal" style="transition-delay: 0.1s;">Schedule a walkthrough and see how the Intelligence Hub can transform your strategic visibility.</p>
+            <a href="https://calendly.com/jonny-ketzeroconsulting/new-meeting" class="btn-primary reveal" style="transition-delay: 0.2s;">Book a Discovery Call →</a>
+        </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer class="footer">
+        <div class="footer-container">
+            <div class="footer-logo">
+                <img src="ketzero_logo_white.png" alt="Ket Zero Logo">
+                <span class="footer-logo-text">Ket Zero Intelligence</span>
+            </div>
+            <div class="footer-links">
+                <a href="index.html" class="footer-link">Home</a>
+                <a href="hub.html" class="footer-link">The Hub</a>
+                <a href="vblog.html" class="footer-link">vBlog</a>
+                <a href="about.html" class="footer-link">About</a>
+            </div>
+            <div class="footer-copyright">
+                © 2026 Ket Zero Intelligence. All rights reserved.
+            </div>
+        </div>
+    </footer>
+
+    <!-- SCRIPTS -->
+    <script>
+        // ====================
+        // SCROLL REVEAL ANIMATION
+        // ====================
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('active');
+                }
+            });
+        }, observerOptions);
+
+        document.querySelectorAll('.reveal, .reveal-left, .reveal-right, .reveal-scale').forEach(el => {
+            observer.observe(el);
+        });
+
+        // ====================
+        // NAVBAR SCROLL EFFECT
+        // ====================
+        const navbar = document.getElementById('navbar');
+
+        window.addEventListener('scroll', () => {
+            if (window.pageYOffset > 50) {
+                navbar.classList.add('scrolled');
+            } else {
+                navbar.classList.remove('scrolled');
+            }
+        });
+
+        // ====================
+        // VIDEO PLAY/PAUSE
+        // ====================
+        const video = document.getElementById('research-video');
+        const overlay = document.getElementById('video-overlay');
+
+        overlay.addEventListener('click', () => {
+            overlay.classList.add('hidden');
+            video.play();
+        });
+
+        video.addEventListener('click', () => {
+            if (video.paused) {
+                video.play();
+                overlay.classList.add('hidden');
+            } else {
+                video.pause();
+                overlay.classList.remove('hidden');
+            }
+        });
+
+        video.addEventListener('ended', () => {
+            overlay.classList.remove('hidden');
+        });
+    </script>
+</body>
+</html>
