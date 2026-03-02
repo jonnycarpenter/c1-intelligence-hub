@@ -32,7 +32,7 @@ param(
     [string]$Region = "us-central1"
 )
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Continue"
 
 Write-Host ""
 Write-Host "=========================================" -ForegroundColor Cyan
@@ -50,10 +50,22 @@ Write-Host ""
 gcloud config set project $ProjectId --quiet
 
 # =============================================================================
-# 1. Cloud Scheduler Jobs
+# 1. Cloud Scheduler Jobs (C1 Hub only)
 # =============================================================================
-Write-Host "Step 1: Cloud Scheduler Jobs" -ForegroundColor Green
+Write-Host "Step 1: Cloud Scheduler Jobs (C1 Hub only)" -ForegroundColor Green
 Write-Host "-------------------------------------------"
+
+# C1 Hub job name patterns — only pause these, leave other projects alone
+$c1JobPatterns = @(
+    "weekly-executive-briefing",
+    "weekly-cleanup",
+    "orchestrator-ingestion*",
+    "podcast-weekly-ingestion",
+    "ingest-exa",
+    "ingest-tavily",
+    "ingest-flash-update",
+    "ingest-financial"
+)
 
 # List all scheduler jobs
 $jobs = gcloud scheduler jobs list --location=$Region --format="value(name)" 2>$null
@@ -64,6 +76,20 @@ if (-not $jobs) {
     foreach ($job in $jobs) {
         $jobName = $job.Trim()
         if (-not $jobName) { continue }
+        
+        # Check if this job matches any C1 Hub pattern
+        $isC1Job = $false
+        foreach ($pattern in $c1JobPatterns) {
+            if ($jobName -like $pattern) {
+                $isC1Job = $true
+                break
+            }
+        }
+        
+        if (-not $isC1Job) {
+            Write-Host "  Skipping (not C1 Hub): $jobName" -ForegroundColor DarkGray
+            continue
+        }
         
         if ($Unfreeze) {
             Write-Host "  Resuming job: $jobName" -ForegroundColor Green
