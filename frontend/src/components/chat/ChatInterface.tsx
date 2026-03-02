@@ -65,6 +65,11 @@ const modeSuggestions: Record<Mode, string[]> = {
     "Show me the agent workflow",
     "What GCP services are used?",
   ],
+  evals: [
+    "Show me token costs this week",
+    "What's the average quality score?",
+    "How much did deep research cost?",
+  ],
 }
 
 const welcomeMessages: Record<Mode, string> = {
@@ -79,6 +84,7 @@ const welcomeMessages: Record<Mode, string> = {
   industries: "Explore Core Industries. See how news evolves over 90 days with monthly timelines, top companies, and themes.",
   'data-preferences': "Manage your tracked entities and preferences. I can help add or remove companies, materials, and industries.",
   'app-architecture': "Welcome to Platform Architecture. Explore the system design: data ingestion pipelines, frontend architecture, and agentic workflows.",
+  evals: "Track AI quality metrics, token costs, and user feedback across all generated content.",
 }
 
 interface ChatInterfaceProps {
