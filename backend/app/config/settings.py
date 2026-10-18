@@ -42,6 +42,14 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("DEMO_MODE"),
         description="Freeze platform for demo use - disables ingestion, removes time filters"
     )
+    # When demo_mode is on, time-windowed queries anchor to this frozen "now"
+    # instead of the real clock, so windowed views (e.g. Narratives) still populate.
+    # Data ingestion effectively stopped 2026-02-28; keep this at the data horizon.
+    demo_frozen_now: str = Field(
+        default="2026-02-28T23:59:59+00:00",
+        validation_alias=AliasChoices("DEMO_FROZEN_NOW"),
+        description="ISO 8601 timestamp used as 'current time' when demo_mode is active"
+    )
     
     # API Keys
     anthropic_api_key: str = ""

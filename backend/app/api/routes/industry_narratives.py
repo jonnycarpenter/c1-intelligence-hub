@@ -23,6 +23,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Query
 from google.cloud import bigquery
 
+from app.config.settings import settings
 from app.db.gcp_storage import GCPConfig, _safe_parse_list
 
 logger = logging.getLogger(__name__)
@@ -62,6 +63,25 @@ def _dataset() -> str:
 # Helpers
 # ---------------------------------------------------------------------------
 
+def _now_utc() -> datetime:
+    """Current UTC time — or the frozen demo horizon when demo_mode is active.
+
+    All window math and SQL cutoffs in this module anchor to this, so the
+    Narratives tab keeps populating after ingestion is frozen in time.
+    """
+    if settings.demo_mode:
+        try:
+            frozen = datetime.fromisoformat(settings.demo_frozen_now)
+            if frozen.tzinfo is None:
+                frozen = frozen.replace(tzinfo=timezone.utc)
+            return frozen
+        except (ValueError, TypeError):
+            logger.warning(
+                f"[INDUSTRY_NARRATIVES] Invalid DEMO_FROZEN_NOW '{settings.demo_frozen_now}', using real clock"
+            )
+    return datetime.now(timezone.utc)
+
+
 MONTH_NAMES = {
     1: "January", 2: "February", 3: "March", 4: "April",
     5: "May", 6: "June", 7: "July", 8: "August",
@@ -87,7 +107,7 @@ def _days_in_month_period(month_key: str) -> int:
     """
     try:
         y, m = int(month_key[:4]), int(month_key[5:7])
-        now = datetime.now(timezone.utc)
+        now = _now_utc()
         full_days = calendar.monthrange(y, m)[1]
         if y == now.year and m == now.month:
             return now.day  # partial month — only elapsed days
@@ -100,7 +120,7 @@ def _is_partial_month(month_key: str) -> bool:
     """Return True if month_key is the current (incomplete) month."""
     try:
         y, m = int(month_key[:4]), int(month_key[5:7])
-        now = datetime.now(timezone.utc)
+        now = _now_utc()
         return y == now.year and m == now.month
     except Exception:
         return False
@@ -117,7 +137,7 @@ def _compute_window_start() -> datetime:
         Mar 15, 2026 → Jan 1, 2026  (Jan, Feb, Mar)
         Jan  5, 2026 → Nov 1, 2025  (Nov, Dec, Jan)
     """
-    now = datetime.now(timezone.utc)
+    now = _now_utc()
     # 1st of current month
     current_first = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     # Subtract 2 months
@@ -177,6 +197,9 @@ async def list_industries(days: int = Query(90, ge=1, le=365)):
         # Use aligned window start (1st of month, 2 months back)
         window_start = _compute_window_start()
         window_start_str = window_start.strftime("%Y-%m-%d")
+        # Upper bound anchors to frozen "now" in demo mode and excludes
+        # future-dated articles in both modes
+        window_end_str = _now_utc().strftime("%Y-%m-%d %H:%M:%S")
 
         # Build UNNEST query to count articles per curated industry
         industry_list_sql = ", ".join(f"'{i}'" for i in CURATED_INDUSTRIES)
@@ -188,6 +211,7 @@ async def list_industries(days: int = Query(90, ge=1, le=365)):
             FROM `{_dataset()}.digest_items`,
                 UNNEST(JSON_EXTRACT_ARRAY(industries)) AS ind
             WHERE published_at >= TIMESTAMP('{window_start_str}')
+              AND published_at <= TIMESTAMP('{window_end_str}')
               AND LOWER(TRIM(ind, '"')) IN ({', '.join(f"'{i.lower()}'" for i in CURATED_INDUSTRIES)})
             GROUP BY industry
             ORDER BY article_count DESC
@@ -205,7 +229,8 @@ async def list_industries(days: int = Query(90, ge=1, le=365)):
                     COUNT(DISTINCT id) AS cnt
                 FROM `{_dataset()}.digest_items`,
                     UNNEST(JSON_EXTRACT_ARRAY(industries)) AS ind
-                WHERE published_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 60 DAY)
+                WHERE published_at >= TIMESTAMP_SUB(TIMESTAMP('{window_end_str}'), INTERVAL 60 DAY)
+                  AND published_at <= TIMESTAMP('{window_end_str}')
                   AND LOWER(TRIM(ind, '"')) IN ({', '.join(f"'{i.lower()}'" for i in CURATED_INDUSTRIES)})
                 GROUP BY industry, month_key
             )
@@ -278,6 +303,7 @@ async def get_industry_timeline(
         # Use aligned window start (1st of month, 2 months back) for clean month boundaries
         window_start = _compute_window_start()
         window_start_str = window_start.strftime("%Y-%m-%d")
+        window_end_str = _now_utc().strftime("%Y-%m-%d %H:%M:%S")
 
         query = f"""
             SELECT
@@ -296,6 +322,7 @@ async def get_industry_timeline(
                 FORMAT_TIMESTAMP('%Y-%m', published_at) AS month_key
             FROM `{_dataset()}.digest_items`
             WHERE published_at >= TIMESTAMP('{window_start_str}')
+              AND published_at <= TIMESTAMP('{window_end_str}')
               AND EXISTS(
                 SELECT 1
                 FROM UNNEST(JSON_EXTRACT_ARRAY(industries)) AS ind
@@ -865,7 +892,8 @@ async def get_industry_articles(
                 SELECT 1 FROM UNNEST(JSON_EXTRACT_ARRAY(industries)) AS ind
                 WHERE LOWER(TRIM(ind, '"')) = '{industry_lower}'
             )""",
-            "published_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 90 DAY)",
+            f"published_at >= TIMESTAMP_SUB(TIMESTAMP('{_now_utc().strftime('%Y-%m-%d %H:%M:%S')}'), INTERVAL 90 DAY)",
+            f"published_at <= TIMESTAMP('{_now_utc().strftime('%Y-%m-%d %H:%M:%S')}')",
         ]
 
         if month:
