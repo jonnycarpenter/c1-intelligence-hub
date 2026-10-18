@@ -46,8 +46,11 @@ __pycache__/
 # -----------------------------------------------------------------------------
 backend/data/
 backend/downloads/
-data/
-downloads/
+# Root-anchored: a bare "data/" matches at ANY depth (gitignore syntax) and
+# silently strips frontend/src/components/architecture/data/ from the upload,
+# breaking the Next.js build with "Module not found"
+/data/
+/downloads/
 chroma_db/
 backend/data/chroma/
 *.sqlite3
