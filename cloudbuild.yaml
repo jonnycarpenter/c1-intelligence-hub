@@ -80,6 +80,10 @@ substitutions:
 options:
   logging: CLOUD_LOGGING_ONLY
   machineType: 'E2_MEDIUM'
+  # Expand ${PROJECT_ID} inside substitution values (e.g. _DATA_BUCKET).
+  # Trigger builds do this by default; manual `gcloud builds submit` does NOT,
+  # which left the GCS volume bucket as the literal string '${PROJECT_ID}-c1-hub-data'.
+  dynamicSubstitutions: true
 
 # Store images in Artifact Registry
 images:
