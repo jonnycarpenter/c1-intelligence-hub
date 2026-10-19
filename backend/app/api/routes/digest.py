@@ -172,10 +172,22 @@ async def get_data_freshness():
         
         # Check if storage has the method, otherwise fall back
         if hasattr(storage, 'client') and hasattr(storage, 'config'):
+            # Demo mode: cap at the frozen horizon so stray future-dated
+            # articles don't show as the "Data through" date
+            demo_cap = ""
+            from app.config.settings import settings
+            if settings.demo_mode:
+                try:
+                    frozen = datetime.fromisoformat(settings.demo_frozen_now)
+                    demo_cap = f"WHERE published_at <= TIMESTAMP('{frozen.strftime('%Y-%m-%d %H:%M:%S')}')"
+                except (ValueError, TypeError):
+                    pass
+
             # BigQuery path
             query = f"""
                 SELECT MAX(published_at) as latest_date
                 FROM `{storage.config.full_dataset_id}.digest_items`
+                {demo_cap}
             """
             rows = list(storage.client.query(query))
             if rows and rows[0].latest_date:
