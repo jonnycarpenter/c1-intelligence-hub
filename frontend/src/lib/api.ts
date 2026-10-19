@@ -1219,7 +1219,7 @@ class ApiClient {
     if (options?.limit) params.set('limit', options.limit.toString())
     if (options?.offset) params.set('offset', options.offset.toString())
 
-    const response = await fetch(`${this.baseUrl}/api/research/reports?${params}`)
+    const response = await fetch(`${this.baseUrl}/api/research/deep/reports?${params}`)
     if (!response.ok) {
       throw new Error(`Failed to fetch saved reports: ${response.statusText}`)
     }
@@ -1242,7 +1242,7 @@ class ApiClient {
     topics: string[]
     created_at: string
   } | null> {
-    const response = await fetch(`${this.baseUrl}/api/research/reports/${reportId}`)
+    const response = await fetch(`${this.baseUrl}/api/research/deep/reports/${reportId}`)
     if (response.status === 404) {
       return null
     }
@@ -1278,7 +1278,7 @@ class ApiClient {
     if (options.industries?.length) params.set('industries', options.industries.join(','))
     if (options.limit) params.set('limit', options.limit.toString())
 
-    const response = await fetch(`${this.baseUrl}/api/research/reports/search/related?${params}`)
+    const response = await fetch(`${this.baseUrl}/api/research/deep/reports/search/related?${params}`)
     if (!response.ok) {
       throw new Error(`Failed to search reports: ${response.statusText}`)
     }
